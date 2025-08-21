@@ -1,0 +1,8 @@
+{
+ "topic": "symbion/hosts/wake@v1",
+ "schema": {
+  "host_id": "string",
+  "mac": "string",
+  "broadcast": "string" //ex: 192.168.1.255
+ }
+}

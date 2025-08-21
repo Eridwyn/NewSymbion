@@ -1,0 +1,16 @@
+[package]
+name = "symbion-plugin-hosts"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rumqttc = "0.23"
+serde = {version = "1.0", features = ["derive"]}
+serde_json = "1.0"
+gethostname = "0.5"
+local-ip-address = "0.5.7"
+sysinfo = "0.30"
+tokio = { version = "1.39", features = ["full"] }
+anyhow = "1"
+humantime = "2"
+nix = {version = "0.27",features = ["net","socket"]}
