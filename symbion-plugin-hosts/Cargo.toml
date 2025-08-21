@@ -3,6 +3,10 @@ name = "symbion-plugin-hosts"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["udp"]          # marche partout # L2 brut optionnel
+udp = []
+
 [dependencies]
 rumqttc = "0.23"
 serde = {version = "1.0", features = ["derive"]}
