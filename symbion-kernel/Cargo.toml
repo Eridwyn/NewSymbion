@@ -4,3 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+axum = "0.8.4"
+parking_lot = "0.12.4"
+rumqttc = "0.24.0"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.143"
+serde_yaml = "0.9.34"
+shell-words = "1.1.0"
+thiserror = "2.0.16"
+time = { version = "0.3.41", features = ["macros", "formatting"] }
+tokio = { version = "1.47.1", features = ["full"] }
