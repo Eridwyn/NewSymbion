@@ -1,0 +1,9 @@
+mqtt:
+  host: "localhost"
+  port: 1883
+
+hosts:
+  desktop-w11:
+    mac: "34:5A:60:40:68:A8"
+    hint: "192.168.1.255"  # broadcast de ton LAN
+
