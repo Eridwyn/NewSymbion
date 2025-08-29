@@ -1,13 +1,19 @@
 use crate::models::{HeartbeatIn, HostState, HostsMap};
 use crate::state::Shared;
+use crate::config::HostsConfig;
 use rumqttc::{AsyncClient, Event, MqttOptions, QoS};
 use time::OffsetDateTime;
 use tokio::task;
 
-pub fn spawn_mqtt_listener(states: Shared<HostsMap>) {
-    // on spawn une task; la config est volontairement en dur pour l’instant
+pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>) {
     task::spawn(async move {
-        let mut opts = MqttOptions::new("symbion-kernel", "localhost", 1883);
+        let cfg = config.lock().clone();
+        let mqtt_cfg = cfg.mqtt.unwrap_or_else(|| crate::config::MqttConf { 
+            host: "localhost".into(), 
+            port: 1883 
+        });
+        
+        let mut opts = MqttOptions::new("symbion-kernel", &mqtt_cfg.host, mqtt_cfg.port);
         opts.set_keep_alive(std::time::Duration::from_secs(15));
         let (client, mut eventloop) = AsyncClient::new(opts, 10);
         if let Err(e) = client.subscribe("symbion/hosts/heartbeat@v2", QoS::AtLeastOnce).await {

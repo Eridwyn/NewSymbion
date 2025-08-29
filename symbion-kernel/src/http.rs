@@ -41,12 +41,15 @@ fn to_view(h: &HostState) -> HostView {
 
 async fn require_api_key(req: Request, next: Next) -> Result<Response, StatusCode> {
     let path = req.uri().path();
-    if path.starts_with("/health") || path.starts_with("/hosts") {
+    
+    // Health check toujours accessible
+    if path.starts_with("/health") {
         return Ok(next.run(req).await);
     }
 
     let expected = std::env::var("SYMBION_API_KEY").unwrap_or_default();
     if expected.is_empty() {
+        eprintln!("SECURITY: SYMBION_API_KEY not set - API access denied");
         return Err(StatusCode::UNAUTHORIZED);
     }
 
@@ -67,6 +70,8 @@ async fn require_api_key(req: Request, next: Next) -> Result<Response, StatusCod
 pub struct AppState {
     pub states: Shared<HostsMap>,
     pub cfg: Shared<HostsConfig>,
+    pub contracts: crate::contracts::ContractRegistry,
+    pub health_tracker: crate::health::HealthTracker,
 }
 
 #[derive(Debug, Deserialize)]
@@ -75,9 +80,12 @@ struct WakeParams { host_id: String }
 pub fn build_router(app_state: AppState) -> Router {
     Router::new()
         .route("/health", get(|| async { "ok" }))
+        .route("/system/health", get(get_system_health))
         .route("/hosts", get(get_hosts))
         .route("/hosts/{id}", get(get_host))
         .route("/wake", post(wake))
+        .route("/contracts", get(list_contracts))
+        .route("/contracts/{name}", get(get_contract))
         .with_state(app_state)
         .layer(middleware::from_fn(require_api_key))
 }
@@ -107,4 +115,26 @@ async fn wake(
     let cfg = app.cfg.lock().clone();
     let (code, msg) = trigger_wol_udp(&cfg, &params.host_id).await;  // <— ici
     (code, Json(serde_json::json!({ "ok": code == StatusCode::OK, "msg": msg })))
+}
+
+// GET /contracts (liste)
+async fn list_contracts(State(app): State<AppState>) -> Json<Vec<String>> {
+    Json(app.contracts.list_contracts())
+}
+
+// GET /contracts/{name} (détail)
+async fn get_contract(
+    State(app): State<AppState>,
+    Path(name): Path<String>,
+) -> Result<Json<crate::contracts::Contract>, StatusCode> {
+    match app.contracts.get_contract(&name) {
+        Some(contract) => Ok(Json(contract.clone())),
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+// GET /system/health (état infrastructure)
+async fn get_system_health(State(app): State<AppState>) -> Json<crate::health::KernelHealth> {
+    let health = app.health_tracker.get_health(&app.contracts, &app.states);
+    Json(health)
 }
