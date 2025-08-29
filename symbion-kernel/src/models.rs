@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use time::OffsetDateTime;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone)]
 pub struct HostState {
     pub host_id: String,
-    pub last_seen: String,
+    pub last_seen: OffsetDateTime,
     pub cpu: Option<f32>,
     pub ram: Option<f32>,
     pub ip: Option<String>,

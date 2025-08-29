@@ -21,11 +21,9 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>) {
                     if let Ok(txt) = String::from_utf8(p.payload.to_vec()) {
                         match serde_json::from_str::<HeartbeatIn>(&txt) {
                             Ok(hb) => {
-                                let now = OffsetDateTime::now_utc()
-                                    .format(&time::format_description::well_known::Rfc3339).unwrap();
                                 let st = HostState {
                                     host_id: hb.host_id,
-                                    last_seen: now,
+                                    last_seen: OffsetDateTime::now_utc(),
                                     cpu: Some(hb.metrics.cpu),
                                     ram: Some(hb.metrics.ram),
                                     ip: Some(hb.net.ip),
