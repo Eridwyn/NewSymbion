@@ -1,3 +1,13 @@
+/**
+ * EVENT BUS MQTT - Réception des événements des plugins Symbion
+ * 
+ * RÔLE : Écoute continue du broker MQTT pour traiter les heartbeats des hosts.
+ * Maintient l'état temps réel des machines connectées au système.
+ * 
+ * FONCTIONNEMENT : Client MQTT async, parsing JSON, mise à jour thread-safe des états.
+ * UTILITÉ : Télémétrie centralisée, monitoring distribué, resilience réseau.
+ */
+
 use crate::models::{HeartbeatIn, HostState, HostsMap};
 use crate::state::Shared;
 use crate::config::HostsConfig;

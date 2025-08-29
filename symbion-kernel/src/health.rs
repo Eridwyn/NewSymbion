@@ -1,3 +1,34 @@
+/**
+ * HEALTH MONITORING - Surveillance temps réel de l'infrastructure Symbion
+ * 
+ * RÔLE :
+ * Ce module assure le monitoring interne du kernel Symbion : uptime, mémoire, 
+ * état MQTT, contrats chargés. Il publie automatiquement ces métriques sur MQTT.
+ * 
+ * FONCTIONNEMENT :
+ * - Tracking continu des métriques vitales du kernel
+ * - Auto-publication toutes les 30s sur symbion/kernel/health@v1
+ * - API REST /system/health pour interrogation à la demande
+ * - Surveillance état connexion MQTT avec compteur de reconnexions
+ * 
+ * UTILITÉ DANS SYMBION :
+ * 🎯 Observabilité : visibilité temps réel sur l'état du kernel
+ * 🎯 Détection pannes : alertes si kernel devient instable  
+ * 🎯 Dashboard admin : métriques d'infrastructure dans l'interface
+ * 🎯 Debug : corrélation entre problems et état système
+ * 
+ * MÉTRIQUES SURVEILLÉES :
+ * - uptime_seconds : temps de fonctionnement depuis démarrage
+ * - contracts_loaded : nombre de contrats MQTT chargés
+ * - hosts_tracked : nombre de machines en monitoring
+ * - memory_usage_mb : consommation RAM du processus kernel
+ * - mqtt_status : état connexion (connected/disconnected/reconnecting)
+ * - mqtt_reconnects : nombre de tentatives de reconnexion
+ * 
+ * PUBLICATION AUTOMATIQUE :
+ * Toutes les 30s → topic symbion/kernel/health@v1 via MQTT
+ */
+
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 use crate::state::Shared;
@@ -7,20 +38,33 @@ use crate::models::HostsMap;
 use rumqttc::{AsyncClient, MqttOptions, QoS};
 use tokio::task;
 
+/// Snapshot des métriques de santé du kernel à un instant T
+/// Structure sérialisable exposée via API REST et MQTT
 #[derive(Debug, Serialize, Deserialize)]
 pub struct KernelHealth {
+    /// Durée de fonctionnement en secondes depuis le démarrage
     pub uptime_seconds: u64,
+    /// Nombre de contrats MQTT chargés depuis contracts/mqtt/
     pub contracts_loaded: u32,
+    /// Nombre de hosts actuellement trackés (heartbeats reçus)
     pub hosts_tracked: u32,
+    /// Consommation mémoire du processus kernel en MB
     pub memory_usage_mb: f32,
+    /// État actuel connexion MQTT (connected/disconnected/reconnecting)
     pub mqtt_status: String,
+    /// Compteur total des reconnexions MQTT depuis démarrage
     pub mqtt_reconnects: u32,
 }
 
+/// Tracker persistent des métriques de santé kernel
+/// Maintient l'état entre les interrogations et coordonne la publication automatique
 #[derive(Clone)]
 pub struct HealthTracker {
+    /// Instant de démarrage du kernel pour calcul uptime
     start_time: Instant,
+    /// Compteur atomique thread-safe des reconnexions MQTT
     mqtt_reconnects: std::sync::Arc<std::sync::atomic::AtomicU32>,
+    /// État actuel de la connexion MQTT (partagé entre threads)
     mqtt_status: std::sync::Arc<parking_lot::Mutex<String>>,
 }
 

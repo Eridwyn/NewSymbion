@@ -1,3 +1,13 @@
+/**
+ * WAKE-ON-LAN - Réveil à distance des machines via réseau
+ * 
+ * RÔLE : Exécute les commandes WOL configurées pour réveiller les hosts.
+ * Interface entre API REST /wake et commandes système (wakeonlan, etherwake...).
+ * 
+ * FONCTIONNEMENT : Substitution placeholders {host_id} {mac} → commande shell.
+ * UTILITÉ : Automation réveil machines, gestion parc informatique à distance.
+ */
+
 use crate::config::HostsConfig;
 use axum::http::StatusCode;
 use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket};

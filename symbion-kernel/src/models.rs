@@ -1,4 +1,13 @@
-use serde::{Deserialize, Serialize};
+/**
+ * MODÈLES DE DONNÉES - Structures centrales du kernel Symbion
+ * 
+ * RÔLE : Définit les structures de données partagées entre tous les modules.
+ * Types principaux : HeartbeatIn (MQTT), HostState (monitoring), HostsMap (collection).
+ * 
+ * UTILITÉ : Cohérence des données, sérialisation JSON/YAML, typage fort.
+ */
+
+use serde::{Deserialize};
 use std::collections::HashMap;
 use time::OffsetDateTime;
 
