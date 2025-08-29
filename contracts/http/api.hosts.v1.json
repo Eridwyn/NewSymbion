@@ -1,0 +1,35 @@
+{
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/hosts",
+      "description": "Liste tous les hosts avec leur état de monitoring",
+      "authentication": "x-api-key required"
+    },
+    {
+      "method": "GET", 
+      "path": "/hosts/{id}",
+      "description": "Détails d'un host spécifique",
+      "authentication": "x-api-key required"
+    }
+  ],
+  "version": "v1",
+  "response_schema": {
+    "host_id": "string",
+    "last_seen": "RFC3339",
+    "stale": "boolean",
+    "stale_for_seconds": "i64",
+    "cpu": "f32?",
+    "ram": "f32?", 
+    "ip": "string?"
+  },
+  "example_response": {
+    "host_id": "desktop-w11",
+    "last_seen": "2025-08-29T14:30:00Z",
+    "stale": false,
+    "stale_for_seconds": 15,
+    "cpu": 0.25,
+    "ram": 0.6,
+    "ip": "192.168.1.44"
+  }
+}

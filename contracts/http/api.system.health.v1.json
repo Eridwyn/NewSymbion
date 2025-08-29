@@ -1,0 +1,22 @@
+{
+  "endpoint": "GET /system/health",
+  "version": "v1",
+  "description": "Métriques en temps réel de l'infrastructure Symbion (kernel + MQTT)",
+  "authentication": "x-api-key required",
+  "response_schema": {
+    "uptime_seconds": "u64",
+    "contracts_loaded": "u32",
+    "hosts_tracked": "u32", 
+    "memory_usage_mb": "f32",
+    "mqtt_status": "string",
+    "mqtt_reconnects": "u32"
+  },
+  "example_response": {
+    "uptime_seconds": 3600,
+    "contracts_loaded": 6,
+    "hosts_tracked": 2,
+    "memory_usage_mb": 8.5,
+    "mqtt_status": "connected",
+    "mqtt_reconnects": 0
+  }
+}

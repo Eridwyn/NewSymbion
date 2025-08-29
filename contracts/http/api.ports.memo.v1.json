@@ -1,0 +1,63 @@
+{
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/ports/memo",
+      "description": "Lecture des mémos avec filtrage optionnel",
+      "authentication": "x-api-key required",
+      "query_params": {
+        "urgent": "boolean",
+        "context": "string (cravate|intime|neutre)",
+        "status": "string (pending|done|archived)",
+        "content": "string (recherche textuelle)",
+        "limit": "number",
+        "offset": "number"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/ports/memo", 
+      "description": "Création d'un nouveau memo",
+      "authentication": "x-api-key required",
+      "content_type": "application/json"
+    },
+    {
+      "method": "DELETE",
+      "path": "/ports/memo/{id}",
+      "description": "Suppression d'un memo par ID", 
+      "authentication": "x-api-key required"
+    }
+  ],
+  "version": "v1",
+  "request_schema": {
+    "content": "string (required)",
+    "urgent": "boolean?",
+    "context": "string? (cravate|intime|neutre)",
+    "tags": "string[]?",
+    "status": "string? (pending|done|archived)"
+  },
+  "response_schema": {
+    "id": "string (UUID)",
+    "timestamp": "RFC3339", 
+    "data": "MemoContent",
+    "metadata": "object"
+  },
+  "example_request": {
+    "content": "Appeler dentiste demain 14h",
+    "urgent": true,
+    "context": "cravate",
+    "tags": ["santé", "rdv"]
+  },
+  "example_response": {
+    "id": "576941e3-7cac-403b-ac31-ce14f83b0a33",
+    "timestamp": "2025-08-29T14:30:00Z",
+    "data": {
+      "content": "Appeler dentiste demain 14h",
+      "urgent": true,
+      "context": "cravate",
+      "tags": ["santé", "rdv"],
+      "status": "pending"
+    },
+    "metadata": {}
+  }
+}

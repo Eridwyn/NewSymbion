@@ -1,0 +1,25 @@
+{
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/contracts",
+      "description": "Liste tous les contrats disponibles (MQTT events)",
+      "authentication": "x-api-key required"
+    },
+    {
+      "method": "GET",
+      "path": "/contracts/{name}", 
+      "description": "Détails d'un contrat spécifique",
+      "authentication": "x-api-key required"
+    }
+  ],
+  "version": "v1",
+  "description": "API de découverte des contrats MQTT disponibles dans le système",
+  "response_schema": {
+    "name": "string",
+    "version": "string",
+    "description": "string",
+    "schema": "object",
+    "capabilities": "string[]"
+  }
+}

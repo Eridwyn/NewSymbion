@@ -1,0 +1,18 @@
+{
+  "endpoint": "POST /wake",
+  "version": "v1", 
+  "description": "Réveil d'une machine via Wake-on-LAN",
+  "authentication": "x-api-key required",
+  "query_params": {
+    "host_id": "string (required)"
+  },
+  "response_schema": {
+    "ok": "boolean",
+    "msg": "string"
+  },
+  "example_request": "POST /wake?host_id=desktop-w11",
+  "example_response": {
+    "ok": true,
+    "msg": "Magic packet sent to 192.168.1.255 for desktop-w11"
+  }
+}
