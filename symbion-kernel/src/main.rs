@@ -18,6 +18,7 @@ mod contracts;
 mod health;
 mod ports;
 mod plugins;
+mod notes_bridge;
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -97,7 +98,15 @@ async fn main() {
     health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), states.clone(), plugins.clone());
 
     // fabrique l'état unique pour Axum
-    let app_state = AppState { states, cfg, contracts, health_tracker, ports, plugins };
+    let app_state = AppState { 
+        states, 
+        cfg, 
+        contracts, 
+        health_tracker, 
+        ports, 
+        plugins,
+        notes_bridge: None // TODO: Initialiser si plugin notes détecté
+    };
 
     // HTTP
     let app = http::build_router(app_state);

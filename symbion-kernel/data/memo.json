@@ -22,5 +22,25 @@
       "urgent": true
     },
     "metadata": {}
+  },
+  {
+    "id": "0258eb3c-66a3-4df6-bce4-7587c1deef58",
+    "timestamp": [
+      2025,
+      242,
+      18,
+      18,
+      1,
+      970436860,
+      0,
+      0,
+      0
+    ],
+    "data": {
+      "content": "Test migration note",
+      "context": "test",
+      "urgent": true
+    },
+    "metadata": {}
   }
 ]

@@ -1,0 +1,94 @@
+{
+  "name": "notes.response.v1", 
+  "version": "1.0.0",
+  "description": "Réponses du plugin notes - succès ou erreurs des opérations",
+  "topic": "symbion/notes/response@v1",
+  "direction": "plugin_to_kernel",
+  "schema": {
+    "type": "object",
+    "required": ["type", "request_id", "action"],
+    "properties": {
+      "type": {
+        "type": "string",
+        "enum": ["success", "error"]
+      },
+      "request_id": { "type": "string" },
+      "action": {
+        "type": "string", 
+        "enum": ["create", "list", "delete", "update", "parse"]
+      }
+    },
+    "oneOf": [
+      {
+        "properties": {
+          "type": { "const": "success" },
+          "data": {
+            "description": "Données de la réponse (note créée, liste de notes, etc.)"
+          }
+        },
+        "required": ["data"]
+      },
+      {
+        "properties": {
+          "type": { "const": "error" },
+          "error": {
+            "type": "string",
+            "description": "Message d'erreur détaillé"
+          }
+        },
+        "required": ["error"]
+      }
+    ]
+  },
+  "examples": [
+    {
+      "description": "Note créée avec succès",
+      "payload": {
+        "type": "success",
+        "request_id": "req_123",
+        "action": "create",
+        "data": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "timestamp": "2025-08-30T14:30:00Z",
+          "data": {
+            "content": "Appeler le dentiste demain",
+            "urgent": true,
+            "context": "cravate",
+            "tags": ["santé", "rdv"]
+          },
+          "metadata": {}
+        }
+      }
+    },
+    {
+      "description": "Liste de notes",
+      "payload": {
+        "type": "success",
+        "request_id": "req_124", 
+        "action": "list",
+        "data": [
+          {
+            "id": "550e8400-e29b-41d4-a716-446655440000",
+            "timestamp": "2025-08-30T14:30:00Z",
+            "data": {
+              "content": "Appeler le dentiste demain",
+              "urgent": true,
+              "context": "cravate",
+              "tags": ["santé", "rdv"]
+            },
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "description": "Erreur - note introuvable",
+      "payload": {
+        "type": "error",
+        "request_id": "req_126",
+        "action": "delete",
+        "error": "Note not found"
+      }
+    }
+  ]
+}

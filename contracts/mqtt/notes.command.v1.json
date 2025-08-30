@@ -1,0 +1,120 @@
+{
+  "name": "notes.command.v1",
+  "version": "1.0.0",
+  "description": "Commandes pour le plugin notes - création, lecture, modification, suppression",
+  "topic": "symbion/notes/command@v1",
+  "direction": "kernel_to_plugin",
+  "schema": {
+    "type": "object",
+    "required": ["action"],
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": ["create", "list", "delete", "update"]
+      }
+    },
+    "oneOf": [
+      {
+        "properties": {
+          "action": { "const": "create" },
+          "request_id": { "type": "string" },
+          "note": {
+            "type": "object",
+            "required": ["content"],
+            "properties": {
+              "content": { "type": "string" },
+              "urgent": { "type": "boolean" },
+              "context": { "type": "string" },
+              "tags": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "status": { "type": "string" }
+            }
+          }
+        },
+        "required": ["request_id", "note"]
+      },
+      {
+        "properties": {
+          "action": { "const": "list" },
+          "request_id": { "type": "string" },
+          "filters": {
+            "type": "object",
+            "properties": {
+              "urgent": { "type": "boolean" },
+              "context": { "type": "string" },
+              "tags": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "required": ["request_id"]
+      },
+      {
+        "properties": {
+          "action": { "const": "delete" },
+          "request_id": { "type": "string" },
+          "id": { "type": "string" }
+        },
+        "required": ["request_id", "id"]
+      },
+      {
+        "properties": {
+          "action": { "const": "update" },
+          "request_id": { "type": "string" },
+          "id": { "type": "string" },
+          "note": {
+            "type": "object",
+            "required": ["content"],
+            "properties": {
+              "content": { "type": "string" },
+              "urgent": { "type": "boolean" },
+              "context": { "type": "string" },
+              "tags": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "status": { "type": "string" }
+            }
+          }
+        },
+        "required": ["request_id", "id", "note"]
+      }
+    ]
+  },
+  "examples": [
+    {
+      "description": "Créer une note urgente",
+      "payload": {
+        "action": "create",
+        "request_id": "req_123",
+        "note": {
+          "content": "Appeler le dentiste demain",
+          "urgent": true,
+          "context": "cravate",
+          "tags": ["santé", "rdv"]
+        }
+      }
+    },
+    {
+      "description": "Lister toutes les notes",
+      "payload": {
+        "action": "list",
+        "request_id": "req_124"
+      }
+    },
+    {
+      "description": "Lister les notes urgentes",
+      "payload": {
+        "action": "list",
+        "request_id": "req_125",
+        "filters": {
+          "urgent": true
+        }
+      }
+    }
+  ]
+}

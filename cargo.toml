@@ -1,3 +1,0 @@
-[workspace]
-members = ["symbion-kernel","symbion-plugin-hosts"]
-resolver = "2"

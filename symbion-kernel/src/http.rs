@@ -28,6 +28,7 @@ use axum::http::StatusCode;
 use crate::models::{HostState, HostsMap};
 use crate::state::Shared;
 use crate::config::HostsConfig;
+use crate::notes_bridge::{self, SharedNotesBridge};
 use crate::wol::trigger_wol_udp;
 use serde::Deserialize;
 use axum::middleware::{self, Next};
@@ -100,6 +101,7 @@ pub struct AppState {
     pub health_tracker: crate::health::HealthTracker,
     pub ports: Shared<crate::ports::PortRegistry>,
     pub plugins: Shared<crate::plugins::PluginManager>,
+    pub notes_bridge: Option<SharedNotesBridge>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -115,6 +117,8 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/contracts", get(list_contracts))
         .route("/contracts/{name}", get(get_contract))
         .route("/ports", get(list_ports))
+        .route("/ports/memo", get(handle_memo_list).post(handle_memo_create))
+        .route("/ports/memo/{id}", axum::routing::delete(handle_memo_delete).put(handle_memo_update))
         .route("/ports/{port_name}", get(read_from_port).post(write_to_port))
         .route("/ports/{port_name}/{id}", axum::routing::delete(delete_from_port))
         .route("/plugins", get(list_plugins_endpoint))
@@ -362,4 +366,173 @@ async fn restart_plugin_endpoint(
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+// ============ MEMO HANDLERS (Bridge + Fallback) ============
+
+async fn handle_memo_list(
+    State(app): State<AppState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Si le bridge notes est disponible, l'utiliser
+    if let Some(ref bridge) = app.notes_bridge {
+        return notes_bridge::list_notes_endpoint(
+            axum::extract::State(bridge.clone()),
+            axum::extract::Query(params)
+        ).await;
+    }
+    
+    // Sinon, utiliser le port memo classique
+    let ports = app.ports.lock();
+    let port = ports.get("memo")
+        .ok_or(StatusCode::NOT_FOUND)?;
+    
+    let mut query = crate::ports::PortQuery::default();
+    
+    // Parsing des filtres depuis query params
+    for (key, value) in params {
+        match key.as_str() {
+            "limit" => {
+                if let Ok(limit) = value.parse::<usize>() {
+                    query.limit = Some(limit);
+                }
+            }
+            "offset" => {
+                if let Ok(offset) = value.parse::<usize>() {
+                    query.offset = Some(offset);
+                }
+            }
+            "order_by" => {
+                query.order_by = Some(value);
+            }
+            _ => {
+                let filter_value = if value == "true" {
+                    serde_json::Value::Bool(true)
+                } else if value == "false" {
+                    serde_json::Value::Bool(false)
+                } else {
+                    serde_json::Value::String(value)
+                };
+                query.filters.insert(key, filter_value);
+            }
+        }
+    }
+    
+    match port.read(&query) {
+        Ok(data) => Ok(Json(serde_json::Value::Array(
+            data.into_iter().map(|d| serde_json::json!({
+                "id": d.id,
+                "timestamp": d.timestamp.format(&time::format_description::well_known::Rfc3339).unwrap_or_default(),
+                "data": d.data,
+                "metadata": d.metadata
+            })).collect()
+        ))),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+async fn handle_memo_create(
+    State(app): State<AppState>,
+    Json(note_data): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Si le bridge notes est disponible, l'utiliser
+    if let Some(ref bridge) = app.notes_bridge {
+        // Convertir les données en format CreateNoteRequest
+        let create_request = notes_bridge::CreateNoteRequest {
+            content: note_data.get("content")
+                .and_then(|v| v.as_str())
+                .unwrap_or("").to_string(),
+            urgent: note_data.get("urgent")
+                .and_then(|v| v.as_bool()),
+            context: note_data.get("context")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            tags: note_data.get("tags")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()),
+            status: note_data.get("status")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+        };
+        
+        return notes_bridge::create_note_endpoint(
+            axum::extract::State(bridge.clone()),
+            axum::extract::Json(create_request)
+        ).await;
+    }
+    
+    // Sinon, utiliser le port memo classique
+    let ports = app.ports.lock();
+    let port = ports.get("memo")
+        .ok_or(StatusCode::NOT_FOUND)?;
+    
+    let port_data = crate::ports::PortData {
+        id: String::new(),
+        timestamp: time::OffsetDateTime::now_utc(),
+        data: note_data,
+        metadata: HashMap::new(),
+    };
+    
+    match port.write(&port_data) {
+        Ok(id) => Ok(Json(serde_json::json!({"id": id, "status": "created"}))),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+async fn handle_memo_delete(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Si le bridge notes est disponible, l'utiliser
+    if let Some(ref bridge) = app.notes_bridge {
+        return notes_bridge::delete_note_endpoint(
+            axum::extract::State(bridge.clone()),
+            axum::extract::Path(id)
+        ).await;
+    }
+    
+    // Sinon, utiliser le port memo classique
+    let ports = app.ports.lock();
+    let port = ports.get("memo")
+        .ok_or(StatusCode::NOT_FOUND)?;
+    
+    match port.delete(&id) {
+        Ok(_) => Ok(Json(serde_json::json!({"status": "deleted"}))),
+        Err(_) => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+async fn handle_memo_update(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+    Json(note_data): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Si le bridge notes est disponible, l'utiliser
+    if let Some(ref bridge) = app.notes_bridge {
+        let create_request = notes_bridge::CreateNoteRequest {
+            content: note_data.get("content")
+                .and_then(|v| v.as_str())
+                .unwrap_or("").to_string(),
+            urgent: note_data.get("urgent")
+                .and_then(|v| v.as_bool()),
+            context: note_data.get("context")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            tags: note_data.get("tags")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()),
+            status: note_data.get("status")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+        };
+        
+        return notes_bridge::update_note_endpoint(
+            axum::extract::State(bridge.clone()),
+            axum::extract::Path(id),
+            axum::extract::Json(create_request)
+        ).await;
+    }
+    
+    // Port memo classique ne supporte pas la mise à jour
+    Err(StatusCode::NOT_IMPLEMENTED)
 }
