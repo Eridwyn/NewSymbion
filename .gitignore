@@ -51,6 +51,7 @@ data/
 # Symbion specific
 kernel.yaml
 plugins/*.json.backup
+notes.json
 
 # Build artifacts
 dist/
