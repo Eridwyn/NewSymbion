@@ -143,6 +143,8 @@ pub struct PluginInstance {
     pub circuit_state: CircuitState,
     /// Backup du manifest précédent qui fonctionnait (pour rollback)
     pub last_working_manifest: Option<PluginManifest>,
+    /// Flag indiquant si l'arrêt est intentionnel (via API) ou accidentel
+    pub intentionally_stopped: bool,
 }
 
 /// Gestionnaire central de tous les plugins Symbion
@@ -189,6 +191,7 @@ impl PluginInstance {
             last_restart_attempt: None,
             circuit_state: CircuitState::Normal,
             last_working_manifest: None,
+            intentionally_stopped: false,
         }
     }
 
@@ -246,7 +249,8 @@ impl PluginInstance {
     }
 
     /// Arrête proprement le plugin avec timeout et graceful shutdown
-    fn stop(&mut self) -> Result<(), PluginError> {
+    fn stop(&mut self, intentional: bool) -> Result<(), PluginError> {
+        self.intentionally_stopped = intentional;
         if let Some(mut process) = self.process.take() {
             self.status = PluginStatus::Stopping;
             
@@ -495,18 +499,21 @@ impl PluginManager {
         plugin.start(&self.global_env)
     }
 
-    /// Arrête un plugin par son nom
+    /// Arrête un plugin par son nom (arrêt intentionnel via API)
     pub fn stop_plugin(&mut self, name: &str) -> Result<(), PluginError> {
         let plugin = self.plugins.get_mut(name)
             .ok_or_else(|| PluginError::NotFound(name.to_string()))?;
         
-        plugin.stop()
+        plugin.stop(true) // Arrêt intentionnel
     }
 
     /// Redémarre un plugin (stop puis start)
     pub fn restart_plugin(&mut self, name: &str) -> Result<(), PluginError> {
-        if let Err(e) = self.stop_plugin(name) {
-            eprintln!("[plugins] stop failed during restart of {}: {}", name, e);
+        // Pour restart, on fait un stop temporaire puis start
+        {
+            let plugin = self.plugins.get_mut(name)
+                .ok_or_else(|| PluginError::NotFound(name.to_string()))?;
+            let _ = plugin.stop(false); // Arrêt temporaire pour restart
         }
         
         // Petit délai pour laisser le processus se terminer proprement
@@ -514,6 +521,7 @@ impl PluginManager {
         
         let plugin = self.plugins.get_mut(name).unwrap();
         plugin.restart_count += 1;
+        plugin.intentionally_stopped = false; // Reset le flag pour permettre auto-restart
         
         self.start_plugin(name)
     }
@@ -525,6 +533,11 @@ impl PluginManager {
 
         for (name, plugin) in &mut self.plugins {
             if !plugin.check_health() {
+                // Si le plugin a été arrêté intentionnellement, ne pas le redémarrer
+                if plugin.intentionally_stopped {
+                    continue;
+                }
+
                 // Plugin défaillant
                 plugin.update_circuit_state();
                 
@@ -747,7 +760,7 @@ impl PluginManager {
 
         // Arrêter le plugin s'il tourne
         if matches!(plugin.status, PluginStatus::Running) {
-            let _ = plugin.stop();
+            let _ = plugin.stop(false); // Arrêt temporaire pour rollback
         }
 
         // Réinitialiser le circuit breaker
