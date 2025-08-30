@@ -99,6 +99,7 @@ pub struct AppState {
     pub contracts: crate::contracts::ContractRegistry,
     pub health_tracker: crate::health::HealthTracker,
     pub ports: Shared<crate::ports::PortRegistry>,
+    pub plugins: Shared<crate::plugins::PluginManager>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -116,6 +117,10 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/ports", get(list_ports))
         .route("/ports/{port_name}", get(read_from_port).post(write_to_port))
         .route("/ports/{port_name}/{id}", axum::routing::delete(delete_from_port))
+        .route("/plugins", get(list_plugins_endpoint))
+        .route("/plugins/{name}/start", post(start_plugin_endpoint))
+        .route("/plugins/{name}/stop", post(stop_plugin_endpoint))
+        .route("/plugins/{name}/restart", post(restart_plugin_endpoint))
         .with_state(app_state)
         .layer(middleware::from_fn(require_api_key))
 }
@@ -165,7 +170,7 @@ async fn get_contract(
 
 // GET /system/health (état infrastructure)
 async fn get_system_health(State(app): State<AppState>) -> Json<crate::health::KernelHealth> {
-    let health = app.health_tracker.get_health(&app.contracts, &app.states);
+    let health = app.health_tracker.get_health(&app.contracts, &app.states, &app.plugins);
     Json(health)
 }
 
@@ -261,5 +266,100 @@ async fn delete_from_port(
     match port.delete(&id) {
         Ok(_) => Ok(Json(serde_json::json!({"status": "deleted"}))),
         Err(_) => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+// GET /plugins (liste des plugins avec leur état)
+async fn list_plugins_endpoint(State(app): State<AppState>) -> Json<Vec<crate::plugins::PluginInfo>> {
+    let plugins = app.plugins.lock();
+    let plugin_info = plugins.list_plugins();
+    Json(plugin_info)
+}
+
+// POST /plugins/{name}/start (démarre un plugin)
+async fn start_plugin_endpoint(
+    State(app): State<AppState>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Tentative de verrou non-bloquant avec timeout via try_lock
+    let result = {
+        let mut plugins = match app.plugins.try_lock() {
+            Some(plugins) => plugins,
+            None => {
+                eprintln!("[http] plugin manager busy, try again later");
+                return Err(StatusCode::SERVICE_UNAVAILABLE);
+            }
+        };
+        plugins.start_plugin(&name)
+    }; // Verrou libéré immédiatement
+    
+    match result {
+        Ok(()) => Ok(Json(serde_json::json!({
+            "plugin": name,
+            "action": "start",
+            "status": "success"
+        }))),
+        Err(e) => {
+            eprintln!("[http] failed to start plugin {}: {}", name, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+// POST /plugins/{name}/stop (arrête un plugin)
+async fn stop_plugin_endpoint(
+    State(app): State<AppState>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let result = {
+        let mut plugins = match app.plugins.try_lock() {
+            Some(plugins) => plugins,
+            None => {
+                eprintln!("[http] plugin manager busy, try again later");
+                return Err(StatusCode::SERVICE_UNAVAILABLE);
+            }
+        };
+        plugins.stop_plugin(&name)
+    };
+    
+    match result {
+        Ok(()) => Ok(Json(serde_json::json!({
+            "plugin": name,
+            "action": "stop",
+            "status": "success"
+        }))),
+        Err(e) => {
+            eprintln!("[http] failed to stop plugin {}: {}", name, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+// POST /plugins/{name}/restart (redémarre un plugin)
+async fn restart_plugin_endpoint(
+    State(app): State<AppState>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let result = {
+        let mut plugins = match app.plugins.try_lock() {
+            Some(plugins) => plugins,
+            None => {
+                eprintln!("[http] plugin manager busy, try again later");
+                return Err(StatusCode::SERVICE_UNAVAILABLE);
+            }
+        };
+        plugins.restart_plugin(&name)
+    };
+    
+    match result {
+        Ok(()) => Ok(Json(serde_json::json!({
+            "plugin": name,
+            "action": "restart", 
+            "status": "success"
+        }))),
+        Err(e) => {
+            eprintln!("[http] failed to restart plugin {}: {}", name, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }

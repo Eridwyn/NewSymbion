@@ -17,6 +17,7 @@ mod wol;
 mod contracts;
 mod health;
 mod ports;
+mod plugins;
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -25,6 +26,7 @@ use crate::http::AppState;
 use crate::contracts::ContractRegistry;
 use crate::health::HealthTracker;
 use crate::ports::create_default_ports;
+use crate::plugins::PluginManager;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -68,14 +70,34 @@ async fn main() {
         }
     };
 
+    // plugin manager
+    std::fs::create_dir_all("../plugins").unwrap_or_else(|e| {
+        eprintln!("[kernel] warning: failed to create plugins dir: {}", e);
+    });
+    
+    let mut plugin_manager = PluginManager::new("../plugins");
+    match plugin_manager.discover_plugins().await {
+        Ok(discovered) => {
+            println!("[kernel] discovered {} plugins", discovered.len());
+            plugin_manager.auto_start_plugins();
+        }
+        Err(e) => {
+            eprintln!("[kernel] failed to discover plugins: {}", e);
+        }
+    }
+    let plugins = new_state(plugin_manager);
+
     // MQTT remplit les states
     mqtt::spawn_mqtt_listener(states.clone(), cfg.clone());
 
+    // démarre le healthcheck périodique des plugins
+    plugins::spawn_plugin_health_monitor(plugins.clone());
+
     // démarre la publication auto du health
-    health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), states.clone());
+    health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), states.clone(), plugins.clone());
 
     // fabrique l'état unique pour Axum
-    let app_state = AppState { states, cfg, contracts, health_tracker, ports };
+    let app_state = AppState { states, cfg, contracts, health_tracker, ports, plugins };
 
     // HTTP
     let app = http::build_router(app_state);
