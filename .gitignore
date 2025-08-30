@@ -4,6 +4,15 @@ Cargo.lock
 **/*.rs.bk
 *.pdb
 
+# Compilation artifacts
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.lib
+*.exe
+
 # IDE
 .vscode/
 .idea/
