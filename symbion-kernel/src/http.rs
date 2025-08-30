@@ -368,13 +368,13 @@ async fn restart_plugin_endpoint(
     }
 }
 
-// ============ MEMO HANDLERS (Bridge + Fallback) ============
+// ============ MEMO HANDLERS (Plugin Bridge Only) ============
 
 async fn handle_memo_list(
     State(app): State<AppState>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    // Si le bridge notes est disponible, l'utiliser
+    // Notes uniquement via plugin - pas de fallback
     if let Some(ref bridge) = app.notes_bridge {
         return notes_bridge::list_notes_endpoint(
             axum::extract::State(bridge.clone()),
@@ -382,60 +382,15 @@ async fn handle_memo_list(
         ).await;
     }
     
-    // Sinon, utiliser le port memo classique
-    let ports = app.ports.lock();
-    let port = ports.get("memo")
-        .ok_or(StatusCode::NOT_FOUND)?;
-    
-    let mut query = crate::ports::PortQuery::default();
-    
-    // Parsing des filtres depuis query params
-    for (key, value) in params {
-        match key.as_str() {
-            "limit" => {
-                if let Ok(limit) = value.parse::<usize>() {
-                    query.limit = Some(limit);
-                }
-            }
-            "offset" => {
-                if let Ok(offset) = value.parse::<usize>() {
-                    query.offset = Some(offset);
-                }
-            }
-            "order_by" => {
-                query.order_by = Some(value);
-            }
-            _ => {
-                let filter_value = if value == "true" {
-                    serde_json::Value::Bool(true)
-                } else if value == "false" {
-                    serde_json::Value::Bool(false)
-                } else {
-                    serde_json::Value::String(value)
-                };
-                query.filters.insert(key, filter_value);
-            }
-        }
-    }
-    
-    match port.read(&query) {
-        Ok(data) => Ok(Json(serde_json::Value::Array(
-            data.into_iter().map(|d| serde_json::json!({
-                "id": d.id,
-                "timestamp": d.timestamp.format(&time::format_description::well_known::Rfc3339).unwrap_or_default(),
-                "data": d.data,
-                "metadata": d.metadata
-            })).collect()
-        ))),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-    }
+    // Plugin notes non disponible
+    Err(StatusCode::SERVICE_UNAVAILABLE)
 }
 
 async fn handle_memo_create(
     State(app): State<AppState>,
     Json(note_data): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    // Si le bridge notes est disponible, l'utiliser
+    // Notes uniquement via plugin - pas de fallback
     if let Some(ref bridge) = app.notes_bridge {
         // Convertir les données en format CreateNoteRequest
         let create_request = notes_bridge::CreateNoteRequest {
@@ -461,29 +416,15 @@ async fn handle_memo_create(
         ).await;
     }
     
-    // Sinon, utiliser le port memo classique
-    let ports = app.ports.lock();
-    let port = ports.get("memo")
-        .ok_or(StatusCode::NOT_FOUND)?;
-    
-    let port_data = crate::ports::PortData {
-        id: String::new(),
-        timestamp: time::OffsetDateTime::now_utc(),
-        data: note_data,
-        metadata: HashMap::new(),
-    };
-    
-    match port.write(&port_data) {
-        Ok(id) => Ok(Json(serde_json::json!({"id": id, "status": "created"}))),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-    }
+    // Plugin notes non disponible
+    Err(StatusCode::SERVICE_UNAVAILABLE)
 }
 
 async fn handle_memo_delete(
     State(app): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    // Si le bridge notes est disponible, l'utiliser
+    // Notes uniquement via plugin - pas de fallback
     if let Some(ref bridge) = app.notes_bridge {
         return notes_bridge::delete_note_endpoint(
             axum::extract::State(bridge.clone()),
@@ -491,15 +432,8 @@ async fn handle_memo_delete(
         ).await;
     }
     
-    // Sinon, utiliser le port memo classique
-    let ports = app.ports.lock();
-    let port = ports.get("memo")
-        .ok_or(StatusCode::NOT_FOUND)?;
-    
-    match port.delete(&id) {
-        Ok(_) => Ok(Json(serde_json::json!({"status": "deleted"}))),
-        Err(_) => Err(StatusCode::NOT_FOUND),
-    }
+    // Plugin notes non disponible
+    Err(StatusCode::SERVICE_UNAVAILABLE)
 }
 
 async fn handle_memo_update(
@@ -507,7 +441,7 @@ async fn handle_memo_update(
     Path(id): Path<String>,
     Json(note_data): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    // Si le bridge notes est disponible, l'utiliser
+    // Notes uniquement via plugin - pas de fallback
     if let Some(ref bridge) = app.notes_bridge {
         let create_request = notes_bridge::CreateNoteRequest {
             content: note_data.get("content")
@@ -533,6 +467,6 @@ async fn handle_memo_update(
         ).await;
     }
     
-    // Port memo classique ne supporte pas la mise à jour
-    Err(StatusCode::NOT_IMPLEMENTED)
+    // Plugin notes non disponible
+    Err(StatusCode::SERVICE_UNAVAILABLE)
 }
