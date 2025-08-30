@@ -37,16 +37,17 @@
 
 ### ✅ Notes System Migration (TERMINÉ ✅)
 - **Migration transparente** : API `/ports/memo` 100% compatible
-- **Plugin distribué** : symbion-plugin-notes via MQTT
-- **Bridge API** : fallback automatique port→plugin
+- **Plugin exclusif** : symbion-plugin-notes via MQTT uniquement
+- **Bridge API** : routage direct vers plugin (pas de fallback)
 - **Stockage JSON** : persistance dans ./notes.json (plugin)
 - **Contrats MQTT** : notes.command@v1 + notes.response@v1
 
 ### ✅ Documentation Professionnelle
-- **Tous les modules commentés** au niveau de ports/mod.rs et ports/memo.rs
+- **Tous les modules commentés** au niveau ports/mod.rs, plugins.rs, notes_bridge.rs
 - **En-têtes détaillés** : rôle, fonctionnement, utilité dans Symbion
 - **Exemples concrets** : JSON, YAML, usage patterns
 - **Vision d'ensemble** : comment chaque module s'intègre
+- **Architecture clean** : code legacy supprimé, plugins purs
 
 ## Architecture Actuelle
 
@@ -65,10 +66,8 @@ symbion-kernel/
 │   ├── plugins.rs             # Plugin Manager + lifecycle management
 │   ├── notes_bridge.rs        # API Bridge memo → plugin MQTT
 │   └── ports/
-│       ├── mod.rs             # Data Ports architecture + PortRegistry
-│       └── memo.rs            # Port mémos/rappels (fallback)
-├── data/
-│   └── memo.json              # Stockage fallback des mémos
+│       └── mod.rs             # Data Ports architecture + PortRegistry (vide)
+├── data/                      # Répertoire vide (plus de stockage local)
 symbion-plugin-notes/
 ├── src/
 │   └── main.rs                # Plugin notes distribué via MQTT
@@ -108,12 +107,14 @@ plugins/                       # Manifestes plugins
 - `GET /contracts` - Liste des contrats MQTT disponibles
 - `GET /contracts/{name}` - Détail d'un contrat
 
-### 🗂️ Data Ports v1 / Notes System
-- `GET /ports` - Liste des ports + schémas
-- `GET /ports/memo` - Lire mémos (via plugin notes ou fallback)
-- `POST /ports/memo` - Créer memo (via plugin notes ou fallback)
-- `PUT /ports/memo/{id}` - Modifier memo (via plugin notes)
-- `DELETE /ports/memo/{id}` - Supprimer memo (via plugin notes ou fallback)
+### 🗂️ Notes System (Plugin distribué)
+- `GET /ports/memo` - Lire notes avec filtres (urgent, context, tags)
+- `POST /ports/memo` - Créer note avec métadonnées
+- `PUT /ports/memo/{id}` - Modifier note existante
+- `DELETE /ports/memo/{id}` - Supprimer note
+
+### 🔧 Data Ports Framework
+- `GET /ports` - Liste des ports disponibles (architecture extensible pour futurs plugins)
 
 ### 🔌 Plugin Management
 - `GET /plugins` - Liste des plugins avec status

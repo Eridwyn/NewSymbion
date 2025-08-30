@@ -130,7 +130,7 @@ impl PortRegistry {
     }
     
     /// Enregistre un nouveau port dans le système
-    /// Ex: registry.register("memo", MemoPort::new());
+    /// Ex: registry.register("finance", FinancePort::new());
     pub fn register<T: DataPort + Send + Sync + 'static>(&mut self, name: &str, port: T) {
         self.ports.insert(name.to_string(), Box::new(port));
     }
@@ -166,22 +166,13 @@ impl Default for PortQuery {
     }
 }
 
-// Implémentations spécifiques des ports
-pub mod memo;
+// NOTE: Les ports spécifiques sont maintenant implémentés comme plugins distribués
+// (ex: notes via symbion-plugin-notes, finance via symbion-plugin-finance, etc.)
 
-// Réexports des ports concrets pour faciliter l'usage
-pub use memo::MemoPort;
-
-/// Helper pour initialiser tous les ports par défaut du système
-/// Crée et configure les ports memo, journal, etc. avec leurs fichiers de stockage
-pub fn create_default_ports(data_dir: &str) -> Result<PortRegistry, PortError> {
-    let mut registry = PortRegistry::new();
-    
-    // Port memo - stockage des rappels/notes utilisateur
-    let memo_path = format!("{}/memo.json", data_dir);
-    let memo_port = MemoPort::new(memo_path)?;
-    registry.register("memo", memo_port);
-    
-    eprintln!("[ports] initialized default ports in {}", data_dir);
+/// Helper pour initialiser le registre des ports (vide maintenant) 
+/// Les ports sont maintenant implémentés comme plugins distribués via MQTT
+pub fn create_default_ports(_data_dir: &str) -> Result<PortRegistry, PortError> {
+    let registry = PortRegistry::new();
+    eprintln!("[ports] initialized empty port registry (ports are now plugins)");
     Ok(registry)
 }
