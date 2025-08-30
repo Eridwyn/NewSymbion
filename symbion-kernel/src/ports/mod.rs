@@ -12,20 +12,20 @@
  * - PortQuery = langage de requête unifié (filtres, pagination, tri)
  * 
  * UTILITÉ POUR SYMBION :
- * ✅ Interopérabilité : Plugin memo peut lire events journal
- * ✅ API unifiée : /ports/memo, /ports/journal pour le front
- * ✅ Backup centralisé : un seul endroit à sauvegarder 
- * ✅ Évolutivité : ajouter port.tasks, port.contacts facilement
+ * ✅ Interface standardisée : même API pour notes, finance, journal...
+ * ✅ API unifiée : /ports/[domain] pour tous les domaines métier
+ * ✅ Extensibilité : framework prêt pour nouveaux plugins 
+ * ✅ Découverte : GET /ports liste tous les domaines disponibles
  * 
- * EXEMPLE D'USAGE :
+ * EXEMPLE D'USAGE FUTUR :
  * ```rust
- * // Plugin écrit un memo
- * let data = PortData { content: "RDV dentiste", urgent: true };
- * ports.get("memo")?.write(&data)?;
+ * // Plugin finance écrit une transaction
+ * let data = PortData { amount: 42.0, type: "expense" };
+ * ports.get("finance")?.write(&data)?;
  * 
- * // Plugin agenda lit les memos urgents
- * let query = PortQuery { filters: {"urgent": true} };
- * let urgent_memos = ports.get("memo")?.read(&query)?;
+ * // Plugin dashboard lit les dépenses récentes
+ * let query = PortQuery { filters: {"type": "expense"} };
+ * let expenses = ports.get("finance")?.read(&query)?;
  * ```
  */
 
