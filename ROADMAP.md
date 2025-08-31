@@ -48,11 +48,23 @@ Widgets dynamiques (manifest-driven)
 
 ### 5. Plugin Hosts 💻
 
-Heartbeat @v2 (CPU, RAM, IP…)
+Heartbeat @v2 (CPU, RAM, IP, MAC…) ✅
 
-Action Wake-on-LAN (WOL) ⚡
+Action Wake-on-LAN (WOL) ⚡ ✅
 
-Widget état PC
+Widget état PC ✅
+
+**v1 - Agents LAN** (Phase B)
+- symbion-agent-host léger (heartbeats + MAC auto-détection)
+- Ethernet priority pour WOL reliability
+- hosts.json persistance centralisée
+- Multi-PC monitoring réseau local uniquement
+
+**v2 - Agents distribués** (Phase F)
+- Authentification agents (certificates/tokens)
+- Support agents externes (mobile, VPN, Internet)
+- Topic-based permissions multi-utilisateurs
+- Sécurité robuste pour déploiement public
 
 
 
