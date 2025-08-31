@@ -60,3 +60,4 @@ build/
 #Autres
 CLAUDE.md
 .gitignore
+idea/
