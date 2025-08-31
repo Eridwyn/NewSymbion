@@ -33,7 +33,11 @@
 git clone https://github.com/Eridwyn/NewSymbion
 cd NewSymbion
 
-# Configuration
+# Configuration via .env (recommandé)
+cp .env.example .env
+# Éditez .env avec votre clé API
+
+# OU export direct
 export SYMBION_API_KEY="s3cr3t-42"
 
 # Lancement kernel
@@ -62,6 +66,11 @@ cd symbion-plugin-hosts && cargo run
 ```bash
 # Terminal séparé  
 cd pwa-dashboard
+
+# Configuration (optionnel - clé API automatique en dev)
+cp .env.example .env
+
+# Lancement
 npm install && npm run dev
 # ✅ Dashboard disponible sur http://localhost:3000
 # ✅ Interface temps réel avec widgets dynamiques

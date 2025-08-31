@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 axum = "0.8.4"
+dotenvy = "0.15.7"
 parking_lot = "0.12.4"
 rumqttc = "0.24.0"
 serde = { version = "1.0.219", features = ["derive"] }

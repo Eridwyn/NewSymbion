@@ -18,7 +18,7 @@ class ApiService extends LitElement {
     super()
     this.status = 'loading'
     this.baseUrl = window.SYMBION_CONFIG?.API_BASE || '/api'
-    this.apiKey = 's3cr3t-42' // TODO: Depuis config ou env
+    this.apiKey = import.meta.env.VITE_SYMBION_API_KEY || window.SYMBION_CONFIG?.API_KEY || 's3cr3t-42'
   }
   
   connectedCallback() {
