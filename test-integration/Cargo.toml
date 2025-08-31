@@ -1,0 +1,16 @@
+[package]
+name = "test-integration"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+# Empty workspace table to avoid parent workspace conflicts
+
+[dependencies]
+rumqttc = "0.24.0"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0"
+env_logger = "0.10"
+log = "0.4"
+serde_json = "1.0"
