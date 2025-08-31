@@ -1,3 +1,17 @@
+# NewSymbion Workspace - Architecture distribuée modulaire
+# 
+# COMPOSANTS :
+# - symbion-kernel : Serveur central (API REST + Event Bus MQTT + Plugin Manager)
+# - symbion-plugin-hosts : Agent monitoring système (heartbeats + Wake-on-LAN)  
+# - symbion-plugin-notes : Plugin notes distribuées via MQTT (CRUD complet)
+# - devkit : Suite de développement avec scaffolding et tests automatisés
+#
+# UTILISATION :
+# cargo build --workspace       # Build tous les composants  
+# cargo test --workspace        # Tests de tous les modules
+# cargo run -p symbion-kernel   # Lancer le kernel principal
+
 [workspace]
-members = ["symbion-kernel","symbion-plugin-hosts","symbion-plugin-notes"]
-resolver = "2"
+members = ["symbion-kernel","symbion-plugin-hosts","symbion-plugin-notes","devkit"]
+exclude = ["*-plugin", "test-*"]  # Exclure plugins générés et tests temporaires
+resolver = "2"                    # Resolver moderne pour édition 2021

@@ -1,93 +1,167 @@
-# NewSymbion - Système Distribué Modulaire
+# 🧬 NewSymbion - Système Distribué Modulaire
 
-Cerveau personnel modulaire avec architecture distribuée. Kernel central en Rust + plugins MQTT.  
-API REST pour humains, bus MQTT pour communication inter-plugins.
+**Cerveau personnel extensible** avec architecture distribuée moderne. Kernel central en Rust + plugins MQTT + PWA Dashboard temps réel.
 
-## Architecture
+> 🎉 **Phase A terminée** : Spine complet avec DevKit et PWA Dashboard fonctionnels !
 
-### 🏗️ Composants
-- **symbion-kernel** : Serveur central (API REST + MQTT broker)
-- **symbion-plugin-notes** : Plugin de gestion des notes/mémos
-- **symbion-plugin-hosts** : Agent de monitoring système (CPU, RAM, réseau)
+## 🏗️ Architecture
 
-### 🔄 Communication
-- **REST API** : Interface humaine sécurisée (avec API key)
-- **MQTT Bus** : Communication asynchrone entre plugins
-- **Contracts Registry** : Validation des événements JSON
+### Composants principaux
+- **🧬 symbion-kernel** : Serveur central (API REST + Event Bus MQTT + Plugin Manager)
+- **📝 symbion-plugin-notes** : Système de notes distribuées avec CRUD complet
+- **💻 symbion-plugin-hosts** : Agent de monitoring système (heartbeats, CPU, RAM, Wake-on-LAN)
+- **🛠️ devkit/** : Suite de développement avec scaffolding et tests automatisés
+- **📱 pwa-dashboard/** : Interface web temps réel (Lit + Vite + PWA)
 
-## Prérequis
-- Rust (stable) + cargo  
-- Mosquitto (broker MQTT) local
+### Stack technologique
+- **Backend** : Rust + Tokio + rumqttc (MQTT) + axum (REST)
+- **Communication** : MQTT pour événements + REST API sécurisée
+- **Frontend** : Lit + Vite + PWA avec WebSockets temps réel
+- **Contracts** : Système de versioning JSON pour validation des événements
+- **DevExp** : Hot reload plugins + circuit breaker + health monitoring
+
+## 🚀 Démarrage rapide
+
+### Prérequis
+- **Rust stable** + cargo
+- **Mosquitto** (broker MQTT local)  
+- **Node.js** + npm (pour le PWA dashboard)
 - Linux/WSL recommandé
 
-## Démarrage rapide
-
-### 1. Kernel central
+### 1. 🧬 Kernel central
 ```bash
 git clone https://github.com/Eridwyn/NewSymbion
-cd NewSymbion/symbion-kernel
+cd NewSymbion
 
-# Config
-cp kernel.yaml.example kernel.yaml
+# Configuration
 export SYMBION_API_KEY="s3cr3t-42"
 
-# Lancement
-cargo run
-# -> listening on 0.0.0.0:8080
+# Lancement kernel
+cd symbion-kernel && cargo run
+# ✅ Kernel started on http://0.0.0.0:8080
+# ✅ Plugin Manager actif avec 2 plugins disponibles
 ```
 
-### 2. Plugin Notes (optionnel)
+### 2. 📝 Plugin Notes (recommandé)
 ```bash
-cd ../symbion-plugin-notes
-cargo run
-# -> notes plugin connecté via MQTT
+# Terminal séparé
+cd symbion-plugin-notes && cargo run
+# ✅ Notes plugin connected via MQTT
+# ✅ API /ports/memo disponible
 ```
 
-### 3. Tests API
+### 3. 💻 Plugin Hosts (optionnel)
+```bash  
+# Terminal séparé
+cd symbion-plugin-hosts && cargo run
+# ✅ Host monitoring + heartbeats actifs
+# ✅ Wake-on-LAN disponible
+```
+
+### 4. 📱 PWA Dashboard
+```bash
+# Terminal séparé  
+cd pwa-dashboard
+npm install && npm run dev
+# ✅ Dashboard disponible sur http://localhost:3000
+# ✅ Interface temps réel avec widgets dynamiques
+```
+
+### 5. ✅ Vérification
 ```bash
 # Health check
 curl http://localhost:8080/health
 
-# Monitoring complet
+# Monitoring infrastructure
 curl -H "x-api-key: s3cr3t-42" http://localhost:8080/system/health
 
-# Notes (via plugin MQTT)
+# Test notes distribuées
 curl -H "x-api-key: s3cr3t-42" http://localhost:8080/ports/memo
 curl -H "x-api-key: s3cr3t-42" -X POST -H "Content-Type: application/json" \
-  -d '{"content": "Test memo", "urgent": true}' http://localhost:8080/ports/memo
+  -d '{"content": "Premier memo!", "urgent": true}' http://localhost:8080/ports/memo
+
+# Plugin management
+curl -H "x-api-key: s3cr3t-42" http://localhost:8080/plugins
 ```
 
-## API Endpoints
+## 🔌 API Endpoints (15 endpoints disponibles)
 
-### 📊 Monitoring
-- `GET /health` - Health check simple
-- `GET /system/health` - Métriques infrastructure complètes
-- `GET /hosts` - Liste des hosts connectés
-- `GET /hosts/{id}` - Détails d'un host
+### 📊 Infrastructure & Monitoring
+- `GET /health` - Health check simple (pas d'auth requise)
+- `GET /system/health` - Métriques complètes (uptime, mémoire, MQTT, plugins)
+- `GET /hosts` - Liste des hosts avec heartbeats temps réel  
+- `GET /hosts/{id}` - Détails spécifiques d'un host
 
-### 🗂️ Data Ports (via plugins)
-- `GET /ports` - Liste des ports disponibles
-- `GET /ports/memo` - Lire notes (filtres: urgent, context, tags)
-- `POST /ports/memo` - Créer note
+### 🔧 Plugin Management (hot reload)
+- `GET /plugins` - Liste des plugins avec statuts
+- `POST /plugins/{name}/start` - Démarrer un plugin à chaud
+- `POST /plugins/{name}/stop` - Arrêter un plugin à chaud  
+- `POST /plugins/{name}/restart` - Redémarrer un plugin
+
+### 🗂️ Data Ports (architecture extensible)
+- `GET /ports` - Ports disponibles (framework pour futurs plugins)
+- `GET /ports/memo` - Lire notes avec filtres (urgent, context, tags)
+- `POST /ports/memo` - Créer note avec métadonnées
+- `PUT /ports/memo/{id}` - Modifier note existante
 - `DELETE /ports/memo/{id}` - Supprimer note
 
-### ⚡ Actions
-- `POST /wake?host_id=X` - Wake-on-LAN
+### ⚡ Actions système  
+- `POST /wake?host_id=X` - Wake-on-LAN magic packets
 
-### 📜 Discovery
-- `GET /contracts` - Contrats MQTT disponibles
-- `GET /contracts/{name}` - Détail d'un contrat
+### 📜 Discovery & Contracts
+- `GET /contracts` - Contrats MQTT disponibles (5 MQTT + 5 HTTP)
+- `GET /contracts/{name}` - Détail d'un contrat avec validation
 
-## Développement
+> 🔐 **Sécurité** : Tous les endpoints (sauf `/health`) nécessitent `x-api-key: s3cr3t-42`
 
+## 🛠️ Développement
+
+### Workspace Rust
 ```bash
-# Build workspace complet
+# Build complet
 cargo build --workspace
 
-# Tests
+# Tests et qualité
 cargo test --workspace
-
-# Linting
-cargo clippy --workspace
+cargo clippy --workspace  
 cargo fmt --workspace
 ```
+
+### 🚀 DevKit avancé
+```bash
+# Générer un nouveau plugin
+python3 devkit/scaffold-plugin.py mon-plugin --contracts heartbeat@v2
+
+# Tests contractuels automatisés
+python3 devkit/contract-tester.py --duration 30
+
+# Tests DevKit
+cd devkit && cargo test
+```
+
+### 📱 Frontend PWA
+```bash
+cd pwa-dashboard
+
+# Mode développement avec proxy API  
+npm run dev
+
+# Build et preview production
+npm run build && npm run serve
+```
+
+## 🎯 État du projet
+
+### ✅ Phase A - Spine & DevKit (TERMINÉE)
+- **🧬 Kernel 0.1** : Event Bus MQTT + Contract Registry + Plugin Manager
+- **🔐 Sécurité** : API key + logs + protection endpoints  
+- **📈 Monitoring** : Infrastructure health + métriques temps réel
+- **🔌 Plugin System** : Hot reload + circuit breaker + health checks
+- **🛠️ DevKit** : Scaffolding + tests automatisés + mocks/stubs
+- **📱 PWA Dashboard** : Interface temps réel avec widgets dynamiques
+
+### 🎯 Phase B - Noyau Utile (en cours)
+Voir [ROADMAP.md](ROADMAP.md) pour les prochaines fonctionnalités :
+- **📖 Journal Auto** unifié  
+- **🧭 Context Engine** avec règles avancées
+- **💰 Finance v1** avec budgets et import CSV
