@@ -37,6 +37,9 @@ use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() {
+    // Charger les variables d'environnement depuis .env (si présent)
+    dotenvy::dotenv().ok(); // Ok si .env n'existe pas
+    
     // maps et conf partagées
     let states = new_state::<HostsMap>(HashMap::new());
     let cfg_loaded: HostsConfig = load_config().await;
