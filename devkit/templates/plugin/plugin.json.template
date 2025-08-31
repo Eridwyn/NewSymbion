@@ -1,0 +1,18 @@
+{
+  "name": "{{PLUGIN_ID}}",
+  "version": "0.1.0",
+  "binary": "../target/debug/{{PLUGIN_NAME}}",
+  "description": "{{PLUGIN_DESCRIPTION}}",
+  "contracts": [{{#CONTRACTS}}"{{CONTRACT_NAME}}"{{#unless @last}},{{/unless}}{{/CONTRACTS}}],
+  "auto_start": true,
+  "restart_on_failure": true,
+  "startup_timeout_seconds": 15,
+  "shutdown_timeout_seconds": 5,
+  "depends_on": [],
+  "start_priority": 50,
+  "env": {
+    {{#ENV_VARS}}
+    "{{KEY}}": "{{VALUE}}"{{#unless @last}},{{/unless}}
+    {{/ENV_VARS}}
+  }
+}

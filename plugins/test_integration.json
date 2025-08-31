@@ -1,0 +1,16 @@
+{
+  "name": "test_integration",
+  "version": "0.1.0",
+  "binary": "../target/debug/test-integration",
+  "description": "Test d'int\u00e9gration DevKit",
+  "contracts": [
+    "heartbeat@v2"
+  ],
+  "auto_start": true,
+  "restart_on_failure": true,
+  "startup_timeout_seconds": 15,
+  "shutdown_timeout_seconds": 5,
+  "depends_on": [],
+  "start_priority": 50,
+  "env": {}
+}

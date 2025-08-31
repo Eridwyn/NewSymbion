@@ -12,6 +12,8 @@ Cargo.lock
 *.dll
 *.lib
 *.exe
+dist/
+node_modules/
 
 # IDE
 .vscode/

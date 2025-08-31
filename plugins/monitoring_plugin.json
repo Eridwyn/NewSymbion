@@ -1,0 +1,17 @@
+{
+  "name": "monitoring_plugin",
+  "version": "0.1.0",
+  "binary": "../target/debug/monitoring-plugin",
+  "description": "Plugin de test pour monitoring avanc\u00e9",
+  "contracts": [
+    "heartbeat@v2",
+    "wake@v1"
+  ],
+  "auto_start": true,
+  "restart_on_failure": true,
+  "startup_timeout_seconds": 15,
+  "shutdown_timeout_seconds": 5,
+  "depends_on": [],
+  "start_priority": 50,
+  "env": {}
+}
