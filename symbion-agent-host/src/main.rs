@@ -363,7 +363,7 @@ impl Agent {
         match self.system_info.os.as_str() {
             "windows" => {
                 match tokio::process::Command::new("shutdown")
-                    .args(&["/s", "/t", "5", "/c", "Shutdown initiated by Symbion"])
+                    .args(&["/s", "/t", "3", "/f", "/c", "Shutdown by Symbion Agent"])
                     .output()
                     .await
                 {
