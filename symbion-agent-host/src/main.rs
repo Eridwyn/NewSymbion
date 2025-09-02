@@ -18,6 +18,7 @@ use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, QoS};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::time::interval;
+use tokio::sync::mpsc;
 use tracing::{info, error, debug, warn};
 // use uuid::Uuid; // Not needed currently
 
@@ -107,12 +108,20 @@ struct ErrorInfo {
     message: String,
 }
 
+/// Received command for internal processing
+#[derive(Debug, Clone)]
+struct ReceivedCommand {
+    topic: String,
+    payload: String,
+}
+
 /// Main agent state
 struct Agent {
     config: AgentConfig,
     system_info: SystemInfo,
     mqtt_client: AsyncClient,
     last_command: Option<CommandInfo>,
+    command_receiver: mpsc::Receiver<ReceivedCommand>,
 }
 
 impl Agent {
@@ -138,12 +147,28 @@ impl Agent {
         
         let (mqtt_client, mut eventloop) = AsyncClient::new(mqtt_options, 10);
         
+        // Create command channel
+        let (command_sender, command_receiver) = mpsc::channel::<ReceivedCommand>(100);
+        
         // Start MQTT event loop in background
         tokio::spawn(async move {
             loop {
                 match eventloop.poll().await {
                     Ok(Event::Incoming(Incoming::Publish(publish))) => {
                         debug!("Received MQTT message on topic: {}", publish.topic);
+                        
+                        // Forward command messages to main loop
+                        if publish.topic.starts_with("symbion/agents/command@v1/") {
+                            let payload = String::from_utf8_lossy(&publish.payload).to_string();
+                            let command = ReceivedCommand {
+                                topic: publish.topic.clone(),
+                                payload,
+                            };
+                            
+                            if let Err(e) = command_sender.send(command).await {
+                                error!("Failed to forward command: {}", e);
+                            }
+                        }
                     }
                     Ok(_) => {}
                     Err(e) => {
@@ -162,6 +187,7 @@ impl Agent {
             system_info,
             mqtt_client,
             last_command: None,
+            command_receiver,
         })
     }
     
@@ -197,8 +223,20 @@ impl Agent {
                     }
                 }
                 
-                // TODO: Handle incoming MQTT commands
-                // This will be implemented when we add command processing
+                command = self.command_receiver.recv() => {
+                    match command {
+                        Some(cmd) => {
+                            info!("Processing command from topic: {}", cmd.topic);
+                            if let Err(e) = self.process_command(cmd).await {
+                                error!("Failed to process command: {}", e);
+                            }
+                        }
+                        None => {
+                            warn!("Command channel closed");
+                            break Ok(());
+                        }
+                    }
+                }
             }
         }
     }
@@ -258,6 +296,526 @@ impl Agent {
             
         debug!("Heartbeat sent");
         Ok(())
+    }
+    
+    /// Process incoming command from MQTT
+    async fn process_command(&mut self, cmd: ReceivedCommand) -> Result<()> {
+        let start_time = std::time::Instant::now();
+        
+        // Parse the incoming command
+        let incoming: IncomingCommand = serde_json::from_str(&cmd.payload)
+            .context("Failed to parse incoming command")?;
+        
+        info!("Executing command: {} ({})", incoming.command_type, incoming.command_id);
+        
+        // Execute the command based on type
+        let (status, data, error) = match incoming.command_type.as_str() {
+            "shutdown" => self.execute_shutdown(&incoming).await,
+            "reboot" => self.execute_reboot(&incoming).await,
+            "hibernate" => self.execute_hibernate(&incoming).await,
+            "kill_process" => self.execute_kill_process(&incoming).await,
+            "run_command" => self.execute_shell_command(&incoming).await,
+            "get_metrics" => self.execute_get_metrics(&incoming).await,
+            _ => {
+                let err = ErrorInfo {
+                    code: "UNKNOWN_COMMAND".to_string(),
+                    message: format!("Unknown command type: {}", incoming.command_type),
+                };
+                ("error".to_string(), None, Some(err))
+            }
+        };
+        
+        // Update last command info
+        self.last_command = Some(CommandInfo {
+            command_id: incoming.command_id.clone(),
+            command_type: incoming.command_type.clone(),
+            status: status.clone(),
+            timestamp: Utc::now(),
+        });
+        
+        // Send response back to kernel
+        let execution_time = start_time.elapsed().as_millis();
+        let response = CommandResponse {
+            command_id: incoming.command_id,
+            agent_id: self.system_info.agent_id.clone(),
+            status,
+            data,
+            error,
+            execution_time_ms: execution_time,
+            timestamp: Utc::now(),
+        };
+        
+        let payload = serde_json::to_string(&response)
+            .context("Failed to serialize command response")?;
+            
+        self.mqtt_client
+            .publish("symbion/agents/response@v1", QoS::AtLeastOnce, false, payload)
+            .await
+            .context("Failed to publish command response")?;
+            
+        Ok(())
+    }
+    
+    /// Execute shutdown command
+    async fn execute_shutdown(&self, _cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
+        info!("Executing shutdown command...");
+        
+        match self.system_info.os.as_str() {
+            "windows" => {
+                match tokio::process::Command::new("shutdown")
+                    .args(&["/s", "/t", "5", "/c", "Shutdown initiated by Symbion"])
+                    .output()
+                    .await
+                {
+                    Ok(output) => {
+                        if output.status.success() {
+                            info!("Shutdown command executed successfully");
+                            ("success".to_string(), Some(serde_json::json!({"message": "Shutdown initiated"})), None)
+                        } else {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            error!("Shutdown failed: {}", stderr);
+                            let err = ErrorInfo {
+                                code: "SHUTDOWN_FAILED".to_string(),
+                                message: format!("Command failed: {}", stderr),
+                            };
+                            ("error".to_string(), None, Some(err))
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to execute shutdown: {}", e);
+                        let err = ErrorInfo {
+                            code: "EXECUTION_ERROR".to_string(),
+                            message: format!("Failed to execute shutdown: {}", e),
+                        };
+                        ("error".to_string(), None, Some(err))
+                    }
+                }
+            }
+            "linux" => {
+                match tokio::process::Command::new("sudo")
+                    .args(&["shutdown", "-h", "+1", "Shutdown initiated by Symbion"])
+                    .output()
+                    .await
+                {
+                    Ok(output) => {
+                        if output.status.success() {
+                            info!("Shutdown command executed successfully");
+                            ("success".to_string(), Some(serde_json::json!({"message": "Shutdown initiated"})), None)
+                        } else {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            error!("Shutdown failed: {}", stderr);
+                            let err = ErrorInfo {
+                                code: "SHUTDOWN_FAILED".to_string(),
+                                message: format!("Command failed: {}", stderr),
+                            };
+                            ("error".to_string(), None, Some(err))
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to execute shutdown: {}", e);
+                        let err = ErrorInfo {
+                            code: "EXECUTION_ERROR".to_string(),
+                            message: format!("Failed to execute shutdown: {}", e),
+                        };
+                        ("error".to_string(), None, Some(err))
+                    }
+                }
+            }
+            _ => {
+                let err = ErrorInfo {
+                    code: "UNSUPPORTED_OS".to_string(),
+                    message: format!("Shutdown not supported on OS: {}", self.system_info.os),
+                };
+                ("error".to_string(), None, Some(err))
+            }
+        }
+    }
+    
+    /// Execute reboot command
+    async fn execute_reboot(&self, _cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
+        info!("Executing reboot command...");
+        
+        match self.system_info.os.as_str() {
+            "windows" => {
+                match tokio::process::Command::new("shutdown")
+                    .args(&["/r", "/t", "5", "/c", "Reboot initiated by Symbion"])
+                    .output()
+                    .await
+                {
+                    Ok(output) => {
+                        if output.status.success() {
+                            info!("Reboot command executed successfully");
+                            ("success".to_string(), Some(serde_json::json!({"message": "Reboot initiated"})), None)
+                        } else {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            error!("Reboot failed: {}", stderr);
+                            let err = ErrorInfo {
+                                code: "REBOOT_FAILED".to_string(),
+                                message: format!("Command failed: {}", stderr),
+                            };
+                            ("error".to_string(), None, Some(err))
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to execute reboot: {}", e);
+                        let err = ErrorInfo {
+                            code: "EXECUTION_ERROR".to_string(),
+                            message: format!("Failed to execute reboot: {}", e),
+                        };
+                        ("error".to_string(), None, Some(err))
+                    }
+                }
+            }
+            "linux" => {
+                match tokio::process::Command::new("sudo")
+                    .args(&["reboot"])
+                    .output()
+                    .await
+                {
+                    Ok(output) => {
+                        if output.status.success() {
+                            info!("Reboot command executed successfully");
+                            ("success".to_string(), Some(serde_json::json!({"message": "Reboot initiated"})), None)
+                        } else {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            error!("Reboot failed: {}", stderr);
+                            let err = ErrorInfo {
+                                code: "REBOOT_FAILED".to_string(),
+                                message: format!("Command failed: {}", stderr),
+                            };
+                            ("error".to_string(), None, Some(err))
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to execute reboot: {}", e);
+                        let err = ErrorInfo {
+                            code: "EXECUTION_ERROR".to_string(),
+                            message: format!("Failed to execute reboot: {}", e),
+                        };
+                        ("error".to_string(), None, Some(err))
+                    }
+                }
+            }
+            _ => {
+                let err = ErrorInfo {
+                    code: "UNSUPPORTED_OS".to_string(),
+                    message: format!("Reboot not supported on OS: {}", self.system_info.os),
+                };
+                ("error".to_string(), None, Some(err))
+            }
+        }
+    }
+    
+    /// Execute hibernate command  
+    async fn execute_hibernate(&self, _cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
+        info!("Executing hibernate command...");
+        
+        match self.system_info.os.as_str() {
+            "windows" => {
+                match tokio::process::Command::new("rundll32.exe")
+                    .args(&["powrprof.dll,SetSuspendState", "Hibernate"])
+                    .output()
+                    .await
+                {
+                    Ok(output) => {
+                        if output.status.success() {
+                            info!("Hibernate command executed successfully");
+                            ("success".to_string(), Some(serde_json::json!({"message": "Hibernate initiated"})), None)
+                        } else {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            error!("Hibernate failed: {}", stderr);
+                            let err = ErrorInfo {
+                                code: "HIBERNATE_FAILED".to_string(),
+                                message: format!("Command failed: {}", stderr),
+                            };
+                            ("error".to_string(), None, Some(err))
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to execute hibernate: {}", e);
+                        let err = ErrorInfo {
+                            code: "EXECUTION_ERROR".to_string(),
+                            message: format!("Failed to execute hibernate: {}", e),
+                        };
+                        ("error".to_string(), None, Some(err))
+                    }
+                }
+            }
+            "linux" => {
+                match tokio::process::Command::new("systemctl")
+                    .args(&["hibernate"])
+                    .output()
+                    .await
+                {
+                    Ok(output) => {
+                        if output.status.success() {
+                            info!("Hibernate command executed successfully");
+                            ("success".to_string(), Some(serde_json::json!({"message": "Hibernate initiated"})), None)
+                        } else {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            error!("Hibernate failed: {}", stderr);
+                            let err = ErrorInfo {
+                                code: "HIBERNATE_FAILED".to_string(),
+                                message: format!("Command failed: {}", stderr),
+                            };
+                            ("error".to_string(), None, Some(err))
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to execute hibernate: {}", e);
+                        let err = ErrorInfo {
+                            code: "EXECUTION_ERROR".to_string(),
+                            message: format!("Failed to execute hibernate: {}", e),
+                        };
+                        ("error".to_string(), None, Some(err))
+                    }
+                }
+            }
+            _ => {
+                let err = ErrorInfo {
+                    code: "UNSUPPORTED_OS".to_string(),
+                    message: format!("Hibernate not supported on OS: {}", self.system_info.os),
+                };
+                ("error".to_string(), None, Some(err))
+            }
+        }
+    }
+    
+    /// Execute kill process command
+    async fn execute_kill_process(&self, cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
+        info!("Executing kill process command...");
+        
+        let pid = match cmd.parameters.as_ref()
+            .and_then(|p| p.get("pid"))
+            .and_then(|p| p.as_u64()) {
+            Some(pid) => pid,
+            None => {
+                let err = ErrorInfo {
+                    code: "INVALID_PARAMETERS".to_string(),
+                    message: "Missing 'pid' parameter".to_string(),
+                };
+                return ("error".to_string(), None, Some(err));
+            }
+        };
+        
+        match self.system_info.os.as_str() {
+            "windows" => {
+                match tokio::process::Command::new("taskkill")
+                    .args(&["/PID", &pid.to_string(), "/F"])
+                    .output()
+                    .await
+                {
+                    Ok(output) => {
+                        if output.status.success() {
+                            info!("Process {} killed successfully", pid);
+                            ("success".to_string(), Some(serde_json::json!({"message": format!("Process {} killed", pid)})), None)
+                        } else {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            error!("Kill process failed: {}", stderr);
+                            let err = ErrorInfo {
+                                code: "KILL_FAILED".to_string(),
+                                message: format!("Command failed: {}", stderr),
+                            };
+                            ("error".to_string(), None, Some(err))
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to execute kill: {}", e);
+                        let err = ErrorInfo {
+                            code: "EXECUTION_ERROR".to_string(),
+                            message: format!("Failed to execute kill: {}", e),
+                        };
+                        ("error".to_string(), None, Some(err))
+                    }
+                }
+            }
+            "linux" => {
+                match tokio::process::Command::new("kill")
+                    .args(&["-9", &pid.to_string()])
+                    .output()
+                    .await
+                {
+                    Ok(output) => {
+                        if output.status.success() {
+                            info!("Process {} killed successfully", pid);
+                            ("success".to_string(), Some(serde_json::json!({"message": format!("Process {} killed", pid)})), None)
+                        } else {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            error!("Kill process failed: {}", stderr);
+                            let err = ErrorInfo {
+                                code: "KILL_FAILED".to_string(),
+                                message: format!("Command failed: {}", stderr),
+                            };
+                            ("error".to_string(), None, Some(err))
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to execute kill: {}", e);
+                        let err = ErrorInfo {
+                            code: "EXECUTION_ERROR".to_string(),
+                            message: format!("Failed to execute kill: {}", e),
+                        };
+                        ("error".to_string(), None, Some(err))
+                    }
+                }
+            }
+            _ => {
+                let err = ErrorInfo {
+                    code: "UNSUPPORTED_OS".to_string(),
+                    message: format!("Kill process not supported on OS: {}", self.system_info.os),
+                };
+                ("error".to_string(), None, Some(err))
+            }
+        }
+    }
+    
+    /// Execute shell command
+    async fn execute_shell_command(&self, cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
+        info!("Executing shell command...");
+        
+        let command = match cmd.parameters.as_ref()
+            .and_then(|p| p.get("command"))
+            .and_then(|p| p.as_str()) {
+            Some(command) => command,
+            None => {
+                let err = ErrorInfo {
+                    code: "INVALID_PARAMETERS".to_string(),
+                    message: "Missing 'command' parameter".to_string(),
+                };
+                return ("error".to_string(), None, Some(err));
+            }
+        };
+        
+        // Security check - only allow safe commands
+        let safe_commands = ["dir", "ls", "whoami", "hostname", "date", "uptime", "ps", "tasklist"];
+        let is_safe = safe_commands.iter().any(|&safe_cmd| command.starts_with(safe_cmd));
+        
+        if !is_safe {
+            let err = ErrorInfo {
+                code: "UNSAFE_COMMAND".to_string(),
+                message: format!("Command not allowed: {}", command),
+            };
+            return ("error".to_string(), None, Some(err));
+        }
+        
+        match self.system_info.os.as_str() {
+            "windows" => {
+                match tokio::process::Command::new("cmd")
+                    .args(&["/C", command])
+                    .output()
+                    .await
+                {
+                    Ok(output) => {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        
+                        if output.status.success() {
+                            info!("Shell command executed successfully");
+                            ("success".to_string(), Some(serde_json::json!({
+                                "stdout": stdout,
+                                "stderr": stderr,
+                                "exit_code": output.status.code()
+                            })), None)
+                        } else {
+                            error!("Shell command failed: {}", stderr);
+                            let err = ErrorInfo {
+                                code: "COMMAND_FAILED".to_string(),
+                                message: format!("Command failed with exit code: {:?}", output.status.code()),
+                            };
+                            ("error".to_string(), Some(serde_json::json!({
+                                "stdout": stdout,
+                                "stderr": stderr,
+                                "exit_code": output.status.code()
+                            })), Some(err))
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to execute shell command: {}", e);
+                        let err = ErrorInfo {
+                            code: "EXECUTION_ERROR".to_string(),
+                            message: format!("Failed to execute command: {}", e),
+                        };
+                        ("error".to_string(), None, Some(err))
+                    }
+                }
+            }
+            "linux" => {
+                match tokio::process::Command::new("sh")
+                    .args(&["-c", command])
+                    .output()
+                    .await
+                {
+                    Ok(output) => {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        
+                        if output.status.success() {
+                            info!("Shell command executed successfully");
+                            ("success".to_string(), Some(serde_json::json!({
+                                "stdout": stdout,
+                                "stderr": stderr,
+                                "exit_code": output.status.code()
+                            })), None)
+                        } else {
+                            error!("Shell command failed: {}", stderr);
+                            let err = ErrorInfo {
+                                code: "COMMAND_FAILED".to_string(),
+                                message: format!("Command failed with exit code: {:?}", output.status.code()),
+                            };
+                            ("error".to_string(), Some(serde_json::json!({
+                                "stdout": stdout,
+                                "stderr": stderr,
+                                "exit_code": output.status.code()
+                            })), Some(err))
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to execute shell command: {}", e);
+                        let err = ErrorInfo {
+                            code: "EXECUTION_ERROR".to_string(),
+                            message: format!("Failed to execute command: {}", e),
+                        };
+                        ("error".to_string(), None, Some(err))
+                    }
+                }
+            }
+            _ => {
+                let err = ErrorInfo {
+                    code: "UNSUPPORTED_OS".to_string(),
+                    message: format!("Shell commands not supported on OS: {}", self.system_info.os),
+                };
+                ("error".to_string(), None, Some(err))
+            }
+        }
+    }
+    
+    /// Execute get metrics command
+    async fn execute_get_metrics(&self, _cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
+        info!("Collecting system metrics...");
+        
+        match metrics::SystemMetrics::collect().await {
+            Ok(system_metrics) => {
+                let process_info = metrics::ProcessInfo::collect().await.ok();
+                let services = metrics::ServiceStatus::collect_critical().await.ok();
+                
+                let metrics_data = serde_json::json!({
+                    "system": system_metrics,
+                    "processes": process_info,
+                    "services": services,
+                    "timestamp": Utc::now()
+                });
+                
+                ("success".to_string(), Some(metrics_data), None)
+            }
+            Err(e) => {
+                error!("Failed to collect metrics: {}", e);
+                let err = ErrorInfo {
+                    code: "METRICS_ERROR".to_string(),
+                    message: format!("Failed to collect metrics: {}", e),
+                };
+                ("error".to_string(), None, Some(err))
+            }
+        }
     }
     
     /// Get agent capabilities based on OS and available features
