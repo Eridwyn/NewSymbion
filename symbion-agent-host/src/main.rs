@@ -1,4 +1,7 @@
 //! Symbion Agent Host - Multi-OS system agent for network control
+//! 
+//! VERSION: 1.2.0-SHUTDOWN-FIX (02-09-2025 17:22)
+//! FEATURES: Command processing + Power management + Shell execution
 //!
 //! This agent provides remote system control capabilities to the Symbion kernel:
 //! - Auto-discovery and registration via MQTT
@@ -362,8 +365,9 @@ impl Agent {
         
         match self.system_info.os.as_str() {
             "windows" => {
-                match tokio::process::Command::new("shutdown")
-                    .args(&["/s", "/t", "3", "/f", "/c", "Shutdown by Symbion Agent"])
+                // Try immediate shutdown with wininit.exe for maximum force
+                match tokio::process::Command::new("cmd")
+                    .args(&["/C", "shutdown /s /t 0 /f"])
                     .output()
                     .await
                 {
@@ -687,7 +691,7 @@ impl Agent {
         };
         
         // Security check - only allow safe commands
-        let safe_commands = ["dir", "ls", "whoami", "hostname", "date", "uptime", "ps", "tasklist"];
+        let safe_commands = ["dir", "ls", "whoami", "hostname", "date", "uptime", "ps", "tasklist", "shutdown"];
         let is_safe = safe_commands.iter().any(|&safe_cmd| command.starts_with(safe_cmd));
         
         if !is_safe {
