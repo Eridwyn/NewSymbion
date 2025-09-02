@@ -12,6 +12,7 @@ use crate::models::{HeartbeatIn, HostState, HostsMap};
 use crate::state::Shared;
 use crate::config::HostsConfig;
 use crate::notes_bridge::{SharedNotesBridge, NoteResponse};
+use crate::agents::{SharedAgentRegistry, AgentRegistrationMessage, AgentHeartbeatMessage};
 use rumqttc::{AsyncClient, Event, MqttOptions, QoS};
 use time::OffsetDateTime;
 use tokio::task;
@@ -40,7 +41,7 @@ pub fn create_mqtt_client(config: &HostsConfig) -> Result<AsyncClient, Box<dyn s
     Ok(client)
 }
 
-pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>, notes_bridge: Option<SharedNotesBridge>) {
+pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>, notes_bridge: Option<SharedNotesBridge>, agents: Option<SharedAgentRegistry>) {
     task::spawn(async move {
         let cfg = config.lock().clone();
         let mqtt_cfg = cfg.mqtt.unwrap_or_else(|| crate::config::MqttConf { 
@@ -61,6 +62,16 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
         if notes_bridge.is_some() {
             if let Err(e) = client.subscribe("symbion/notes/response@v1", QoS::AtLeastOnce).await {
                 eprintln!("[kernel] subscribe notes responses failed: {e:?}");
+            }
+        }
+
+        // S'abonner aux événements agents si registry disponible
+        if agents.is_some() {
+            if let Err(e) = client.subscribe("symbion/agents/registration@v1", QoS::AtLeastOnce).await {
+                eprintln!("[kernel] subscribe agents registration failed: {e:?}");
+            }
+            if let Err(e) = client.subscribe("symbion/agents/heartbeat@v1", QoS::AtLeastOnce).await {
+                eprintln!("[kernel] subscribe agents heartbeat failed: {e:?}");
             }
         }
 
@@ -91,6 +102,34 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                                     bridge.handle_response(response);
                                 }
                                 Err(_) => eprintln!("[kernel] notes response JSON invalide: {txt}"),
+                            }
+                        }
+                    }
+                }
+                Ok(Event::Incoming(rumqttc::Incoming::Publish(p))) if p.topic == "symbion/agents/registration@v1" => {
+                    if let Some(ref agent_registry) = agents {
+                        if let Ok(txt) = String::from_utf8(p.payload.to_vec()) {
+                            match serde_json::from_str::<AgentRegistrationMessage>(&txt) {
+                                Ok(registration) => {
+                                    if let Err(e) = agent_registry.handle_agent_registration(registration).await {
+                                        eprintln!("[kernel] failed to handle agent registration: {}", e);
+                                    }
+                                }
+                                Err(e) => eprintln!("[kernel] agent registration JSON invalide: {txt}, error: {}", e),
+                            }
+                        }
+                    }
+                }
+                Ok(Event::Incoming(rumqttc::Incoming::Publish(p))) if p.topic == "symbion/agents/heartbeat@v1" => {
+                    if let Some(ref agent_registry) = agents {
+                        if let Ok(txt) = String::from_utf8(p.payload.to_vec()) {
+                            match serde_json::from_str::<AgentHeartbeatMessage>(&txt) {
+                                Ok(heartbeat) => {
+                                    if let Err(e) = agent_registry.handle_agent_heartbeat(heartbeat).await {
+                                        eprintln!("[kernel] failed to handle agent heartbeat: {}", e);
+                                    }
+                                }
+                                Err(e) => eprintln!("[kernel] agent heartbeat JSON invalide: {txt}, error: {}", e),
                             }
                         }
                     }

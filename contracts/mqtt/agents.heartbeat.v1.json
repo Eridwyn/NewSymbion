@@ -1,0 +1,252 @@
+{
+  "name": "agents.heartbeat",
+  "version": "v1", 
+  "description": "Agent sends enriched telemetry data to kernel periodically",
+  "topic": "symbion/agents/heartbeat@v1",
+  "direction": "agent_to_kernel",
+  "schema": {
+    "type": "object",
+    "required": ["agent_id", "status", "system", "timestamp"],
+    "properties": {
+      "agent_id": {
+        "type": "string",
+        "description": "Agent identifier (MAC without colons)",
+        "pattern": "^[a-fA-F0-9]{12}$"
+      },
+      "status": {
+        "type": "string",
+        "enum": ["online", "idle", "busy", "maintenance"],
+        "description": "Agent operational status"
+      },
+      "system": {
+        "type": "object",
+        "required": ["uptime_seconds", "cpu", "memory"],
+        "properties": {
+          "uptime_seconds": {
+            "type": "integer",
+            "description": "System uptime in seconds"
+          },
+          "cpu": {
+            "type": "object",
+            "required": ["percent", "load_avg"],
+            "properties": {
+              "percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100,
+                "description": "CPU usage percentage"
+              },
+              "load_avg": {
+                "type": "array",
+                "description": "Load averages [1min, 5min, 15min]",
+                "items": {"type": "number"},
+                "minItems": 3,
+                "maxItems": 3
+              },
+              "core_count": {
+                "type": "integer",
+                "description": "Number of CPU cores"
+              }
+            }
+          },
+          "memory": {
+            "type": "object",
+            "required": ["total_mb", "used_mb", "percent_used"],
+            "properties": {
+              "total_mb": {"type": "integer"},
+              "used_mb": {"type": "integer"},
+              "available_mb": {"type": "integer"},
+              "percent_used": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              }
+            }
+          },
+          "disk": {
+            "type": "array",
+            "description": "Disk usage for mounted filesystems",
+            "items": {
+              "type": "object",
+              "required": ["path", "total_gb", "used_gb", "percent_used"],
+              "properties": {
+                "path": {"type": "string"},
+                "total_gb": {"type": "number"},
+                "used_gb": {"type": "number"},
+                "free_gb": {"type": "number"},
+                "percent_used": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              }
+            }
+          },
+          "network": {
+            "type": "object",
+            "properties": {
+              "interfaces": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {"type": "string"},
+                    "bytes_sent": {"type": "integer"},
+                    "bytes_recv": {"type": "integer"},
+                    "packets_sent": {"type": "integer"},
+                    "packets_recv": {"type": "integer"},
+                    "is_up": {"type": "boolean"}
+                  }
+                }
+              }
+            }
+          },
+          "temperature": {
+            "type": "object",
+            "properties": {
+              "cpu_celsius": {"type": "number"},
+              "sensors": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {"type": "string"},
+                    "value": {"type": "number"},
+                    "unit": {"type": "string"},
+                    "critical": {"type": "number"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "processes": {
+        "type": "object",
+        "properties": {
+          "total_count": {"type": "integer"},
+          "running_count": {"type": "integer"},
+          "top_cpu": {
+            "type": "array",
+            "description": "Top 5 processes by CPU usage",
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "properties": {
+                "pid": {"type": "integer"},
+                "name": {"type": "string"},
+                "cpu_percent": {"type": "number"},
+                "memory_mb": {"type": "number"},
+                "user": {"type": "string"}
+              }
+            }
+          },
+          "top_memory": {
+            "type": "array", 
+            "description": "Top 5 processes by memory usage",
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "properties": {
+                "pid": {"type": "integer"},
+                "name": {"type": "string"},
+                "cpu_percent": {"type": "number"},
+                "memory_mb": {"type": "number"},
+                "user": {"type": "string"}
+              }
+            }
+          }
+        }
+      },
+      "services": {
+        "type": "array",
+        "description": "Critical system services status",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string"},
+            "status": {
+              "type": "string",
+              "enum": ["active", "inactive", "failed", "unknown"]
+            },
+            "enabled": {"type": ["boolean", "null"]}
+          }
+        }
+      },
+      "last_command": {
+        "type": "object",
+        "description": "Info about last executed command",
+        "properties": {
+          "command_id": {"type": "string"},
+          "command_type": {"type": "string"},
+          "status": {"type": "string"},
+          "timestamp": {"type": "string", "format": "date-time"}
+        }
+      },
+      "timestamp": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Heartbeat timestamp in ISO 8601 format"
+      }
+    }
+  },
+  "example": {
+    "agent_id": "a1b2c3d4e5f6",
+    "status": "online",
+    "system": {
+      "uptime_seconds": 86400,
+      "cpu": {
+        "percent": 15.3,
+        "load_avg": [0.8, 1.2, 1.5],
+        "core_count": 8
+      },
+      "memory": {
+        "total_mb": 16384,
+        "used_mb": 8192,
+        "available_mb": 8192,
+        "percent_used": 50.0
+      },
+      "disk": [
+        {
+          "path": "/",
+          "total_gb": 50.0,
+          "used_gb": 25.5,
+          "free_gb": 24.5,
+          "percent_used": 51.0
+        }
+      ],
+      "temperature": {
+        "cpu_celsius": 65.5,
+        "sensors": [
+          {
+            "name": "Core 0",
+            "value": 65.5,
+            "unit": "°C",
+            "critical": 100.0
+          }
+        ]
+      }
+    },
+    "processes": {
+      "total_count": 245,
+      "running_count": 12,
+      "top_cpu": [
+        {
+          "pid": 1234,
+          "name": "firefox",
+          "cpu_percent": 8.5,
+          "memory_mb": 512,
+          "user": "eridwyn"
+        }
+      ]
+    },
+    "services": [
+      {
+        "name": "ssh",
+        "status": "active",
+        "enabled": true
+      }
+    ],
+    "timestamp": "2025-09-01T10:30:00Z"
+  }
+}

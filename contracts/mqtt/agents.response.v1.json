@@ -1,0 +1,168 @@
+{
+  "name": "agents.response", 
+  "version": "v1",
+  "description": "Agent responds to kernel commands with execution results",
+  "topic": "symbion/agents/response@v1",
+  "direction": "agent_to_kernel",
+  "schema": {
+    "type": "object",
+    "required": ["command_id", "agent_id", "status", "timestamp"],
+    "properties": {
+      "command_id": {
+        "type": "string",
+        "description": "Original command identifier for correlation",
+        "pattern": "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
+      },
+      "agent_id": {
+        "type": "string",
+        "description": "Responding agent identifier", 
+        "pattern": "^[a-fA-F0-9]{12}$"
+      },
+      "status": {
+        "type": "string",
+        "enum": ["success", "error", "timeout", "unauthorized"],
+        "description": "Command execution status"
+      },
+      "data": {
+        "type": "object",
+        "description": "Command-specific response data",
+        "properties": {
+          "output": {
+            "type": "string",
+            "description": "Command output/result",
+            "maxLength": 10000
+          },
+          "exit_code": {
+            "type": "integer",
+            "description": "Command exit code (for run_command)"
+          },
+          "processes": {
+            "type": "array",
+            "description": "Process list (for list_processes)",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pid": {"type": "integer"},
+                "name": {"type": "string"},
+                "cpu_percent": {"type": "number"},
+                "memory_mb": {"type": "number"},
+                "status": {"type": "string"},
+                "user": {"type": "string"}
+              }
+            }
+          },
+          "metrics": {
+            "type": "object",
+            "description": "System metrics (for get_metrics)",
+            "properties": {
+              "cpu_percent": {"type": "number"},
+              "memory": {
+                "type": "object",
+                "properties": {
+                  "total_mb": {"type": "integer"},
+                  "used_mb": {"type": "integer"},
+                  "available_mb": {"type": "integer"},
+                  "percent_used": {"type": "number"}
+                }
+              },
+              "disk": {
+                "type": "array",
+                "items": {
+                  "type": "object", 
+                  "properties": {
+                    "path": {"type": "string"},
+                    "total_gb": {"type": "number"},
+                    "used_gb": {"type": "number"},
+                    "free_gb": {"type": "number"},
+                    "percent_used": {"type": "number"}
+                  }
+                }
+              },
+              "temperature": {
+                "type": "object",
+                "properties": {
+                  "cpu_celsius": {"type": "number"},
+                  "sensors": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {"type": "string"},
+                        "value": {"type": "number"},
+                        "unit": {"type": "string"}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "error": {
+        "type": "object",
+        "description": "Error details when status is 'error'",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "command_not_found",
+              "permission_denied", 
+              "process_not_found",
+              "execution_failed",
+              "timeout_exceeded",
+              "invalid_parameters"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable error message"
+          }
+        }
+      },
+      "execution_time_ms": {
+        "type": "integer",
+        "description": "Command execution time in milliseconds"
+      },
+      "timestamp": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Response timestamp in ISO 8601 format"
+      }
+    }
+  },
+  "examples": [
+    {
+      "command_id": "550e8400-e29b-41d4-a716-446655440000",
+      "agent_id": "a1b2c3d4e5f6",
+      "status": "success",
+      "data": {
+        "output": "Shutdown scheduled for 10 seconds"
+      },
+      "execution_time_ms": 150,
+      "timestamp": "2025-09-01T10:30:01Z"
+    },
+    {
+      "command_id": "550e8400-e29b-41d4-a716-446655440001",
+      "agent_id": "a1b2c3d4e5f6",
+      "status": "error", 
+      "error": {
+        "code": "process_not_found",
+        "message": "Process with PID 1234 not found"
+      },
+      "execution_time_ms": 50,
+      "timestamp": "2025-09-01T10:31:01Z"
+    },
+    {
+      "command_id": "550e8400-e29b-41d4-a716-446655440002",
+      "agent_id": "a1b2c3d4e5f6",
+      "status": "success",
+      "data": {
+        "output": "Filesystem      Size  Used Avail Use% Mounted on\n/dev/sda1       50G   25G   23G  53% /",
+        "exit_code": 0
+      },
+      "execution_time_ms": 1200,
+      "timestamp": "2025-09-01T10:32:01Z"
+    }
+  ]
+}
