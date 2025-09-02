@@ -102,6 +102,7 @@ pub struct AppState {
     pub ports: Shared<crate::ports::PortRegistry>,
     pub plugins: Shared<crate::plugins::PluginManager>,
     pub notes_bridge: Option<SharedNotesBridge>,
+    pub agents: crate::agents::SharedAgentRegistry,
 }
 
 #[derive(Debug, Deserialize)]
@@ -125,6 +126,15 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/plugins/{name}/start", post(start_plugin_endpoint))
         .route("/plugins/{name}/stop", post(stop_plugin_endpoint))
         .route("/plugins/{name}/restart", post(restart_plugin_endpoint))
+        .route("/agents", get(list_agents_endpoint))
+        .route("/agents/{id}", get(get_agent_endpoint))
+        .route("/agents/{id}/shutdown", post(agent_shutdown_endpoint))
+        .route("/agents/{id}/reboot", post(agent_reboot_endpoint))
+        .route("/agents/{id}/hibernate", post(agent_hibernate_endpoint))
+        .route("/agents/{id}/processes", get(agent_processes_endpoint))
+        .route("/agents/{id}/processes/{pid}/kill", post(agent_kill_process_endpoint))
+        .route("/agents/{id}/command", post(agent_command_endpoint))
+        .route("/agents/{id}/metrics", get(agent_metrics_endpoint))
         .with_state(app_state)
         .layer(middleware::from_fn(require_api_key))
 }
@@ -469,4 +479,224 @@ async fn handle_memo_update(
     
     // Plugin notes non disponible
     Err(StatusCode::SERVICE_UNAVAILABLE)
+}
+
+// ====== AGENTS ENDPOINTS ======
+
+#[derive(serde::Serialize)]
+struct AgentView {
+    agent_id: String,
+    hostname: String,
+    os: String,
+    architecture: String,
+    capabilities: Vec<String>,
+    primary_mac: String,
+    primary_ip: String,
+    status: String,
+    last_seen: String,
+    registration_time: String,
+    uptime_seconds: Option<u64>,
+    cpu_percent: Option<f32>,
+    memory_percent: Option<f32>,
+}
+
+#[derive(Deserialize)]
+struct AgentCommandRequest {
+    command: String,
+    parameters: Option<serde_json::Value>,
+}
+
+fn agent_to_view(agent: &crate::agents::Agent) -> AgentView {
+    let primary_ip = agent.network.interfaces
+        .first()
+        .map(|i| i.ip.clone())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    AgentView {
+        agent_id: agent.agent_id.clone(),
+        hostname: agent.hostname.clone(),
+        os: agent.os.clone(),
+        architecture: agent.architecture.clone(),
+        capabilities: agent.capabilities.clone(),
+        primary_mac: agent.network.primary_mac.clone(),
+        primary_ip,
+        status: agent.status.status.clone(),
+        last_seen: agent.last_seen.format(&Rfc3339).unwrap_or_default(),
+        registration_time: agent.registration_time.format(&Rfc3339).unwrap_or_default(),
+        uptime_seconds: agent.status.system.as_ref().map(|s| s.uptime_seconds),
+        cpu_percent: agent.status.system.as_ref().map(|s| s.cpu.percent),
+        memory_percent: agent.status.system.as_ref().map(|s| s.memory.percent_used),
+    }
+}
+
+// GET /agents - Liste des agents
+async fn list_agents_endpoint(State(app): State<AppState>) -> Json<Vec<AgentView>> {
+    let agents = app.agents.list_agents().await;
+    let list: Vec<AgentView> = agents.values().map(agent_to_view).collect();
+    Json(list)
+}
+
+// GET /agents/{id} - Détail d'un agent
+async fn get_agent_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<crate::agents::Agent>, StatusCode> {
+    match app.agents.get_agent(&id).await {
+        Some(agent) => Ok(Json(agent)),
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+// POST /agents/{id}/shutdown - Extinction système
+async fn agent_shutdown_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match app.agents.send_command(&id, "shutdown", None).await {
+        Ok(command_id) => Ok(Json(serde_json::json!({
+            "success": true,
+            "command_id": command_id,
+            "message": "Shutdown command sent"
+        }))),
+        Err(e) => {
+            eprintln!("[http] failed to send shutdown command to agent {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+// POST /agents/{id}/reboot - Redémarrage système  
+async fn agent_reboot_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match app.agents.send_command(&id, "reboot", None).await {
+        Ok(command_id) => Ok(Json(serde_json::json!({
+            "success": true,
+            "command_id": command_id,
+            "message": "Reboot command sent"
+        }))),
+        Err(e) => {
+            eprintln!("[http] failed to send reboot command to agent {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+// POST /agents/{id}/hibernate - Mise en veille
+async fn agent_hibernate_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match app.agents.send_command(&id, "hibernate", None).await {
+        Ok(command_id) => Ok(Json(serde_json::json!({
+            "success": true,
+            "command_id": command_id,
+            "message": "Hibernate command sent"
+        }))),
+        Err(e) => {
+            eprintln!("[http] failed to send hibernate command to agent {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+// GET /agents/{id}/processes - Liste des processus
+async fn agent_processes_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match app.agents.get_agent(&id).await {
+        Some(agent) => {
+            if let Some(processes) = &agent.status.processes {
+                Ok(Json(serde_json::to_value(processes).unwrap()))
+            } else {
+                // Demander les processus via MQTT
+                match app.agents.send_command(&id, "get_processes", None).await {
+                    Ok(command_id) => Ok(Json(serde_json::json!({
+                        "success": true,
+                        "command_id": command_id,
+                        "message": "Process list requested, check agent status for results"
+                    }))),
+                    Err(e) => {
+                        eprintln!("[http] failed to request processes from agent {}: {}", id, e);
+                        Err(StatusCode::INTERNAL_SERVER_ERROR)
+                    }
+                }
+            }
+        }
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+// POST /agents/{id}/processes/{pid}/kill - Tuer un processus
+async fn agent_kill_process_endpoint(
+    State(app): State<AppState>,
+    Path((id, pid)): Path<(String, u32)>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let params = serde_json::json!({ "pid": pid });
+    
+    match app.agents.send_command(&id, "kill_process", Some(params)).await {
+        Ok(command_id) => Ok(Json(serde_json::json!({
+            "success": true,
+            "command_id": command_id,
+            "message": format!("Kill process {} command sent", pid)
+        }))),
+        Err(e) => {
+            eprintln!("[http] failed to send kill process command to agent {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+// POST /agents/{id}/command - Exécuter une commande shell
+async fn agent_command_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+    Json(req): Json<AgentCommandRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let params = serde_json::json!({ 
+        "command": req.command,
+        "parameters": req.parameters
+    });
+    
+    match app.agents.send_command(&id, "run_command", Some(params)).await {
+        Ok(command_id) => Ok(Json(serde_json::json!({
+            "success": true,
+            "command_id": command_id,
+            "message": "Command execution requested"
+        }))),
+        Err(e) => {
+            eprintln!("[http] failed to send command to agent {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+// GET /agents/{id}/metrics - Métriques système temps réel
+async fn agent_metrics_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match app.agents.get_agent(&id).await {
+        Some(agent) => {
+            if let Some(system) = &agent.status.system {
+                Ok(Json(serde_json::to_value(system).unwrap()))
+            } else {
+                // Demander les métriques via MQTT
+                match app.agents.send_command(&id, "get_metrics", None).await {
+                    Ok(command_id) => Ok(Json(serde_json::json!({
+                        "success": true,
+                        "command_id": command_id,
+                        "message": "Metrics requested, check agent status for results"
+                    }))),
+                    Err(e) => {
+                        eprintln!("[http] failed to request metrics from agent {}: {}", id, e);
+                        Err(StatusCode::INTERNAL_SERVER_ERROR)
+                    }
+                }
+            }
+        }
+        None => Err(StatusCode::NOT_FOUND),
+    }
 }

@@ -19,6 +19,7 @@ mod health;
 mod ports;
 mod plugins;
 mod notes_bridge;
+mod agents;
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -29,6 +30,7 @@ use crate::health::HealthTracker;
 use crate::ports::create_default_ports;
 use crate::plugins::PluginManager;
 use crate::notes_bridge::{NotesBridge, SharedNotesBridge};
+use crate::agents::{AgentRegistry, SharedAgentRegistry};
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -105,8 +107,15 @@ async fn main() {
     // Bridge notes pour API /ports/memo → plugin via MQTT  
     let notes_bridge: Option<SharedNotesBridge> = Some(Arc::new(NotesBridge::new(mqtt_client.clone())));
 
-    // MQTT remplit les states
-    mqtt::spawn_mqtt_listener(states.clone(), cfg.clone(), notes_bridge.clone());
+    // Agent registry avec persistance et MQTT
+    let mut agent_registry = AgentRegistry::new("./data/agents.json").with_mqtt_client(mqtt_client.clone());
+    if let Err(e) = agent_registry.load_agents().await {
+        eprintln!("[kernel] failed to load agents: {}", e);
+    }
+    let agents: SharedAgentRegistry = Arc::new(agent_registry);
+
+    // MQTT remplit les states + agents
+    mqtt::spawn_mqtt_listener(states.clone(), cfg.clone(), notes_bridge.clone(), Some(agents.clone()));
 
     // démarre le healthcheck périodique des plugins
     plugins::spawn_plugin_health_monitor(plugins.clone());
@@ -122,7 +131,8 @@ async fn main() {
         health_tracker, 
         ports, 
         plugins,
-        notes_bridge
+        notes_bridge,
+        agents
     };
 
     // HTTP

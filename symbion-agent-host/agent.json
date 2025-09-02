@@ -1,0 +1,167 @@
+{
+  "name": "symbion-agent-host",
+  "version": "1.0.0",
+  "description": "Multi-OS system agent for Symbion network control",
+  "type": "agent",
+  "author": "Symbion Team",
+  "license": "MIT",
+  "
+": {
+    "linux": {
+      "power_management": {
+        "shutdown": {
+          "command": "sudo shutdown -h +{delay_minutes}",
+          "requires_sudo": true,
+          "description": "System shutdown with delay"
+        },
+        "reboot": {
+          "command": "sudo reboot",
+          "requires_sudo": true,
+          "description": "System reboot"
+        },
+        "hibernate": {
+          "command": "sudo systemctl hibernate",
+          "requires_sudo": true,
+          "description": "System hibernate"
+        }
+      },
+      "process_control": {
+        "list": {
+          "command": "ps aux",
+          "description": "List all processes"
+        },
+        "kill": {
+          "command": "kill {pid}",
+          "description": "Kill process by PID"
+        }
+      },
+      "service_management": {
+        "status": {
+          "command": "systemctl status {service}",
+          "description": "Check service status"
+        },
+        "start": {
+          "command": "sudo systemctl start {service}",
+          "requires_sudo": true
+        },
+        "stop": {
+          "command": "sudo systemctl stop {service}",
+          "requires_sudo": true
+        }
+      }
+    },
+    "windows": {
+      "power_management": {
+        "shutdown": {
+          "command": "shutdown /s /t {delay_seconds}",
+          "description": "System shutdown with delay"
+        },
+        "reboot": {
+          "command": "shutdown /r /t {delay_seconds}",
+          "description": "System reboot with delay"
+        },
+        "hibernate": {
+          "command": "shutdown /h",
+          "description": "System hibernate"
+        }
+      },
+      "process_control": {
+        "list": {
+          "command": "tasklist",
+          "description": "List all processes"
+        },
+        "kill": {
+          "command": "taskkill /PID {pid} /F",
+          "description": "Kill process by PID"
+        }
+      },
+      "service_management": {
+        "status": {
+          "command": "sc query {service}",
+          "description": "Check service status"
+        },
+        "start": {
+          "command": "net start {service}",
+          "description": "Start service"
+        },
+        "stop": {
+          "command": "net stop {service}",
+          "description": "Stop service"
+        }
+      }
+    },
+    "android": {
+      "process_control": {
+        "list": {
+          "command": "ps",
+          "description": "List processes (limited in Termux)"
+        },
+        "kill": {
+          "command": "kill {pid}",
+          "description": "Kill process by PID (limited permissions)"
+        }
+      },
+      "power_management": {
+        "note": "Limited power control in Android/Termux environment"
+      }
+    }
+  },
+  "mqtt": {
+    "topics": {
+      "registration": "symbion/agents/registration@v1",
+      "heartbeat": "symbion/agents/heartbeat@v1", 
+      "command": "symbion/agents/command@v1/{agent_id}",
+      "response": "symbion/agents/response@v1"
+    },
+    "qos": 1,
+    "retain": false
+  },
+  "security": {
+    "command_whitelist": [
+      "shutdown", "reboot", "hibernate", "ps", "kill", "tasklist", "taskkill",
+      "systemctl", "sc", "net", "echo", "ping", "df", "ls", "dir"
+    ],
+    "blocked_patterns": [
+      "rm -rf /", "del /Q /S C:\\", "format", "fdisk", "dd if=", "mkfs"
+    ],
+    "max_command_length": 1000,
+    "timeout_seconds": 300
+  },
+  "telemetry": {
+    "heartbeat_interval_seconds": 30,
+    "metrics_collection": true,
+    "top_processes_count": 5,
+    "disk_usage_threshold_percent": 90,
+    "memory_usage_threshold_percent": 85,
+    "cpu_usage_threshold_percent": 90
+  },
+  "deployment": {
+    "cross_compile_targets": [
+      "x86_64-unknown-linux-gnu",
+      "x86_64-pc-windows-gnu", 
+      "aarch64-linux-android"
+    ],
+    "installation": {
+      "linux": {
+        "service_file": "/etc/systemd/system/symbion-agent.service",
+        "binary_path": "/usr/local/bin/symbion-agent-host",
+        "config_path": "/etc/symbion/agent.conf"
+      },
+      "windows": {
+        "service_name": "SymbionAgent",
+        "binary_path": "C:\\Program Files\\Symbion\\symbion-agent-host.exe",
+        "config_path": "C:\\ProgramData\\Symbion\\agent.conf"
+      },
+      "android": {
+        "termux_setup": "pkg install rust && cargo install --path .",
+        "binary_path": "$PREFIX/bin/symbion-agent-host",
+        "config_path": "$PREFIX/etc/symbion/agent.conf"
+      }
+    }
+  },
+  "logging": {
+    "default_level": "info",
+    "file_logging": false,
+    "syslog_integration": true
+  }
+}

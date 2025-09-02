@@ -1,0 +1,66 @@
+[package]
+name = "symbion-agent-host"
+version = "1.0.0"
+edition = "2021"
+description = "Multi-OS system agent for Symbion network control"
+authors = ["Symbion Team"]
+
+[[bin]]
+name = "symbion-agent-host"
+path = "src/main.rs"
+
+[dependencies]
+# MQTT Communication - aligned with kernel version
+rumqttc = "0.24.0"
+tokio = { version = "1.0", features = ["full"] }
+
+# JSON & Configuration
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4"] }
+
+# System Info & Metrics
+sysinfo = "0.30"
+nix = "0.27"  # Unix system calls (Linux/macOS)
+gethostname = "0.4"  # Cross-platform hostname detection
+
+# Network Discovery
+if-addrs = "0.10"  # Network interface enumeration
+mac_address = "1.1"  # MAC address detection
+
+# Error Handling & Logging
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# Async utilities
+futures = "0.3"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Process management (cross-platform)
+process_control = "4.0"  # Cross-platform process execution with timeout
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Linux-specific system control - systemd integration is optional
+# systemd = "0.10"  # systemctl integration (disabled due to libsystemd dependency)
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# Windows-specific dependencies
+winapi = { version = "0.3", features = [
+    "winuser", "processthreadsapi", "handleapi", "winnt", "winsvc"
+]}
+windows-service = "0.6"  # Windows service management
+
+[target.'cfg(target_os = "android")'.dependencies]
+# Android-specific (Termux environment)
+# Uses standard Unix calls through nix crate
+
+[features]
+default = []
+# Feature flags for different capabilities  
+power-management = []
+service-control = []
+advanced-metrics = []
