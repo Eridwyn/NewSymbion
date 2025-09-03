@@ -1,0 +1,167 @@
+name: Release Symbion Agent
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            name: linux-x64
+            extension: ''
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            name: windows-x64
+            extension: '.exe'
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            name: macos-x64
+            extension: ''
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }}
+        
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: symbion-agent-host
+        
+    - name: Install system dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y pkg-config libssl-dev
+        
+    - name: Build binary
+      run: |
+        cd symbion-agent-host
+        cargo build --release --target ${{ matrix.target }}
+        
+    - name: Prepare binary
+      shell: bash
+      run: |
+        mkdir -p artifacts
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          cp "symbion-agent-host/target/${{ matrix.target }}/release/symbion-agent-host.exe" "artifacts/symbion-agent-host-${{ matrix.name }}.exe"
+        else
+          cp "symbion-agent-host/target/${{ matrix.target }}/release/symbion-agent-host" "artifacts/symbion-agent-host-${{ matrix.name }}"
+        fi
+        
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: symbion-agent-${{ matrix.name }}
+        path: artifacts/
+        retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts/
+        
+    - name: Prepare release assets
+      run: |
+        mkdir -p release-assets
+        find artifacts/ -name "symbion-agent-*" -type f -exec cp {} release-assets/ \;
+        cd release-assets
+        sha256sum * > checksums.sha256
+        ls -la
+        
+    - name: Get version
+      id: get_version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        else
+          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.get_version.outputs.version }}
+        name: Symbion Agent ${{ steps.get_version.outputs.version }}
+        body: |
+          # Symbion Agent ${{ steps.get_version.outputs.version }}
+
+          ## 🚀 Features
+          - ✅ Configuration management avec stockage sécurisé OS
+          - ✅ Auto-update GitHub releases system
+          - ✅ Tauri setup wizard foundation  
+          - ✅ First-time setup detection
+          - ✅ MQTT configuration dynamique
+          - ✅ Cross-platform support (Linux/Windows/macOS)
+
+          ## 📥 Downloads
+
+          | Platform | File | Description |
+          |----------|------|-------------|
+          | Linux x64 | `symbion-agent-host-linux-x64` | Main agent binary for Linux |
+          | Windows x64 | `symbion-agent-host-windows-x64.exe` | Main agent binary for Windows |  
+          | macOS x64 | `symbion-agent-host-macos-x64` | Main agent binary for macOS Intel |
+
+          ## 🔧 Installation
+
+          ### First Time Setup
+          1. Download the appropriate binary for your platform
+          2. Make executable (Linux/macOS): `chmod +x symbion-agent-host-*`
+          3. Run the binary - it will detect first-time setup and show configuration instructions
+          4. Create configuration file as instructed, or use setup wizard
+
+          ### Configuration Example
+          ```toml
+          [mqtt]
+          broker_host = "127.0.0.1"
+          broker_port = 1883
+
+          [update]
+          auto_update = true
+          channel = "Stable"
+          check_interval_hours = 24
+          github_repo = "${{ github.repository }}"
+          ```
+
+          ## 🔄 Auto-Update
+          - Enable `auto_update = true` in configuration
+          - Agent will automatically check and update from GitHub releases
+          - Critical security updates are installed immediately
+
+          ## ✅ Verification
+          Verify download integrity with SHA256:
+          ```bash
+          sha256sum -c checksums.sha256
+          ```
+
+        files: release-assets/*
+        draft: false
+        prerelease: false
+        generate_release_notes: true

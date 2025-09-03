@@ -13,6 +13,8 @@ mod discovery;
 mod capabilities;
 mod metrics;
 mod execution;
+mod config;
+mod updater;
 
 use anyhow::{Result, Context};
 use chrono::{DateTime, Utc};
@@ -128,17 +130,20 @@ struct Agent {
 }
 
 impl Agent {
-    /// Create new agent instance
-    async fn new() -> Result<Self> {
+    /// Create new agent instance with loaded configuration
+    async fn new_with_config(agent_config: config::AgentConfig) -> Result<Self> {
         info!("Initializing Symbion Agent Host v1.0.0");
         
         // Discover system information
         let system_info = SystemInfo::discover().await
             .context("Failed to discover system information")?;
             
-        // Configure MQTT client
+        // Configure MQTT client from loaded config
         let mut config = AgentConfig::default();
-        config.mqtt_client_id = format!("symbion-agent-{}", system_info.agent_id);
+        config.mqtt_broker = agent_config.mqtt.broker_host;
+        config.mqtt_port = agent_config.mqtt.broker_port;
+        config.mqtt_client_id = agent_config.mqtt.client_id
+            .unwrap_or_else(|| format!("symbion-agent-{}", system_info.agent_id));
         
         let mut mqtt_options = MqttOptions::new(
             &config.mqtt_client_id,
@@ -900,16 +905,80 @@ impl Agent {
 async fn main() -> Result<()> {
     // Initialize logging
     tracing_subscriber::fmt()
-        // .with_env_filter(
-        //     std::env::var("RUST_LOG")
-        //         .unwrap_or_else(|_| "symbion_agent_host=info".to_string())
-        // )
         .init();
         
     info!("🤖 Symbion Agent Host starting...");
     
+    // Check if this is first-time setup
+    if config::AgentConfig::is_first_time_setup() {
+        println!("🔧 First-time setup detected!");
+        println!("⚠️  Configuration manquante - veuillez lancer le wizard de configuration:");
+        
+        #[cfg(feature = "tauri-setup")]
+        {
+            println!("   symbion-agent-setup");
+        }
+        
+        #[cfg(not(feature = "tauri-setup"))]
+        {
+            println!("   Créez manuellement le fichier de configuration:");
+            if let Ok(config_path) = config::AgentConfig::config_file_path() {
+                println!("   {}", config_path.display());
+            }
+        }
+        
+        println!();
+        println!("Configuration requise:");
+        println!("• 📡 MQTT broker (défaut: 127.0.0.1:1883)");
+        println!("• 🔐 Privilèges système (optionnel)");
+        println!("• 🔄 Auto-update GitHub (optionnel)");
+        
+        return Err(anyhow::anyhow!("Configuration requise - veuillez exécuter le wizard de setup"));
+    }
+    
+    // Load configuration
+    let agent_config = config::AgentConfig::load().await
+        .context("Failed to load agent configuration")?;
+        
+    info!("Configuration loaded: MQTT broker at {}:{}", 
+          agent_config.mqtt.broker_host, agent_config.mqtt.broker_port);
+    
+    // Check for updates if enabled
+    if agent_config.update.auto_update {
+        info!("Auto-update enabled, checking for updates...");
+        let updater = updater::AgentUpdater::new(agent_config.clone());
+        match updater.check_update().await {
+            Ok(update_info) => {
+                if update_info.is_update_available {
+                    info!("Update available: {} -> {}", 
+                          update_info.current_version, update_info.latest_version);
+                    
+                    if update_info.is_critical {
+                        warn!("Critical update detected, performing automatic update...");
+                        if let Err(e) = updater.perform_update(&update_info).await {
+                            error!("Auto-update failed: {}", e);
+                        }
+                    }
+                } else {
+                    info!("Agent is up to date ({})", update_info.current_version);
+                }
+            }
+            Err(e) => {
+                warn!("Failed to check for updates: {}", e);
+            }
+        }
+        
+        // Start background update checker
+        let updater_clone = updater.clone();
+        tokio::spawn(async move {
+            if let Err(e) = updater_clone.schedule_check().await {
+                error!("Background update checker failed: {}", e);
+            }
+        });
+    }
+    
     // Create and run agent
-    let mut agent = Agent::new().await
+    let mut agent = Agent::new_with_config(agent_config).await
         .context("Failed to create agent")?;
         
     agent.run().await

@@ -941,29 +941,12 @@ class AgentControlWidget extends LitElement {
   }
 
   renderCommandsTab() {
-    const isOnline = this.agent && this.agent.status === 'online'
-
     return html`
       <div class="section">
         <div class="section-title">💻 Command Execution</div>
-        <div class="command-section">
-          <div class="command-input">
-            <input 
-              type="text"
-              class="command-field"
-              placeholder="Enter command to execute..."
-              .value="${this.commandInput}"
-              @input="${(e) => this.commandInput = e.target.value}"
-              @keypress="${this.handleCommandKeyPress}"
-              ?disabled="${!isOnline}">
-            <button 
-              class="execute-btn"
-              ?disabled="${!isOnline || !this.commandInput.trim()}"
-              @click="${this.executeCommand}">
-              Execute
-            </button>
-          </div>
-          <div class="command-output">${this.commandOutput}</div>
+        <div class="error-state">
+          🚧 Coming soon!<br>
+          <small>Command execution will be available in the next release with proper privilege management and security features.</small>
         </div>
       </div>
     `
