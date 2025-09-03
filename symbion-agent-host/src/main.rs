@@ -133,7 +133,7 @@ struct Agent {
 impl Agent {
     /// Create new agent instance with loaded configuration
     async fn new_with_config(agent_config: config::AgentConfig) -> Result<Self> {
-        info!("Initializing Symbion Agent Host v1.0.0");
+        info!("Initializing Symbion Agent Host v{}", env!("CARGO_PKG_VERSION"));
         
         // Discover system information
         let system_info = SystemInfo::discover().await
@@ -908,7 +908,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .init();
         
-    info!("🤖 Symbion Agent Host starting...");
+    info!("🤖 Symbion Agent Host v{} starting...", env!("CARGO_PKG_VERSION"));
     
     // Check if this is first-time setup
     if config::AgentConfig::is_first_time_setup() {
