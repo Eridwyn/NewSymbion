@@ -42,8 +42,6 @@ jobs:
         
     - name: Cache Rust dependencies
       uses: Swatinem/rust-cache@v2
-      with:
-        workspaces: symbion-agent-host
         
     - name: Install system dependencies (Linux)
       if: matrix.os == 'ubuntu-latest'
@@ -53,17 +51,16 @@ jobs:
         
     - name: Build binary
       run: |
-        cd symbion-agent-host
-        cargo build --release --target ${{ matrix.target }}
+        cargo build --release --target ${{ matrix.target }} -p symbion-agent-host
         
     - name: Prepare binary
       shell: bash
       run: |
         mkdir -p artifacts
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          cp "symbion-agent-host/target/${{ matrix.target }}/release/symbion-agent-host.exe" "artifacts/symbion-agent-host-${{ matrix.name }}.exe"
+          cp "target/${{ matrix.target }}/release/symbion-agent-host.exe" "artifacts/symbion-agent-host-${{ matrix.name }}.exe"
         else
-          cp "symbion-agent-host/target/${{ matrix.target }}/release/symbion-agent-host" "artifacts/symbion-agent-host-${{ matrix.name }}"
+          cp "target/${{ matrix.target }}/release/symbion-agent-host" "artifacts/symbion-agent-host-${{ matrix.name }}"
         fi
         
     - name: Upload artifacts
