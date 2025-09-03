@@ -161,7 +161,7 @@ impl Agent {
                         debug!("Received MQTT message on topic: {}", publish.topic);
                         
                         // Forward command messages to main loop
-                        if publish.topic.starts_with("symbion/agents/command@v1/") {
+                        if publish.topic == "symbion/agents/command@v1" {
                             let payload = String::from_utf8_lossy(&publish.payload).to_string();
                             let command = ReceivedCommand {
                                 topic: publish.topic.clone(),
@@ -198,9 +198,9 @@ impl Agent {
     async fn run(&mut self) -> Result<()> {
         info!("Starting agent main loop...");
         
-        // Subscribe to command topic for this agent
-        let command_topic = format!("symbion/agents/command@v1/{}", self.system_info.agent_id);
-        self.mqtt_client.subscribe(&command_topic, QoS::AtLeastOnce).await
+        // Subscribe to command topic (all agents listen to same topic, filter by agent_id)
+        let command_topic = "symbion/agents/command@v1";
+        self.mqtt_client.subscribe(command_topic, QoS::AtLeastOnce).await
             .context("Failed to subscribe to command topic")?;
             
         info!("Subscribed to commands on: {}", command_topic);
@@ -308,6 +308,13 @@ impl Agent {
         // Parse the incoming command
         let incoming: IncomingCommand = serde_json::from_str(&cmd.payload)
             .context("Failed to parse incoming command")?;
+            
+        // Filter commands - only process if intended for this agent
+        if incoming.agent_id != self.system_info.agent_id {
+            debug!("Ignoring command {} for agent {} (this agent is {})", 
+                   incoming.command_id, incoming.agent_id, self.system_info.agent_id);
+            return Ok(());
+        }
         
         info!("Executing command: {} ({})", incoming.command_type, incoming.command_id);
         
