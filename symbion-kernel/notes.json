@@ -46,5 +46,49 @@
       "status": null
     },
     "metadata": {}
+  },
+  {
+    "id": "d9436dd2-725e-4601-802b-0e2eafda2e21",
+    "timestamp": [
+      2025,
+      246,
+      7,
+      29,
+      22,
+      799821404,
+      0,
+      0,
+      0
+    ],
+    "data": {
+      "content": "Test debug note",
+      "urgent": false,
+      "context": null,
+      "tags": null,
+      "status": null
+    },
+    "metadata": {}
+  },
+  {
+    "id": "4543cfa9-0c1b-42d5-9d0b-626232982dcd",
+    "timestamp": [
+      2025,
+      246,
+      7,
+      30,
+      12,
+      614317957,
+      0,
+      0,
+      0
+    ],
+    "data": {
+      "content": "Note test FRESH",
+      "urgent": true,
+      "context": null,
+      "tags": null,
+      "status": null
+    },
+    "metadata": {}
   }
 ]

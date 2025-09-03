@@ -4,7 +4,7 @@
   "binary": "../symbion-plugin-hosts/target/debug/symbion-plugin-hosts",
   "description": "Monitoring des hosts avec heartbeats et Wake-on-LAN",
   "contracts": ["heartbeat@v2", "wake@v1"],
-  "auto_start": true,
+  "auto_start": false,
   "restart_on_failure": true,
   "startup_timeout_seconds": 15,
   "shutdown_timeout_seconds": 5,

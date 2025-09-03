@@ -133,6 +133,7 @@ class WidgetRegistry {
 // import './plugins-widget.js'
 // import './hosts-widget.js'
 // import './notes-widget.js'
+// import './agents-network-widget.js'
 
 // // Instance singleton du registry
 // const widgetRegistry = new WidgetRegistry()
@@ -144,6 +145,7 @@ class WidgetRegistry {
 //   widgetRegistry.registerWidget('plugins-manager', customElements.get('plugins-widget'))
 //   widgetRegistry.registerWidget('hosts-monitor', customElements.get('hosts-widget'))
 //   widgetRegistry.registerWidget('notes-manager', customElements.get('notes-widget'))
+//   widgetRegistry.registerWidget('agents-network', customElements.get('agents-network-widget'))
 // }, 0)
 
 // Create a dummy registry for now

@@ -161,9 +161,77 @@ async fn wake(
     State(app): State<AppState>,
     Query(params): Query<WakeParams>,
 ) -> (StatusCode, Json<serde_json::Value>) {
+    // D'abord essayer avec les agents (système moderne)
+    let agents = app.agents.list_agents().await;
+    for agent in agents.values() {
+        if agent.agent_id == params.host_id {
+            // Utiliser l'adresse MAC de l'agent pour WoL
+            let mac_str = format!("{}:{}:{}:{}:{}:{}",
+                &params.host_id[0..2], &params.host_id[2..4], &params.host_id[4..6],
+                &params.host_id[6..8], &params.host_id[8..10], &params.host_id[10..12]
+            );
+            
+            return send_magic_packet(&mac_str).await;
+        }
+    }
+    
+    // Fallback vers ancien système hosts
     let cfg = app.cfg.lock().clone();
-    let (code, msg) = trigger_wol_udp(&cfg, &params.host_id).await;  // <— ici
+    let (code, msg) = trigger_wol_udp(&cfg, &params.host_id).await;
     (code, Json(serde_json::json!({ "ok": code == StatusCode::OK, "msg": msg })))
+}
+
+/// Envoie un magic packet WoL pour l'adresse MAC donnée
+async fn send_magic_packet(mac: &str) -> (StatusCode, Json<serde_json::Value>) {
+    use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket};
+    
+    // Parse MAC address
+    let hex: String = mac.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+    if hex.len() != 12 {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"ok": false, "msg": "invalid mac length"})));
+    }
+    
+    let mut mac_bytes = [0u8; 6];
+    for i in 0..6 {
+        match u8::from_str_radix(&hex[i*2..i*2+2], 16) {
+            Ok(byte) => mac_bytes[i] = byte,
+            Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"ok": false, "msg": "invalid mac format"})))
+        }
+    }
+    
+    // Create magic packet (6 x 0xFF + 16 x MAC)
+    let mut packet = [0u8; 102];
+    for i in 0..6 { packet[i] = 0xFF; }
+    for i in 0..16 {
+        let base = 6 + i*6;
+        packet[base..base+6].copy_from_slice(&mac_bytes);
+    }
+    
+    // Send UDP broadcast on ports 9 and 7
+    let sock = match UdpSocket::bind(("0.0.0.0", 0)) {
+        Ok(s) => s,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"ok": false, "msg": "failed to bind socket"})))
+    };
+    
+    if sock.set_broadcast(true).is_err() {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"ok": false, "msg": "failed to enable broadcast"})));
+    }
+    
+    let broadcast = Ipv4Addr::new(255, 255, 255, 255);
+    let mut success = false;
+    
+    for port in [9u16, 7u16] {
+        let addr = SocketAddrV4::new(broadcast, port);
+        if sock.send_to(&packet, addr).is_ok() {
+            success = true;
+        }
+    }
+    
+    if success {
+        (StatusCode::OK, Json(serde_json::json!({"ok": true, "msg": "magic packet sent"})))
+    } else {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"ok": false, "msg": "failed to send magic packet"})))
+    }
 }
 
 // GET /contracts (liste)

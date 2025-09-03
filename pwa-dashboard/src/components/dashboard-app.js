@@ -8,10 +8,13 @@
 import { LitElement, html, css } from 'lit'
 import '../services/api-service.js'
 import '../services/mqtt-service.js'
+import '../services/agents-service.js'
 import '../widgets/system-health-widget.js'
-import '../widgets/hosts-widget.js'
+// import '../widgets/hosts-widget.js'  // DEPRECATED: remplacé par agents-network-widget
 import '../widgets/plugins-widget.js'
 import '../widgets/notes-widget.js'
+import '../widgets/agents-network-widget.js'
+import '../widgets/agent-control-widget.js'
 
 class DashboardApp extends LitElement {
   static styles = css`
@@ -284,13 +287,13 @@ class DashboardApp extends LitElement {
             </plugins-widget>
           </div>
           
-          <!-- Widget hosts (sera ajouté quand le plugin hosts sera actif) -->
-          <div class="widget-container">
+          <!-- Widget hosts DEPRECATED: remplacé par agents-network-widget -->
+          <!-- <div class="widget-container">
             <hosts-widget 
               .connected="${this.connected}"
               .apiService="${this.apiService}">
             </hosts-widget>
-          </div>
+          </div> -->
           
           <!-- Widget notes -->
           <div class="widget-container">
@@ -299,7 +302,17 @@ class DashboardApp extends LitElement {
               .connected="${this.connected}">
             </notes-widget>
           </div>
+          
+          <!-- Widget agents network -->
+          <div class="widget-container">
+            <agents-network-widget 
+              .connected="${this.connected}">
+            </agents-network-widget>
+          </div>
         </div>
+        
+        <!-- Modal de contrôle agent détaillé -->
+        <agent-control-widget></agent-control-widget>
       </div>
     `
   }
