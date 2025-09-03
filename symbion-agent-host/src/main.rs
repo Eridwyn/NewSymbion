@@ -15,6 +15,7 @@ mod metrics;
 mod execution;
 mod config;
 mod updater;
+mod wizard;
 
 use anyhow::{Result, Context};
 use chrono::{DateTime, Utc};
@@ -912,28 +913,24 @@ async fn main() -> Result<()> {
     // Check if this is first-time setup
     if config::AgentConfig::is_first_time_setup() {
         println!("🔧 First-time setup detected!");
-        println!("⚠️  Configuration manquante - veuillez lancer le wizard de configuration:");
+        println!("🚀 Starting interactive configuration wizard...");
         
-        #[cfg(feature = "tauri-setup")]
-        {
-            println!("   symbion-agent-setup");
-        }
-        
-        #[cfg(not(feature = "tauri-setup"))]
-        {
-            println!("   Créez manuellement le fichier de configuration:");
+        // Run the interactive CLI wizard
+        if let Err(e) = wizard::SetupWizard::run().await {
+            eprintln!("❌ Setup wizard failed: {}", e);
+            eprintln!("📝 Please create configuration manually at:");
             if let Ok(config_path) = config::AgentConfig::config_file_path() {
-                println!("   {}", config_path.display());
+                eprintln!("   {}", config_path.display());
             }
+            return Err(anyhow::anyhow!("Configuration setup failed"));
         }
         
-        println!();
-        println!("Configuration requise:");
-        println!("• 📡 MQTT broker (défaut: 127.0.0.1:1883)");
-        println!("• 🔐 Privilèges système (optionnel)");
-        println!("• 🔄 Auto-update GitHub (optionnel)");
+        // Verify configuration was created
+        if config::AgentConfig::is_first_time_setup() {
+            return Err(anyhow::anyhow!("Configuration was not completed"));
+        }
         
-        return Err(anyhow::anyhow!("Configuration requise - veuillez exécuter le wizard de setup"));
+        println!("✅ Configuration completed! Starting agent...");
     }
     
     // Load configuration

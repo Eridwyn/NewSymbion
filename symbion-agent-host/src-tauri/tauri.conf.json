@@ -34,7 +34,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "identifier": "com.symbion.agent",
     "longDescription": "Symbion system monitoring and control agent",
     "shortDescription": "Symbion Agent",
     "externalBin": [],

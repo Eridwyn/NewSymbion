@@ -13,5 +13,5 @@
 
 [workspace]
 members = ["symbion-kernel","symbion-plugin-hosts","symbion-plugin-notes","devkit","symbion-agent-host"]
-exclude = ["*-plugin", "test-*"]  # Exclure plugins générés et tests temporaires
+exclude = ["*-plugin", "test-*", "symbion-agent-host/src-tauri"]  # Exclure plugins générés et tests temporaires et Tauri setup
 resolver = "2"                    # Resolver moderne pour édition 2021
