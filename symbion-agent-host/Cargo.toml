@@ -23,6 +23,7 @@ uuid = { version = "1.0", features = ["v4"] }
 sysinfo = "0.30"
 nix = "0.27"  # Unix system calls (Linux/macOS)
 gethostname = "0.4"  # Cross-platform hostname detection
+hostname = "0.4"  # Alternative hostname detection
 
 # Network Discovery
 if-addrs = "0.10"  # Network interface enumeration
@@ -42,6 +43,12 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # Process management (cross-platform)
 process_control = "4.0"  # Cross-platform process execution with timeout
+# tauri = "2.8.5"  # Commented out - GUI wizard is separate binary
+self_update = "0.42.0"
+reqwest = "0.12.23"
+keyring = "3.6.3"
+toml = "0.8"
+dirs = "5.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # Linux-specific system control - systemd integration is optional
@@ -53,6 +60,7 @@ winapi = { version = "0.3", features = [
     "winuser", "processthreadsapi", "handleapi", "winnt", "winsvc"
 ]}
 windows-service = "0.6"  # Windows service management
+self-replace = "1.3"  # Safe executable replacement for auto-update
 
 [target.'cfg(target_os = "android")'.dependencies]
 # Android-specific (Termux environment)
