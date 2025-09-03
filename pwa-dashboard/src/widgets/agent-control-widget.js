@@ -19,6 +19,7 @@ class AgentControlWidget extends LitElement {
     isOpen: { type: Boolean },
     currentTab: { type: String },
     loading: { type: Boolean },
+    refreshing: { type: Boolean },
     processes: { type: Array },
     metrics: { type: Object },
     commandOutput: { type: String },
@@ -490,6 +491,7 @@ class AgentControlWidget extends LitElement {
     this.isOpen = false
     this.currentTab = 'system'
     this.loading = false
+    this.refreshing = false
     this.processes = []
     this.metrics = null
     this.commandOutput = '# Command output will appear here...\n'
@@ -565,12 +567,15 @@ class AgentControlWidget extends LitElement {
   startRefreshInterval() {
     this.stopRefreshInterval()
     this.refreshInterval = setInterval(() => {
-      if (this.currentTab === 'processes') {
-        this.loadProcesses()
-      } else if (this.currentTab === 'metrics') {
-        this.loadMetrics()
+      // Only refresh if modal is open and visible, and not currently loading
+      if (this.isOpen && !this.loading) {
+        if (this.currentTab === 'processes') {
+          this.loadProcesses()
+        } else if (this.currentTab === 'metrics') {
+          this.loadMetrics()
+        }
       }
-    }, 5000) // Refresh toutes les 5s
+    }, 15000) // Refresh toutes les 15s (moins fréquent)
   }
 
   stopRefreshInterval() {
@@ -595,29 +600,55 @@ class AgentControlWidget extends LitElement {
 
   async loadProcesses() {
     try {
-      this.loading = true
+      // Silent loading - keep existing data visible during refresh
+      const isInitialLoad = !this.processes || this.processes.length === 0
+      if (isInitialLoad) {
+        this.loading = true
+      } else {
+        this.refreshing = true
+      }
+      
       console.log('Loading processes for agent:', this.agentId)
-      this.processes = await this.agentsService.getAgentProcesses(this.agentId)
-      console.log('Loaded processes:', this.processes)
+      const newProcesses = await this.agentsService.getAgentProcesses(this.agentId)
+      console.log('Loaded processes:', newProcesses)
+      
+      // Only update if we got valid data
+      if (newProcesses && (Array.isArray(newProcesses) || newProcesses.total_count !== undefined)) {
+        this.processes = newProcesses
+      }
     } catch (error) {
       console.error('Failed to load processes:', error)
-      this.processes = []
+      // Don't clear existing data on refresh errors - keep what we have
     } finally {
       this.loading = false
+      this.refreshing = false
     }
   }
 
   async loadMetrics() {
     try {
-      this.loading = true
+      // Silent loading - keep existing data visible during refresh  
+      const isInitialLoad = !this.metrics
+      if (isInitialLoad) {
+        this.loading = true
+      } else {
+        this.refreshing = true
+      }
+      
       console.log('Loading metrics for agent:', this.agentId)
-      this.metrics = await this.agentsService.getAgentMetrics(this.agentId)
-      console.log('Loaded metrics:', this.metrics)
+      const newMetrics = await this.agentsService.getAgentMetrics(this.agentId)
+      console.log('Loaded metrics:', newMetrics)
+      
+      // Only update if we got valid data
+      if (newMetrics && (newMetrics.cpu || newMetrics.memory)) {
+        this.metrics = newMetrics
+      }
     } catch (error) {
       console.error('Failed to load metrics:', error)
-      this.metrics = null
+      // Don't clear existing data on refresh errors - keep what we have
     } finally {
       this.loading = false
+      this.refreshing = false
     }
   }
 
@@ -797,8 +828,9 @@ class AgentControlWidget extends LitElement {
         <div class="section-title">
           📋 Running Processes 
           <span style="font-size: 12px; color: #888; font-weight: normal;">
-            (${this.processes.running_count || 0} running, ${this.processes.total_count || 0} total)
+            (top 15 by CPU/memory • ${this.processes.running_count || 0} running, ${this.processes.total_count || 0} total)
           </span>
+          ${this.refreshing && this.currentTab === 'processes' ? html`<span style="margin-left: 8px; color: #3b82f6;">🔄</span>` : ''}
         </div>
         <div class="processes-table">
           <div class="process-header">
@@ -855,7 +887,10 @@ class AgentControlWidget extends LitElement {
 
     return html`
       <div class="section">
-        <div class="section-title">📊 System Metrics</div>
+        <div class="section-title">
+          📊 System Metrics
+          ${this.refreshing && this.currentTab === 'metrics' ? html`<span style="margin-left: 8px; color: #3b82f6;">🔄</span>` : ''}
+        </div>
         <div class="metrics-grid">
           <div class="metric-card">
             <div class="metric-label">CPU Usage</div>

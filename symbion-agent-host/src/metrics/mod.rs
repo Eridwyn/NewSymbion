@@ -206,40 +206,56 @@ impl DiskMetrics {
     fn collect(_sys: &System) -> Result<Vec<Self>> {
         let mut disk_metrics = Vec::new();
         
-        // Placeholder implementation - will implement disk detection later
-        disk_metrics.push(DiskMetrics {
-            path: "/".to_string(),
-            total_gb: 100.0,
-            used_gb: 50.0,
-            free_gb: 50.0,
-            percent_used: 50.0,
-        });
+        // Use native system call for disk stats (cross-platform via std)
+        if cfg!(unix) {
+            // On Unix, use statvfs for root filesystem
+            if let Ok(stat) = std::fs::metadata("/") {
+                // Simple approach: get root filesystem info
+                let path = std::path::Path::new("/");
+                if let Ok(entries) = std::fs::read_dir(path) {
+                    // Use du command for accurate disk usage (Unix only)
+                    if let Ok(output) = std::process::Command::new("df")
+                        .arg("/")
+                        .arg("--output=size,used,avail,pcent")
+                        .arg("--block-size=1G")
+                        .output()
+                    {
+                        if let Ok(output_str) = String::from_utf8(output.stdout) {
+                            let lines: Vec<&str> = output_str.lines().collect();
+                            if lines.len() > 1 {
+                                let parts: Vec<&str> = lines[1].split_whitespace().collect();
+                                if parts.len() >= 4 {
+                                    let total_gb: f64 = parts[0].parse().unwrap_or(0.0);
+                                    let used_gb: f64 = parts[1].parse().unwrap_or(0.0);
+                                    let free_gb: f64 = parts[2].parse().unwrap_or(0.0);
+                                    let percent_str = parts[3].trim_end_matches('%');
+                                    let percent_used: f32 = percent_str.parse().unwrap_or(0.0);
+                                    
+                                    disk_metrics.push(DiskMetrics {
+                                        path: "/".to_string(),
+                                        total_gb,
+                                        used_gb,
+                                        free_gb,
+                                        percent_used,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         
-        /*
-        for disk in sys.disks() {
-            let total_bytes = disk.total_space();
-            let available_bytes = disk.available_space();
-            let used_bytes = total_bytes - available_bytes;
-            
-            let total_gb = total_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
-            let used_gb = used_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
-            let free_gb = available_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
-            
-            let percent_used = if total_bytes > 0 {
-                (used_bytes as f32 / total_bytes as f32) * 100.0
-            } else {
-                0.0
-            };
-            
+        // Fallback - better than fake 50/100
+        if disk_metrics.is_empty() {
             disk_metrics.push(DiskMetrics {
-                path: disk.mount_point().to_string_lossy().to_string(),
-                total_gb,
-                used_gb,
-                free_gb,
-                percent_used,
+                path: "/".to_string(),
+                total_gb: 0.0,
+                used_gb: 0.0,
+                free_gb: 0.0,
+                percent_used: 0.0,
             });
         }
-        */
         
         Ok(disk_metrics)
     }
@@ -256,11 +272,11 @@ impl ProcessInfo {
             .filter(|p| matches!(p.status(), ProcessStatus::Run))
             .count();
         
-        // Sort by CPU usage (top 5)
+        // Sort by CPU usage (top 15)
         let mut cpu_sorted = processes.clone();
         cpu_sorted.sort_by(|a, b| b.cpu_usage().partial_cmp(&a.cpu_usage()).unwrap_or(std::cmp::Ordering::Equal));
         let top_cpu = cpu_sorted.into_iter()
-            .take(5)
+            .take(15)
             .map(|p| ProcessEntry {
                 pid: p.pid().as_u32(),
                 name: p.name().to_string(),
@@ -270,11 +286,11 @@ impl ProcessInfo {
             })
             .collect();
         
-        // Sort by memory usage (top 5)  
+        // Sort by memory usage (top 15)  
         let mut mem_sorted = processes;
         mem_sorted.sort_by(|a, b| b.memory().cmp(&a.memory()));
         let top_memory = mem_sorted.into_iter()
-            .take(5)
+            .take(15)
             .map(|p| ProcessEntry {
                 pid: p.pid().as_u32(),
                 name: p.name().to_string(),
