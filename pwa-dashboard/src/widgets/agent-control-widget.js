@@ -596,7 +596,9 @@ class AgentControlWidget extends LitElement {
   async loadProcesses() {
     try {
       this.loading = true
+      console.log('Loading processes for agent:', this.agentId)
       this.processes = await this.agentsService.getAgentProcesses(this.agentId)
+      console.log('Loaded processes:', this.processes)
     } catch (error) {
       console.error('Failed to load processes:', error)
       this.processes = []
@@ -608,7 +610,9 @@ class AgentControlWidget extends LitElement {
   async loadMetrics() {
     try {
       this.loading = true
+      console.log('Loading metrics for agent:', this.agentId)
       this.metrics = await this.agentsService.getAgentMetrics(this.agentId)
+      console.log('Loaded metrics:', this.metrics)
     } catch (error) {
       console.error('Failed to load metrics:', error)
       this.metrics = null
@@ -765,7 +769,7 @@ class AgentControlWidget extends LitElement {
       return html`<div class="loading-state">🔄 Loading processes...</div>`
     }
 
-    if (!this.processes || this.processes.length === 0) {
+    if (!this.processes) {
       return html`
         <div class="error-state">
           📋 No process data available<br>
@@ -774,9 +778,28 @@ class AgentControlWidget extends LitElement {
       `
     }
 
+    // L'API retourne un objet avec top_cpu, top_memory, running_count, total_count
+    const allProcesses = [
+      ...(this.processes.top_cpu || []),
+      ...(this.processes.top_memory || [])
+    ]
+    
+    // Dédupliquer par PID
+    const uniqueProcesses = allProcesses.reduce((acc, proc) => {
+      if (!acc.find(p => p.pid === proc.pid)) {
+        acc.push(proc)
+      }
+      return acc
+    }, [])
+
     return html`
       <div class="section">
-        <div class="section-title">📋 Running Processes</div>
+        <div class="section-title">
+          📋 Running Processes 
+          <span style="font-size: 12px; color: #888; font-weight: normal;">
+            (${this.processes.running_count || 0} running, ${this.processes.total_count || 0} total)
+          </span>
+        </div>
         <div class="processes-table">
           <div class="process-header">
             <span>PID</span>
@@ -785,12 +808,12 @@ class AgentControlWidget extends LitElement {
             <span class="memory-col">Memory</span>
             <span>Actions</span>
           </div>
-          ${Array.isArray(this.processes) ? this.processes.map(proc => html`
+          ${uniqueProcesses.length > 0 ? uniqueProcesses.map(proc => html`
             <div class="process-row">
               <span>${proc.pid}</span>
               <span class="process-name">${proc.name}</span>
-              <span class="cpu-col">${proc.cpu_percent || 0}%</span>
-              <span class="memory-col">${proc.memory_mb || 0}MB</span>
+              <span class="cpu-col">${(proc.cpu_percent || 0).toFixed(1)}%</span>
+              <span class="memory-col">${(proc.memory_mb || 0).toFixed(1)}MB</span>
               <span>
                 <button 
                   class="kill-btn"
@@ -799,7 +822,11 @@ class AgentControlWidget extends LitElement {
                 </button>
               </span>
             </div>
-          `) : html`<div class="error-state">No process data available</div>`}
+          `) : html`
+            <div class="process-row">
+              <span colspan="5" style="text-align: center; color: #888;">No top processes to display</span>
+            </div>
+          `}
         </div>
       </div>
     `
@@ -819,34 +846,59 @@ class AgentControlWidget extends LitElement {
       `
     }
 
+    const cpuPercent = this.metrics.cpu?.percent || 0
+    const memoryPercent = this.metrics.memory?.percent_used || 0
+    const diskPercent = this.metrics.disk?.[0]?.percent_used || 0
+    const uptimeHours = Math.round((this.metrics.uptime_seconds || 0) / 3600)
+    const memoryUsedGB = ((this.metrics.memory?.used_mb || 0) / 1024).toFixed(1)
+    const memoryTotalGB = ((this.metrics.memory?.total_mb || 0) / 1024).toFixed(1)
+
     return html`
       <div class="section">
         <div class="section-title">📊 System Metrics</div>
         <div class="metrics-grid">
           <div class="metric-card">
             <div class="metric-label">CPU Usage</div>
-            <div class="metric-value">${this.metrics.cpu_percent || 0}%</div>
+            <div class="metric-value">${cpuPercent.toFixed(1)}%</div>
             <div class="progress-bar">
-              <div class="progress-fill cpu" style="width: ${this.metrics.cpu_percent || 0}%"></div>
+              <div class="progress-fill cpu" style="width: ${cpuPercent}%"></div>
             </div>
+            ${this.metrics.cpu?.core_count ? html`
+              <div style="font-size: 12px; color: #888; margin-top: 8px;">
+                ${this.metrics.cpu.core_count} cores
+              </div>
+            ` : ''}
           </div>
           <div class="metric-card">
             <div class="metric-label">Memory Usage</div>
-            <div class="metric-value">${this.metrics.memory_percent || 0}%</div>
+            <div class="metric-value">${memoryPercent.toFixed(1)}%</div>
             <div class="progress-bar">
-              <div class="progress-fill memory" style="width: ${this.metrics.memory_percent || 0}%"></div>
+              <div class="progress-fill memory" style="width: ${memoryPercent}%"></div>
+            </div>
+            <div style="font-size: 12px; color: #888; margin-top: 8px;">
+              ${memoryUsedGB} / ${memoryTotalGB} GB
             </div>
           </div>
           <div class="metric-card">
             <div class="metric-label">Disk Usage</div>
-            <div class="metric-value">${this.metrics.disk_percent || 0}%</div>
+            <div class="metric-value">${diskPercent.toFixed(1)}%</div>
             <div class="progress-bar">
-              <div class="progress-fill disk" style="width: ${this.metrics.disk_percent || 0}%"></div>
+              <div class="progress-fill disk" style="width: ${diskPercent}%"></div>
             </div>
+            ${this.metrics.disk?.[0] ? html`
+              <div style="font-size: 12px; color: #888; margin-top: 8px;">
+                ${this.metrics.disk[0].path}: ${this.metrics.disk[0].used_gb}/${this.metrics.disk[0].total_gb} GB
+              </div>
+            ` : ''}
           </div>
           <div class="metric-card">
             <div class="metric-label">Uptime</div>
-            <div class="metric-value">${Math.round((this.metrics.uptime_seconds || 0) / 3600)}h</div>
+            <div class="metric-value">${uptimeHours}h</div>
+            ${this.metrics.cpu?.load_avg ? html`
+              <div style="font-size: 12px; color: #888; margin-top: 8px;">
+                Load: ${this.metrics.cpu.load_avg.map(l => l.toFixed(2)).join(', ')}
+              </div>
+            ` : ''}
           </div>
         </div>
       </div>

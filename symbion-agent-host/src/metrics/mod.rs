@@ -178,16 +178,17 @@ impl CpuMetrics {
 
 impl MemoryMetrics {
     fn collect(sys: &System) -> Result<Self> {
-        let total_kb = sys.total_memory();
-        let available_kb = sys.available_memory();
-        let used_kb = total_kb - available_kb;
+        let total_bytes = sys.total_memory();
+        let available_bytes = sys.available_memory();
+        let used_bytes = total_bytes - available_bytes;
         
-        let total_mb = (total_kb / 1024) as u64;
-        let used_mb = (used_kb / 1024) as u64;
-        let available_mb = (available_kb / 1024) as u64;
+        // Convert bytes to MB (divide by 1024^2)
+        let total_mb = (total_bytes / (1024 * 1024)) as u64;
+        let used_mb = (used_bytes / (1024 * 1024)) as u64;
+        let available_mb = (available_bytes / (1024 * 1024)) as u64;
         
-        let percent_used = if total_kb > 0 {
-            (used_kb as f32 / total_kb as f32) * 100.0
+        let percent_used = if total_bytes > 0 {
+            (used_bytes as f32 / total_bytes as f32) * 100.0
         } else {
             0.0
         };
