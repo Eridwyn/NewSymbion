@@ -430,15 +430,13 @@ class AgentsNetworkWidget extends LitElement {
   }
 
   openControlModal(agentId) {
-    // Utiliser le modal de contrôle détaillé
-    const controlModal = document.querySelector('agent-control-widget')
-    if (controlModal) {
-      controlModal.open(agentId)
-    } else {
-      // Fallback si le modal n'est pas trouvé
-      const agent = this.agentsService.getAgentById(agentId)
-      alert(`🛠️ Control modal for ${agent.hostname} not found`)
-    }
+    // Émission d'un événement pour ouvrir le modal de contrôle
+    const event = new CustomEvent('open-agent-control', {
+      detail: { agentId },
+      bubbles: true
+    })
+    console.log('Emitting open-agent-control event for:', agentId)
+    document.dispatchEvent(event)
   }
 
   renderAgent(agent) {
