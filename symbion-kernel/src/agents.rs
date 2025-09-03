@@ -375,6 +375,43 @@ impl AgentRegistry {
         
         Ok(())
     }
+
+    /// Surveille périodiquement les agents et marque ceux inactifs comme offline
+    pub fn start_agent_monitoring(registry: SharedAgentRegistry, timeout_minutes: i64) {
+        println!("[agents] starting agent monitoring (timeout: {}min)", timeout_minutes);
+        
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(60)); // Check toutes les minutes
+            
+            loop {
+                interval.tick().await;
+                
+                let now = OffsetDateTime::now_utc();
+                let timeout_threshold = now - time::Duration::minutes(timeout_minutes);
+                let mut agents_to_mark_offline = Vec::new();
+                
+                // Identifier les agents qui ont timeout
+                {
+                    let agents_map = registry.agents.read().await;
+                    for (agent_id, agent) in agents_map.iter() {
+                        if agent.status.status == "online" && agent.last_seen < timeout_threshold {
+                            agents_to_mark_offline.push(agent_id.clone());
+                        }
+                    }
+                }
+                
+                // Marquer les agents timeout comme offline
+                for agent_id in agents_to_mark_offline {
+                    registry.mark_agent_offline(&agent_id).await;
+                }
+                
+                // Sauvegarder les changements
+                if let Err(e) = registry.save_agents().await {
+                    eprintln!("[agents] failed to save agents during monitoring: {}", e);
+                }
+            }
+        });
+    }
 }
 
 pub type SharedAgentRegistry = Arc<AgentRegistry>;

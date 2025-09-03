@@ -119,6 +119,9 @@ async fn main() {
 
     // démarre le healthcheck périodique des plugins
     plugins::spawn_plugin_health_monitor(plugins.clone());
+    
+    // démarre le monitoring des agents (timeout 2min)
+    AgentRegistry::start_agent_monitoring(agents.clone(), 2);
 
     // démarre la publication auto du health
     health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), states.clone(), plugins.clone());
