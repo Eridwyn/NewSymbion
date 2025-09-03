@@ -7,7 +7,6 @@ Enregistre tous les messages publics et permet de simuler la réception.
 
 use rumqttc::QoS;
 use serde_json::Value;
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use anyhow::Result;

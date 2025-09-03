@@ -8,11 +8,10 @@ Facilite l'écriture de tests pour plugins avec:
 */
 
 use crate::mqtt_stub::MockMqttClient;
-use crate::contract_helpers::{ContractLoader, EventBuilder};
+use crate::contract_helpers::ContractLoader;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::Duration;
-use tokio::time::timeout;
 use anyhow::Result;
 
 /// Harness de test complet pour plugins Symbion

@@ -1,10 +1,18 @@
-# NewSymbion Workspace - Architecture distribuée modulaire
+# NewSymbion Workspace - Architecture distribuée avec agents système
 # 
 # COMPOSANTS :
 # - symbion-kernel : Serveur central (API REST + Event Bus MQTT + Plugin Manager)
-# - symbion-plugin-hosts : Agent monitoring système (heartbeats + Wake-on-LAN)  
+# - symbion-agent-host : Agent multi-OS complet (monitoring + contrôle système + auto-update)  
 # - symbion-plugin-notes : Plugin notes distribuées via MQTT (CRUD complet)
 # - devkit : Suite de développement avec scaffolding et tests automatisés
+#
+# FONCTIONNALITÉS v1.0.2+ :
+# - ✅ Interactive CLI setup wizard (first-time configuration)
+# - ✅ Cross-platform auto-update system (GitHub releases)  
+# - ✅ Advanced system monitoring (CPU, RAM, processes, services)
+# - ✅ Remote system control (shutdown, reboot, hibernate, process kill)
+# - ✅ MQTT-based command/response architecture
+# - ✅ PWA Dashboard temps réel avec widgets dynamiques
 #
 # UTILISATION :
 # cargo build --workspace       # Build tous les composants  
@@ -12,6 +20,6 @@
 # cargo run -p symbion-kernel   # Lancer le kernel principal
 
 [workspace]
-members = ["symbion-kernel","symbion-plugin-hosts","symbion-plugin-notes","devkit","symbion-agent-host"]
-exclude = ["*-plugin", "test-*", "symbion-agent-host/src-tauri"]  # Exclure plugins générés et tests temporaires et Tauri setup
+members = ["symbion-kernel","symbion-plugin-notes","devkit","symbion-agent-host"]
+exclude = ["*-plugin", "test-*"]  # Exclure plugins générés et tests temporaires
 resolver = "2"                    # Resolver moderne pour édition 2021

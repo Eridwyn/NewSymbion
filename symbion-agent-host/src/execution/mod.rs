@@ -8,11 +8,11 @@
 //! - Cross-platform implementation
 
 use anyhow::{Result, Context, anyhow};
-use serde::{Deserialize, Serialize};
-use std::process::{Command, Stdio};
+use serde::Serialize;
+use std::process::Stdio;
 use std::time::{Duration, Instant};
 use tokio::process::Command as AsyncCommand;
-use tracing::{info, warn, error, debug};
+use tracing::{info, debug};
 
 /// Command execution result
 #[derive(Debug, Serialize)]

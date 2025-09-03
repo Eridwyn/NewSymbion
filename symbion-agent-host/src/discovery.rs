@@ -8,7 +8,7 @@
 
 use anyhow::{Result, Context};
 use if_addrs::{get_if_addrs, IfAddr};
-use mac_address::{get_mac_address, MacAddress};
+use mac_address::MacAddress;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{info, warn, debug};

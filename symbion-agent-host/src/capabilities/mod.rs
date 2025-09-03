@@ -7,10 +7,9 @@
 //! - Service management (systemd, Windows services)
 //! - File operations (future extension)
 
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
-use tracing::{debug, warn};
+use tracing::debug;
 
 /// Supported capability types
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -9,7 +9,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tracing::{info, warn, error};
+use tracing::{info, error};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateInfo {

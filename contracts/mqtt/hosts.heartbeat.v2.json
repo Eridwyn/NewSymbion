@@ -1,9 +1,0 @@
-{
- "topic": "symbion/hosts/heartbeat@v2",
- "schema": {
-  "host_id": "string",
-  "ts": "RFC3339",
-  "metrics": { "cpu": "f32", "ram": "f32" },
-  "net": { "ip": "string" }
- }
-}
