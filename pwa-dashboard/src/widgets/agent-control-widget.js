@@ -508,11 +508,19 @@ class AgentControlWidget extends LitElement {
       }
     }
     document.addEventListener('keydown', this.handleEscape)
+    
+    // Écouter les événements d'ouverture du modal
+    this.handleOpenEvent = (e) => {
+      console.log('Agent control widget received open event:', e.detail)
+      this.open(e.detail.agentId)
+    }
+    document.addEventListener('open-agent-control', this.handleOpenEvent)
   }
 
   disconnectedCallback() {
     super.disconnectedCallback()
     document.removeEventListener('keydown', this.handleEscape)
+    document.removeEventListener('open-agent-control', this.handleOpenEvent)
     this.stopRefreshInterval()
   }
 
@@ -525,19 +533,25 @@ class AgentControlWidget extends LitElement {
   }
 
   async open(agentId) {
+    console.log('Opening modal for agent:', agentId)
     this.agentId = agentId
     this.agent = this.agentsService?.getAgentById(agentId)
+    console.log('Found agent:', this.agent)
     this.isOpen = true
+    this.setAttribute('is-open', '')  // Ajouter l'attribut HTML pour le CSS
     this.currentTab = 'system'
     
     if (this.agent) {
       await this.loadTabData()
       this.startRefreshInterval()
+    } else {
+      console.warn('Agent not found in service, modal may not display properly')
     }
   }
 
   close() {
     this.isOpen = false
+    this.removeAttribute('is-open')  // Supprimer l'attribut HTML
     this.agentId = null
     this.agent = null
     this.stopRefreshInterval()
@@ -771,7 +785,7 @@ class AgentControlWidget extends LitElement {
             <span class="memory-col">Memory</span>
             <span>Actions</span>
           </div>
-          ${this.processes.map(proc => html`
+          ${Array.isArray(this.processes) ? this.processes.map(proc => html`
             <div class="process-row">
               <span>${proc.pid}</span>
               <span class="process-name">${proc.name}</span>
@@ -785,7 +799,7 @@ class AgentControlWidget extends LitElement {
                 </button>
               </span>
             </div>
-          `)}
+          `) : html`<div class="error-state">No process data available</div>`}
         </div>
       </div>
     `
@@ -881,6 +895,7 @@ class AgentControlWidget extends LitElement {
   }
 
   render() {
+    console.log('Agent control render - isOpen:', this.isOpen, 'agent:', this.agent)
     if (!this.isOpen || !this.agent) {
       return html``
     }
