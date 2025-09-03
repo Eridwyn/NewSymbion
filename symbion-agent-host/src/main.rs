@@ -326,6 +326,7 @@ impl Agent {
             "kill_process" => self.execute_kill_process(&incoming).await,
             "run_command" => self.execute_shell_command(&incoming).await,
             "get_metrics" => self.execute_get_metrics(&incoming).await,
+            "list_processes" => self.execute_list_processes(&incoming).await,
             _ => {
                 let err = ErrorInfo {
                     code: "UNKNOWN_COMMAND".to_string(),
@@ -823,6 +824,33 @@ impl Agent {
                 let err = ErrorInfo {
                     code: "METRICS_ERROR".to_string(),
                     message: format!("Failed to collect metrics: {}", e),
+                };
+                ("error".to_string(), None, Some(err))
+            }
+        }
+    }
+    
+    /// Execute list processes command
+    async fn execute_list_processes(&self, _cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
+        info!("Listing system processes...");
+        
+        match metrics::ProcessInfo::collect().await {
+            Ok(process_info) => {
+                let processes_data = serde_json::json!({
+                    "total_count": process_info.total_count,
+                    "running_count": process_info.running_count,
+                    "top_cpu": process_info.top_cpu,
+                    "top_memory": process_info.top_memory,
+                    "timestamp": Utc::now()
+                });
+                
+                ("success".to_string(), Some(processes_data), None)
+            }
+            Err(e) => {
+                error!("Failed to collect processes: {}", e);
+                let err = ErrorInfo {
+                    code: "PROCESSES_ERROR".to_string(),
+                    message: format!("Failed to collect processes: {}", e),
                 };
                 ("error".to_string(), None, Some(err))
             }

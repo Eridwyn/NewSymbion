@@ -680,7 +680,7 @@ async fn agent_processes_endpoint(
                 Ok(Json(serde_json::to_value(processes).unwrap()))
             } else {
                 // Demander les processus via MQTT
-                match app.agents.send_command(&id, "get_processes", None).await {
+                match app.agents.send_command(&id, "list_processes", None).await {
                     Ok(command_id) => Ok(Json(serde_json::json!({
                         "success": true,
                         "command_id": command_id,
