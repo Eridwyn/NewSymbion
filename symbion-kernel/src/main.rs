@@ -79,11 +79,11 @@ async fn main() {
     };
 
     // plugin manager
-    std::fs::create_dir_all("../plugins").unwrap_or_else(|e| {
+    std::fs::create_dir_all("./plugins").unwrap_or_else(|e| {
         eprintln!("[kernel] warning: failed to create plugins dir: {}", e);
     });
     
-    let mut plugin_manager = PluginManager::new("../plugins");
+    let mut plugin_manager = PluginManager::new("./plugins");
     match plugin_manager.discover_plugins().await {
         Ok(discovered) => {
             println!("[kernel] discovered {} plugins", discovered.len());
@@ -115,7 +115,7 @@ async fn main() {
     let agents: SharedAgentRegistry = Arc::new(agent_registry);
 
     // MQTT remplit les states + agents
-    mqtt::spawn_mqtt_listener(states.clone(), cfg.clone(), notes_bridge.clone(), Some(agents.clone()));
+    mqtt::spawn_mqtt_listener(states.clone(), cfg.clone(), notes_bridge.clone(), Some(agents.clone()), Some(health_tracker.clone()));
 
     // démarre le healthcheck périodique des plugins
     plugins::spawn_plugin_health_monitor(plugins.clone());
@@ -124,7 +124,7 @@ async fn main() {
     AgentRegistry::start_agent_monitoring(agents.clone(), 2);
 
     // démarre la publication auto du health
-    health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), states.clone(), plugins.clone());
+    health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), agents.clone(), plugins.clone());
 
     // fabrique l'état unique pour Axum
     let app_state = AppState { 

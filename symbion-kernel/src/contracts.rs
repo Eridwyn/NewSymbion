@@ -18,18 +18,22 @@
  * 🎯 Développement : DevKit auto-génère stubs depuis les contrats
  * 
  * CONTRATS ACTUELS :
- * - heartbeat@v2 : télémétrie hosts (CPU, RAM, IP)
- * - wake@v1 : demandes Wake-on-LAN
- * - health@v1 : métriques infrastructure kernel
+ * - kernel.health@v1 : métriques infrastructure kernel
+ * - agents.registration@v1 : agents s'annoncent au kernel  
+ * - agents.heartbeat@v1 : télémétrie agents (système, processus, services)
+ * - agents.command@v1 : kernel → agent (shutdown, reboot, kill_process, run_command)
+ * - agents.response@v1 : agent → kernel (résultats commandes + erreurs)
+ * - notes.command@v1 : commandes vers plugin notes (create/list/update/delete)
+ * - notes.response@v1 : réponses du plugin notes (success/error)
  * 
  * EXEMPLE CONTRAT JSON :
  * ```json
  * {
- *   "topic": "symbion/hosts/heartbeat@v2",
+ *   "topic": "symbion/agents/heartbeat@v1",
  *   "schema": {
- *     "host_id": "string",
- *     "ts": "RFC3339", 
- *     "metrics": {"cpu": "f32", "ram": "f32"}
+ *     "agent_id": "string",
+ *     "status": "online",
+ *     "system": {"cpu": "object", "memory": "object", "disk": "array"}
  *   }
  * }
  * ```
@@ -96,6 +100,7 @@ impl ContractRegistry {
 
     /// Valide qu'un message MQTT respecte son contrat
     /// Vérification que le payload JSON correspond au schéma attendu
+    #[allow(dead_code)]
     pub fn validate_message(&self, topic: &str, payload: &str) -> Result<(), String> {
         let contract_name = extract_contract_name(topic);
         
@@ -124,9 +129,17 @@ impl ContractRegistry {
 }
 
 /// Extrait le nom du contrat depuis le topic MQTT complet
-/// Transformation : "symbion/hosts/heartbeat@v2" -> "heartbeat@v2"
+/// Transformation : "symbion/agents/command@v1" -> "agents.command@v1"
+/// Transformation : "symbion/hosts/heartbeat@v2" -> "hosts.heartbeat@v2" 
 fn extract_contract_name(topic: &str) -> String {
-    topic.split('/').last().unwrap_or(topic).to_string()
+    let parts: Vec<&str> = topic.split('/').collect();
+    if parts.len() >= 3 && parts[0] == "symbion" {
+        // Nouveau format: symbion/{namespace}/{event}@{version} -> {namespace}.{event}@{version}
+        format!("{}.{}", parts[1], parts[2])
+    } else {
+        // Fallback pour topics non-standards
+        topic.split('/').last().unwrap_or(topic).to_string()
+    }
 }
 
 #[cfg(test)]
@@ -135,8 +148,11 @@ mod tests {
 
     #[test]
     fn test_extract_contract_name() {
-        assert_eq!(extract_contract_name("symbion/hosts/heartbeat@v2"), "heartbeat@v2");
+        assert_eq!(extract_contract_name("symbion/agents/heartbeat@v1"), "agents.heartbeat@v1");
+        assert_eq!(extract_contract_name("symbion/agents/command@v1"), "agents.command@v1");
+        assert_eq!(extract_contract_name("symbion/notes/command@v1"), "notes.command@v1");
+        assert_eq!(extract_contract_name("symbion/kernel/health@v1"), "kernel.health@v1");
         assert_eq!(extract_contract_name("heartbeat@v2"), "heartbeat@v2");
-        assert_eq!(extract_contract_name("symbion/memo/created@v1"), "created@v1");
+        assert_eq!(extract_contract_name("symbion/memo/created@v1"), "memo.created@v1");
     }
 }

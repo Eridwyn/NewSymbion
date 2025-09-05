@@ -20,7 +20,7 @@
  * MÉTRIQUES SURVEILLÉES :
  * - uptime_seconds : temps de fonctionnement depuis démarrage
  * - contracts_loaded : nombre de contrats MQTT chargés
- * - hosts_tracked : nombre de machines en monitoring
+ * - agents_count : nombre d'agents enregistrés
  * - memory_usage_mb : consommation RAM du processus kernel
  * - mqtt_status : état connexion (connected/disconnected/reconnecting)
  * - mqtt_reconnects : nombre de tentatives de reconnexion
@@ -31,10 +31,11 @@
 
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use crate::state::Shared;
 use crate::config::HostsConfig;
 use crate::contracts::ContractRegistry;
-use crate::models::HostsMap;
 use rumqttc::{AsyncClient, MqttOptions, QoS};
 use tokio::task;
 
@@ -46,8 +47,8 @@ pub struct KernelHealth {
     pub uptime_seconds: u64,
     /// Nombre de contrats MQTT chargés depuis contracts/mqtt/
     pub contracts_loaded: u32,
-    /// Nombre de hosts actuellement trackés (heartbeats reçus)
-    pub hosts_tracked: u32,
+    /// Nombre d'agents actuellement enregistrés
+    pub agents_count: u32,
     /// Consommation mémoire du processus kernel en MB
     pub memory_usage_mb: f32,
     /// État actuel connexion MQTT (connected/disconnected/reconnecting)
@@ -60,6 +61,10 @@ pub struct KernelHealth {
     pub plugins_active: u32,
     /// Nombre de plugins en échec
     pub plugins_failed: u32,
+    /// Messages MQTT par minute (activité temps réel)
+    pub mqtt_messages_per_minute: f32,
+    /// Total des messages MQTT depuis le démarrage
+    pub mqtt_messages_total: u64,
 }
 
 /// Tracker persistent des métriques de santé kernel
@@ -69,40 +74,67 @@ pub struct HealthTracker {
     /// Instant de démarrage du kernel pour calcul uptime
     start_time: Instant,
     /// Compteur atomique thread-safe des reconnexions MQTT
-    mqtt_reconnects: std::sync::Arc<std::sync::atomic::AtomicU32>,
+    mqtt_reconnects: Arc<AtomicU32>,
     /// État actuel de la connexion MQTT (partagé entre threads)
-    mqtt_status: std::sync::Arc<parking_lot::Mutex<String>>,
+    mqtt_status: Arc<parking_lot::Mutex<String>>,
+    /// Compteur total des messages MQTT
+    mqtt_message_counter: Arc<AtomicU64>,
+    /// Historique des timestamps pour calcul messages/minute
+    message_timestamps: Arc<parking_lot::Mutex<Vec<Instant>>>,
 }
 
 impl HealthTracker {
     pub fn new() -> Self {
         Self {
             start_time: Instant::now(),
-            mqtt_reconnects: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
-            mqtt_status: std::sync::Arc::new(parking_lot::Mutex::new("connecting".to_string())),
+            mqtt_reconnects: Arc::new(AtomicU32::new(0)),
+            mqtt_status: Arc::new(parking_lot::Mutex::new("connecting".to_string())),
+            mqtt_message_counter: Arc::new(AtomicU64::new(0)),
+            message_timestamps: Arc::new(parking_lot::Mutex::new(Vec::new())),
         }
     }
 
+    #[allow(dead_code)]
     pub fn mark_mqtt_connected(&self) {
         *self.mqtt_status.lock() = "connected".to_string();
     }
 
+    #[allow(dead_code)]
     pub fn mark_mqtt_disconnected(&self) {
         *self.mqtt_status.lock() = "disconnected".to_string();
     }
 
     pub fn increment_reconnects(&self) {
-        self.mqtt_reconnects.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.mqtt_reconnects.fetch_add(1, Ordering::Relaxed);
         *self.mqtt_status.lock() = "reconnecting".to_string();
     }
 
-    pub fn get_health(&self, contracts: &ContractRegistry, hosts: &Shared<HostsMap>, plugins: &Shared<crate::plugins::PluginManager>) -> KernelHealth {
+    pub fn record_mqtt_message(&self) {
+        self.mqtt_message_counter.fetch_add(1, Ordering::Relaxed);
+        let now = Instant::now();
+        let mut timestamps = self.message_timestamps.lock();
+        
+        // Garder seulement les messages de la dernière minute
+        timestamps.retain(|t| now.duration_since(*t).as_secs() < 60);
+        timestamps.push(now);
+    }
+
+    pub fn get_health(&self, contracts: &ContractRegistry, agents: &crate::agents::SharedAgentRegistry, plugins: &Shared<crate::plugins::PluginManager>) -> KernelHealth {
         let uptime = self.start_time.elapsed().as_secs();
         let contracts_count = contracts.list_contracts().len() as u32;
-        let hosts_count = hosts.lock().len() as u32;
+        let agents_count = agents.agents_count();
         let memory_mb = get_memory_usage_mb();
         let mqtt_status = self.mqtt_status.lock().clone();
-        let reconnects = self.mqtt_reconnects.load(std::sync::atomic::Ordering::Relaxed);
+        let reconnects = self.mqtt_reconnects.load(Ordering::Relaxed);
+        let total_messages = self.mqtt_message_counter.load(Ordering::Relaxed);
+        
+        // Calculer messages par minute
+        let now = Instant::now();
+        let timestamps = self.message_timestamps.lock();
+        let recent_messages = timestamps.iter()
+            .filter(|t| now.duration_since(**t).as_secs() < 60)
+            .count();
+        let messages_per_minute = recent_messages as f32;
 
         // Statistiques des plugins
         let plugin_infos = plugins.lock().list_plugins();
@@ -117,13 +149,15 @@ impl HealthTracker {
         KernelHealth {
             uptime_seconds: uptime,
             contracts_loaded: contracts_count,
-            hosts_tracked: hosts_count,
+            agents_count,
             memory_usage_mb: memory_mb,
             mqtt_status,
             mqtt_reconnects: reconnects,
             plugins_total,
             plugins_active,
             plugins_failed,
+            mqtt_messages_per_minute: messages_per_minute,
+            mqtt_messages_total: total_messages,
         }
     }
 
@@ -132,7 +166,7 @@ impl HealthTracker {
         &self,
         config: Shared<HostsConfig>,
         contracts: ContractRegistry,
-        hosts: Shared<HostsMap>,
+        agents: crate::agents::SharedAgentRegistry,
         plugins: Shared<crate::plugins::PluginManager>,
     ) {
         let health_tracker = self.clone();
@@ -156,13 +190,13 @@ impl HealthTracker {
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
-                        let health = health_tracker.get_health(&contracts, &hosts, &plugins);
+                        let health = health_tracker.get_health(&contracts, &agents, &plugins);
                         if let Ok(payload) = serde_json::to_string(&health) {
                             if let Err(e) = client.publish("symbion/kernel/health@v1", QoS::AtLeastOnce, false, payload).await {
                                 eprintln!("[health] failed to publish: {:?}", e);
                             } else {
-                                println!("[health] published kernel health (uptime: {}s, hosts: {})", 
-                                        health.uptime_seconds, health.hosts_tracked);
+                                println!("[health] published kernel health (uptime: {}s, agents: {})", 
+                                        health.uptime_seconds, health.agents_count);
                             }
                         }
                     },

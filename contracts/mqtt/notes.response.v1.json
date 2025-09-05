@@ -1,6 +1,6 @@
 {
-  "name": "notes.response.v1", 
-  "version": "1.0.0",
+  "name": "notes.response", 
+  "version": "v1",
   "description": "Réponses du plugin notes - succès ou erreurs des opérations",
   "topic": "symbion/notes/response@v1",
   "direction": "plugin_to_kernel",

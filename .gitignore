@@ -61,5 +61,7 @@ build/
 
 #Autres
 CLAUDE.md
+TECHNICAL.md
+AGENTS.md
 .gitignore
 idea/

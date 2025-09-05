@@ -37,6 +37,7 @@ use time::OffsetDateTime;
 #[derive(Debug, thiserror::Error)]
 pub enum PortError {
     #[error("Port not found: {0}")]
+    #[allow(dead_code)]
     NotFound(String),
     #[error("Invalid query: {0}")]
     InvalidQuery(String),
@@ -45,6 +46,7 @@ pub enum PortError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
     #[error("Permission denied")]
+    #[allow(dead_code)]
     PermissionDenied,
 }
 
@@ -131,6 +133,7 @@ impl PortRegistry {
     
     /// Enregistre un nouveau port dans le système
     /// Ex: registry.register("finance", FinancePort::new());
+    #[allow(dead_code)]
     pub fn register<T: DataPort + Send + Sync + 'static>(&mut self, name: &str, port: T) {
         self.ports.insert(name.to_string(), Box::new(port));
     }

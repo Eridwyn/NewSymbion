@@ -77,12 +77,14 @@ pub enum NoteResponse {
     #[serde(rename = "success")]
     Success {
         request_id: String,
+        #[allow(dead_code)]
         action: String,
         data: Value,
     },
     #[serde(rename = "error")]
     Error {
         request_id: String,
+        #[allow(dead_code)]
         action: String,
         error: String,
     },

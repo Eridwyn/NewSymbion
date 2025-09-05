@@ -23,6 +23,7 @@ pub struct HostState {
 #[derive(Debug, Deserialize)]
 pub struct HeartbeatIn {
     pub host_id: String,
+    #[allow(dead_code)]
     pub ts: String,
     pub metrics: Metrics,
     pub net: NetInfo,

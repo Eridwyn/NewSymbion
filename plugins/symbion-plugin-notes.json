@@ -1,7 +1,7 @@
 {
   "name": "notes-manager",
   "version": "0.1.0", 
-  "binary": "../target/debug/symbion-plugin-notes",
+  "binary": "./target/debug/symbion-plugin-notes",
   "description": "Plugin de gestion des notes, mémos et rappels via MQTT",
   "contracts": ["notes.command@v1", "notes.response@v1"],
   "auto_start": true,

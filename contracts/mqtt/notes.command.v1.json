@@ -1,6 +1,6 @@
 {
-  "name": "notes.command.v1",
-  "version": "1.0.0",
+  "name": "notes.command",
+  "version": "v1",
   "description": "Commandes pour le plugin notes - création, lecture, modification, suppression",
   "topic": "symbion/notes/command@v1",
   "direction": "kernel_to_plugin",

@@ -41,7 +41,7 @@ pub fn create_mqtt_client(config: &HostsConfig) -> Result<AsyncClient, Box<dyn s
     Ok(client)
 }
 
-pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>, notes_bridge: Option<SharedNotesBridge>, agents: Option<SharedAgentRegistry>) {
+pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>, notes_bridge: Option<SharedNotesBridge>, agents: Option<SharedAgentRegistry>, health_tracker: Option<crate::health::HealthTracker>) {
     task::spawn(async move {
         let cfg = config.lock().clone();
         let mqtt_cfg = cfg.mqtt.unwrap_or_else(|| crate::config::MqttConf { 
@@ -77,7 +77,13 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
 
         loop {
             match eventloop.poll().await {
-                Ok(Event::Incoming(rumqttc::Incoming::Publish(p))) if p.topic == "symbion/hosts/heartbeat@v2" => {
+                Ok(Event::Incoming(rumqttc::Incoming::Publish(p))) => {
+                    // Enregistrer l'activité MQTT
+                    if let Some(ref tracker) = health_tracker {
+                        tracker.record_mqtt_message();
+                    }
+                    
+                    if p.topic == "symbion/hosts/heartbeat@v2" {
                     if let Ok(txt) = String::from_utf8(p.payload.to_vec()) {
                         match serde_json::from_str::<HeartbeatIn>(&txt) {
                             Ok(hb) => {
@@ -93,8 +99,7 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                             Err(_) => eprintln!("[kernel] heartbeat JSON invalide: {txt}"),
                         }
                     }
-                }
-                Ok(Event::Incoming(rumqttc::Incoming::Publish(p))) if p.topic == "symbion/notes/response@v1" => {
+                } else if p.topic == "symbion/notes/response@v1" {
                     if let Some(ref bridge) = notes_bridge {
                         if let Ok(txt) = String::from_utf8(p.payload.to_vec()) {
                             match serde_json::from_str::<NoteResponse>(&txt) {
@@ -105,8 +110,7 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                             }
                         }
                     }
-                }
-                Ok(Event::Incoming(rumqttc::Incoming::Publish(p))) if p.topic == "symbion/agents/registration@v1" => {
+                } else if p.topic == "symbion/agents/registration@v1" {
                     if let Some(ref agent_registry) = agents {
                         if let Ok(txt) = String::from_utf8(p.payload.to_vec()) {
                             match serde_json::from_str::<AgentRegistrationMessage>(&txt) {
@@ -119,8 +123,7 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                             }
                         }
                     }
-                }
-                Ok(Event::Incoming(rumqttc::Incoming::Publish(p))) if p.topic == "symbion/agents/heartbeat@v1" => {
+                } else if p.topic == "symbion/agents/heartbeat@v1" {
                     if let Some(ref agent_registry) = agents {
                         if let Ok(txt) = String::from_utf8(p.payload.to_vec()) {
                             match serde_json::from_str::<AgentHeartbeatMessage>(&txt) {
@@ -133,6 +136,7 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                             }
                         }
                     }
+                }
                 }
                 Ok(_) => {}
                 Err(e) => {
