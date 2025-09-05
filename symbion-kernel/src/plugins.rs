@@ -339,6 +339,7 @@ impl PluginInstance {
     }
 
     /// Met à jour le timestamp de dernière activité (appelé sur réception MQTT)
+    #[allow(dead_code)]
     fn mark_activity(&mut self) {
         self.last_activity = Some(OffsetDateTime::now_utc());
     }
@@ -730,6 +731,7 @@ impl PluginManager {
     }
 
     /// Met à jour l'activité d'un plugin (appelé sur réception MQTT)
+    #[allow(dead_code)]
     pub fn mark_plugin_activity(&mut self, plugin_name: &str) {
         if let Some(plugin) = self.plugins.get_mut(plugin_name) {
             plugin.mark_activity();
@@ -737,6 +739,7 @@ impl PluginManager {
     }
 
     /// Réinitialise le circuit breaker d'un plugin pour permettre sa récupération manuelle
+    #[allow(dead_code)]
     pub fn reset_plugin_circuit(&mut self, plugin_name: &str) -> Result<(), PluginError> {
         let plugin = self.plugins.get_mut(plugin_name)
             .ok_or_else(|| PluginError::NotFound(plugin_name.to_string()))?;
@@ -754,6 +757,7 @@ impl PluginManager {
     }
 
     /// Force le rollback d'un plugin vers sa dernière version fonctionnelle
+    #[allow(dead_code)]
     pub fn force_plugin_rollback(&mut self, plugin_name: &str) -> Result<(), PluginError> {
         let plugin = self.plugins.get_mut(plugin_name)
             .ok_or_else(|| PluginError::NotFound(plugin_name.to_string()))?;
@@ -772,6 +776,7 @@ impl PluginManager {
     }
 
     /// Récupère les statistiques détaillées d'un plugin pour debugging
+    #[allow(dead_code)]
     pub fn get_plugin_debug_info(&self, plugin_name: &str) -> Option<PluginDebugInfo> {
         self.plugins.get(plugin_name).map(|p| PluginDebugInfo {
             name: p.manifest.name.clone(),
@@ -894,6 +899,7 @@ pub struct PluginInfo {
 
 /// Informations détaillées de debugging d'un plugin
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 pub struct PluginDebugInfo {
     pub name: String,
     pub status: PluginStatus,

@@ -237,16 +237,16 @@ class SystemHealthWidget extends LitElement {
         
         <div class="metric-card">
           <div class="metric-value">
-            ${this.health.contracts_loaded || 0}
+            ${this.health.mqtt_messages_per_minute ? this.health.mqtt_messages_per_minute.toFixed(0) : '0'}
           </div>
-          <div class="metric-label">Contrats</div>
+          <div class="metric-label">Msg/min</div>
         </div>
         
         <div class="metric-card">
           <div class="metric-value">
-            ${this.health.hosts_tracked || 0}
+            ${this.health.agents_count || this.health.hosts_tracked || 0}
           </div>
-          <div class="metric-label">Hosts</div>
+          <div class="metric-label">Agents</div>
         </div>
         
         <div class="metric-card">

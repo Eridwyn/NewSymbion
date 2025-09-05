@@ -252,7 +252,7 @@ async fn get_contract(
 
 // GET /system/health (état infrastructure)
 async fn get_system_health(State(app): State<AppState>) -> Json<crate::health::KernelHealth> {
-    let health = app.health_tracker.get_health(&app.contracts, &app.states, &app.plugins);
+    let health = app.health_tracker.get_health(&app.contracts, &app.agents, &app.plugins);
     Json(health)
 }
 

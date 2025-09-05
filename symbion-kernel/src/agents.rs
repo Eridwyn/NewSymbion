@@ -156,11 +156,17 @@ pub struct AgentCommand {
 
 #[derive(Debug, Deserialize)]
 pub struct AgentCommandResponse {
+    #[allow(dead_code)]
     pub command_id: String,
+    #[allow(dead_code)]
     pub agent_id: String,
+    #[allow(dead_code)]
     pub status: String,             // success, error, timeout
+    #[allow(dead_code)]
     pub result: Option<serde_json::Value>,
+    #[allow(dead_code)]
     pub error_message: Option<String>,
+    #[allow(dead_code)]
     pub timestamp: String,
 }
 
@@ -174,6 +180,7 @@ pub struct AgentRegistrationMessage {
     pub capabilities: Vec<String>,
     pub network: AgentNetwork,
     pub version: Option<String>,
+    #[allow(dead_code)]
     pub timestamp: String,
 }
 
@@ -184,15 +191,21 @@ pub struct AgentHeartbeatMessage {
     pub system: AgentSystemMetrics,
     pub processes: Option<AgentProcesses>,
     pub services: Option<Vec<AgentService>>,
+    #[allow(dead_code)]
     pub last_command: Option<AgentLastCommand>,
+    #[allow(dead_code)]
     pub timestamp: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct AgentLastCommand {
+    #[allow(dead_code)]
     pub command_id: String,
+    #[allow(dead_code)]
     pub command_type: String,
+    #[allow(dead_code)]
     pub status: String,
+    #[allow(dead_code)]
     pub timestamp: String,
 }
 
@@ -310,6 +323,11 @@ impl AgentRegistry {
         self.agents.read().await.clone()
     }
 
+    /// Obtient le nombre d'agents de façon synchrone (pour health check)
+    pub fn agents_count(&self) -> u32 {
+        self.agents.try_read().map(|agents| agents.len() as u32).unwrap_or(0)
+    }
+
     /// Récupère un agent spécifique
     pub async fn get_agent(&self, agent_id: &str) -> Option<Agent> {
         self.agents.read().await.get(agent_id).cloned()
@@ -351,6 +369,7 @@ impl AgentRegistry {
     }
 
     /// Supprime les agents qui n'ont pas donné signe de vie depuis trop longtemps
+    #[allow(dead_code)]
     pub async fn cleanup_stale_agents(&self, max_age_hours: i64) -> Result<()> {
         let cutoff = OffsetDateTime::now_utc() - time::Duration::hours(max_age_hours);
         let mut removed_count = 0;
