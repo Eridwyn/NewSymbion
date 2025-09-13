@@ -776,7 +776,7 @@ impl Agent {
         };
         
         // Security check - only allow safe commands
-        let safe_commands = ["dir", "ls", "whoami", "hostname", "date", "uptime", "ps", "tasklist", "shutdown", "echo", "systemctl", "cat", "tail", "head", "pwd", "id"];
+        let safe_commands = ["dir", "ls", "whoami", "hostname", "date", "uptime", "ps", "tasklist", "shutdown", "echo", "systemctl", "cat", "tail", "head", "pwd", "id", "ipconfig", "ifconfig", "powershell", "get-process", "netstat", "ping", "tracert", "nslookup"];
         let is_safe = safe_commands.iter().any(|&safe_cmd| command.starts_with(safe_cmd));
         
         if !is_safe {
