@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Symbion Agent</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 16px;
+            background: #f5f5f5;
+            color: #333;
+            font-size: 12px;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 8px;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+        .status-dot.offline {
+            background: #ef4444;
+        }
+        .status-dot.connecting {
+            background: #f59e0b;
+        }
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .metric:last-child {
+            border-bottom: none;
+        }
+        .metric-label {
+            font-weight: 500;
+        }
+        .metric-value {
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+        .actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+        }
+        button {
+            flex: 1;
+            padding: 6px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        button:hover {
+            background: #f8f8f8;
+        }
+        .primary {
+            background: #007aff !important;
+            color: white !important;
+            border-color: #007aff !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="status-dot" id="status-dot"></div>
+        <strong>Symbion Agent</strong>
+        <span id="hostname">Loading...</span>
+    </div>
+    
+    <div id="metrics">
+        <div class="metric">
+            <span class="metric-label">Status:</span>
+            <span class="metric-value" id="status">Connecting...</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">CPU:</span>
+            <span class="metric-value" id="cpu">---%</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">RAM:</span>
+            <span class="metric-value" id="memory">--- MB</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">Uptime:</span>
+            <span class="metric-value" id="uptime">---</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">Processes:</span>
+            <span class="metric-value" id="processes">---</span>
+        </div>
+    </div>
+
+    <div class="actions">
+        <button onclick="openMainPWA()" class="primary">🌐 Main PWA</button>
+        <button onclick="showLogs()">📝 Logs</button>
+        <button onclick="reconnect()">🔄 Reconnect</button>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>

@@ -15,8 +15,8 @@ console.log('🚀 Starting Symbion Dashboard v0.1.0')
 
 // Configuration globale
 window.SYMBION_CONFIG = {
-  API_BASE: '/api',
-  MQTT_BROKER: window.location.hostname,
+  API_BASE: 'http://192.168.1.14:8080',
+  MQTT_BROKER: '192.168.1.14',
   MQTT_PORT: 9001, // WebSocket port
   VERSION: '0.1.0'
 }

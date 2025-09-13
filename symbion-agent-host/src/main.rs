@@ -16,8 +16,15 @@ mod execution;
 mod config;
 mod updater;
 mod wizard;
+mod local_api;
+mod system_tray;
+
+#[cfg(feature = "gui")]
+mod tray;
 
 use anyhow::{Result, Context};
+use std::env;
+use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use discovery::SystemInfo;
 use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, QoS};
@@ -101,14 +108,14 @@ struct CommandResponse {
     command_id: String,
     agent_id: String,
     status: String,
-    data: Option<serde_json::Value>,
+    output: Option<serde_json::Value>,
     error: Option<ErrorInfo>,
     execution_time_ms: u128,
     timestamp: DateTime<Utc>,
 }
 
 /// Error information for failed commands
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 struct ErrorInfo {
     code: String,
     message: String,
@@ -128,6 +135,8 @@ struct Agent {
     mqtt_client: AsyncClient,
     last_command: Option<CommandInfo>,
     command_receiver: mpsc::Receiver<ReceivedCommand>,
+    local_api: Option<Arc<local_api::LocalApiServer>>,
+    system_tray: Option<system_tray::SystemTray>,
 }
 
 impl Agent {
@@ -164,11 +173,12 @@ impl Agent {
             loop {
                 match eventloop.poll().await {
                     Ok(Event::Incoming(Incoming::Publish(publish))) => {
-                        debug!("Received MQTT message on topic: {}", publish.topic);
+                        info!("📥 Received MQTT message on topic: {}", publish.topic);
                         
                         // Forward command messages to main loop
                         if publish.topic == "symbion/agents/command@v1" {
                             let payload = String::from_utf8_lossy(&publish.payload).to_string();
+                            info!("📋 Command payload: {}", payload);
                             let command = ReceivedCommand {
                                 topic: publish.topic.clone(),
                                 payload,
@@ -176,6 +186,8 @@ impl Agent {
                             
                             if let Err(e) = command_sender.send(command).await {
                                 error!("Failed to forward command: {}", e);
+                            } else {
+                                info!("✅ Command forwarded to main loop");
                             }
                         }
                     }
@@ -197,7 +209,27 @@ impl Agent {
             mqtt_client,
             last_command: None,
             command_receiver,
+            local_api: None,
+            system_tray: None,
         })
+    }
+    
+    /// Set local API server for status updates
+    fn set_local_api(&mut self, local_api: Arc<local_api::LocalApiServer>) {
+        self.local_api = Some(local_api);
+    }
+
+    /// Initialize system tray (optional)
+    fn init_system_tray(&mut self) -> Result<()> {
+        let mut tray = system_tray::SystemTray::new();
+        if let Err(e) = tray.initialize(&self.system_info.agent_id, &self.system_info.hostname) {
+            warn!("Failed to initialize system tray: {}", e);
+            warn!("Agent will continue without system tray - use http://localhost:9899 for dashboard");
+        } else {
+            info!("System tray initialized - click to open dashboard");
+            self.system_tray = Some(tray);
+        }
+        Ok(())
     }
     
     /// Start agent main loop
@@ -224,6 +256,9 @@ impl Agent {
                     if let Err(e) = self.send_heartbeat().await {
                         error!("Failed to send heartbeat: {}", e);
                     }
+                    
+                    // Update local API status
+                    self.update_local_api_status(true).await;
                 }
                 
                 _ = registration_timer.tick() => {
@@ -235,7 +270,7 @@ impl Agent {
                 command = self.command_receiver.recv() => {
                     match command {
                         Some(cmd) => {
-                            info!("Processing command from topic: {}", cmd.topic);
+                            info!("🎯 Processing received command from topic: {}", cmd.topic);
                             if let Err(e) = self.process_command(cmd).await {
                                 error!("Failed to process command: {}", e);
                             }
@@ -252,7 +287,7 @@ impl Agent {
     
     /// Register agent with kernel
     async fn register(&self) -> Result<()> {
-        let capabilities = self.get_capabilities();
+        let capabilities = self.get_capabilities().await;
         
         let registration = RegistrationMessage {
             agent_id: self.system_info.agent_id.clone(),
@@ -316,8 +351,10 @@ impl Agent {
             .context("Failed to parse incoming command")?;
             
         // Filter commands - only process if intended for this agent
+        info!("🔍 Command check: incoming.agent_id='{}', this.agent_id='{}'", 
+              incoming.agent_id, self.system_info.agent_id);
         if incoming.agent_id != self.system_info.agent_id {
-            debug!("Ignoring command {} for agent {} (this agent is {})", 
+            info!("❌ Ignoring command {} for agent {} (this agent is {})", 
                    incoming.command_id, incoming.agent_id, self.system_info.agent_id);
             return Ok(());
         }
@@ -356,19 +393,53 @@ impl Agent {
             command_id: incoming.command_id,
             agent_id: self.system_info.agent_id.clone(),
             status,
-            data,
+            output: data,
             error,
             execution_time_ms: execution_time,
             timestamp: Utc::now(),
         };
         
+        // Limitation MQTT : tronquer l'output AVANT sérialisation si trop gros
+        const MAX_OUTPUT_SIZE: usize = 7000; // Laisser de la place pour le JSON structure
+        if let Some(serde_json::Value::String(ref output_str)) = response.output {
+            if output_str.len() > MAX_OUTPUT_SIZE {
+                info!("⚠️  Output too large ({} chars), truncating to {} chars", output_str.len(), MAX_OUTPUT_SIZE);
+                let mut truncated_output = output_str.chars().take(MAX_OUTPUT_SIZE).collect::<String>();
+                truncated_output.push_str("\n\n[OUTPUT TRUNCATED - Content was too large for MQTT transport]");
+                
+                let truncated_response = CommandResponse {
+                    command_id: response.command_id.clone(),
+                    agent_id: response.agent_id.clone(),
+                    status: response.status.clone(),
+                    output: Some(serde_json::Value::String(truncated_output)),
+                    error: response.error.clone(),
+                    execution_time_ms: response.execution_time_ms,
+                    timestamp: response.timestamp,
+                };
+                
+                let payload = serde_json::to_string(&truncated_response)
+                    .context("Failed to serialize truncated command response")?;
+                
+                info!("📤 Sending MQTT response: {} bytes", payload.len());
+                self.mqtt_client
+                    .publish("symbion/agents/response@v1", QoS::AtLeastOnce, false, payload)
+                    .await
+                    .context("Failed to publish command response")?;
+                info!("✅ MQTT response sent successfully");
+                    
+                return Ok(());
+            }
+        }
+
         let payload = serde_json::to_string(&response)
             .context("Failed to serialize command response")?;
             
+        info!("📤 Sending MQTT response: {} bytes", payload.len());
         self.mqtt_client
             .publish("symbion/agents/response@v1", QoS::AtLeastOnce, false, payload)
             .await
             .context("Failed to publish command response")?;
+        info!("✅ MQTT response sent successfully");
             
         Ok(())
     }
@@ -705,7 +776,7 @@ impl Agent {
         };
         
         // Security check - only allow safe commands
-        let safe_commands = ["dir", "ls", "whoami", "hostname", "date", "uptime", "ps", "tasklist", "shutdown"];
+        let safe_commands = ["dir", "ls", "whoami", "hostname", "date", "uptime", "ps", "tasklist", "shutdown", "echo", "systemctl", "cat", "tail", "head", "pwd", "id"];
         let is_safe = safe_commands.iter().any(|&safe_cmd| command.starts_with(safe_cmd));
         
         if !is_safe {
@@ -729,22 +800,25 @@ impl Agent {
                         
                         if output.status.success() {
                             info!("Shell command executed successfully");
-                            ("success".to_string(), Some(serde_json::json!({
-                                "stdout": stdout,
-                                "stderr": stderr,
-                                "exit_code": output.status.code()
-                            })), None)
+                            // Clean ANSI escape codes and all control characters from output to avoid JSON parsing errors
+                            let clean_stdout = stdout.chars()
+                                .filter(|c| c.is_ascii_graphic() || *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
+                                .collect::<String>();
+                            ("success".to_string(), Some(serde_json::Value::String(clean_stdout)), None)
                         } else {
                             error!("Shell command failed: {}", stderr);
                             let err = ErrorInfo {
                                 code: "COMMAND_FAILED".to_string(),
                                 message: format!("Command failed with exit code: {:?}", output.status.code()),
                             };
-                            ("error".to_string(), Some(serde_json::json!({
-                                "stdout": stdout,
-                                "stderr": stderr,
-                                "exit_code": output.status.code()
-                            })), Some(err))
+                            // Clean ANSI escape codes from error output too
+                            let clean_stdout = stdout.chars()
+                                .filter(|c| c.is_ascii_graphic() || *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
+                                .collect::<String>();
+                            let clean_stderr = stderr.chars()
+                                .filter(|c| c.is_ascii_graphic() || *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
+                                .collect::<String>();
+                            ("error".to_string(), Some(serde_json::Value::String(format!("STDOUT:\n{}\n\nSTDERR:\n{}", clean_stdout, clean_stderr))), Some(err))
                         }
                     }
                     Err(e) => {
@@ -769,22 +843,25 @@ impl Agent {
                         
                         if output.status.success() {
                             info!("Shell command executed successfully");
-                            ("success".to_string(), Some(serde_json::json!({
-                                "stdout": stdout,
-                                "stderr": stderr,
-                                "exit_code": output.status.code()
-                            })), None)
+                            // Clean ANSI escape codes and all control characters from output to avoid JSON parsing errors
+                            let clean_stdout = stdout.chars()
+                                .filter(|c| c.is_ascii_graphic() || *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
+                                .collect::<String>();
+                            ("success".to_string(), Some(serde_json::Value::String(clean_stdout)), None)
                         } else {
                             error!("Shell command failed: {}", stderr);
                             let err = ErrorInfo {
                                 code: "COMMAND_FAILED".to_string(),
                                 message: format!("Command failed with exit code: {:?}", output.status.code()),
                             };
-                            ("error".to_string(), Some(serde_json::json!({
-                                "stdout": stdout,
-                                "stderr": stderr,
-                                "exit_code": output.status.code()
-                            })), Some(err))
+                            // Clean ANSI escape codes from error output too
+                            let clean_stdout = stdout.chars()
+                                .filter(|c| c.is_ascii_graphic() || *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
+                                .collect::<String>();
+                            let clean_stderr = stderr.chars()
+                                .filter(|c| c.is_ascii_graphic() || *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
+                                .collect::<String>();
+                            ("error".to_string(), Some(serde_json::Value::String(format!("STDOUT:\n{}\n\nSTDERR:\n{}", clean_stdout, clean_stderr))), Some(err))
                         }
                     }
                     Err(e) => {
@@ -863,42 +940,43 @@ impl Agent {
         }
     }
     
-    /// Get agent capabilities based on OS and available features
-    fn get_capabilities(&self) -> Vec<String> {
-        let mut capabilities = vec![
-            "system_metrics".to_string(),
-        ];
+    /// Get agent capabilities based on actual system detection
+    async fn get_capabilities(&self) -> Vec<String> {
+        debug!("Detecting actual system capabilities...");
         
-        // Add OS-specific capabilities
-        match self.system_info.os.as_str() {
-            "linux" => {
-                capabilities.extend_from_slice(&[
-                    "power_management".to_string(),
-                    "process_control".to_string(),
-                    "command_execution".to_string(),
-                    "service_management".to_string(),
-                ]);
-            }
-            "windows" => {
-                capabilities.extend_from_slice(&[
-                    "power_management".to_string(),
-                    "process_control".to_string(),
-                    "command_execution".to_string(),
-                    "service_management".to_string(),
-                ]);
-            }
-            "android" => {
-                capabilities.extend_from_slice(&[
-                    "process_control".to_string(),
-                    "command_execution".to_string(),
-                ]);
-            }
-            _ => {
-                warn!("Unknown OS: {}, limited capabilities", self.system_info.os);
-            }
+        // Use the capability detector to get real capabilities
+        let detected_capabilities = capabilities::CapabilityDetector::get_available_capabilities().await;
+        
+        info!("Detected {} capabilities: {:?}", detected_capabilities.len(), detected_capabilities);
+        detected_capabilities
+    }
+    
+    /// Update local API status
+    async fn update_local_api_status(&self, mqtt_connected: bool) {
+        if let Some(ref local_api) = self.local_api {
+            // Collect current system metrics using the metrics module
+            let system_status = match metrics::SystemMetrics::collect().await {
+                Ok(metrics) => {
+                    // Get process count from ProcessInfo
+                    let process_count = if let Ok(process_info) = metrics::ProcessInfo::collect().await {
+                        process_info.total_count as u32
+                    } else {
+                        0
+                    };
+                    
+                    Some(local_api::SystemStatus {
+                        cpu_percent: metrics.cpu.percent as f64,
+                        memory_used_mb: metrics.memory.used_mb,
+                        memory_total_mb: metrics.memory.total_mb,
+                        process_count,
+                        load_average: Some(metrics.cpu.load_avg[0]),
+                    })
+                },
+                Err(_) => None,
+            };
+            
+            local_api.update_status(mqtt_connected, system_status).await;
         }
-        
-        capabilities
     }
 }
 
@@ -974,9 +1052,32 @@ async fn main() -> Result<()> {
         });
     }
     
+    // Start local API server
+    let system_info = SystemInfo::discover().await
+        .context("Failed to discover system info")?;
+    
+    let local_api = Arc::new(local_api::LocalApiServer::new(
+        system_info.agent_id.clone(),
+        system_info.hostname.clone(),
+    ));
+    
+    // Start API server in background
+    let local_api_clone = local_api.clone();
+    tokio::spawn(async move {
+        if let Err(e) = local_api_clone.start().await {
+            eprintln!("[local-api] Server failed: {}", e);
+        }
+    });
+    
     // Create and run agent
     let mut agent = Agent::new_with_config(agent_config).await
         .context("Failed to create agent")?;
+    
+    // Pass local API to agent for status updates
+    agent.set_local_api(local_api);
+    
+    // Initialize system tray (optional)
+    let _ = agent.init_system_tray();
         
     agent.run().await
         .context("Agent execution failed")?;

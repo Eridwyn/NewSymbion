@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Response Contract v1",
+  "description": "Réponses des agents aux commandes envoyées par le kernel",
+  "type": "object",
+  "properties": {
+    "command_id": {
+      "type": "string",
+      "description": "UUID de la commande originale",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "agent_id": {
+      "type": "string", 
+      "description": "Identifiant de l'agent (MAC sans colons)",
+      "pattern": "^[a-f0-9]{12}$"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "error", "in_progress", "cancelled"],
+      "description": "Statut d'exécution de la commande"
+    },
+    "output": {
+      "type": "string",
+      "description": "Sortie de la commande (stdout)",
+      "maxLength": 4096
+    },
+    "error": {
+      "type": "string", 
+      "description": "Message d'erreur si status=error",
+      "maxLength": 1024
+    },
+    "progress": {
+      "type": "integer",
+      "description": "Pourcentage d'avancement (0-100) si status=in_progress",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Métadonnées spécifiques selon le type de commande",
+      "properties": {
+        "execution_time_ms": {
+          "type": "integer",
+          "description": "Temps d'exécution en millisecondes"
+        },
+        "process_id": {
+          "type": "integer", 
+          "description": "PID du processus si applicable"
+        },
+        "delay_remaining": {
+          "type": "integer",
+          "description": "Secondes restantes avant action (shutdown/reboot)"
+        }
+      }
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp ISO8601 de la réponse"
+    }
+  },
+  "required": ["command_id", "agent_id", "status", "timestamp"],
+  "examples": [
+    {
+      "command_id": "123e4567-e89b-12d3-a456-426614174000",
+      "agent_id": "7070fc0481d8", 
+      "status": "success",
+      "output": "Shutdown scheduled for 60 seconds",
+      "metadata": {
+        "delay_remaining": 60,
+        "execution_time_ms": 45
+      },
+      "timestamp": "2025-09-05T20:45:00Z"
+    },
+    {
+      "command_id": "456e7890-e89b-12d3-a456-426614174001",
+      "agent_id": "345a604068a8",
+      "status": "error", 
+      "error": "Permission denied: requires administrator privileges",
+      "metadata": {
+        "execution_time_ms": 12
+      },
+      "timestamp": "2025-09-05T20:45:05Z"
+    }
+  ]
+}

@@ -16,6 +16,45 @@ use std::sync::Arc;
 use rumqttc::AsyncClient;
 use uuid::Uuid;
 use anyhow::Result;
+use std::time::Duration;
+
+// Structures pour tracking des commandes en cours
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PendingCommand {
+    pub command_id: String,
+    pub agent_id: String,
+    pub command_type: String,
+    pub parameters: Option<serde_json::Value>,
+    pub timestamp: OffsetDateTime,
+    pub timeout: Duration,
+    pub status: CommandStatus,
+    pub output: Option<serde_json::Value>,
+    pub error: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CommandStatus {
+    Sent,
+    Acknowledged,
+    InProgress,
+    Completed,
+    Failed,
+    Cancelled,
+    TimedOut,
+}
+
+// Structure pour les réponses des agents (agents.response@v1)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentResponse {
+    pub command_id: String,
+    pub agent_id: String,
+    pub status: String, // "success", "error", "in_progress", "cancelled"
+    pub output: Option<serde_json::Value>,
+    pub error: Option<serde_json::Value>,
+    pub progress: Option<u32>,
+    pub metadata: Option<serde_json::Value>,
+    pub timestamp: String,
+}
 
 // Structures basées sur les contrats agents.registration@v1 et agents.heartbeat@v1
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -215,6 +254,7 @@ pub struct AgentRegistry {
     agents: Arc<RwLock<AgentsMap>>,
     data_file: String,
     mqtt_client: Option<AsyncClient>,
+    pending_commands: Arc<RwLock<HashMap<String, PendingCommand>>>,
 }
 
 impl AgentRegistry {
@@ -223,6 +263,7 @@ impl AgentRegistry {
             agents: Arc::new(RwLock::new(HashMap::new())),
             data_file: data_file.to_string(),
             mqtt_client: None,
+            pending_commands: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -341,12 +382,31 @@ impl AgentRegistry {
             command_id: command_id.clone(),
             agent_id: agent_id.to_string(),
             command_type: command_type.to_string(),
-            parameters,
+            parameters: parameters.clone(),
             timeout_seconds: Some(30),
             timestamp: OffsetDateTime::now_utc().format(&time::format_description::well_known::Iso8601::DEFAULT)?,
         };
 
         if let Some(mqtt_client) = &self.mqtt_client {
+            // Créer la commande en attente
+            let pending_command = PendingCommand {
+                command_id: command_id.clone(),
+                agent_id: agent_id.to_string(),
+                command_type: command_type.to_string(),
+                parameters: parameters.clone(),
+                timestamp: OffsetDateTime::now_utc(),
+                timeout: Duration::from_secs(30),
+                status: CommandStatus::Sent,
+                output: None,
+                error: None,
+            };
+            
+            // Stocker la commande
+            {
+                let mut pending = self.pending_commands.write().await;
+                pending.insert(command_id.clone(), pending_command);
+            }
+            
             let topic = "symbion/agents/command@v1";
             let payload = serde_json::to_string(&command)?;
             
@@ -357,6 +417,124 @@ impl AgentRegistry {
         } else {
             Err(anyhow::anyhow!("MQTT client not configured"))
         }
+    }
+
+    /// Annule une commande en cours
+    pub async fn cancel_command(&self, command_id: &str) -> Result<bool> {
+        let mut pending = self.pending_commands.write().await;
+        if let Some(command) = pending.get_mut(command_id) {
+            match command.status {
+                CommandStatus::Sent | CommandStatus::Acknowledged => {
+                    command.status = CommandStatus::Cancelled;
+                    
+                    // Envoyer commande d'annulation à l'agent si MQTT disponible
+                    if let Some(mqtt_client) = &self.mqtt_client {
+                        let cancel_command = AgentCommand {
+                            command_id: Uuid::new_v4().to_string(),
+                            agent_id: command.agent_id.clone(),
+                            command_type: "cancel".to_string(),
+                            parameters: Some(serde_json::json!({"cancelled_command_id": command_id})),
+                            timeout_seconds: Some(10),
+                            timestamp: OffsetDateTime::now_utc().format(&time::format_description::well_known::Iso8601::DEFAULT).unwrap_or_default(),
+                        };
+                        
+                        let topic = "symbion/agents/command@v1";
+                        let payload = serde_json::to_string(&cancel_command)?;
+                        mqtt_client.publish(topic, rumqttc::QoS::AtLeastOnce, false, payload).await?;
+                    }
+                    
+                    println!("[agents] cancelled command {} for agent {}", command_id, command.agent_id);
+                    Ok(true)
+                }
+                _ => {
+                    println!("[agents] cannot cancel command {} - already {:?}", command_id, command.status);
+                    Ok(false)
+                }
+            }
+        } else {
+            Err(anyhow::anyhow!("Command {} not found", command_id))
+        }
+    }
+
+    /// Récupère l'état d'une commande
+    pub async fn get_command_status(&self, command_id: &str) -> Option<PendingCommand> {
+        println!("[debug] get_command_status called for command: {}", command_id);
+        let pending = self.pending_commands.read().await;
+        let result = pending.get(command_id).cloned();
+        println!("[debug] get_command_status result: {:?}", result.is_some());
+        result
+    }
+
+    /// Liste toutes les commandes en cours pour un agent
+    pub async fn get_agent_pending_commands(&self, agent_id: &str) -> Vec<PendingCommand> {
+        let pending = self.pending_commands.read().await;
+        pending.values()
+            .filter(|cmd| cmd.agent_id == agent_id)
+            .cloned()
+            .collect()
+    }
+
+    /// Traite une réponse d'agent (agents.response@v1)
+    pub async fn handle_agent_response(&self, response: AgentResponse) -> Result<()> {
+        println!("[debug] handle_agent_response called for command: {}", response.command_id);
+        println!("[debug] response status: {}", response.status);
+        println!("[debug] response output: {:?}", response.output);
+        println!("[debug] response error: {:?}", response.error);
+        let mut pending = self.pending_commands.write().await;
+        
+        if let Some(command) = pending.get_mut(&response.command_id) {
+            // Mettre à jour le statut selon la réponse
+            command.status = match response.status.as_str() {
+                "success" => CommandStatus::Completed,
+                "error" => CommandStatus::Failed,
+                "in_progress" => CommandStatus::InProgress,
+                "cancelled" => CommandStatus::Cancelled,
+                _ => CommandStatus::Failed,
+            };
+            
+            // Stocker la sortie et l'erreur
+            command.output = response.output;
+            command.error = response.error;
+            
+            println!("[agents] updated command {} status: {:?}", response.command_id, command.status);
+            
+            // Si commande terminée, on pourrait la supprimer après un délai
+            // ou la garder pour historique selon les besoins
+            
+            Ok(())
+        } else {
+            // Commande inconnue, peut-être déjà supprimée ou timeout
+            println!("[agents] received response for unknown command: {}", response.command_id);
+            Ok(())
+        }
+    }
+
+    /// Nettoie les commandes anciennes (timeout ou terminées)
+    pub async fn cleanup_old_commands(&self, max_age_minutes: i64) -> Result<usize> {
+        let cutoff = OffsetDateTime::now_utc() - time::Duration::minutes(max_age_minutes);
+        let mut pending = self.pending_commands.write().await;
+        
+        let initial_count = pending.len();
+        pending.retain(|_, cmd| {
+            match cmd.status {
+                CommandStatus::Completed | CommandStatus::Failed | CommandStatus::Cancelled => {
+                    // Garder les commandes terminées pendant au moins 5 minutes pour historique
+                    cmd.timestamp > cutoff - time::Duration::minutes(5)
+                }
+                CommandStatus::Sent | CommandStatus::Acknowledged | CommandStatus::InProgress => {
+                    // Timeout les commandes en cours après max_age_minutes
+                    cmd.timestamp > cutoff
+                }
+                CommandStatus::TimedOut => false, // Supprimer les timeouts
+            }
+        });
+        
+        let removed = initial_count - pending.len();
+        if removed > 0 {
+            println!("[agents] cleaned up {} old commands", removed);
+        }
+        
+        Ok(removed)
     }
 
     /// Marque un agent comme offline après timeout

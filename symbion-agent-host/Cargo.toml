@@ -41,6 +41,13 @@ futures = "0.3"
 # Time handling
 chrono = { version = "0.4", features = ["serde"] }
 
+# Local API server and notifications
+warp = "0.3"
+notify-rust = { version = "4.11", optional = true }
+
+# Simple system tray alternative (lightweight)
+# tray-icon = { version = "0.18", optional = true }  # Removed - heavy dependencies
+
 # Process management (cross-platform)
 process_control = "4.0"  # Cross-platform process execution with timeout
 self_update = "0.42.0"
@@ -72,3 +79,8 @@ default = []
 power-management = []
 service-control = []
 advanced-metrics = []
+# Local API and notifications
+local-api = []
+notifications = ["notify-rust"]
+# Simple system tray (lightweight - no dependencies)
+system-tray = []

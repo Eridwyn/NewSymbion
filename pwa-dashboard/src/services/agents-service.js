@@ -92,12 +92,33 @@ class AgentsService extends LitElement {
     })
   }
   
-  // ===== Command Execution =====
+  // ===== Command Execution Enhanced =====
   
-  async executeCommand(agentId, command) {
+  async executeCommand(agentId, command, timeout_secs = 30) {
     return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/command`, {
       method: 'POST',
-      body: JSON.stringify({ command })
+      body: JSON.stringify({ command, timeout_secs })
+    })
+  }
+
+  async executeCommandWithTracking(agentId, command, timeout_secs = 30) {
+    // Use new command tracking API
+    return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/commands`, {
+      method: 'POST',
+      body: JSON.stringify({ 
+        command_type: 'shell_command',
+        parameters: { command, timeout_secs }
+      })
+    })
+  }
+
+  async getCommandStatus(commandId) {
+    return await this.apiService.request(`/commands/${encodeURIComponent(commandId)}/status`)
+  }
+
+  async cancelCommand(commandId) {
+    return await this.apiService.request(`/commands/${encodeURIComponent(commandId)}/cancel`, {
+      method: 'POST'
     })
   }
   
@@ -105,6 +126,43 @@ class AgentsService extends LitElement {
   
   async getAgentMetrics(agentId) {
     return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/metrics`)
+  }
+
+  // ===== Local Agent API =====
+  
+  async getAgentLocalStatus(agentIP, port = 9899) {
+    // Direct access to agent's local API for real-time data
+    try {
+      const response = await fetch(`http://${agentIP}:${port}/status`, {
+        mode: 'cors',
+        headers: {
+          'Accept': 'application/json'
+        }
+      })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      return await response.json()
+    } catch (error) {
+      console.warn(`Failed to fetch local status from ${agentIP}:${port}`, error)
+      throw error
+    }
+  }
+
+  async reconnectAgent(agentIP, port = 9899) {
+    try {
+      const response = await fetch(`http://${agentIP}:${port}/reconnect`, {
+        method: 'POST',
+        mode: 'cors'
+      })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      return await response.json()
+    } catch (error) {
+      console.warn(`Failed to reconnect agent ${agentIP}:${port}`, error)
+      throw error
+    }
+  }
+
+  getAgentLocalDashboardURL(agentIP, port = 9899) {
+    return `http://${agentIP}:${port}/`
   }
   
   // ===== Wake-on-LAN =====
@@ -154,6 +212,21 @@ class AgentsService extends LitElement {
   
   canExecuteCommands(agentId) {
     return this.hasCapability(agentId, 'command_execution')
+  }
+
+  canManageServices(agentId) {
+    return this.hasCapability(agentId, 'service_management')
+  }
+
+  hasLocalDashboard(agentId) {
+    // Check if agent is online and has local API capabilities  
+    const agent = this.getAgentById(agentId)
+    return agent && agent.status === 'online' && agent.primary_ip
+  }
+
+  getAgentIP(agentId) {
+    const agent = this.getAgentById(agentId)
+    return agent ? agent.primary_ip : null
   }
   
   formatLastSeen(agent) {

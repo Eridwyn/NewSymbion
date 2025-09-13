@@ -1,0 +1,55 @@
+{
+  "$schema": "https://schema.tauri.app/config/2.0.0-rc.4",
+  "productName": "Symbion Agent",
+  "version": "1.0.2",
+  "identifier": "com.symbion.agent",
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devUrl": "../ui",
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Symbion Agent",
+        "width": 320,
+        "height": 240,
+        "resizable": false,
+        "fullscreen": false,
+        "visible": false,
+        "decorations": true,
+        "alwaysOnTop": false,
+        "skipTaskbar": true,
+        "center": true
+      }
+    ],
+    "systemTray": {
+      "iconPath": "icons/tray-icon.png",
+      "iconAsTemplate": true,
+      "menuOnLeftClick": false,
+      "tooltip": "Symbion Agent"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [],
+    "copyright": "",
+    "category": "Utility",
+    "shortDescription": "System monitoring and automation agent",
+    "longDescription": "Symbion Agent provides system monitoring, automation, and remote control capabilities for the Symbion home automation ecosystem."
+  },
+  "permissions": [
+    "core:default",
+    "shell:default",
+    "system-tray:default"
+  ]
+}

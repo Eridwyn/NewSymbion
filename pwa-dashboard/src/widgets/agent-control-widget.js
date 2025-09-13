@@ -23,7 +23,8 @@ class AgentControlWidget extends LitElement {
     processes: { type: Array },
     metrics: { type: Object },
     commandOutput: { type: String },
-    commandInput: { type: String }
+    commandInput: { type: String },
+    currentCommandId: { type: String }
   }
   
   static styles = css`
@@ -496,6 +497,7 @@ class AgentControlWidget extends LitElement {
     this.metrics = null
     this.commandOutput = '# Command output will appear here...\n'
     this.commandInput = ''
+    this.currentCommandId = null
     this.agentsService = null
   }
 
@@ -714,10 +716,137 @@ class AgentControlWidget extends LitElement {
     this.requestUpdate()
   }
 
+  async executeCommandTracked() {
+    if (!this.commandInput.trim()) return
+
+    const command = this.commandInput.trim()
+    this.commandOutput += `$ ${command}\n`
+    this.commandOutput += `Starting command execution...\n`
+    
+    try {
+      // Start command with tracking
+      const result = await this.agentsService.executeCommandWithTracking(this.agentId, command, 60)
+      this.currentCommandId = result.command_id
+      
+      this.commandOutput += `Command started (ID: ${this.currentCommandId})\n`
+      this.commandOutput += `Waiting for response...\n`
+      
+      // Poll for status updates
+      this.pollCommandStatus()
+      
+    } catch (error) {
+      this.commandOutput += `Error starting command: ${error.message}\n`
+      this.currentCommandId = null
+    }
+    
+    this.commandInput = ''
+    this.requestUpdate()
+  }
+
+  async pollCommandStatus() {
+    if (!this.currentCommandId) return
+    
+    let attempts = 0
+    const maxAttempts = 120 // 2 minutes max
+    
+    const poll = async () => {
+      try {
+        const status = await this.agentsService.getCommandStatus(this.currentCommandId)
+        
+        if (status.status === 'Completed') {
+          this.commandOutput += `\n=== Command Completed ===\n`
+          this.commandOutput += status.output || 'No output\n'
+          this.currentCommandId = null
+          this.requestUpdate()
+          return
+        } else if (status.status === 'Failed') {
+          this.commandOutput += `\n=== Command Failed ===\n`
+          this.commandOutput += status.error || 'Unknown error\n'
+          this.currentCommandId = null
+          this.requestUpdate()
+          return
+        } else if (status.status === 'Cancelled') {
+          this.commandOutput += `\n=== Command Cancelled ===\n`
+          this.currentCommandId = null
+          this.requestUpdate()
+          return
+        }
+        
+        // Command still running, continue polling
+        attempts++
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 1000) // Poll every second
+        } else {
+          this.commandOutput += `\n=== Command Timeout ===\n`
+          this.currentCommandId = null
+          this.requestUpdate()
+        }
+        
+      } catch (error) {
+        console.warn('Failed to poll command status:', error)
+        attempts++
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 2000) // Retry after 2s on error
+        } else {
+          this.commandOutput += `\nFailed to get command status\n`
+          this.currentCommandId = null
+          this.requestUpdate()
+        }
+      }
+    }
+    
+    // Start polling after 1 second
+    setTimeout(poll, 1000)
+  }
+
+  async cancelCurrentCommand() {
+    if (!this.currentCommandId) return
+    
+    try {
+      await this.agentsService.cancelCommand(this.currentCommandId)
+      this.commandOutput += `\nCancellation requested for command ${this.currentCommandId}...\n`
+      this.requestUpdate()
+    } catch (error) {
+      console.error('Failed to cancel command:', error)
+      this.commandOutput += `\nFailed to cancel command: ${error.message}\n`
+      this.requestUpdate()
+    }
+  }
+
   handleCommandKeyPress(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      this.executeCommand()
+      this.executeCommandTracked()
+    }
+  }
+
+  async openLocalDashboard() {
+    const agentIP = this.agentsService?.getAgentIP(this.agentId)
+    if (!agentIP) {
+      alert('⚠️ Cannot determine agent IP address')
+      return
+    }
+
+    const dashboardURL = this.agentsService.getAgentLocalDashboardURL(agentIP)
+    console.log('Opening agent local dashboard:', dashboardURL)
+    
+    // Open in new tab
+    window.open(dashboardURL, '_blank', 'noopener,noreferrer')
+  }
+
+  async reconnectAgent() {
+    const agentIP = this.agentsService?.getAgentIP(this.agentId)
+    if (!agentIP) {
+      alert('⚠️ Cannot determine agent IP address')
+      return
+    }
+
+    try {
+      await this.agentsService.reconnectAgent(agentIP)
+      alert('✅ Reconnection signal sent to agent')
+    } catch (error) {
+      console.error('Failed to reconnect agent:', error)
+      alert(`❌ Failed to reconnect: ${error.message}`)
     }
   }
 
@@ -747,6 +876,26 @@ class AgentControlWidget extends LitElement {
             ?disabled="${!isOnline}"
             @click="${() => this.executePowerAction('hibernate')}">
             💤 Hibernate
+          </button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🌐 Local Dashboard</div>
+        <div class="power-controls">
+          <button 
+            class="power-btn" 
+            style="background: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3);"
+            ?disabled="${!this.agentsService?.hasLocalDashboard(this.agentId)}"
+            @click="${this.openLocalDashboard}">
+            🖥️ Open Local Dashboard
+          </button>
+          <button 
+            class="power-btn" 
+            style="background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3);"
+            ?disabled="${!isOnline}"
+            @click="${this.reconnectAgent}">
+            🔄 Reconnect Agent
           </button>
         </div>
       </div>
@@ -941,12 +1090,56 @@ class AgentControlWidget extends LitElement {
   }
 
   renderCommandsTab() {
+    const isOnline = this.agent && this.agent.status === 'online'
+    const canExecute = this.agentsService?.canExecuteCommands(this.agentId)
+
+    if (!canExecute) {
+      return html`
+        <div class="section">
+          <div class="section-title">💻 Command Execution</div>
+          <div class="error-state">
+            ⚠️ Command execution not supported<br>
+            <small>This agent does not have command execution capabilities</small>
+          </div>
+        </div>
+      `
+    }
+
     return html`
       <div class="section">
         <div class="section-title">💻 Command Execution</div>
-        <div class="error-state">
-          🚧 Coming soon!<br>
-          <small>Command execution will be available in the next release with proper privilege management and security features.</small>
+        <div class="command-section">
+          <div class="command-input">
+            <input 
+              type="text" 
+              class="command-field"
+              placeholder="Enter command (e.g., ls -la, ps aux, systemctl status)"
+              .value="${this.commandInput}"
+              @input="${(e) => this.commandInput = e.target.value}"
+              @keypress="${this.handleCommandKeyPress}"
+              ?disabled="${!isOnline}"
+            />
+            <button 
+              class="execute-btn"
+              @click="${this.executeCommandTracked}"
+              ?disabled="${!isOnline || !this.commandInput.trim()}">
+              ▶️ Execute
+            </button>
+          </div>
+          <div class="command-output">${this.commandOutput}</div>
+          ${this.currentCommandId ? html`
+            <div class="command-actions" style="margin-top: 12px;">
+              <button 
+                class="power-btn danger"
+                style="padding: 8px 16px; font-size: 12px;"
+                @click="${this.cancelCurrentCommand}">
+                ⏹️ Cancel Command
+              </button>
+              <span style="color: #888; font-size: 12px; margin-left: 12px;">
+                Command ID: ${this.currentCommandId}
+              </span>
+            </div>
+          ` : ''}
         </div>
       </div>
     `

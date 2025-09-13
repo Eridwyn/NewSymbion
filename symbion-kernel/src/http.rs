@@ -24,7 +24,8 @@
  */
 
 use axum::{extract::{Query, State}, routing::{get, post}, Json, Router};
-use axum::http::StatusCode;
+use axum::http::{StatusCode, Method};
+use tower_http::cors::{CorsLayer, Any};
 use crate::models::{HostState, HostsMap};
 use crate::state::Shared;
 use crate::config::HostsConfig;
@@ -135,8 +136,18 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/agents/{id}/processes/{pid}/kill", post(agent_kill_process_endpoint))
         .route("/agents/{id}/command", post(agent_command_endpoint))
         .route("/agents/{id}/metrics", get(agent_metrics_endpoint))
+        .route("/agents/{id}/commands", get(agent_commands_endpoint).post(agent_commands_post_endpoint))
+        .route("/commands/{command_id}/cancel", post(cancel_command_endpoint))
+        .route("/commands/{command_id}/status", get(command_status_endpoint))
         .with_state(app_state)
         .layer(middleware::from_fn(require_api_key))
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT, Method::OPTIONS])
+                .allow_headers(Any)
+                .allow_credentials(false)
+        )
 }
 
 
@@ -574,6 +585,12 @@ struct AgentCommandRequest {
     parameters: Option<serde_json::Value>,
 }
 
+#[derive(Deserialize)]
+struct AgentCommandTrackingRequest {
+    command_type: String,
+    parameters: serde_json::Value,
+}
+
 fn agent_to_view(agent: &crate::agents::Agent) -> AgentView {
     let primary_ip = agent.network.interfaces
         .first()
@@ -765,6 +782,106 @@ async fn agent_metrics_endpoint(
                 }
             }
         }
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+// Nouveaux endpoints à ajouter à la fin de http.rs
+
+// GET /agents/{id}/commands - Liste des commandes en cours pour un agent
+async fn agent_commands_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let commands = app.agents.get_agent_pending_commands(&id).await;
+    Ok(Json(serde_json::json!({
+        "agent_id": id,
+        "pending_commands": commands
+    })))
+}
+
+// POST /agents/{id}/commands - Nouvelle API avec tracking pour exécuter des commandes
+async fn agent_commands_post_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+    Json(req): Json<AgentCommandTrackingRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Extract command from parameters for shell_command type
+    if req.command_type == "shell_command" {
+        if let Some(command) = req.parameters.get("command") {
+            if let Some(command_str) = command.as_str() {
+                match app.agents.send_command(&id, "run_command", Some(req.parameters)).await {
+                    Ok(command_id) => Ok(Json(serde_json::json!({
+                        "success": true,
+                        "command_id": command_id,
+                        "message": "Command execution requested with tracking"
+                    }))),
+                    Err(e) => {
+                        eprintln!("[http] failed to send tracked command to agent {}: {}", id, e);
+                        Err(StatusCode::INTERNAL_SERVER_ERROR)
+                    }
+                }
+            } else {
+                Err(StatusCode::BAD_REQUEST)
+            }
+        } else {
+            Err(StatusCode::BAD_REQUEST)
+        }
+    } else {
+        // Handle other command types in the future
+        match app.agents.send_command(&id, &req.command_type, Some(req.parameters)).await {
+            Ok(command_id) => Ok(Json(serde_json::json!({
+                "success": true,
+                "command_id": command_id,
+                "message": "Command execution requested with tracking"
+            }))),
+            Err(e) => {
+                eprintln!("[http] failed to send tracked command to agent {}: {}", id, e);
+                Err(StatusCode::INTERNAL_SERVER_ERROR)
+            }
+        }
+    }
+}
+
+// POST /commands/{command_id}/cancel - Annule une commande
+async fn cancel_command_endpoint(
+    State(app): State<AppState>,
+    Path(command_id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match app.agents.cancel_command(&command_id).await {
+        Ok(cancelled) => {
+            if cancelled {
+                Ok(Json(serde_json::json!({
+                    "success": true,
+                    "command_id": command_id,
+                    "message": "Command cancelled successfully"
+                })))
+            } else {
+                Ok(Json(serde_json::json!({
+                    "success": false,
+                    "command_id": command_id,
+                    "message": "Command cannot be cancelled (already completed or failed)"
+                })))
+            }
+        }
+        Err(e) => {
+            eprintln!("[http] failed to cancel command {}: {}", command_id, e);
+            Err(StatusCode::NOT_FOUND)
+        }
+    }
+}
+
+// GET /commands/{command_id}/status - Statut d'une commande
+async fn command_status_endpoint(
+    State(app): State<AppState>,
+    Path(command_id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match app.agents.get_command_status(&command_id).await {
+        Some(command) => Ok(Json(serde_json::json!({
+            "command_id": command_id,
+            "status": command.status,
+            "output": command.output,
+            "error": command.error
+        }))),
         None => Err(StatusCode::NOT_FOUND),
     }
 }
