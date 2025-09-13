@@ -80,10 +80,12 @@ impl LocalApiServer {
                 }))
             });
 
-        // Static files for dashboard UI
+        // Static files for dashboard UI - fallback to embedded HTML
         let ui_route = warp::path::end()
             .and(warp::get())
-            .and(warp::fs::file("ui/simple-dashboard.html"));
+            .map(|| {
+                warp::reply::html(include_str!("../ui/simple-dashboard.html"))
+            });
 
         // CORS for local development
         let cors = warp::cors()
