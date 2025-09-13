@@ -83,7 +83,7 @@ impl LocalApiServer {
         // Static files for dashboard UI
         let ui_route = warp::path::end()
             .and(warp::get())
-            .and(warp::fs::file("symbion-agent-host/ui/simple-dashboard.html"));
+            .and(warp::fs::file("ui/simple-dashboard.html"));
 
         // CORS for local development
         let cors = warp::cors()
