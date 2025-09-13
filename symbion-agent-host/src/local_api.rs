@@ -103,10 +103,10 @@ impl LocalApiServer {
             .or(open_dashboard_route)
             .with(cors);
 
-        println!("[local-api] Starting local dashboard server on http://localhost:9899");
+        println!("[local-api] Starting local dashboard server on http://0.0.0.0:9899");
         
         warp::serve(routes)
-            .run(([127, 0, 0, 1], 9899))
+            .run(([0, 0, 0, 0], 9899))
             .await;
 
         Ok(())
