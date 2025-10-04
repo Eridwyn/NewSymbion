@@ -7,7 +7,6 @@
 
 #![cfg(feature = "gui")]
 
-use anyhow::Result;
 use std::sync::Arc;
 use tray_icon::{
     TrayIconBuilder, TrayIconEvent,
@@ -20,7 +19,7 @@ use tao::{
 };
 use wry::WebViewBuilder;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tracing::info;
+use tracing::{info, error};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -40,29 +39,57 @@ impl SymbionGui {
     }
 
     /// Initialize and run the GUI event loop
-    pub fn run(&self, agent_id: String, hostname: String) -> Result<()> {
+    /// This function never returns - it runs until the process exits
+    pub fn run(&self, agent_id: String, hostname: String) -> ! {
         info!("Initializing GUI for agent: {} ({})", agent_id, hostname);
 
         // Create event loop for GUI
         let event_loop = EventLoopBuilder::new().build();
 
         // Create hidden window for WebView container
-        let window = WindowBuilder::new()
+        let window = match WindowBuilder::new()
             .with_title("Symbion Agent Dashboard")
             .with_inner_size(tao::dpi::LogicalSize::new(1024, 768))
             .with_visible(false) // Start hidden
-            .build(&event_loop)?;
+            .build(&event_loop) {
+                Ok(w) => w,
+                Err(e) => {
+                    error!("Failed to create window: {}", e);
+                    error!("Agent continues in background. Dashboard: http://localhost:9899");
+                    std::process::exit(1);
+                }
+            };
 
         // Create WebView for local dashboard
-        let _webview = WebViewBuilder::new()
+        let _webview = match WebViewBuilder::new()
             .with_url("http://localhost:9899")
-            .build(&window)?;
+            .build(&window) {
+                Ok(wv) => wv,
+                Err(e) => {
+                    error!("Failed to create webview: {}", e);
+                    error!("Agent continues in background. Dashboard: http://localhost:9899");
+                    std::process::exit(1);
+                }
+            };
 
         info!("WebView created successfully");
 
         // Create system tray icon
-        let tray_menu = self.create_tray_menu()?;
-        let _tray_icon = self.create_tray_icon(tray_menu, &hostname)?;
+        let tray_menu = match self.create_tray_menu() {
+            Ok(m) => m,
+            Err(e) => {
+                error!("Failed to create tray menu: {}", e);
+                std::process::exit(1);
+            }
+        };
+
+        let _tray_icon = match self.create_tray_icon(tray_menu, &hostname) {
+            Ok(t) => t,
+            Err(e) => {
+                error!("Failed to create tray icon: {}", e);
+                std::process::exit(1);
+            }
+        };
 
         info!("System tray created successfully");
 
@@ -140,7 +167,7 @@ impl SymbionGui {
     }
 
     /// Create system tray menu
-    fn create_tray_menu(&self) -> Result<Menu> {
+    fn create_tray_menu(&self) -> Result<Menu, Box<dyn std::error::Error>> {
         use tray_icon::menu::MenuId;
 
         let menu = Menu::new();
@@ -165,7 +192,7 @@ impl SymbionGui {
     }
 
     /// Create system tray icon
-    fn create_tray_icon(&self, menu: Menu, hostname: &str) -> Result<tray_icon::TrayIcon> {
+    fn create_tray_icon(&self, menu: Menu, hostname: &str) -> Result<tray_icon::TrayIcon, Box<dyn std::error::Error>> {
         // Load icon from embedded bytes (you'll need to add icon.ico to resources)
         let icon = self.load_icon()?;
 
@@ -179,7 +206,7 @@ impl SymbionGui {
     }
 
     /// Load application icon
-    fn load_icon(&self) -> Result<tray_icon::Icon> {
+    fn load_icon(&self) -> Result<tray_icon::Icon, Box<dyn std::error::Error>> {
         // For now, create a simple colored icon programmatically
         // TODO: Replace with actual icon file
         let rgba = vec![255u8; 32 * 32 * 4]; // 32x32 white icon

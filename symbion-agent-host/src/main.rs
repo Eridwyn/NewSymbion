@@ -1102,21 +1102,44 @@ async fn main() -> Result<()> {
         if gui_available {
             info!("Starting in GUI mode with system tray");
 
-            // Clone agent for GUI thread
-            let system_info_clone = system_info_for_gui.clone();
+            // Platform-specific threading: Windows needs GUI on main thread
+            #[cfg(target_os = "windows")]
+            {
+                // Start agent MQTT loop in dedicated thread with its own tokio runtime
+                // (Windows GUI needs main thread for event loop)
+                std::thread::spawn(move || {
+                    let runtime = tokio::runtime::Runtime::new().unwrap();
+                    runtime.block_on(async move {
+                        if let Err(e) = agent.run().await {
+                            error!("Agent execution failed: {}", e);
+                        }
+                    });
+                });
 
-            // Start GUI in background thread with proper error handling
-            std::thread::spawn(move || {
+                // Run GUI on main thread (required for Windows message loop)
+                // This function never returns - it runs until user quits via system tray
+                // then terminates the process
                 let gui = gui::SymbionGui::new();
-                if let Err(e) = gui.run(system_info_clone.agent_id, system_info_clone.hostname) {
-                    error!("GUI failed: {}", e);
-                    error!("Agent continues running in background - dashboard at http://localhost:9899");
-                }
-            });
+                gui.run(system_info_for_gui.agent_id, system_info_for_gui.hostname);
+                // Never reached - gui.run() terminates process on exit
+            }
 
-            // Run agent MQTT loop on main thread (critical - must not die)
-            agent.run().await
-                .context("Agent execution failed")?;
+            #[cfg(not(target_os = "windows"))]
+            {
+                // On Linux/macOS with GUI: GUI in background, agent on main thread
+                let system_info_clone = system_info_for_gui.clone();
+
+                std::thread::spawn(move || {
+                    let gui = gui::SymbionGui::new();
+                    // gui.run() never returns - it will terminate the process
+                    // If it fails during init, it calls std::process::exit(1)
+                    gui.run(system_info_clone.agent_id, system_info_clone.hostname);
+                });
+
+                // Run agent MQTT loop on main thread (critical - must not die)
+                agent.run().await
+                    .context("Agent execution failed")?;
+            }
         } else {
             info!("No graphical environment detected on Linux, starting in terminal mode");
             info!("Tip: Compile with --no-default-features to disable GUI on headless systems");
