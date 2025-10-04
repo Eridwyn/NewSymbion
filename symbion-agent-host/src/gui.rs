@@ -7,18 +7,13 @@
 
 #![cfg(feature = "gui")]
 
-use std::sync::Arc;
 use tray_icon::{
     TrayIconBuilder, TrayIconEvent,
     menu::{Menu, MenuItem, PredefinedMenuItem, MenuEvent},
 };
 use tao::{
-    event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoopBuilder},
-    window::WindowBuilder,
 };
-use wry::WebViewBuilder;
-use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::{info, error};
 
 #[cfg(target_os = "windows")]
@@ -27,15 +22,11 @@ use std::os::windows::process::CommandExt;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-pub struct SymbionGui {
-    window_visible: Arc<AtomicBool>,
-}
+pub struct SymbionGui {}
 
 impl SymbionGui {
     pub fn new() -> Self {
-        Self {
-            window_visible: Arc::new(AtomicBool::new(false)),
-        }
+        Self {}
     }
 
     /// Initialize and run the GUI event loop
@@ -43,36 +34,10 @@ impl SymbionGui {
     pub fn run(&self, agent_id: String, hostname: String) -> ! {
         info!("Initializing GUI for agent: {} ({})", agent_id, hostname);
 
-        // Create event loop for GUI
+        // Create event loop for GUI (no window needed for system tray only)
         let event_loop = EventLoopBuilder::new().build();
 
-        // Create hidden window for WebView container
-        let window = match WindowBuilder::new()
-            .with_title("Symbion Agent Dashboard")
-            .with_inner_size(tao::dpi::LogicalSize::new(1024, 768))
-            .with_visible(false) // Start hidden
-            .build(&event_loop) {
-                Ok(w) => w,
-                Err(e) => {
-                    error!("Failed to create window: {}", e);
-                    error!("Agent continues in background. Dashboard: http://localhost:9899");
-                    std::process::exit(1);
-                }
-            };
-
-        // Create WebView for local dashboard
-        let _webview = match WebViewBuilder::new()
-            .with_url("http://localhost:9899")
-            .build(&window) {
-                Ok(wv) => wv,
-                Err(e) => {
-                    error!("Failed to create webview: {}", e);
-                    error!("Agent continues in background. Dashboard: http://localhost:9899");
-                    std::process::exit(1);
-                }
-            };
-
-        info!("WebView created successfully");
+        info!("Event loop created - system tray only mode");
 
         // Create system tray icon
         let tray_menu = match self.create_tray_menu() {
@@ -93,13 +58,11 @@ impl SymbionGui {
 
         info!("System tray created successfully");
 
-        let window_visible = self.window_visible.clone();
-
         // Handle menu events
         let menu_channel = MenuEvent::receiver();
         let tray_channel = TrayIconEvent::receiver();
 
-        info!("Starting GUI event loop");
+        info!("Starting GUI event loop (tray only - no embedded window)");
 
         // Run event loop
         event_loop.run(move |event, _, control_flow| {
@@ -108,18 +71,25 @@ impl SymbionGui {
             // Handle tray icon events
             if let Ok(tray_event) = tray_channel.try_recv() {
                 match tray_event {
-                    tray_icon::TrayIconEvent::Click { .. } => {
-                        // Toggle window visibility on tray icon click
-                        let visible = !window_visible.load(Ordering::Relaxed);
-                        window.set_visible(visible);
-                        window_visible.store(visible, Ordering::Relaxed);
-
-                        if visible {
-                            let _ = window.set_focus();
+                    tray_icon::TrayIconEvent::Click { button, .. } => {
+                        // Open dashboard in browser on left click
+                        if button == tray_icon::MouseButton::Left {
+                            info!("Tray icon left-clicked - opening dashboard in browser");
+                            let _ = open_browser("http://localhost:9899");
                         }
-                        info!("Tray icon clicked - window visible: {}", visible);
                     }
-                    _ => {}
+                    tray_icon::TrayIconEvent::Enter { .. } => {
+                        // Mouse entered tray icon area - do nothing
+                    }
+                    tray_icon::TrayIconEvent::Leave { .. } => {
+                        // Mouse left tray icon area - do nothing
+                    }
+                    tray_icon::TrayIconEvent::Move { .. } => {
+                        // Mouse moved over tray icon - do nothing
+                    }
+                    _ => {
+                        // Other events - ignore
+                    }
                 }
             }
 
@@ -131,36 +101,15 @@ impl SymbionGui {
                 if menu_id == "quit" {
                     info!("Quit requested from tray menu");
                     *control_flow = ControlFlow::Exit;
-                } else if menu_id == "show" {
-                    window.set_visible(true);
-                    let _ = window.set_focus();
-                    window_visible.store(true, Ordering::Relaxed);
-                } else if menu_id == "hide" {
-                    window.set_visible(false);
-                    window_visible.store(false, Ordering::Relaxed);
+                } else if menu_id == "open_dashboard" {
+                    let _ = open_browser("http://localhost:9899");
                 } else if menu_id == "open_pwa" {
                     let _ = open_browser("http://localhost:3001");
                 }
             }
 
-            // Handle window events
+            // No window events to handle - tray only mode
             match event {
-                Event::WindowEvent {
-                    event: WindowEvent::CloseRequested,
-                    ..
-                } => {
-                    // Don't quit, just hide window
-                    info!("Window close requested - hiding instead");
-                    window.set_visible(false);
-                    window_visible.store(false, Ordering::Relaxed);
-                }
-                Event::WindowEvent {
-                    event: WindowEvent::Destroyed,
-                    ..
-                } => {
-                    info!("Window destroyed - exiting");
-                    *control_flow = ControlFlow::Exit;
-                }
                 _ => {}
             }
         });
@@ -172,15 +121,10 @@ impl SymbionGui {
 
         let menu = Menu::new();
 
-        let show_item = MenuItem::with_id(MenuId::new("show"), "Afficher Dashboard", true, None);
-        menu.append(&show_item)?;
+        let dashboard_item = MenuItem::with_id(MenuId::new("open_dashboard"), "Ouvrir Dashboard Local (9899)", true, None);
+        menu.append(&dashboard_item)?;
 
-        let hide_item = MenuItem::with_id(MenuId::new("hide"), "Masquer Dashboard", true, None);
-        menu.append(&hide_item)?;
-
-        menu.append(&PredefinedMenuItem::separator())?;
-
-        let pwa_item = MenuItem::with_id(MenuId::new("open_pwa"), "Ouvrir Dashboard Principal", true, None);
+        let pwa_item = MenuItem::with_id(MenuId::new("open_pwa"), "Ouvrir Dashboard Principal (3001)", true, None);
         menu.append(&pwa_item)?;
 
         menu.append(&PredefinedMenuItem::separator())?;
