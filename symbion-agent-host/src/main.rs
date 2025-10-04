@@ -1,13 +1,12 @@
 //! Symbion Agent Host - Multi-OS system agent for network control
-//! 
-//! VERSION: 1.2.0-SHUTDOWN-FIX (02-09-2025 17:22)
-//! FEATURES: Command processing + Power management + Shell execution
-//!
 //! This agent provides remote system control capabilities to the Symbion kernel:
 //! - Auto-discovery and registration via MQTT
-//! - System metrics monitoring and reporting  
+//! - System metrics monitoring and reporting
 //! - Remote command execution (shutdown, reboot, process control)
 //! - Cross-platform support (Linux, Windows, Android)
+
+// Hide console window on Windows when using GUI mode
+#![cfg_attr(all(target_os = "windows", feature = "gui"), windows_subsystem = "windows")]
 
 mod discovery;
 mod capabilities;
@@ -20,7 +19,7 @@ mod local_api;
 mod system_tray;
 
 #[cfg(feature = "gui")]
-mod tray;
+mod gui;
 
 use anyhow::{Result, Context};
 use std::env;
@@ -985,7 +984,7 @@ async fn main() -> Result<()> {
     // Initialize logging
     tracing_subscriber::fmt()
         .init();
-        
+
     info!("🤖 Symbion Agent Host v{} starting...", env!("CARGO_PKG_VERSION"));
     
     // Check if this is first-time setup
@@ -1069,19 +1068,45 @@ async fn main() -> Result<()> {
         }
     });
     
+    // Discover system info early for GUI
+    let system_info_for_gui = SystemInfo::discover().await
+        .context("Failed to discover system info for GUI")?;
+
     // Create and run agent
     let mut agent = Agent::new_with_config(agent_config).await
         .context("Failed to create agent")?;
-    
+
     // Pass local API to agent for status updates
     agent.set_local_api(local_api);
-    
-    // Initialize system tray (optional)
-    let _ = agent.init_system_tray();
-        
-    agent.run().await
-        .context("Agent execution failed")?;
-        
+
+    // Run with GUI or terminal mode
+    #[cfg(feature = "gui")]
+    {
+        info!("Starting in GUI mode with system tray");
+
+        // Start agent MQTT loop in background
+        tokio::spawn(async move {
+            if let Err(e) = agent.run().await {
+                error!("Agent execution failed: {}", e);
+            }
+        });
+
+        // Run GUI on main thread (required for Windows message loop)
+        let gui = gui::SymbionGui::new();
+        gui.run(system_info_for_gui.agent_id, system_info_for_gui.hostname)?;
+    }
+
+    #[cfg(not(feature = "gui"))]
+    {
+        info!("Starting in terminal mode");
+
+        // Initialize lightweight system tray notification (optional)
+        let _ = agent.init_system_tray();
+
+        agent.run().await
+            .context("Agent execution failed")?;
+    }
+
     Ok(())
 }
 
