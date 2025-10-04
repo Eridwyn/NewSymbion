@@ -3,7 +3,7 @@
 //! Provides a simple HTTP server on localhost:9899 for local dashboard access
 //! Used by system tray UI, browser-based dashboard, or external tools
 
-use serde::{Serialize, Deserialize};
+use serde::Serialize;
 use warp::Filter;
 use std::sync::Arc;
 use tokio::sync::RwLock;

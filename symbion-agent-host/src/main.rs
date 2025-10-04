@@ -17,6 +17,7 @@ mod updater;
 mod wizard;
 mod local_api;
 mod system_tray;
+mod windows_utils;
 
 #[cfg(feature = "gui")]
 mod gui;
@@ -450,7 +451,7 @@ impl Agent {
         match self.system_info.os.as_str() {
             "windows" => {
                 // Try immediate shutdown with wininit.exe for maximum force
-                match tokio::process::Command::new("cmd")
+                match windows_utils::silent_tokio_command("cmd")
                     .args(&["/C", "shutdown /s /t 0 /f"])
                     .output()
                     .await
@@ -525,7 +526,7 @@ impl Agent {
         
         match self.system_info.os.as_str() {
             "windows" => {
-                match tokio::process::Command::new("shutdown")
+                match windows_utils::silent_tokio_command("shutdown")
                     .args(&["/r", "/t", "5", "/c", "Reboot initiated by Symbion"])
                     .output()
                     .await
@@ -600,7 +601,7 @@ impl Agent {
         
         match self.system_info.os.as_str() {
             "windows" => {
-                match tokio::process::Command::new("rundll32.exe")
+                match windows_utils::silent_tokio_command("rundll32.exe")
                     .args(&["powrprof.dll,SetSuspendState", "Hibernate"])
                     .output()
                     .await
@@ -1082,18 +1083,50 @@ async fn main() -> Result<()> {
     // Run with GUI or terminal mode
     #[cfg(feature = "gui")]
     {
-        info!("Starting in GUI mode with system tray");
+        // Check if GUI is available on Linux (must have non-empty DISPLAY or WAYLAND_DISPLAY)
+        #[cfg(target_os = "linux")]
+        let gui_available = {
+            std::env::var("DISPLAY")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .is_some()
+            || std::env::var("WAYLAND_DISPLAY")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .is_some()
+        };
 
-        // Start agent MQTT loop in background
-        tokio::spawn(async move {
-            if let Err(e) = agent.run().await {
-                error!("Agent execution failed: {}", e);
-            }
-        });
+        #[cfg(not(target_os = "linux"))]
+        let gui_available = true; // Always available on Windows/macOS
 
-        // Run GUI on main thread (required for Windows message loop)
-        let gui = gui::SymbionGui::new();
-        gui.run(system_info_for_gui.agent_id, system_info_for_gui.hostname)?;
+        if gui_available {
+            info!("Starting in GUI mode with system tray");
+
+            // Clone agent for GUI thread
+            let system_info_clone = system_info_for_gui.clone();
+
+            // Start GUI in background thread with proper error handling
+            std::thread::spawn(move || {
+                let gui = gui::SymbionGui::new();
+                if let Err(e) = gui.run(system_info_clone.agent_id, system_info_clone.hostname) {
+                    error!("GUI failed: {}", e);
+                    error!("Agent continues running in background - dashboard at http://localhost:9899");
+                }
+            });
+
+            // Run agent MQTT loop on main thread (critical - must not die)
+            agent.run().await
+                .context("Agent execution failed")?;
+        } else {
+            info!("No graphical environment detected on Linux, starting in terminal mode");
+            info!("Tip: Compile with --no-default-features to disable GUI on headless systems");
+
+            // Initialize lightweight system tray notification (optional)
+            let _ = agent.init_system_tray();
+
+            agent.run().await
+                .context("Agent execution failed")?;
+        }
     }
 
     #[cfg(not(feature = "gui"))]

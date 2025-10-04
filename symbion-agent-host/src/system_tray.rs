@@ -3,7 +3,7 @@
 //! Provides a minimal system tray icon that opens the local dashboard
 //! when clicked. Lightweight implementation without heavy dependencies.
 
-use tracing::{info, error, warn};
+use tracing::info;
 use std::process::Command;
 
 pub struct SystemTray {
@@ -39,7 +39,7 @@ impl SystemTray {
         #[cfg(target_os = "linux")]
         {
             use std::fs;
-            use std::path::Path;
+            
             
             // Create desktop entry in user applications directory
             let desktop_dir = dirs::data_local_dir()
@@ -79,10 +79,10 @@ Categories=System;Network;
         
         #[cfg(target_os = "windows")]
         {
-            // Use PowerShell for Windows notifications
-            Command::new("powershell")
+            // Use PowerShell for Windows notifications (silent - no window flash)
+            windows_utils::silent_command("powershell")
                 .args(&[
-                    "-Command", 
+                    "-Command",
                     &format!(
                         "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('{}', '{}')",
                         message, title
@@ -123,7 +123,7 @@ Categories=System;Network;
         std::process::Command::new("xdg-open").arg(url).spawn()?;
         
         #[cfg(target_os = "windows")]
-        std::process::Command::new("rundll32")
+        windows_utils::silent_command("rundll32")
             .args(&["url.dll,FileProtocolHandler", url])
             .spawn()?;
         
