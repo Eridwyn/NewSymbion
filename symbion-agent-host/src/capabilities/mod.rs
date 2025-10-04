@@ -11,6 +11,12 @@ use serde::{Deserialize, Serialize};
 use std::process::Command;
 use tracing::debug;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 /// Supported capability types
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -192,15 +198,24 @@ impl CapabilityDetector {
     
     /// Check if a command exists in PATH
     async fn command_exists(command: &str) -> bool {
-        let check_command = if cfg!(target_os = "windows") {
-            Command::new("where").arg(command).output()
-        } else {
-            Command::new("which").arg(command).output()
-        };
-        
-        match check_command {
-            Ok(output) => output.status.success(),
-            Err(_) => false,
+        #[cfg(target_os = "windows")]
+        {
+            let mut cmd = Command::new("where");
+            cmd.creation_flags(CREATE_NO_WINDOW);
+            cmd.arg(command);
+
+            match cmd.output() {
+                Ok(output) => output.status.success(),
+                Err(_) => false,
+            }
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            match Command::new("which").arg(command).output() {
+                Ok(output) => output.status.success(),
+                Err(_) => false,
+            }
         }
     }
 }

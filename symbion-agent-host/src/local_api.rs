@@ -104,11 +104,23 @@ impl LocalApiServer {
             .and(warp::post())
             .and_then(open_dashboard_handler);
 
+        // GET /update/status - Check for updates
+        let update_status_route = warp::path!("update" / "status")
+            .and(warp::get())
+            .and_then(update_status_handler);
+
+        // POST /update/install - Install available update
+        let update_install_route = warp::path!("update" / "install")
+            .and(warp::post())
+            .and_then(update_install_handler);
+
         let routes = status_route
             .or(reconnect_route)
             .or(logs_route)
             .or(ui_route)
             .or(open_dashboard_route)
+            .or(update_status_route)
+            .or(update_install_route)
             .with(cors);
 
         println!("[local-api] Starting local dashboard server on http://0.0.0.0:9899");
@@ -204,10 +216,10 @@ async fn open_dashboard_handler() -> Result<impl warp::Reply, warp::Rejection> {
 
 fn open_local_dashboard() -> Result<(), std::io::Error> {
     let url = "http://localhost:9899";
-    
+
     #[cfg(target_os = "linux")]
     std::process::Command::new("xdg-open").arg(url).spawn()?;
-    
+
     #[cfg(target_os = "windows")]
     {
         let mut cmd = std::process::Command::new("rundll32");
@@ -215,9 +227,92 @@ fn open_local_dashboard() -> Result<(), std::io::Error> {
             .args(&["url.dll,FileProtocolHandler", url])
             .spawn()?;
     }
-    
+
     #[cfg(target_os = "macos")]
     std::process::Command::new("open").arg(url).spawn()?;
 
     Ok(())
+}
+
+async fn update_status_handler() -> Result<impl warp::Reply, warp::Rejection> {
+    use crate::config::AgentConfig;
+    use crate::updater::AgentUpdater;
+
+    // Load config and check for updates
+    let config = match AgentConfig::load().await {
+        Ok(c) => c,
+        Err(_) => {
+            return Ok(warp::reply::json(&serde_json::json!({
+                "update_available": false,
+                "error": "Failed to load config"
+            })));
+        }
+    };
+
+    let updater = AgentUpdater::new(config);
+    match updater.check_update().await {
+        Ok(update_info) => {
+            Ok(warp::reply::json(&serde_json::json!({
+                "update_available": update_info.is_update_available,
+                "current_version": update_info.current_version,
+                "latest_version": update_info.latest_version,
+                "release_notes": update_info.release_notes,
+                "is_critical": update_info.is_critical
+            })))
+        }
+        Err(e) => {
+            Ok(warp::reply::json(&serde_json::json!({
+                "update_available": false,
+                "error": format!("Update check failed: {}", e)
+            })))
+        }
+    }
+}
+
+async fn update_install_handler() -> Result<impl warp::Reply, warp::Rejection> {
+    use crate::config::AgentConfig;
+    use crate::updater::AgentUpdater;
+
+    // Load config and perform update
+    let config = match AgentConfig::load().await {
+        Ok(c) => c,
+        Err(_) => {
+            return Ok(warp::reply::json(&serde_json::json!({
+                "success": false,
+                "error": "Failed to load config"
+            })));
+        }
+    };
+
+    let updater = AgentUpdater::new(config);
+
+    // Check for updates first
+    let update_info = match updater.check_update().await {
+        Ok(info) => info,
+        Err(e) => {
+            return Ok(warp::reply::json(&serde_json::json!({
+                "success": false,
+                "error": format!("Update check failed: {}", e)
+            })));
+        }
+    };
+
+    if !update_info.is_update_available {
+        return Ok(warp::reply::json(&serde_json::json!({
+            "success": false,
+            "error": "No update available"
+        })));
+    }
+
+    // Perform update in background (will restart agent)
+    tokio::spawn(async move {
+        if let Err(e) = updater.perform_update(&update_info).await {
+            eprintln!("Update failed: {}", e);
+        }
+    });
+
+    Ok(warp::reply::json(&serde_json::json!({
+        "success": true,
+        "message": "Update started, agent will restart shortly"
+    })))
 }
