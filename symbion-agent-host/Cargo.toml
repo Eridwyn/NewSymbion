@@ -1,6 +1,6 @@
 [package]
 name = "symbion-agent-host"
-version = "1.1.4"
+version = "1.1.5"
 edition = "2021"
 description = "Multi-OS system agent for Symbion network control"
 authors = ["Symbion Team"]
