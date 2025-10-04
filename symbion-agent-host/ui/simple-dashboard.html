@@ -135,6 +135,29 @@
             margin: 20px 0;
             font-size: 14px;
         }
+        .update-banner {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            text-align: center;
+        }
+        .update-banner h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+        }
+        .update-banner p {
+            margin: 5px 0;
+            font-size: 13px;
+            opacity: 0.9;
+        }
+        .update-banner .btn {
+            margin-top: 10px;
+            background: white;
+            color: #667eea;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -148,6 +171,8 @@
             </div>
         </div>
         
+        <div id="update-section"></div>
+
         <div id="content">
             <div class="loading">
                 Loading agent status...
@@ -185,7 +210,34 @@
             async init() {
                 console.log('[Dashboard] Starting...');
                 await this.fetchStatus();
+                await this.checkForUpdates();
                 this.startPeriodicUpdate();
+            }
+
+            async checkForUpdates() {
+                try {
+                    const response = await fetch('http://localhost:9899/update/status');
+                    if (!response.ok) return;
+
+                    const updateInfo = await response.json();
+                    if (updateInfo.update_available) {
+                        this.showUpdateBanner(updateInfo);
+                    }
+                } catch (error) {
+                    console.log('[Dashboard] Update check failed:', error);
+                }
+            }
+
+            showUpdateBanner(updateInfo) {
+                const updateSection = document.getElementById('update-section');
+                updateSection.innerHTML = `
+                    <div class="update-banner">
+                        <h3>🔄 Mise à jour disponible !</h3>
+                        <p>Version ${updateInfo.current_version} → ${updateInfo.latest_version}</p>
+                        <p style="font-size: 12px; margin-top: 10px;">${updateInfo.release_notes || 'Nouvelle version disponible'}</p>
+                        <button class="btn" onclick="installUpdate()">Installer et redémarrer</button>
+                    </div>
+                `;
             }
 
             async fetchStatus() {
@@ -351,6 +403,32 @@
 
         function refreshData() {
             dashboard.fetchStatus();
+        }
+
+        async function installUpdate() {
+            try {
+                document.getElementById('update-section').innerHTML = `
+                    <div class="update-banner">
+                        <h3>⏳ Installation en cours...</h3>
+                        <p>L'agent va redémarrer automatiquement</p>
+                    </div>
+                `;
+
+                const response = await fetch('http://localhost:9899/update/install', {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    setTimeout(() => {
+                        location.reload();
+                    }, 3000);
+                } else {
+                    alert('❌ Échec de l\'installation');
+                }
+            } catch (error) {
+                console.error('Update install failed:', error);
+                alert('❌ Erreur lors de l\'installation');
+            }
         }
 
         // Initialize dashboard

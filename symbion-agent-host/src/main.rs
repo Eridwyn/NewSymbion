@@ -248,7 +248,7 @@ impl Agent {
         
         // Set up periodic tasks
         let mut heartbeat_timer = interval(Duration::from_secs(self.config.heartbeat_interval_secs));
-        let mut registration_timer = interval(Duration::from_secs(self.config.registration_retry_secs * 6)); // Re-register every minute
+        let mut registration_timer = interval(Duration::from_secs(300)); // Re-register every 5 minutes (reduced from 60s to avoid CMD windows)
         
         loop {
             tokio::select! {
@@ -1014,8 +1014,11 @@ async fn main() -> Result<()> {
     // Load configuration
     let agent_config = config::AgentConfig::load().await
         .context("Failed to load agent configuration")?;
-        
-    info!("Configuration loaded: MQTT broker at {}:{}", 
+
+    // Save broker host for GUI before moving agent_config
+    let broker_host_for_gui = agent_config.mqtt.broker_host.clone();
+
+    info!("Configuration loaded: MQTT broker at {}:{}",
           agent_config.mqtt.broker_host, agent_config.mqtt.broker_port);
     
     // Check for updates if enabled
@@ -1119,7 +1122,7 @@ async fn main() -> Result<()> {
                 // Run GUI on main thread (required for Windows message loop)
                 // This function never returns - it runs until user quits via system tray
                 // then terminates the process
-                let gui = gui::SymbionGui::new();
+                let gui = gui::SymbionGui::new(broker_host_for_gui);
                 gui.run(system_info_for_gui.agent_id, system_info_for_gui.hostname);
                 // Never reached - gui.run() terminates process on exit
             }
@@ -1128,9 +1131,10 @@ async fn main() -> Result<()> {
             {
                 // On Linux/macOS with GUI: GUI in background, agent on main thread
                 let system_info_clone = system_info_for_gui.clone();
+                let broker_host_clone = broker_host_for_gui.clone();
 
                 std::thread::spawn(move || {
-                    let gui = gui::SymbionGui::new();
+                    let gui = gui::SymbionGui::new(broker_host_clone);
                     // gui.run() never returns - it will terminate the process
                     // If it fails during init, it calls std::process::exit(1)
                     gui.run(system_info_clone.agent_id, system_info_clone.hostname);

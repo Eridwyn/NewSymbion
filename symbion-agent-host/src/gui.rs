@@ -1,8 +1,8 @@
-//! Windows GUI implementation with system tray and embedded webview
+//! Cross-platform GUI implementation with system tray and embedded webview
 //!
-//! Provides a native Windows application with:
+//! Provides a native application with:
 //! - System tray icon with context menu
-//! - Embedded WebView2 for local dashboard
+//! - Embedded WebView for local dashboard (toggle with left-click)
 //! - No terminal window (windowless background service)
 
 #![cfg(feature = "gui")]
@@ -12,9 +12,14 @@ use tray_icon::{
     menu::{Menu, MenuItem, PredefinedMenuItem, MenuEvent},
 };
 use tao::{
-    event_loop::{ControlFlow, EventLoopBuilder},
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoopBuilder, EventLoop},
+    window::{WindowBuilder, Window},
+    dpi::LogicalSize,
 };
+use wry::WebViewBuilder;
 use tracing::{info, error};
+use std::sync::{Arc, Mutex};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -22,22 +27,44 @@ use std::os::windows::process::CommandExt;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-pub struct SymbionGui {}
+pub struct SymbionGui {
+    broker_host: String,
+}
+
+struct AppState {
+    window_visible: bool,
+}
 
 impl SymbionGui {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(broker_host: String) -> Self {
+        Self { broker_host }
     }
 
     /// Initialize and run the GUI event loop
     /// This function never returns - it runs until the process exits
-    pub fn run(&self, agent_id: String, hostname: String) -> ! {
+    pub fn run(self, agent_id: String, hostname: String) -> ! {
         info!("Initializing GUI for agent: {} ({})", agent_id, hostname);
 
-        // Create event loop for GUI (no window needed for system tray only)
+        // Create event loop for GUI with window support
         let event_loop = EventLoopBuilder::new().build();
 
-        info!("Event loop created - system tray only mode");
+        // Create hidden window for WebView
+        let window = WindowBuilder::new()
+            .with_title(format!("Symbion Agent - {}", hostname))
+            .with_inner_size(LogicalSize::new(600.0, 800.0))
+            .with_resizable(true)
+            .with_visible(false) // Start hidden
+            .build(&event_loop)
+            .expect("Failed to create window");
+
+        // Create WebView with embedded dashboard HTML
+        let dashboard_html = include_str!("../ui/simple-dashboard.html");
+        let _webview = WebViewBuilder::new()
+            .with_html(dashboard_html)
+            .build(&window)
+            .expect("Failed to build WebView");
+
+        info!("WebView created with embedded dashboard");
 
         // Create system tray icon
         let tray_menu = match self.create_tray_menu() {
@@ -58,11 +85,20 @@ impl SymbionGui {
 
         info!("System tray created successfully");
 
+        // App state for window visibility toggle
+        let state = Arc::new(Mutex::new(AppState {
+            window_visible: false,
+        }));
+
         // Handle menu events
         let menu_channel = MenuEvent::receiver();
         let tray_channel = TrayIconEvent::receiver();
 
-        info!("Starting GUI event loop (tray only - no embedded window)");
+        info!("Starting GUI event loop with embedded WebView");
+
+        // Clone for closures
+        let broker_host = self.broker_host.clone();
+        let state_clone = state.clone();
 
         // Run event loop
         event_loop.run(move |event, _, control_flow| {
@@ -72,23 +108,22 @@ impl SymbionGui {
             if let Ok(tray_event) = tray_channel.try_recv() {
                 match tray_event {
                     tray_icon::TrayIconEvent::Click { button, .. } => {
-                        // Open dashboard in browser on left click
+                        // Toggle window visibility on left click
                         if button == tray_icon::MouseButton::Left {
-                            info!("Tray icon left-clicked - opening dashboard in browser");
-                            let _ = open_browser("http://localhost:9899");
+                            let mut state = state_clone.lock().unwrap();
+                            state.window_visible = !state.window_visible;
+                            window.set_visible(state.window_visible);
+
+                            if state.window_visible {
+                                window.set_focus();
+                                info!("Dashboard window shown");
+                            } else {
+                                info!("Dashboard window hidden");
+                            }
                         }
                     }
-                    tray_icon::TrayIconEvent::Enter { .. } => {
-                        // Mouse entered tray icon area - do nothing
-                    }
-                    tray_icon::TrayIconEvent::Leave { .. } => {
-                        // Mouse left tray icon area - do nothing
-                    }
-                    tray_icon::TrayIconEvent::Move { .. } => {
-                        // Mouse moved over tray icon - do nothing
-                    }
                     _ => {
-                        // Other events - ignore
+                        // Ignore all other events
                     }
                 }
             }
@@ -101,15 +136,37 @@ impl SymbionGui {
                 if menu_id == "quit" {
                     info!("Quit requested from tray menu");
                     *control_flow = ControlFlow::Exit;
-                } else if menu_id == "open_dashboard" {
-                    let _ = open_browser("http://localhost:9899");
+                } else if menu_id == "toggle_dashboard" {
+                    // Toggle window
+                    let mut state = state_clone.lock().unwrap();
+                    state.window_visible = !state.window_visible;
+                    window.set_visible(state.window_visible);
+                    if state.window_visible {
+                        window.set_focus();
+                    }
                 } else if menu_id == "open_pwa" {
-                    let _ = open_browser("http://localhost:3001");
+                    // Open main PWA in browser
+                    let _ = open_browser(&format!("http://{}:3001", broker_host));
+                } else if menu_id == "open_config" {
+                    let _ = open_config_file();
+                } else if menu_id == "check_updates" {
+                    // TODO: Trigger update check via API
+                    info!("Manual update check requested");
                 }
             }
 
-            // No window events to handle - tray only mode
+            // Handle window events
             match event {
+                Event::WindowEvent {
+                    event: WindowEvent::CloseRequested,
+                    ..
+                } => {
+                    // Hide window instead of closing
+                    window.set_visible(false);
+                    let mut state = state_clone.lock().unwrap();
+                    state.window_visible = false;
+                    info!("Dashboard window hidden via close button");
+                }
                 _ => {}
             }
         });
@@ -121,11 +178,20 @@ impl SymbionGui {
 
         let menu = Menu::new();
 
-        let dashboard_item = MenuItem::with_id(MenuId::new("open_dashboard"), "Ouvrir Dashboard Local (9899)", true, None);
-        menu.append(&dashboard_item)?;
+        let toggle_item = MenuItem::with_id(MenuId::new("toggle_dashboard"), "Afficher/Masquer Dashboard", true, None);
+        menu.append(&toggle_item)?;
 
-        let pwa_item = MenuItem::with_id(MenuId::new("open_pwa"), "Ouvrir Dashboard Principal (3001)", true, None);
+        let pwa_item = MenuItem::with_id(MenuId::new("open_pwa"),
+            &format!("Dashboard Principal ({}:3001)", self.broker_host), true, None);
         menu.append(&pwa_item)?;
+
+        menu.append(&PredefinedMenuItem::separator())?;
+
+        let update_item = MenuItem::with_id(MenuId::new("check_updates"), "Vérifier les mises à jour", true, None);
+        menu.append(&update_item)?;
+
+        let config_item = MenuItem::with_id(MenuId::new("open_config"), "Configuration...", true, None);
+        menu.append(&config_item)?;
 
         menu.append(&PredefinedMenuItem::separator())?;
 
@@ -161,7 +227,7 @@ impl SymbionGui {
 
 impl Default for SymbionGui {
     fn default() -> Self {
-        Self::new()
+        Self::new("127.0.0.1".to_string())
     }
 }
 
@@ -180,6 +246,34 @@ fn open_browser(url: &str) -> Result<(), std::io::Error> {
 
     #[cfg(target_os = "macos")]
     std::process::Command::new("open").arg(url).spawn()?;
+
+    Ok(())
+}
+
+/// Open configuration file in default text editor
+fn open_config_file() -> Result<(), std::io::Error> {
+    // Get config file path
+    let config_path = match crate::config::AgentConfig::config_file_path() {
+        Ok(path) => path,
+        Err(_) => return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Could not find config file path"
+        )),
+    };
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut cmd = std::process::Command::new("notepad");
+        cmd.creation_flags(CREATE_NO_WINDOW)
+            .arg(&config_path)
+            .spawn()?;
+    }
+
+    #[cfg(target_os = "linux")]
+    std::process::Command::new("xdg-open").arg(&config_path).spawn()?;
+
+    #[cfg(target_os = "macos")]
+    std::process::Command::new("open").arg(&config_path).spawn()?;
 
     Ok(())
 }

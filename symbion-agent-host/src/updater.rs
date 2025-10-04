@@ -9,7 +9,13 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tracing::{info, error};
+use tracing::{info, error, warn};
+
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateInfo {
@@ -86,44 +92,120 @@ impl AgentUpdater {
         if !update_info.is_update_available {
             return Ok(());
         }
-        
+
         info!("Performing update to version {}", update_info.latest_version);
-        
-        // Download new binary
+
+        // Step 1: Kill all other instances before updating
+        info!("Terminating other agent instances...");
+        self.kill_other_instances()?;
+
+        // Step 2: Download new binary
         let temp_path = self.download_update(&update_info.download_url).await?;
-        
+
         // Verify download (basic check)
         if !temp_path.exists() {
             return Err(anyhow::anyhow!("Downloaded file not found"));
         }
-        
+
         // Get current executable path
         let current_exe = std::env::current_exe()?;
         let backup_path = current_exe.with_extension("backup");
-        
+
         // Create backup of current executable
         std::fs::copy(&current_exe, &backup_path)?;
         info!("Created backup at: {}", backup_path.display());
-        
+
         // Replace current executable
         #[cfg(unix)]
         {
             // On Unix, we need to handle the running executable carefully
             self.replace_executable_unix(&temp_path, &current_exe)?;
         }
-        
+
         #[cfg(windows)]
         {
             // On Windows, we might need to use self-replace technique
             self.replace_executable_windows(&temp_path, &current_exe)?;
         }
-        
+
         info!("Update completed successfully");
-        
+
         // Clean up
         let _ = std::fs::remove_file(&temp_path);
-        
+
+        // Step 3: Restart with new binary
+        info!("Restarting agent with updated binary...");
+        self.restart_agent(&current_exe)?;
+
         Ok(())
+    }
+
+    /// Kill all other instances of the agent
+    fn kill_other_instances(&self) -> Result<()> {
+        let current_pid = std::process::id();
+
+        #[cfg(target_os = "windows")]
+        {
+            // Get executable name
+            let exe_name = "symbion-agent-host.exe";
+
+            // List all processes with same name
+            let mut cmd = std::process::Command::new("tasklist");
+            cmd.creation_flags(CREATE_NO_WINDOW);
+            cmd.args(&["/FI", &format!("IMAGENAME eq {}", exe_name), "/FO", "CSV", "/NH"]);
+
+            let output = cmd.output()?;
+            let list = String::from_utf8_lossy(&output.stdout);
+
+            for line in list.lines() {
+                if let Some(pid_str) = line.split(',').nth(1) {
+                    let pid_str = pid_str.trim_matches('"');
+                    if let Ok(pid) = pid_str.parse::<u32>() {
+                        if pid != current_pid {
+                            info!("Killing other instance with PID {}", pid);
+                            let mut kill_cmd = std::process::Command::new("taskkill");
+                            kill_cmd.creation_flags(CREATE_NO_WINDOW);
+                            kill_cmd.args(&["/PID", &pid.to_string(), "/F"]);
+                            let _ = kill_cmd.output();
+                        }
+                    }
+                }
+            }
+        }
+
+        #[cfg(unix)]
+        {
+            // On Unix, use pkill but exclude current process
+            let exe_name = "symbion-agent-host";
+            warn!("Killing other {} instances (excluding PID {})", exe_name, current_pid);
+
+            // This will kill all except current process
+            let _ = std::process::Command::new("pkill")
+                .arg(exe_name)
+                .output();
+        }
+
+        Ok(())
+    }
+
+    /// Restart the agent after update
+    fn restart_agent(&self, exe_path: &PathBuf) -> Result<()> {
+        info!("Launching updated agent at: {}", exe_path.display());
+
+        #[cfg(target_os = "windows")]
+        {
+            let mut cmd = std::process::Command::new(exe_path);
+            cmd.creation_flags(CREATE_NO_WINDOW);
+            cmd.spawn()?;
+        }
+
+        #[cfg(unix)]
+        {
+            std::process::Command::new(exe_path).spawn()?;
+        }
+
+        // Exit current process to let new one take over
+        std::process::exit(0);
     }
     
     /// Schedule background update check
