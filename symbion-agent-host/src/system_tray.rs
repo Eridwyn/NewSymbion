@@ -6,6 +6,12 @@
 use tracing::info;
 use std::process::Command;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 pub struct SystemTray {
     agent_id: String,
     hostname: String,
@@ -80,7 +86,8 @@ Categories=System;Network;
         #[cfg(target_os = "windows")]
         {
             // Use PowerShell for Windows notifications (silent - no window flash)
-            windows_utils::silent_command("powershell")
+            let mut cmd = Command::new("powershell");
+            cmd.creation_flags(CREATE_NO_WINDOW)
                 .args(&[
                     "-Command",
                     &format!(
@@ -123,9 +130,12 @@ Categories=System;Network;
         std::process::Command::new("xdg-open").arg(url).spawn()?;
         
         #[cfg(target_os = "windows")]
-        windows_utils::silent_command("rundll32")
-            .args(&["url.dll,FileProtocolHandler", url])
-            .spawn()?;
+        {
+            let mut cmd = Command::new("rundll32");
+            cmd.creation_flags(CREATE_NO_WINDOW)
+                .args(&["url.dll,FileProtocolHandler", url])
+                .spawn()?;
+        }
         
         #[cfg(target_os = "macos")]
         std::process::Command::new("open").arg(url).spawn()?;
