@@ -48,9 +48,9 @@ impl SymbionGui {
             .build(&event_loop)?;
 
         // Create WebView for local dashboard
-        let _webview = WebViewBuilder::new(&window)
-            .with_url("http://localhost:9899")?
-            .build()?;
+        let _webview = WebViewBuilder::new()
+            .with_url("http://localhost:9899")
+            .build(&window)?;
 
         info!("WebView created successfully");
 
