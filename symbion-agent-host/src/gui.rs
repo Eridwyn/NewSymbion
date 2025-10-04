@@ -20,7 +20,7 @@ use tao::{
 };
 use wry::WebViewBuilder;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tracing::{info, error};
+use tracing::info;
 
 pub struct SymbionGui {
     window_visible: Arc<AtomicBool>,
@@ -191,7 +191,7 @@ impl Default for SymbionGui {
 /// Open URL in default browser
 fn open_browser(url: &str) -> Result<(), std::io::Error> {
     #[cfg(target_os = "windows")]
-    std::process::Command::new("rundll32")
+    windows_utils::silent_command("rundll32")
         .args(&["url.dll,FileProtocolHandler", url])
         .spawn()?;
 
