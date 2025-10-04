@@ -8,6 +8,12 @@ use warp::Filter;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct AgentStatus {
     pub agent_id: String,
@@ -160,9 +166,12 @@ impl LocalApiServer {
         std::process::Command::new("xdg-open").arg(url).spawn()?;
         
         #[cfg(target_os = "windows")]
-        std::process::Command::new("rundll32")
-            .args(&["url.dll,FileProtocolHandler", url])
-            .spawn()?;
+        {
+            let mut cmd = std::process::Command::new("rundll32");
+            cmd.creation_flags(CREATE_NO_WINDOW)
+                .args(&["url.dll,FileProtocolHandler", url])
+                .spawn()?;
+        }
         
         #[cfg(target_os = "macos")]
         std::process::Command::new("open").arg(url).spawn()?;
@@ -200,9 +209,12 @@ fn open_local_dashboard() -> Result<(), std::io::Error> {
     std::process::Command::new("xdg-open").arg(url).spawn()?;
     
     #[cfg(target_os = "windows")]
-    std::process::Command::new("rundll32")
-        .args(&["url.dll,FileProtocolHandler", url])
-        .spawn()?;
+    {
+        let mut cmd = std::process::Command::new("rundll32");
+        cmd.creation_flags(CREATE_NO_WINDOW)
+            .args(&["url.dll,FileProtocolHandler", url])
+            .spawn()?;
+    }
     
     #[cfg(target_os = "macos")]
     std::process::Command::new("open").arg(url).spawn()?;

@@ -689,7 +689,7 @@ impl Agent {
         
         match self.system_info.os.as_str() {
             "windows" => {
-                match tokio::process::Command::new("taskkill")
+                match windows_utils::silent_tokio_command("taskkill")
                     .args(&["/PID", &pid.to_string(), "/F"])
                     .output()
                     .await
@@ -789,7 +789,7 @@ impl Agent {
         
         match self.system_info.os.as_str() {
             "windows" => {
-                match tokio::process::Command::new("cmd")
+                match windows_utils::silent_tokio_command("cmd")
                     .args(&["/C", command])
                     .output()
                     .await
