@@ -78,6 +78,12 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
             }
         }
 
+        // Marquer MQTT comme connecté après subscriptions réussies
+        if let Some(ref tracker) = health_tracker {
+            tracker.mark_mqtt_connected();
+            println!("[kernel] MQTT connected and subscriptions active");
+        }
+
         loop {
             match eventloop.poll().await {
                 Ok(Event::Incoming(rumqttc::Incoming::Publish(p))) => {
