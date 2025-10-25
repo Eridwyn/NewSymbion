@@ -123,6 +123,7 @@ pub struct AppState {
     pub plugins: Shared<crate::plugins::PluginManager>,
     pub notes_bridge: Option<SharedNotesBridge>,
     pub agents: crate::agents::SharedAgentRegistry,
+    pub context_engine: std::sync::Arc<crate::context::ContextEngine>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -162,6 +163,9 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/agents/{id}/commands", get(agent_commands_endpoint).post(agent_commands_post_endpoint))
         .route("/commands/{command_id}/cancel", post(cancel_command_endpoint))
         .route("/commands/{command_id}/status", get(command_status_endpoint))
+        .route("/context/current", get(get_context_current))
+        .route("/context/override", post(set_context_override))
+        .route("/context/clear", post(clear_context_override))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state, require_auth))
         .layer(
@@ -296,6 +300,54 @@ async fn get_contract(
 async fn get_system_health(State(app): State<AppState>) -> Json<crate::health::KernelHealth> {
     let health = app.health_tracker.get_health(&app.contracts, &app.agents, &app.plugins);
     Json(health)
+}
+
+// GET /context/current (mode contextuel actuel)
+async fn get_context_current(State(app): State<AppState>) -> Result<Json<crate::context::ContextState>, StatusCode> {
+    match app.context_engine.get_state() {
+        Some(state) => Ok(Json(state)),
+        None => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+// POST /context/override (forcer manuellement un mode)
+#[derive(serde::Deserialize)]
+struct ContextOverrideRequest {
+    mode: String,  // "cravate", "intime", "neutre"
+    duration_minutes: i64,
+    reason: Option<String>,
+}
+
+async fn set_context_override(
+    State(app): State<AppState>,
+    Json(req): Json<ContextOverrideRequest>,
+) -> Result<Json<crate::context::ContextState>, StatusCode> {
+    use crate::context::Mode;
+
+    let mode = match req.mode.to_lowercase().as_str() {
+        "cravate" => Mode::Cravate,
+        "intime" => Mode::Intime,
+        "neutre" => Mode::Neutre,
+        _ => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    let reason = req.reason.unwrap_or_else(|| "Override manuel".to_string());
+
+    match app.context_engine.set_override(mode, req.duration_minutes, reason) {
+        Some(state) => Ok(Json(state)),
+        None => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+// POST /context/clear (annuler l'override manuel)
+async fn clear_context_override(State(app): State<AppState>) -> Result<Json<crate::context::ContextState>, StatusCode> {
+    let agents_map = app.agents.list_agents().await;
+    let agents_list: Vec<crate::agents::Agent> = agents_map.values().cloned().collect();
+
+    match app.context_engine.clear_override(&agents_list) {
+        Some(state) => Ok(Json(state)),
+        None => Err(StatusCode::NO_CONTENT),  // Pas d'override actif
+    }
 }
 
 // GET /ports (liste des ports disponibles)

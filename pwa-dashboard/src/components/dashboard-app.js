@@ -10,12 +10,14 @@ import authService from '../services/auth-service.js'
 import '../services/api-service.js'
 import '../services/mqtt-service.js'
 import '../services/agents-service.js'
+import '../services/context-service.js'
 import '../widgets/system-health-widget.js'
 // import '../widgets/hosts-widget.js'  // DEPRECATED: remplacé par agents-network-widget
 import '../widgets/plugins-widget.js'
 import '../widgets/notes-widget.js'
 import '../widgets/agents-network-widget.js'
 import '../widgets/agent-control-widget.js'
+import '../widgets/context-widget.js'
 
 class DashboardApp extends LitElement {
   static styles = css`
@@ -27,9 +29,11 @@ class DashboardApp extends LitElement {
     }
 
     .header {
-      background: linear-gradient(135deg, rgba(0, 122, 204, 0.1) 0%, rgba(0, 212, 170, 0.05) 100%);
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 0%,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent) 100%);
       backdrop-filter: blur(20px);
-      border-bottom: 1px solid rgba(0, 212, 170, 0.2);
+      border-bottom: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
       padding: 1.5rem 2rem;
       position: sticky;
       top: 0;
@@ -38,6 +42,7 @@ class DashboardApp extends LitElement {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
+      transition: all 0.5s ease;
     }
 
     .header-left {
@@ -48,13 +53,17 @@ class DashboardApp extends LitElement {
       font-size: 2em;
       font-weight: 600;
       margin: 0;
-      background: linear-gradient(135deg, #00d4aa 0%, #007acc 50%, #00d4aa 100%);
+      background: linear-gradient(135deg,
+        var(--context-primary, #00d4aa) 0%,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 70%, #007acc) 50%,
+        var(--context-primary, #00d4aa) 100%);
       background-size: 200% 200%;
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
       animation: gradient-shift 3s ease infinite;
       letter-spacing: -0.5px;
+      transition: all 0.5s ease;
     }
 
     @keyframes gradient-shift {
@@ -96,8 +105,9 @@ class DashboardApp extends LitElement {
     }
 
     .status-dot.online {
-      background: #00d4aa;
-      box-shadow: 0 0 15px #00d4aa, 0 0 25px rgba(0, 212, 170, 0.3);
+      background: var(--context-primary, #00d4aa);
+      box-shadow: 0 0 15px var(--context-primary, #00d4aa),
+                  0 0 25px color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
       animation: pulse-glow 2s ease-in-out infinite;
     }
     .status-dot.offline {
@@ -142,9 +152,11 @@ class DashboardApp extends LitElement {
     }
 
     .user-button {
-      background: linear-gradient(135deg, rgba(0, 212, 170, 0.15) 0%, rgba(0, 122, 204, 0.1) 100%);
-      border: 1px solid rgba(0, 212, 170, 0.3);
-      color: #00d4aa;
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 0%,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent) 100%);
+      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+      color: var(--context-primary, #00d4aa);
       padding: 0.6rem 1rem;
       border-radius: 10px;
       font-size: 0.85em;
@@ -157,10 +169,12 @@ class DashboardApp extends LitElement {
     }
 
     .user-button:hover {
-      background: linear-gradient(135deg, rgba(0, 212, 170, 0.25) 0%, rgba(0, 122, 204, 0.2) 100%);
-      border-color: rgba(0, 212, 170, 0.5);
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent) 0%,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent) 100%);
+      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 50%, transparent);
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 212, 170, 0.25);
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
     }
 
     .user-dropdown {
@@ -168,7 +182,7 @@ class DashboardApp extends LitElement {
       top: calc(100% + 0.5rem);
       right: 0;
       background: linear-gradient(135deg, rgba(26, 26, 26, 0.98) 0%, rgba(15, 15, 15, 0.95) 100%);
-      border: 1px solid rgba(0, 212, 170, 0.2);
+      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
       border-radius: 12px;
       padding: 1rem;
       min-width: 250px;
@@ -190,12 +204,12 @@ class DashboardApp extends LitElement {
 
     .user-info {
       padding-bottom: 0.8rem;
-      border-bottom: 1px solid rgba(0, 212, 170, 0.15);
+      border-bottom: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
       margin-bottom: 0.8rem;
     }
 
     .user-name {
-      color: #00d4aa;
+      color: var(--context-primary, #00d4aa);
       font-weight: 600;
       font-size: 1em;
       margin-bottom: 0.3rem;
@@ -253,7 +267,7 @@ class DashboardApp extends LitElement {
 
     .widget-container {
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
-      border: 1px solid rgba(0, 212, 170, 0.15);
+      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
       border-radius: 16px;
       padding: 1.8rem;
       backdrop-filter: blur(15px);
@@ -270,15 +284,16 @@ class DashboardApp extends LitElement {
       left: 0;
       right: 0;
       height: 2px;
-      background: linear-gradient(90deg, transparent, #00d4aa, transparent);
+      background: linear-gradient(90deg, transparent, var(--context-primary, #00d4aa), transparent);
       opacity: 0;
       transition: opacity 0.4s ease;
     }
 
     .widget-container:hover {
-      border-color: rgba(0, 212, 170, 0.4);
+      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent);
       transform: translateY(-4px) scale(1.01);
-      box-shadow: 0 16px 48px rgba(0, 212, 170, 0.15), 0 0 0 1px rgba(0, 212, 170, 0.1);
+      box-shadow: 0 16px 48px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent),
+                  0 0 0 1px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
     }
 
     .widget-container:hover::before {
@@ -296,6 +311,54 @@ class DashboardApp extends LitElement {
       box-shadow: 0 4px 16px rgba(255, 107, 107, 0.1);
     }
 
+    /* Tabs mobile */
+    .tabs-container {
+      display: none;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 2px solid color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .tab {
+      padding: 0.75rem 1.25rem;
+      background: transparent;
+      border: none;
+      color: #888;
+      font-size: 0.9em;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+      position: relative;
+      bottom: -2px;
+    }
+
+    .tab:hover {
+      color: var(--context-primary, #00d4aa);
+    }
+
+    .tab.active {
+      color: var(--context-primary, #00d4aa);
+      border-bottom-color: var(--context-primary, #00d4aa);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.2rem;
+    }
+
     @media (max-width: 768px) {
       .header {
         padding: 1.2rem 1rem;
@@ -311,11 +374,19 @@ class DashboardApp extends LitElement {
         padding: 1.2rem;
       }
       .widgets-grid {
-        grid-template-columns: 1fr;
-        gap: 1.2rem;
+        display: none; /* Cacher grille sur mobile */
+      }
+      .tabs-container {
+        display: block; /* Afficher tabs sur mobile */
       }
       .widget-container {
         padding: 1.4rem;
+      }
+    }
+
+    @media (min-width: 769px) {
+      .widgets-grid {
+        grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
       }
     }
   `
@@ -328,7 +399,8 @@ class DashboardApp extends LitElement {
     plugins: { type: Array },
     error: { type: String },
     showUserMenu: { type: Boolean },
-    currentUser: { type: Object }
+    currentUser: { type: Object },
+    activeTab: { type: String }
   }
   
   constructor() {
@@ -341,6 +413,7 @@ class DashboardApp extends LitElement {
     this.error = null
     this.showUserMenu = false
     this.currentUser = authService.getCurrentUser()
+    this.activeTab = 'controle' // Tab par défaut
 
     this.apiService = null
     this.mqttService = null
@@ -381,9 +454,13 @@ class DashboardApp extends LitElement {
     // Service Agents
     this.agentsService = document.createElement('agents-service')
 
+    // Service Context
+    this.contextService = document.createElement('context-service')
+
     document.body.appendChild(this.apiService)
     document.body.appendChild(this.mqttService)
     document.body.appendChild(this.agentsService)
+    document.body.appendChild(this.contextService)
   }
   
   async loadInitialData() {
@@ -499,19 +576,84 @@ class DashboardApp extends LitElement {
             ❌ ${this.error}
           </div>
         ` : ''}
-        
+
+        <!-- Tabs mobile uniquement -->
+        <div class="tabs-container">
+          <div class="tabs">
+            <button class="tab ${this.activeTab === 'controle' ? 'active' : ''}"
+                    @click="${() => this.setActiveTab('controle')}">
+              🎛️ Contrôle
+            </button>
+            <button class="tab ${this.activeTab === 'systeme' ? 'active' : ''}"
+                    @click="${() => this.setActiveTab('systeme')}">
+              ⚙️ Système
+            </button>
+            <button class="tab ${this.activeTab === 'donnees' ? 'active' : ''}"
+                    @click="${() => this.setActiveTab('donnees')}">
+              📝 Données
+            </button>
+          </div>
+
+          <!-- Contenu tab Contrôle -->
+          <div class="tab-content ${this.activeTab === 'controle' ? 'active' : ''}">
+            <div class="widget-container">
+              <context-widget></context-widget>
+            </div>
+            <div class="widget-container">
+              <agent-control-widget></agent-control-widget>
+            </div>
+          </div>
+
+          <!-- Contenu tab Système -->
+          <div class="tab-content ${this.activeTab === 'systeme' ? 'active' : ''}">
+            <div class="widget-container">
+              <system-health-widget
+                .health="${this.systemHealth}"
+                .connected="${this.connected}">
+              </system-health-widget>
+            </div>
+            <div class="widget-container">
+              <plugins-widget
+                .plugins="${this.plugins}"
+                .apiService="${this.apiService}">
+              </plugins-widget>
+            </div>
+          </div>
+
+          <!-- Contenu tab Données -->
+          <div class="tab-content ${this.activeTab === 'donnees' ? 'active' : ''}">
+            <div class="widget-container">
+              <notes-widget
+                .apiService="${this.apiService}"
+                .connected="${this.connected}">
+              </notes-widget>
+            </div>
+            <div class="widget-container">
+              <agents-network-widget
+                .connected="${this.connected}">
+              </agents-network-widget>
+            </div>
+          </div>
+        </div>
+
+        <!-- Grille desktop complète -->
         <div class="widgets-grid">
+          <!-- Widget contexte -->
+          <div class="widget-container">
+            <context-widget></context-widget>
+          </div>
+
           <!-- Widget santé système -->
           <div class="widget-container">
-            <system-health-widget 
+            <system-health-widget
               .health="${this.systemHealth}"
               .connected="${this.connected}">
             </system-health-widget>
           </div>
-          
+
           <!-- Widget plugins -->
           <div class="widget-container">
-            <plugins-widget 
+            <plugins-widget
               .plugins="${this.plugins}"
               .apiService="${this.apiService}">
             </plugins-widget>
@@ -547,6 +689,10 @@ class DashboardApp extends LitElement {
     `
   }
   
+  setActiveTab(tab) {
+    this.activeTab = tab
+  }
+
   toggleUserMenu() {
     this.showUserMenu = !this.showUserMenu
   }
