@@ -17,8 +17,24 @@ class ApiService extends LitElement {
   constructor() {
     super()
     this.status = 'loading'
-    this.baseUrl = window.SYMBION_CONFIG?.API_BASE || '/api'
-    this.apiKey = import.meta.env.VITE_SYMBION_API_KEY || window.SYMBION_CONFIG?.API_KEY || 's3cr3t-42'
+    // Ne pas définir baseUrl ici, sera lazy-loaded
+    this._baseUrl = null
+    this._apiKey = null
+  }
+
+  // Lazy getters pour résoudre la config au moment de l'utilisation
+  get baseUrl() {
+    if (!this._baseUrl) {
+      this._baseUrl = window.SYMBION_CONFIG?.API_BASE || 'http://localhost:8080'
+    }
+    return this._baseUrl
+  }
+
+  get apiKey() {
+    if (!this._apiKey) {
+      this._apiKey = import.meta.env.VITE_SYMBION_API_KEY || window.SYMBION_CONFIG?.API_KEY || 's3cr3t-42'
+    }
+    return this._apiKey
   }
   
   connectedCallback() {
@@ -68,9 +84,14 @@ class ApiService extends LitElement {
       },
       ...options
     }
-    
+
+    console.log(`[api-service] request: ${options.method || 'GET'} ${url}`)
+    console.log(`[api-service] baseUrl: ${this.baseUrl}`)
+    console.log(`[api-service] config:`, config)
+
     try {
       const response = await fetch(url, config)
+      console.log(`[api-service] response status: ${response.status} ${response.statusText}`)
       
       if (!response.ok) {
         // Différencier les erreurs de connection vs erreurs applicatives

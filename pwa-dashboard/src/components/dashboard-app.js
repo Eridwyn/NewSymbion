@@ -6,6 +6,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import authService from '../services/auth-service.js'
 import '../services/api-service.js'
 import '../services/mqtt-service.js'
 import '../services/agents-service.js'
@@ -34,6 +35,13 @@ class DashboardApp extends LitElement {
       top: 0;
       z-index: 100;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .header-left {
+      flex: 1;
     }
 
     .header h1 {
@@ -128,6 +136,108 @@ class DashboardApp extends LitElement {
       }
     }
 
+    /* User Menu */
+    .user-menu {
+      position: relative;
+    }
+
+    .user-button {
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.15) 0%, rgba(0, 122, 204, 0.1) 100%);
+      border: 1px solid rgba(0, 212, 170, 0.3);
+      color: #00d4aa;
+      padding: 0.6rem 1rem;
+      border-radius: 10px;
+      font-size: 0.85em;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .user-button:hover {
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.25) 0%, rgba(0, 122, 204, 0.2) 100%);
+      border-color: rgba(0, 212, 170, 0.5);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 212, 170, 0.25);
+    }
+
+    .user-dropdown {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      background: linear-gradient(135deg, rgba(26, 26, 26, 0.98) 0%, rgba(15, 15, 15, 0.95) 100%);
+      border: 1px solid rgba(0, 212, 170, 0.2);
+      border-radius: 12px;
+      padding: 1rem;
+      min-width: 250px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      animation: dropdownSlide 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    @keyframes dropdownSlide {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .user-info {
+      padding-bottom: 0.8rem;
+      border-bottom: 1px solid rgba(0, 212, 170, 0.15);
+      margin-bottom: 0.8rem;
+    }
+
+    .user-name {
+      color: #00d4aa;
+      font-weight: 600;
+      font-size: 1em;
+      margin-bottom: 0.3rem;
+    }
+
+    .user-role {
+      color: #888;
+      font-size: 0.75em;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .user-session {
+      color: #666;
+      font-size: 0.7em;
+      margin-top: 0.3rem;
+    }
+
+    .logout-button {
+      width: 100%;
+      background: linear-gradient(135deg, rgba(255, 107, 107, 0.15) 0%, rgba(239, 68, 68, 0.1) 100%);
+      border: 1px solid rgba(255, 107, 107, 0.3);
+      color: #ff6b6b;
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85em;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .logout-button:hover {
+      background: linear-gradient(135deg, rgba(255, 107, 107, 0.25) 0%, rgba(239, 68, 68, 0.2) 100%);
+      border-color: rgba(255, 107, 107, 0.5);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+    }
+
     .main-content {
       padding: 2.5rem;
       max-width: 1600px;
@@ -216,7 +326,9 @@ class DashboardApp extends LitElement {
     apiStatus: { type: String },
     systemHealth: { type: Object },
     plugins: { type: Array },
-    error: { type: String }
+    error: { type: String },
+    showUserMenu: { type: Boolean },
+    currentUser: { type: Object }
   }
   
   constructor() {
@@ -227,7 +339,9 @@ class DashboardApp extends LitElement {
     this.systemHealth = null
     this.plugins = []
     this.error = null
-    
+    this.showUserMenu = false
+    this.currentUser = authService.getCurrentUser()
+
     this.apiService = null
     this.mqttService = null
     this.agentsService = null
@@ -336,22 +450,47 @@ class DashboardApp extends LitElement {
   render() {
     return html`
       <div class="header">
-        <h1>🧬 Symbion Dashboard</h1>
-        <div class="status-bar">
-          <div class="status-indicator">
-            <div class="status-dot ${this.apiStatus}"></div>
-            <span>API: ${this.apiStatus}</span>
-          </div>
-          <div class="status-indicator">
-            <div class="status-dot ${this.mqttStatus}"></div>
-            <span>MQTT: ${this.mqttStatus}</span>
-          </div>
-          ${this.systemHealth ? html`
+        <div class="header-left">
+          <h1>🧬 Symbion Dashboard</h1>
+          <div class="status-bar">
             <div class="status-indicator">
-              <span>Uptime: ${this.formatUptime(this.systemHealth.uptime_seconds)}</span>
+              <div class="status-dot ${this.apiStatus}"></div>
+              <span>API: ${this.apiStatus}</span>
             </div>
-          ` : ''}
+            <div class="status-indicator">
+              <div class="status-dot ${this.mqttStatus}"></div>
+              <span>MQTT: ${this.mqttStatus}</span>
+            </div>
+            ${this.systemHealth ? html`
+              <div class="status-indicator">
+                <span>Uptime: ${this.formatUptime(this.systemHealth.uptime_seconds)}</span>
+              </div>
+            ` : ''}
+          </div>
         </div>
+
+        ${this.currentUser ? html`
+          <div class="user-menu">
+            <button class="user-button" @click="${this.toggleUserMenu}">
+              <span>👤</span>
+              <span>${this.currentUser.username}</span>
+            </button>
+
+            ${this.showUserMenu ? html`
+              <div class="user-dropdown">
+                <div class="user-info">
+                  <div class="user-name">${this.currentUser.username}</div>
+                  <div class="user-role">${this.currentUser.role}</div>
+                  <div class="user-session">${this.getSessionDuration()}</div>
+                </div>
+                <button class="logout-button" @click="${this.handleLogout}">
+                  <span>🚪</span>
+                  <span>Déconnexion</span>
+                </button>
+              </div>
+            ` : ''}
+          </div>
+        ` : ''}
       </div>
       
       <div class="main-content">
@@ -408,13 +547,50 @@ class DashboardApp extends LitElement {
     `
   }
   
+  toggleUserMenu() {
+    this.showUserMenu = !this.showUserMenu
+  }
+
+  async handleLogout() {
+    const confirmed = confirm('Êtes-vous sûr de vouloir vous déconnecter ?')
+
+    if (confirmed) {
+      console.log('[dashboard] Logging out user')
+      await authService.logout()
+
+      // Rediriger vers boot terminal
+      window.location.reload()
+    }
+  }
+
+  getSessionDuration() {
+    if (!this.currentUser || !this.currentUser.expires_at) {
+      return 'N/A'
+    }
+
+    const now = Math.floor(Date.now() / 1000)
+    const remaining = this.currentUser.expires_at - now
+
+    if (remaining <= 0) {
+      return 'Expirée'
+    }
+
+    const hours = Math.floor(remaining / 3600)
+    const minutes = Math.floor((remaining % 3600) / 60)
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m restantes`
+    }
+    return `${minutes}m restantes`
+  }
+
   formatUptime(seconds) {
     if (!seconds) return 'N/A'
-    
+
     const days = Math.floor(seconds / 86400)
     const hours = Math.floor((seconds % 86400) / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
-    
+
     if (days > 0) {
       return `${days}j ${hours}h ${minutes}m`
     } else if (hours > 0) {

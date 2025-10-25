@@ -26,6 +26,7 @@
 use axum::{extract::{Query, State}, routing::{get, post}, Json, Router};
 use axum::http::{StatusCode, Method};
 use tower_http::cors::{CorsLayer, Any};
+use tower_http::timeout::TimeoutLayer;
 use crate::models::{HostState, HostsMap};
 use crate::state::Shared;
 use crate::config::HostsConfig;
@@ -69,9 +70,9 @@ fn to_view(h: &HostState) -> HostView {
 
 async fn require_api_key(req: Request, next: Next) -> Result<Response, StatusCode> {
     let path = req.uri().path();
-    
-    // Health check toujours accessible
-    if path.starts_with("/health") {
+
+    // Health check et auth routes toujours accessibles
+    if path.starts_with("/health") || path.starts_with("/auth") {
         return Ok(next.run(req).await);
     }
 
@@ -100,6 +101,7 @@ pub struct AppState {
     pub cfg: Shared<HostsConfig>,
     pub contracts: crate::contracts::ContractRegistry,
     pub health_tracker: crate::health::HealthTracker,
+    pub auth_manager: crate::auth::AuthManager,
     pub ports: Shared<crate::ports::PortRegistry>,
     pub plugins: Shared<crate::plugins::PluginManager>,
     pub notes_bridge: Option<SharedNotesBridge>,
@@ -112,6 +114,10 @@ struct WakeParams { host_id: String }
 pub fn build_router(app_state: AppState) -> Router {
     Router::new()
         .route("/health", get(|| async { "ok" }))
+        .route("/auth/login", post(auth_login))
+        .route("/auth/verify", get(auth_verify))
+        .route("/auth/session", get(auth_session))
+        .route("/auth/logout", post(auth_logout))
         .route("/system/health", get(get_system_health))
         .route("/hosts", get(get_hosts))
         .route("/hosts/{id}", get(get_host))
@@ -148,12 +154,17 @@ pub fn build_router(app_state: AppState) -> Router {
                 .allow_headers(Any)
                 .allow_credentials(false)
         )
+        // Timeout de 30s pour toutes requêtes - Prévient blocages deadlock
+        .layer(TimeoutLayer::new(std::time::Duration::from_secs(30)))
 }
 
 
 // GET /hosts (liste)
 async fn get_hosts(State(app): State<AppState>) -> Json<Vec<HostView>> {
-    let list: Vec<HostView> = app.states.lock().values().map(to_view).collect();
+    let list: Vec<HostView> = {
+        let states = app.states.lock();
+        states.values().map(to_view).collect()
+    }; // Lock libéré immédiatement
     Json(list)
 }
 
@@ -162,9 +173,12 @@ async fn get_host(
     State(app): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<HostView>, StatusCode> {
-    let map = app.states.lock();
-    let Some(h) = map.get(&id) else { return Err(StatusCode::NOT_FOUND); };
-    Ok(Json(to_view(h)))
+    let host_view = {
+        let map = app.states.lock();
+        let Some(h) = map.get(&id) else { return Err(StatusCode::NOT_FOUND); };
+        to_view(h)
+    }; // Lock libéré immédiatement
+    Ok(Json(host_view))
 }
 
 
@@ -269,8 +283,10 @@ async fn get_system_health(State(app): State<AppState>) -> Json<crate::health::K
 
 // GET /ports (liste des ports disponibles)
 async fn list_ports(State(app): State<AppState>) -> Json<Vec<crate::ports::PortInfo>> {
-    let ports = app.ports.lock();
-    let port_info = ports.list_port_info();
+    let port_info = {
+        let ports = app.ports.lock();
+        ports.list_port_info()
+    }; // Lock libéré immédiatement
     Json(port_info)
 }
 
@@ -280,13 +296,9 @@ async fn read_from_port(
     Path(port_name): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Vec<crate::ports::PortData>>, StatusCode> {
-    let ports = app.ports.lock();
-    let port = ports.get(&port_name)
-        .ok_or(StatusCode::NOT_FOUND)?;
-    
     // Construction de la query depuis les paramètres URL
     let mut query = crate::ports::PortQuery::default();
-    
+
     // Parsing des filtres depuis query params
     for (key, value) in params {
         match key.as_str() {
@@ -316,8 +328,16 @@ async fn read_from_port(
             }
         }
     }
-    
-    match port.read(&query) {
+
+    // Obtenir le port et exécuter la query - Lock minimal
+    let data = {
+        let ports = app.ports.lock();
+        let port = ports.get(&port_name)
+            .ok_or(StatusCode::NOT_FOUND)?;
+        port.read(&query)
+    }; // Lock libéré immédiatement
+
+    match data {
         Ok(data) => Ok(Json(data)),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
@@ -329,10 +349,6 @@ async fn write_to_port(
     Path(port_name): Path<String>,
     Json(data): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let ports = app.ports.lock();
-    let port = ports.get(&port_name)
-        .ok_or(StatusCode::NOT_FOUND)?;
-    
     // Construction d'un PortData depuis le JSON reçu
     let port_data = crate::ports::PortData {
         id: String::new(), // L'ID sera généré automatiquement
@@ -340,8 +356,16 @@ async fn write_to_port(
         data: data,
         metadata: HashMap::new(),
     };
-    
-    match port.write(&port_data) {
+
+    // Écriture - Lock minimal
+    let write_result = {
+        let ports = app.ports.lock();
+        let port = ports.get(&port_name)
+            .ok_or(StatusCode::NOT_FOUND)?;
+        port.write(&port_data)
+    }; // Lock libéré immédiatement
+
+    match write_result {
         Ok(id) => Ok(Json(serde_json::json!({"id": id, "status": "created"}))),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
@@ -352,21 +376,35 @@ async fn delete_from_port(
     State(app): State<AppState>,
     Path((port_name, id)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let ports = app.ports.lock();
-    let port = ports.get(&port_name)
-        .ok_or(StatusCode::NOT_FOUND)?;
-    
-    match port.delete(&id) {
+    // Suppression - Lock minimal
+    let delete_result = {
+        let ports = app.ports.lock();
+        let port = ports.get(&port_name)
+            .ok_or(StatusCode::NOT_FOUND)?;
+        port.delete(&id)
+    }; // Lock libéré immédiatement
+
+    match delete_result {
         Ok(_) => Ok(Json(serde_json::json!({"status": "deleted"}))),
         Err(_) => Err(StatusCode::NOT_FOUND),
     }
 }
 
 // GET /plugins (liste des plugins avec leur état)
-async fn list_plugins_endpoint(State(app): State<AppState>) -> Json<Vec<crate::plugins::PluginInfo>> {
-    let plugins = app.plugins.lock();
-    let plugin_info = plugins.list_plugins();
-    Json(plugin_info)
+async fn list_plugins_endpoint(State(app): State<AppState>) -> Result<Json<Vec<crate::plugins::PluginInfo>>, StatusCode> {
+    // Utiliser try_lock pour éviter deadlock avec health publisher
+    let plugin_info = {
+        let plugins = match app.plugins.try_lock() {
+            Some(plugins) => plugins,
+            None => {
+                eprintln!("[http] plugin manager busy, try again later");
+                return Err(StatusCode::SERVICE_UNAVAILABLE);
+            }
+        };
+        plugins.list_plugins()
+    }; // Lock libéré immédiatement
+
+    Ok(Json(plugin_info))
 }
 
 // POST /plugins/{name}/start (démarre un plugin)
@@ -592,9 +630,12 @@ struct AgentCommandTrackingRequest {
 }
 
 fn agent_to_view(agent: &crate::agents::Agent) -> AgentView {
+    // Prefer IPv4 over IPv6 for display (IPv6 are too long for UI)
     let primary_ip = agent.network.interfaces
-        .first()
+        .iter()
+        .find(|i| !i.ip.contains(':'))  // IPv4 doesn't contain ':'
         .map(|i| i.ip.clone())
+        .or_else(|| agent.network.interfaces.first().map(|i| i.ip.clone()))  // Fallback to any IP
         .unwrap_or_else(|| "unknown".to_string());
 
     AgentView {
@@ -884,4 +925,75 @@ async fn command_status_endpoint(
         }))),
         None => Err(StatusCode::NOT_FOUND),
     }
+}
+
+// =============== AUTH ENDPOINTS ===============
+
+// POST /auth/login - Authentification utilisateur
+async fn auth_login(
+    State(app): State<AppState>,
+    Json(payload): Json<crate::auth::LoginRequest>,
+) -> Result<Json<crate::auth::LoginResponse>, (StatusCode, Json<serde_json::Value>)> {
+    match app.auth_manager.authenticate(&payload.username, &payload.password) {
+        Ok(response) => Ok(Json(response)),
+        Err(e) => {
+            let error_msg = e.to_string();
+            eprintln!("[auth] login failed for '{}': {}", payload.username, error_msg);
+            Err((
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "error": error_msg }))
+            ))
+        }
+    }
+}
+
+// GET /auth/verify - Vérifier validité token (depuis header Authorization)
+async fn auth_verify(
+    State(app): State<AppState>,
+    req: Request,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let token = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    match app.auth_manager.verify_token(token) {
+        Ok(claims) => Ok(Json(serde_json::json!({
+            "valid": true,
+            "username": claims.sub,
+            "role": claims.role,
+            "expires_at": claims.exp
+        }))),
+        Err(_) => Err(StatusCode::UNAUTHORIZED),
+    }
+}
+
+// GET /auth/session - Informations session courante
+async fn auth_session(
+    State(app): State<AppState>,
+    req: Request,
+) -> Result<Json<crate::auth::SessionInfo>, StatusCode> {
+    let token = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    match app.auth_manager.get_session_info(token) {
+        Ok(session) => Ok(Json(session)),
+        Err(_) => Err(StatusCode::UNAUTHORIZED),
+    }
+}
+
+// POST /auth/logout - Déconnexion (pour l'instant juste un success)
+async fn auth_logout() -> Json<serde_json::Value> {
+    // JWT est stateless - le client doit juste supprimer le token
+    // On pourrait implémenter une blacklist de tokens pour invalidation côté serveur
+    Json(serde_json::json!({
+        "success": true,
+        "message": "Logged out successfully"
+    }))
 }
