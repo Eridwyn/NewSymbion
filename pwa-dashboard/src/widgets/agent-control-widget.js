@@ -34,12 +34,23 @@ class AgentControlWidget extends LitElement {
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 1000;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
     }
 
     :host(:not([is-open])) {
@@ -47,25 +58,51 @@ class AgentControlWidget extends LitElement {
     }
 
     .modal {
-      background: var(--widget-background, #1a1a1a);
-      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(26, 26, 26, 0.98) 0%, rgba(15, 15, 15, 0.95) 100%);
+      border: 1px solid rgba(0, 212, 170, 0.2);
+      border-radius: 20px;
       width: 90%;
       max-width: 900px;
       height: 80%;
       max-height: 700px;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 212, 170, 0.15);
       color: var(--widget-color, #e5e5e5);
       overflow: hidden;
+      animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    @keyframes modalSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-30px) scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
     }
 
     .modal-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 20px 24px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 24px 28px;
+      border-bottom: 1px solid rgba(0, 212, 170, 0.15);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+      position: relative;
+    }
+
+    .modal-header::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(0, 212, 170, 0.5), transparent);
+      opacity: 0.5;
     }
 
     .modal-title {
@@ -101,49 +138,70 @@ class AgentControlWidget extends LitElement {
     .status-badge {
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      border-radius: 12px;
-      font-size: 12px;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 16px;
+      font-size: 11px;
       font-weight: 600;
       text-transform: uppercase;
+      letter-spacing: 0.8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
     .status-badge.online {
-      background: rgba(34, 197, 94, 0.2);
-      color: #22c55e;
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, rgba(0, 212, 170, 0.2) 100%);
+      color: #00d4aa;
+      border: 1px solid rgba(0, 212, 170, 0.4);
+      box-shadow: 0 2px 12px rgba(0, 212, 170, 0.3);
+      animation: pulse-online 3s ease-in-out infinite;
     }
 
     .status-badge.offline {
-      background: rgba(239, 68, 68, 0.2);
-      color: #ef4444;
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.2) 100%);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      box-shadow: 0 2px 12px rgba(239, 68, 68, 0.3);
+    }
+
+    @keyframes pulse-online {
+      0%, 100% {
+        box-shadow: 0 2px 12px rgba(0, 212, 170, 0.3);
+      }
+      50% {
+        box-shadow: 0 2px 16px rgba(0, 212, 170, 0.5);
+      }
     }
 
     .close-btn {
-      background: none;
-      border: none;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       color: #888;
-      font-size: 24px;
+      font-size: 28px;
       cursor: pointer;
-      padding: 8px;
-      border-radius: 8px;
-      transition: all 0.2s ease;
+      padding: 8px 12px;
+      border-radius: 10px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      line-height: 1;
     }
 
     .close-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
-      color: #ccc;
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.15) 100%);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #ff6b6b;
+      transform: rotate(90deg);
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
     }
 
     .modal-tabs {
       display: flex;
-      background: rgba(255, 255, 255, 0.05);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
       padding: 0 24px;
       overflow-x: auto;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
 
     .tab-btn {
-      padding: 12px 20px;
+      padding: 14px 24px;
       border: none;
       background: transparent;
       color: #888;
@@ -152,16 +210,34 @@ class AgentControlWidget extends LitElement {
       font-size: 14px;
       font-weight: 500;
       white-space: nowrap;
-      transition: all 0.2s ease;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+
+    .tab-btn::before {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #007acc, #00d4aa);
+      transform: scaleX(0);
+      transition: transform 0.3s ease;
     }
 
     .tab-btn.active {
-      color: #3b82f6;
-      border-bottom-color: #3b82f6;
+      color: #00d4aa;
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.08) 0%, rgba(0, 122, 204, 0.05) 100%);
+    }
+
+    .tab-btn.active::before {
+      transform: scaleX(1);
     }
 
     .tab-btn:hover {
       color: #ccc;
+      background: rgba(255, 255, 255, 0.05);
     }
 
     .modal-content {
@@ -205,41 +281,51 @@ class AgentControlWidget extends LitElement {
     }
 
     .power-btn {
-      padding: 12px 20px;
+      padding: 12px 24px;
       border: none;
-      border-radius: 8px;
+      border-radius: 10px;
       font-size: 14px;
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
     .power-btn:disabled {
-      opacity: 0.5;
+      opacity: 0.4;
       cursor: not-allowed;
+      transform: none !important;
     }
 
     .power-btn.danger {
-      background: rgba(239, 68, 68, 0.2);
-      color: #ef4444;
-      border: 1px solid rgba(239, 68, 68, 0.3);
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.2) 100%);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
     }
 
     .power-btn.danger:hover:not(:disabled) {
-      background: rgba(239, 68, 68, 0.3);
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.35) 0%, rgba(220, 38, 38, 0.3) 100%);
+      border-color: rgba(239, 68, 68, 0.6);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(239, 68, 68, 0.35);
     }
 
     .power-btn.warning {
-      background: rgba(245, 158, 11, 0.2);
-      color: #f59e0b;
-      border: 1px solid rgba(245, 158, 11, 0.3);
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(251, 191, 36, 0.2) 100%);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
     }
 
     .power-btn.warning:hover:not(:disabled) {
-      background: rgba(245, 158, 11, 0.3);
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.35) 0%, rgba(251, 191, 36, 0.3) 100%);
+      border-color: rgba(245, 158, 11, 0.6);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(245, 158, 11, 0.35);
     }
 
     .info-grid {
@@ -249,10 +335,19 @@ class AgentControlWidget extends LitElement {
     }
 
     .info-card {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 16px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 18px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .info-card:hover {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
+      border-color: rgba(0, 212, 170, 0.3);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0, 212, 170, 0.15);
     }
 
     .info-label {
@@ -330,18 +425,60 @@ class AgentControlWidget extends LitElement {
     }
 
     .metric-card {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 20px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 24px;
       text-align: center;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #007acc, #00d4aa);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .metric-card:hover {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
+      border-color: rgba(0, 212, 170, 0.3);
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(0, 212, 170, 0.15);
+    }
+
+    .metric-card:hover::before {
+      opacity: 1;
     }
 
     .metric-value {
-      font-size: 32px;
+      font-size: 36px;
       font-weight: 700;
-      color: #ffffff;
-      margin: 8px 0;
+      margin: 10px 0;
+      background: linear-gradient(135deg, #007acc 0%, #00d4aa 50%, #22c55e 100%);
+      background-size: 200% 200%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: gradient-shift 3s ease infinite;
+      filter: drop-shadow(0 2px 4px rgba(0, 212, 170, 0.3));
+    }
+
+    @keyframes gradient-shift {
+      0%, 100% {
+        background-position: 0% 50%;
+      }
+      50% {
+        background-position: 100% 50%;
+      }
     }
 
     .metric-label {
@@ -353,22 +490,45 @@ class AgentControlWidget extends LitElement {
 
     .progress-bar {
       width: 100%;
-      height: 6px;
+      height: 8px;
       background: rgba(255, 255, 255, 0.1);
-      border-radius: 3px;
-      margin-top: 12px;
+      border-radius: 6px;
+      margin-top: 14px;
       overflow: hidden;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
     }
 
     .progress-fill {
       height: 100%;
-      border-radius: 3px;
-      transition: all 0.3s ease;
+      border-radius: 6px;
+      transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 12px currentColor;
+      position: relative;
     }
 
-    .progress-fill.cpu { background: linear-gradient(90deg, #22c55e, #ef4444); }
-    .progress-fill.memory { background: linear-gradient(90deg, #3b82f6, #8b5cf6); }
-    .progress-fill.disk { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+    .progress-fill::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+      animation: shimmer 2s infinite;
+    }
+
+    @keyframes shimmer {
+      0% {
+        transform: translateX(-100%);
+      }
+      100% {
+        transform: translateX(100%);
+      }
+    }
+
+    .progress-fill.cpu { background: linear-gradient(90deg, #22c55e, #00d4aa, #007acc); }
+    .progress-fill.memory { background: linear-gradient(90deg, #3b82f6, #00d4aa, #8b5cf6); }
+    .progress-fill.disk { background: linear-gradient(90deg, #f59e0b, #fbbf24, #ef4444); }
 
     .command-section {
       display: flex;
@@ -399,24 +559,29 @@ class AgentControlWidget extends LitElement {
     }
 
     .execute-btn {
-      padding: 12px 20px;
-      background: #3b82f6;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.8) 0%, rgba(37, 99, 235, 0.7) 100%);
       color: white;
-      border: none;
-      border-radius: 8px;
+      border: 1px solid rgba(59, 130, 246, 0.5);
+      border-radius: 10px;
       font-size: 14px;
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
     }
 
-    .execute-btn:hover {
-      background: #2563eb;
+    .execute-btn:hover:not(:disabled) {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 1) 0%, rgba(37, 99, 235, 0.9) 100%);
+      border-color: rgba(59, 130, 246, 0.7);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(59, 130, 246, 0.5);
     }
 
     .execute-btn:disabled {
-      opacity: 0.5;
+      opacity: 0.4;
       cursor: not-allowed;
+      transform: none !important;
     }
 
     .command-output {

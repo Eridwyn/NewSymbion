@@ -107,27 +107,46 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .agent-card {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 16px;
-      transition: all 0.2s ease;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+      border: 1px solid rgba(0, 212, 170, 0.2);
+      border-radius: 12px;
+      padding: 18px;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       cursor: pointer;
       position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .agent-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+      transition: all 0.3s ease;
+    }
+
+    .agent-card.online::before {
+      background: linear-gradient(180deg, #00d4aa 0%, #22c55e 100%);
+      box-shadow: 0 0 20px rgba(0, 212, 170, 0.5);
+    }
+
+    .agent-card.offline::before {
+      background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
     }
 
     .agent-card:hover {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.2);
-      transform: translateY(-2px);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
+      border-color: rgba(0, 212, 170, 0.4);
+      transform: translateY(-4px) scale(1.02);
+      box-shadow: 0 12px 32px rgba(0, 212, 170, 0.2);
     }
 
-    .agent-card.online {
-      border-left: 4px solid #22c55e;
-    }
-
-    .agent-card.offline {
-      border-left: 4px solid #ef4444;
+    .agent-card:hover::before {
+      width: 6px;
     }
 
     .agent-header {
@@ -144,8 +163,13 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .os-icon {
-      font-size: 24px;
-      filter: grayscale(0.2);
+      font-size: 28px;
+      filter: grayscale(0) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+      transition: all 0.3s ease;
+    }
+
+    .agent-card:hover .os-icon {
+      transform: scale(1.1) rotate(-5deg);
     }
 
     .agent-details {
@@ -169,21 +193,28 @@ class AgentsNetworkWidget extends LitElement {
       display: flex;
       align-items: center;
       gap: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      padding: 4px 8px;
-      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 16px;
       text-transform: uppercase;
+      letter-spacing: 0.8px;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
     .agent-status.online {
-      background: rgba(34, 197, 94, 0.2);
-      color: #22c55e;
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, rgba(0, 212, 170, 0.2) 100%);
+      color: #00d4aa;
+      border: 1px solid rgba(0, 212, 170, 0.3);
+      box-shadow: 0 2px 12px rgba(0, 212, 170, 0.3);
     }
 
     .agent-status.offline {
-      background: rgba(239, 68, 68, 0.2);
-      color: #ef4444;
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.2) 100%);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      box-shadow: 0 2px 12px rgba(239, 68, 68, 0.25);
     }
 
     .agent-meta {
@@ -220,67 +251,114 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .action-btn {
-      padding: 6px 12px;
+      padding: 8px 14px;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       font-size: 12px;
+      font-weight: 500;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 5px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .action-btn::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      transform: translate(-50%, -50%);
+      transition: width 0.4s, height 0.4s;
+    }
+
+    .action-btn:hover::before {
+      width: 200px;
+      height: 200px;
     }
 
     .action-btn:disabled {
-      opacity: 0.5;
+      opacity: 0.4;
       cursor: not-allowed;
+      transform: none !important;
     }
 
     .action-btn.power {
-      background: rgba(239, 68, 68, 0.2);
-      color: #ef4444;
-      border: 1px solid rgba(239, 68, 68, 0.3);
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.2) 100%);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
     }
 
     .action-btn.power:hover:not(:disabled) {
-      background: rgba(239, 68, 68, 0.3);
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.35) 0%, rgba(220, 38, 38, 0.3) 100%);
+      border-color: rgba(239, 68, 68, 0.6);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(239, 68, 68, 0.35);
     }
 
     .action-btn.control {
-      background: rgba(59, 130, 246, 0.2);
-      color: #3b82f6;
-      border: 1px solid rgba(59, 130, 246, 0.3);
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(37, 99, 235, 0.2) 100%);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
     }
 
     .action-btn.control:hover:not(:disabled) {
-      background: rgba(59, 130, 246, 0.3);
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.35) 0%, rgba(37, 99, 235, 0.3) 100%);
+      border-color: rgba(59, 130, 246, 0.6);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(59, 130, 246, 0.35);
     }
 
     .action-btn.wake {
-      background: rgba(34, 197, 94, 0.2);
-      color: #22c55e;
-      border: 1px solid rgba(34, 197, 94, 0.3);
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, rgba(0, 212, 170, 0.2) 100%);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      box-shadow: 0 2px 8px rgba(34, 197, 94, 0.2);
     }
 
     .action-btn.wake:hover:not(:disabled) {
-      background: rgba(34, 197, 94, 0.3);
-      transform: scale(1.05);
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.35) 0%, rgba(0, 212, 170, 0.3) 100%);
+      border-color: rgba(0, 212, 170, 0.6);
+      transform: translateY(-2px) scale(1.05);
+      box-shadow: 0 4px 16px rgba(0, 212, 170, 0.35);
     }
 
     .status-indicator {
-      width: 8px;
-      height: 8px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
       display: inline-block;
+      transition: all 0.3s ease;
     }
 
     .status-indicator.online {
-      background: #22c55e;
-      box-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
+      background: #00d4aa;
+      box-shadow: 0 0 12px rgba(0, 212, 170, 0.7), 0 0 24px rgba(0, 212, 170, 0.4);
+      animation: pulse-glow 2s ease-in-out infinite;
     }
 
     .status-indicator.offline {
       background: #ef4444;
+      box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: scale(1.15);
+        opacity: 0.85;
+      }
     }
 
     .empty-state {
@@ -321,15 +399,37 @@ class AgentsNetworkWidget extends LitElement {
       .agents-grid {
         grid-template-columns: 1fr;
       }
-      
+
       .agent-meta {
         grid-template-columns: 1fr;
       }
-      
+
       .widget-header {
         flex-direction: column;
         gap: 12px;
         align-items: stretch;
+      }
+
+      .agent-card {
+        padding: 14px;
+      }
+
+      .agent-actions {
+        flex-wrap: wrap;
+      }
+
+      .action-btn {
+        flex: 1;
+        min-width: 100px;
+        justify-content: center;
+      }
+
+      .os-icon {
+        font-size: 24px;
+      }
+
+      .agent-hostname {
+        font-size: 14px;
       }
     }
   `
@@ -390,9 +490,20 @@ class AgentsNetworkWidget extends LitElement {
 
   async executeAction(agentId, action, event) {
     event.stopPropagation()
-    
+
+    console.log(`[agents-network-widget] executeAction called: agentId=${agentId}, action=${action}`)
+    console.log(`[agents-network-widget] agentsService:`, this.agentsService)
+
     const agent = this.agentsService.getAgentById(agentId)
-    
+    console.log(`[agents-network-widget] agent:`, agent)
+
+    // Protection: empêcher le shutdown de l'agent qui héberge le kernel/dashboard
+    const hostAgentIP = window.SYMBION_CONFIG?.HOST_AGENT_IP
+    if (hostAgentIP && agent.primary_ip === hostAgentIP && (action === 'shutdown' || action === 'reboot')) {
+      alert(`⚠️ Cannot ${action} host agent (${agent.hostname}) - this would disconnect the dashboard and kernel!\n\nPlease ${action} from the machine directly if needed.`)
+      return
+    }
+
     // Wake-on-LAN permet de réveiller un agent offline
     if (!this.agentsService.isAgentOnline(agentId) && action !== 'wake') {
       alert('⚠️ Agent is offline - cannot execute command (try Wake-on-LAN first)')
@@ -401,15 +512,26 @@ class AgentsNetworkWidget extends LitElement {
 
     try {
       const confirmMsg = `Are you sure you want to ${action} ${agent.hostname} (${agent.os})?`
-      
-      if (!confirm(confirmMsg)) return
+
+      if (!confirm(confirmMsg)) {
+        console.log(`[agents-network-widget] User cancelled action`)
+        return
+      }
+
+      console.log(`[agents-network-widget] Executing ${action}...`)
 
       switch (action) {
         case 'shutdown':
-          await this.agentsService.shutdownAgent(agentId)
+          console.log(`[agents-network-widget] Calling shutdownAgent(${agentId})`)
+          const shutdownResult = await this.agentsService.shutdownAgent(agentId)
+          console.log(`[agents-network-widget] Shutdown result:`, shutdownResult)
+          alert(`✅ Shutdown command sent: ${shutdownResult.command_id}`)
           break
         case 'reboot':
-          await this.agentsService.rebootAgent(agentId)
+          console.log(`[agents-network-widget] Calling rebootAgent(${agentId})`)
+          const rebootResult = await this.agentsService.rebootAgent(agentId)
+          console.log(`[agents-network-widget] Reboot result:`, rebootResult)
+          alert(`✅ Reboot command sent: ${rebootResult.command_id}`)
           break
         case 'wake':
           await this.agentsService.wakeAgent(agentId)
@@ -422,9 +544,10 @@ class AgentsNetworkWidget extends LitElement {
 
       // Refresh après action
       setTimeout(() => this.loadAgents(), 1000)
-      
+
     } catch (error) {
-      console.error(`Failed to ${action} agent:`, error)
+      console.error(`[agents-network-widget] Failed to ${action} agent:`, error)
+      console.error(`[agents-network-widget] Error stack:`, error.stack)
       alert(`❌ Failed to ${action} agent: ${error.message}`)
     }
   }
