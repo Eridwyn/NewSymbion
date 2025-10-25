@@ -312,6 +312,44 @@ class BootTerminal extends LitElement {
     this.updateLine(agentsLoadingIdx, `[agents] ✓ Found ${agents} agent(s)`, 'success')
     await this.delay(150)
 
+    // Services registration
+    const servicesLoadingIdx = this.addLoadingLine('[services] Registering service layer')
+    await this.delay(100)
+    const services = this.checkServices()
+    this.updateLine(servicesLoadingIdx, `[services] ✓ ${services.length} services active (${services.join(', ')})`, 'success')
+    await this.delay(100)
+
+    // Context detection
+    const contextLoadingIdx = this.addLoadingLine('[context] Detecting current mode')
+    const context = await this.checkContext()
+    if (context) {
+      this.updateLine(contextLoadingIdx, `[context] ✓ Mode: ${context.mode} (${context.reason})`, 'success')
+      await this.delay(100)
+
+      // Theme application
+      const themeLoadingIdx = this.addLoadingLine('[theme] Applying contextual theme')
+      await this.delay(80)
+      this.updateLine(themeLoadingIdx, `[theme] ✓ ${context.theme?.name || 'default'} theme activated`, 'success')
+      await this.delay(100)
+    } else {
+      this.updateLine(contextLoadingIdx, '[context] Mode: neutre (default)', 'warning')
+      await this.delay(100)
+    }
+
+    // Statistics tracking
+    const statsLoadingIdx = this.addLoadingLine('[analytics] Initializing statistics tracking')
+    await this.delay(80)
+    const statsEnabled = await this.checkStats()
+    this.updateLine(statsLoadingIdx, statsEnabled ? '[analytics] ✓ Stats collection active' : '[analytics] Stats collection disabled', statsEnabled ? 'success' : 'warning')
+    await this.delay(100)
+
+    // Pattern learning
+    const patternsLoadingIdx = this.addLoadingLine('[learning] Activating pattern recognition')
+    await this.delay(80)
+    const patternsEnabled = await this.checkPatterns()
+    this.updateLine(patternsLoadingIdx, patternsEnabled ? '[learning] ✓ Pattern learning active' : '[learning] Pattern learning disabled', patternsEnabled ? 'success' : 'warning')
+    await this.delay(150)
+
     // Auth session check
     const authLoadingIdx = this.addLoadingLine('[auth] Verifying session')
     await this.delay(100)
@@ -384,6 +422,62 @@ class BootTerminal extends LitElement {
 
   async verifySession() {
     return await authService.verifySession()
+  }
+
+  checkServices() {
+    const serviceNames = ['api-service', 'mqtt-service', 'context-service', 'agents-service']
+    const activeServices = []
+
+    for (const name of serviceNames) {
+      if (document.querySelector(name)) {
+        // Simplify service names for display
+        const displayName = name.replace('-service', '')
+        activeServices.push(displayName)
+      }
+    }
+
+    return activeServices
+  }
+
+  async checkContext() {
+    try {
+      const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+      const response = await fetch(`${API_BASE}/context/current`, {
+        headers: {
+          'x-api-key': import.meta.env.VITE_SYMBION_API_KEY || 's3cr3t-42'
+        }
+      })
+      if (response.ok) {
+        return await response.json()
+      }
+    } catch {}
+    return null
+  }
+
+  async checkStats() {
+    try {
+      const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+      const response = await fetch(`${API_BASE}/context/stats`, {
+        headers: {
+          'x-api-key': import.meta.env.VITE_SYMBION_API_KEY || 's3cr3t-42'
+        }
+      })
+      return response.ok
+    } catch {}
+    return false
+  }
+
+  async checkPatterns() {
+    try {
+      const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+      const response = await fetch(`${API_BASE}/context/patterns`, {
+        headers: {
+          'x-api-key': import.meta.env.VITE_SYMBION_API_KEY || 's3cr3t-42'
+        }
+      })
+      return response.ok
+    } catch {}
+    return false
   }
 
   addLine(text, className = '') {

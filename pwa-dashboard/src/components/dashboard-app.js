@@ -18,6 +18,8 @@ import '../widgets/notes-widget.js'
 import '../widgets/agents-network-widget.js'
 import '../widgets/agent-control-widget.js'
 import '../widgets/context-widget.js'
+import '../widgets/context-stats-widget.js'
+import '../widgets/context-settings-widget.js'
 
 class DashboardApp extends LitElement {
   static styles = css`
@@ -613,6 +615,9 @@ class DashboardApp extends LitElement {
               </system-health-widget>
             </div>
             <div class="widget-container">
+              <context-settings-widget></context-settings-widget>
+            </div>
+            <div class="widget-container">
               <plugins-widget
                 .plugins="${this.plugins}"
                 .apiService="${this.apiService}">
@@ -627,6 +632,9 @@ class DashboardApp extends LitElement {
                 .apiService="${this.apiService}"
                 .connected="${this.connected}">
               </notes-widget>
+            </div>
+            <div class="widget-container">
+              <context-stats-widget></context-stats-widget>
             </div>
             <div class="widget-container">
               <agents-network-widget
@@ -677,9 +685,19 @@ class DashboardApp extends LitElement {
           
           <!-- Widget agents network -->
           <div class="widget-container">
-            <agents-network-widget 
+            <agents-network-widget
               .connected="${this.connected}">
             </agents-network-widget>
+          </div>
+
+          <!-- Widget statistiques contextuelles -->
+          <div class="widget-container">
+            <context-stats-widget></context-stats-widget>
+          </div>
+
+          <!-- Widget paramètres contexte -->
+          <div class="widget-container">
+            <context-settings-widget></context-settings-widget>
           </div>
         </div>
         

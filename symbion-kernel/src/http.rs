@@ -166,6 +166,10 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/context/current", get(get_context_current))
         .route("/context/override", post(set_context_override))
         .route("/context/clear", post(clear_context_override))
+        .route("/context/history", get(get_context_history))
+        .route("/context/stats", get(get_context_stats))
+        .route("/context/patterns", get(get_context_patterns))
+        .route("/context/productivity", get(get_context_productivity))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state, require_auth))
         .layer(
@@ -348,6 +352,26 @@ async fn clear_context_override(State(app): State<AppState>) -> Result<Json<crat
         Some(state) => Ok(Json(state)),
         None => Err(StatusCode::NO_CONTENT),  // Pas d'override actif
     }
+}
+
+// GET /context/history (historique des changements de mode)
+async fn get_context_history(State(app): State<AppState>) -> Json<Vec<crate::context::ModeHistoryEntry>> {
+    Json(app.context_engine.get_history())
+}
+
+// GET /context/stats (statistiques par mode)
+async fn get_context_stats(State(app): State<AppState>) -> Json<Vec<crate::context::ModeStats>> {
+    Json(app.context_engine.calculate_stats())
+}
+
+// GET /context/patterns (patterns détectés)
+async fn get_context_patterns(State(app): State<AppState>) -> Json<Vec<crate::context::DetectedPattern>> {
+    Json(app.context_engine.detect_patterns())
+}
+
+// GET /context/productivity (métriques de productivité par mode)
+async fn get_context_productivity(State(app): State<AppState>) -> Json<Vec<crate::context::ProductivityMetrics>> {
+    Json(app.context_engine.calculate_productivity())
 }
 
 // GET /ports (liste des ports disponibles)
