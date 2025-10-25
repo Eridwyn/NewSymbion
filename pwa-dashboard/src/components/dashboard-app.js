@@ -21,106 +21,192 @@ class DashboardApp extends LitElement {
     :host {
       display: block;
       min-height: 100vh;
-      background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
+      background: radial-gradient(ellipse at top, #1a1f35 0%, #0f0f0f 50%, #000000 100%);
       color: #e0e0e0;
     }
-    
+
     .header {
-      background: rgba(0, 0, 0, 0.5);
-      backdrop-filter: blur(10px);
-      border-bottom: 1px solid #333;
-      padding: 1rem 2rem;
+      background: linear-gradient(135deg, rgba(0, 122, 204, 0.1) 0%, rgba(0, 212, 170, 0.05) 100%);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(0, 212, 170, 0.2);
+      padding: 1.5rem 2rem;
       position: sticky;
       top: 0;
       z-index: 100;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     }
-    
+
     .header h1 {
-      font-size: 1.8em;
-      font-weight: 300;
+      font-size: 2em;
+      font-weight: 600;
       margin: 0;
-      background: linear-gradient(90deg, #007acc, #00d4aa);
+      background: linear-gradient(135deg, #00d4aa 0%, #007acc 50%, #00d4aa 100%);
+      background-size: 200% 200%;
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+      animation: gradient-shift 3s ease infinite;
+      letter-spacing: -0.5px;
     }
-    
+
+    @keyframes gradient-shift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+
     .status-bar {
       display: flex;
-      gap: 1rem;
+      gap: 1.5rem;
       align-items: center;
-      margin-top: 0.5rem;
+      margin-top: 0.75rem;
       font-size: 0.9em;
-      opacity: 0.8;
+      font-weight: 500;
     }
-    
+
     .status-indicator {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.6rem;
+      padding: 0.4rem 0.8rem;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      transition: all 0.3s ease;
     }
-    
+
+    .status-indicator:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
     .status-dot {
-      width: 8px;
-      height: 8px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
       transition: all 0.3s ease;
+      box-shadow: 0 0 10px currentColor;
     }
-    
-    .status-dot.online { background: #00d4aa; }
-    .status-dot.offline { background: #ff6b6b; }
-    .status-dot.polling { background: #007acc; }
-    .status-dot.loading { 
-      background: #ffd93d; 
-      animation: pulse 1.5s infinite;
+
+    .status-dot.online {
+      background: #00d4aa;
+      box-shadow: 0 0 15px #00d4aa, 0 0 25px rgba(0, 212, 170, 0.3);
+      animation: pulse-glow 2s ease-in-out infinite;
     }
-    
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+    .status-dot.offline {
+      background: #ff6b6b;
+      box-shadow: 0 0 10px rgba(255, 107, 107, 0.5);
     }
-    
+    .status-dot.polling {
+      background: #007acc;
+      box-shadow: 0 0 15px #007acc;
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+    .status-dot.loading {
+      background: #ffd93d;
+      animation: pulse-loading 1s infinite;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+      }
+    }
+
+    @keyframes pulse-loading {
+      0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.5;
+        transform: scale(0.9);
+      }
+    }
+
     .main-content {
-      padding: 2rem;
-      max-width: 1400px;
+      padding: 2.5rem;
+      max-width: 1600px;
       margin: 0 auto;
     }
-    
+
     .widgets-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-      gap: 2rem;
+      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      gap: 1.5rem;
       margin-bottom: 2rem;
     }
-    
+
     .widget-container {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
-      padding: 1.5rem;
-      backdrop-filter: blur(10px);
-      transition: all 0.3s ease;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+      border: 1px solid rgba(0, 212, 170, 0.15);
+      border-radius: 16px;
+      padding: 1.8rem;
+      backdrop-filter: blur(15px);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      position: relative;
+      overflow: hidden;
     }
-    
+
+    .widget-container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #00d4aa, transparent);
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
     .widget-container:hover {
-      border-color: rgba(0, 122, 204, 0.3);
-      transform: translateY(-2px);
-      box-shadow: 0 10px 30px rgba(0, 122, 204, 0.1);
+      border-color: rgba(0, 212, 170, 0.4);
+      transform: translateY(-4px) scale(1.01);
+      box-shadow: 0 16px 48px rgba(0, 212, 170, 0.15), 0 0 0 1px rgba(0, 212, 170, 0.1);
     }
-    
+
+    .widget-container:hover::before {
+      opacity: 1;
+    }
+
     .error-message {
-      background: rgba(255, 107, 107, 0.1);
-      border: 1px solid rgba(255, 107, 107, 0.3);
-      border-radius: 8px;
-      padding: 1rem;
+      background: linear-gradient(135deg, rgba(255, 107, 107, 0.15) 0%, rgba(255, 107, 107, 0.05) 100%);
+      border: 1px solid rgba(255, 107, 107, 0.4);
+      border-radius: 12px;
+      padding: 1.2rem;
       margin: 1rem 0;
       color: #ff6b6b;
+      font-weight: 500;
+      box-shadow: 0 4px 16px rgba(255, 107, 107, 0.1);
     }
-    
+
     @media (max-width: 768px) {
-      .header { padding: 1rem; }
-      .main-content { padding: 1rem; }
-      .widgets-grid { grid-template-columns: 1fr; gap: 1rem; }
+      .header {
+        padding: 1.2rem 1rem;
+      }
+      .header h1 {
+        font-size: 1.6em;
+      }
+      .status-bar {
+        flex-wrap: wrap;
+        gap: 0.8rem;
+      }
+      .main-content {
+        padding: 1.2rem;
+      }
+      .widgets-grid {
+        grid-template-columns: 1fr;
+        gap: 1.2rem;
+      }
+      .widget-container {
+        padding: 1.4rem;
+      }
     }
   `
   
@@ -144,6 +230,7 @@ class DashboardApp extends LitElement {
     
     this.apiService = null
     this.mqttService = null
+    this.agentsService = null
   }
   
   async connectedCallback() {
@@ -167,18 +254,22 @@ class DashboardApp extends LitElement {
   
   async initializeServices() {
     console.log('🔧 Initializing services...')
-    
+
     // Service API
     this.apiService = document.createElement('api-service')
     this.apiService.addEventListener('status-change', this.handleApiStatus.bind(this))
-    
-    // Service MQTT  
+
+    // Service MQTT
     this.mqttService = document.createElement('mqtt-service')
     this.mqttService.addEventListener('status-change', this.handleMqttStatus.bind(this))
     this.mqttService.addEventListener('system-health', this.handleSystemHealth.bind(this))
-    
+
+    // Service Agents
+    this.agentsService = document.createElement('agents-service')
+
     document.body.appendChild(this.apiService)
     document.body.appendChild(this.mqttService)
+    document.body.appendChild(this.agentsService)
   }
   
   async loadInitialData() {
