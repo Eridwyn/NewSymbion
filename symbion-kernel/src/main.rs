@@ -20,6 +20,7 @@ mod ports;
 mod plugins;
 mod notes_bridge;
 mod agents;
+mod auth;
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -31,6 +32,7 @@ use crate::ports::create_default_ports;
 use crate::plugins::PluginManager;
 use crate::notes_bridge::{NotesBridge, SharedNotesBridge};
 use crate::agents::{AgentRegistry, SharedAgentRegistry};
+use crate::auth::AuthManager;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -61,6 +63,15 @@ async fn main() {
 
     // health tracker
     let health_tracker = HealthTracker::new();
+
+    // auth manager
+    let auth_manager = match AuthManager::new() {
+        Ok(manager) => manager,
+        Err(e) => {
+            eprintln!("[kernel] failed to initialize auth manager: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     // data ports
     std::fs::create_dir_all("./data").unwrap_or_else(|e| {
@@ -127,12 +138,13 @@ async fn main() {
     health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), agents.clone(), plugins.clone());
 
     // fabrique l'état unique pour Axum
-    let app_state = AppState { 
-        states, 
-        cfg, 
-        contracts, 
-        health_tracker, 
-        ports, 
+    let app_state = AppState {
+        states,
+        cfg,
+        contracts,
+        health_tracker,
+        auth_manager,
+        ports,
         plugins,
         notes_bridge,
         agents
