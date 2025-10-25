@@ -1,4 +1,4 @@
-# 🌌 NewSymbion - Compagnon d'Automatisation Personnelle v1.0.3
+# 🌌 NewSymbion - Compagnon d'Automatisation Personnelle v1.1.0
 
 **Une extension de ton système nerveux** - Architecture IoT/domotique pour te libérer de la charge mentale du quotidien.
 
@@ -187,11 +187,13 @@ cd pwa-dashboard && npm run dev
 - ✅ Plugin system pour modules de vie (cuisine, santé, finance, etc.)
 - ✅ Interface adaptative selon contexte domestique (matin/soir/présence)
 
-### 🚀 **Phase B - Automatisation Contextuelle (EN COURS)**
+### 🚀 **Phase B - Automatisation Contextuelle (TERMINÉE)**
 - ✅ Contrôle appareils domestiques (extinction/réveil machines)
-- ✅ Apprentissage habitudes via SSID + horaires + patterns activité
-- ✅ Notes intelligentes avec tags contextuels automatiques
-- ⏳ Règles d'automatisation configurables (si contexte alors action)
+- ✅ Context Engine avec détection automatique (nuit/week-end/semaine)
+- ✅ Override manuel des modes avec expiration temporelle
+- ✅ Notes intelligentes avec tags + icônes contextuels automatiques
+- ✅ Interface mobile responsive avec tabs catégorisées
+- ✅ Theming global dynamique selon mode contextuel
 
 ### 🏠 **Phase C - Maison Connectée (PROCHAINE)**
 - ⏳ **Capteurs environnementaux** : Température, humidité, luminosité, présence
