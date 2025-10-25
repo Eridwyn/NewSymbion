@@ -833,6 +833,15 @@ class NotesWidget extends LitElement {
     const plainText = content.replace(/[#*`[\]()]/g, '').trim()
     return plainText.length > 100 ? plainText.substring(0, 100) + '...' : plainText
   }
+
+  getContextIcon(context) {
+    const icons = {
+      'cravate': '👔',
+      'intime': '🏡',
+      'neutre': '🌱'
+    }
+    return icons[context] || '📍'
+  }
   
   render() {
     return html`
@@ -935,7 +944,7 @@ class NotesWidget extends LitElement {
               <div class="note-header">
                 <div class="note-indicators">
                   ${note.data.urgent ? html`<span class="urgent-indicator">🚨</span>` : ''}
-                  ${note.data.context ? html`<span class="context-tag">${note.data.context}</span>` : ''}
+                  ${note.data.context ? html`<span class="context-tag">${this.getContextIcon(note.data.context)} ${note.data.context}</span>` : ''}
                 </div>
                 <div class="note-actions">
                   <button
@@ -972,7 +981,7 @@ class NotesWidget extends LitElement {
               <div style="flex: 1; display: flex; flex-direction: column; gap: 0.4rem;">
                 <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                   ${this.selectedNote.data.urgent ? html`<span class="urgent-indicator">🚨 URGENT</span>` : ''}
-                  ${this.selectedNote.data.context ? html`<span class="context-tag">${this.selectedNote.data.context}</span>` : ''}
+                  ${this.selectedNote.data.context ? html`<span class="context-tag">${this.getContextIcon(this.selectedNote.data.context)} ${this.selectedNote.data.context}</span>` : ''}
                 </div>
                 ${this.selectedNote.data.tags && this.selectedNote.data.tags.length > 0 ? html`
                   <div style="color: #888; font-size: 0.75em; font-weight: 500;">
