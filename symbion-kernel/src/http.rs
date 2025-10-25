@@ -588,6 +588,16 @@ async fn handle_memo_create(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     // Notes uniquement via plugin - pas de fallback
     if let Some(ref bridge) = app.notes_bridge {
+        // Récupérer le contexte fourni ou utiliser le mode actuel
+        let context = note_data.get("context")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| {
+                // Injecter automatiquement le mode contextuel actuel
+                app.context_engine.get_state()
+                    .map(|state| format!("{:?}", state.mode).to_lowercase())
+            });
+
         // Convertir les données en format CreateNoteRequest
         let create_request = notes_bridge::CreateNoteRequest {
             content: note_data.get("content")
@@ -595,9 +605,7 @@ async fn handle_memo_create(
                 .unwrap_or("").to_string(),
             urgent: note_data.get("urgent")
                 .and_then(|v| v.as_bool()),
-            context: note_data.get("context")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
+            context,
             tags: note_data.get("tags")
                 .and_then(|v| v.as_array())
                 .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()),
@@ -605,7 +613,7 @@ async fn handle_memo_create(
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
         };
-        
+
         return notes_bridge::create_note_endpoint(
             axum::extract::State(bridge.clone()),
             axum::extract::Json(create_request)
