@@ -41,7 +41,7 @@ pub fn create_mqtt_client(config: &HostsConfig) -> Result<AsyncClient, Box<dyn s
     Ok(client)
 }
 
-pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>, notes_bridge: Option<SharedNotesBridge>, agents: Option<SharedAgentRegistry>, health_tracker: Option<crate::health::HealthTracker>) {
+pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>, notes_bridge: Option<SharedNotesBridge>, agents: Option<SharedAgentRegistry>, health_tracker: Option<crate::health::HealthTracker>, dashboard_events: Option<crate::dashboard_events::DashboardEventPublisher>) {
     task::spawn(async move {
         let cfg = config.lock().clone();
         let mqtt_cfg = cfg.mqtt.unwrap_or_else(|| crate::config::MqttConf { 
@@ -147,6 +147,15 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                                         eprintln!("[kernel] failed to handle agent heartbeat: {}", e);
                                     } else {
                                         println!("[kernel] heartbeat handled successfully");
+
+                                        // Publier la liste des agents sur le dashboard topic
+                                        if let Some(ref dash_events) = dashboard_events {
+                                            let agents_map = agent_registry.list_agents().await;
+                                            let agents_list: Vec<crate::agents::Agent> = agents_map.values().cloned().collect();
+                                            if let Err(e) = dash_events.publish_agents_update(&agents_list).await {
+                                                eprintln!("[kernel] failed to publish agents update to dashboard: {}", e);
+                                            }
+                                        }
                                     }
                                 }
                                 Err(e) => eprintln!("[kernel] agent heartbeat JSON invalide: {txt}, error: {}", e),

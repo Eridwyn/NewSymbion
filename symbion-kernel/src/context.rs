@@ -549,6 +549,7 @@ impl ContextEngine {
         engine: Arc<ContextEngine>,
         agents: SharedAgentRegistry,
         mqtt_client: AsyncClient,
+        dashboard_events: crate::dashboard_events::DashboardEventPublisher,
     ) {
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
@@ -562,7 +563,7 @@ impl ContextEngine {
 
                 // Mettre à jour le contexte
                 if let Some(new_state) = engine.update(&agents_list) {
-                    // Un changement de mode est détecté, publier sur MQTT
+                    // Un changement de mode est détecté, publier sur MQTT legacy topic
                     let payload = match serde_json::to_string(&new_state) {
                         Ok(json) => json,
                         Err(e) => {
@@ -581,6 +582,11 @@ impl ContextEngine {
                         payload,
                     ).await {
                         eprintln!("[context] failed to publish mode change: {}", e);
+                    }
+
+                    // Publier sur dashboard topic
+                    if let Err(e) = dashboard_events.publish_context_change(&new_state).await {
+                        eprintln!("[context] failed to publish to dashboard: {}", e);
                     }
                 }
             }

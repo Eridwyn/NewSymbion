@@ -200,13 +200,89 @@ class ContextStatsWidget extends LitElement {
       text-align: center;
       padding: 1rem;
     }
+
+    .see-all-btn {
+      width: 100%;
+      padding: 0.75rem;
+      margin-top: 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      color: #e0e0e0;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .see-all-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background: linear-gradient(135deg, rgba(30, 30, 30, 0.98) 0%, rgba(20, 20, 20, 0.98) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 2rem;
+      max-width: 800px;
+      max-height: 80vh;
+      overflow-y: auto;
+      width: 90%;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .modal-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #e0e0e0;
+    }
+
+    .close-btn {
+      padding: 0.5rem 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      color: #e0e0e0;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 1rem;
+    }
+
+    .close-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
   `
 
   static properties = {
     stats: { type: Array },
     patterns: { type: Array },
     productivity: { type: Array },
-    status: { type: String }
+    status: { type: String },
+    showAllPatterns: { type: Boolean }
   }
 
   constructor() {
@@ -215,6 +291,7 @@ class ContextStatsWidget extends LitElement {
     this.patterns = []
     this.productivity = []
     this.status = 'loading'
+    this.showAllPatterns = false
   }
 
   connectedCallback() {
@@ -294,6 +371,31 @@ class ContextStatsWidget extends LitElement {
     return days[dayNumber] || dayNumber
   }
 
+  formatDate(dateString) {
+    try {
+      // Format API: "2025-10-25 14:21:45.06683966 +00:00:00"
+      // Extraire "2025-10-25 14:21:45"
+      const parts = dateString.split(' ')
+      const datePart = parts[0]
+      const timePart = parts[1]?.split('.')[0] || '00:00:00'
+
+      // Parser comme UTC puis convertir en heure locale
+      const date = new Date(`${datePart}T${timePart}Z`)
+      if (isNaN(date.getTime())) {
+        return 'N/A'
+      }
+      return date.toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    } catch (e) {
+      console.error('[context-stats] Invalid date format:', dateString, e)
+      return 'N/A'
+    }
+  }
+
   render() {
     if (this.status === 'loading') {
       return html`
@@ -363,7 +465,7 @@ class ContextStatsWidget extends LitElement {
             </div>
           ` : html`
             <div class="patterns-list">
-              ${this.patterns.map(pattern => html`
+              ${this.patterns.slice(0, 3).map(pattern => html`
                 <div class="pattern-item">
                   <div class="pattern-icon">${this.getModeIcon(pattern.mode)}</div>
                   <div class="pattern-info">
@@ -371,7 +473,7 @@ class ContextStatsWidget extends LitElement {
                       ${this.getModeName(pattern.mode)} - ${this.getDayName(pattern.day_of_week)} à ${pattern.hour}h
                     </div>
                     <div class="pattern-meta">
-                      ${pattern.occurrences} fois • Dernière: ${new Date(pattern.last_seen).toLocaleDateString('fr-FR')}
+                      ${pattern.occurrences} fois • Dernière: ${this.formatDate(pattern.last_seen)}
                     </div>
                   </div>
                   <div class="pattern-confidence">
@@ -380,9 +482,44 @@ class ContextStatsWidget extends LitElement {
                 </div>
               `)}
             </div>
+            ${this.patterns.length > 3 ? html`
+              <button class="see-all-btn" @click="${() => this.showAllPatterns = true}">
+                📋 Voir tous les patterns (${this.patterns.length})
+              </button>
+            ` : ''}
           `}
         </div>
       </div>
+
+      <!-- Modal tous les patterns -->
+      ${this.showAllPatterns ? html`
+        <div class="modal-overlay" @click="${() => this.showAllPatterns = false}">
+          <div class="modal-content" @click="${(e) => e.stopPropagation()}">
+            <div class="modal-header">
+              <div class="modal-title">📋 Tous les Patterns (${this.patterns.length})</div>
+              <button class="close-btn" @click="${() => this.showAllPatterns = false}">✕ Fermer</button>
+            </div>
+            <div class="patterns-list">
+              ${this.patterns.map(pattern => html`
+                <div class="pattern-item">
+                  <div class="pattern-icon">${this.getModeIcon(pattern.mode)}</div>
+                  <div class="pattern-info">
+                    <div class="pattern-description">
+                      ${this.getModeName(pattern.mode)} - ${this.getDayName(pattern.day_of_week)} à ${pattern.hour}h
+                    </div>
+                    <div class="pattern-meta">
+                      ${pattern.occurrences} fois • Dernière: ${this.formatDate(pattern.last_seen)}
+                    </div>
+                  </div>
+                  <div class="pattern-confidence">
+                    ${Math.round(pattern.confidence * 100)}%
+                  </div>
+                </div>
+              `)}
+            </div>
+          </div>
+        </div>
+      ` : ''}
     `
   }
 }
