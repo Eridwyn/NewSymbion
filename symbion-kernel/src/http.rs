@@ -68,7 +68,11 @@ fn to_view(h: &HostState) -> HostView {
     }
 }
 
-async fn require_api_key(req: Request, next: Next) -> Result<Response, StatusCode> {
+async fn require_auth(
+    State(app): State<AppState>,
+    req: Request,
+    next: Next
+) -> Result<Response, StatusCode> {
     let path = req.uri().path();
 
     // Health check et auth routes toujours accessibles
@@ -76,22 +80,35 @@ async fn require_api_key(req: Request, next: Next) -> Result<Response, StatusCod
         return Ok(next.run(req).await);
     }
 
+    // Vérifier 1: Authorization: Bearer {token}
+    if let Some(auth_header) = req.headers().get("authorization") {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if let Some(token) = auth_str.strip_prefix("Bearer ") {
+                // Valider le JWT token
+                if app.auth_manager.verify_token(token).is_ok() {
+                    return Ok(next.run(req).await);
+                }
+            }
+        }
+    }
+
+    // Vérifier 2: x-api-key (fallback pour compatibilité)
     let expected = std::env::var("SYMBION_API_KEY").unwrap_or_default();
-    if expected.is_empty() {
-        eprintln!("SECURITY: SYMBION_API_KEY not set - API access denied");
-        return Err(StatusCode::UNAUTHORIZED);
+    if !expected.is_empty() {
+        let ok = req.headers()
+            .get("x-api-key")
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v == expected)
+            .unwrap_or(false);
+
+        if ok {
+            return Ok(next.run(req).await);
+        }
     }
 
-    let ok = req.headers()
-        .get("x-api-key")
-        .and_then(|v| v.to_str().ok())
-        .map(|v| v == expected)
-        .unwrap_or(false);
-
-    if !ok {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-    Ok(next.run(req).await)
+    // Aucune authentification valide trouvée
+    eprintln!("SECURITY: No valid authentication (JWT or API key) for {}", path);
+    Err(StatusCode::UNAUTHORIZED)
 }
 
 
@@ -145,8 +162,8 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/agents/{id}/commands", get(agent_commands_endpoint).post(agent_commands_post_endpoint))
         .route("/commands/{command_id}/cancel", post(cancel_command_endpoint))
         .route("/commands/{command_id}/status", get(command_status_endpoint))
-        .with_state(app_state)
-        .layer(middleware::from_fn(require_api_key))
+        .with_state(app_state.clone())
+        .layer(middleware::from_fn_with_state(app_state, require_auth))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)

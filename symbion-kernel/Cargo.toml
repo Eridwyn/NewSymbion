@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0"
 axum = "0.8.4"
+axum-server = { version = "0.7", features = ["tls-rustls"] }
 bcrypt = "0.17.1"
 dotenvy = "0.15.7"
 jsonwebtoken = { version = "10.1.0", features = ["aws_lc_rs", "use_pem"], default-features = false }
@@ -18,5 +19,6 @@ shell-words = "1.1.0"
 thiserror = "2.0.16"
 time = { version = "0.3.41", features = ["macros", "formatting", "serde"] }
 tokio = { version = "1.47.1", features = ["full"] }
+tokio-rustls = "0.26"
 tower-http = { version = "0.6", features = ["cors", "timeout"] }
 uuid = { version = "1.11.0", features = ["v4"] }

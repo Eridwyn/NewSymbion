@@ -275,7 +275,7 @@ class BootTerminal extends LitElement {
     await this.delay(100)
 
     // Vérification connexion kernel (CRITIQUE)
-    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'http://192.168.1.14:8080'
+    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
     const kernelLoadingIdx = this.addLoadingLine(`[kernel] Connecting to ${API_BASE}`)
     const kernelOk = await this.checkKernel()
     this.updateLine(
@@ -357,7 +357,8 @@ class BootTerminal extends LitElement {
 
   async checkKernel() {
     try {
-      const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'http://192.168.1.14:8080'
+      const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+      console.log('[boot-terminal] checkKernel API_BASE:', API_BASE)
       const response = await fetch(`${API_BASE}/health`)
       return response.ok
     } catch {
@@ -367,7 +368,7 @@ class BootTerminal extends LitElement {
 
   async checkAgents() {
     try {
-      const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'http://192.168.1.14:8080'
+      const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
       const response = await fetch(`${API_BASE}/agents`, {
         headers: {
           'x-api-key': import.meta.env.VITE_SYMBION_API_KEY

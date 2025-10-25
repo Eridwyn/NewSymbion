@@ -291,8 +291,14 @@ impl AgentRegistry {
 
     /// Sauvegarde les agents dans le fichier JSON
     pub async fn save_agents(&self) -> Result<()> {
-        let agents_map = self.agents.read().await;
-        let content = serde_json::to_string_pretty(&*agents_map)?;
+        // Clone data snapshot AVANT I/O pour minimiser durée du lock
+        let agents_snapshot = {
+            let agents_map = self.agents.read().await;
+            agents_map.clone()
+        }; // Libère le read lock immédiatement
+
+        // Sérialisation et I/O SANS tenir de lock
+        let content = serde_json::to_string_pretty(&agents_snapshot)?;
         tokio::fs::write(&self.data_file, content).await?;
         Ok(())
     }
@@ -338,18 +344,20 @@ impl AgentRegistry {
     /// Traite un message de heartbeat d'agent
     pub async fn handle_agent_heartbeat(&self, msg: AgentHeartbeatMessage) -> Result<()> {
         let now = OffsetDateTime::now_utc();
-        
+
         {
             let mut agents_map = self.agents.write().await;
             if let Some(agent) = agents_map.get_mut(&msg.agent_id) {
+                println!("[agents] updating heartbeat for agent {} - status: {}", msg.agent_id, msg.status);
                 agent.status.status = msg.status;
                 agent.status.last_heartbeat = Some(now);
                 agent.status.system = Some(msg.system);
                 agent.status.processes = msg.processes;
                 agent.status.services = msg.services;
                 agent.last_seen = now;
+                println!("[agents] agent {} updated - last_seen: {}", msg.agent_id, now);
             } else {
-                println!("[agents] received heartbeat from unknown agent {}", msg.agent_id);
+                println!("[agents] ❌ received heartbeat from UNKNOWN agent {} - not registered!", msg.agent_id);
                 return Ok(());
             }
         }
@@ -539,11 +547,13 @@ impl AgentRegistry {
 
     /// Marque un agent comme offline après timeout
     pub async fn mark_agent_offline(&self, agent_id: &str) {
-        let mut agents_map = self.agents.write().await;
-        if let Some(agent) = agents_map.get_mut(agent_id) {
-            agent.status.status = "offline".to_string();
-            println!("[agents] marked agent {} as offline", agent_id);
-        }
+        {
+            let mut agents_map = self.agents.write().await;
+            if let Some(agent) = agents_map.get_mut(agent_id) {
+                agent.status.status = "offline".to_string();
+                println!("[agents] marked agent {} as offline", agent_id);
+            }
+        } // Libère le write lock AVANT toute opération I/O
     }
 
     /// Supprime les agents qui n'ont pas donné signe de vie depuis trop longtemps
@@ -576,18 +586,18 @@ impl AgentRegistry {
     /// Surveille périodiquement les agents et marque ceux inactifs comme offline
     pub fn start_agent_monitoring(registry: SharedAgentRegistry, timeout_minutes: i64) {
         println!("[agents] starting agent monitoring (timeout: {}min)", timeout_minutes);
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(60)); // Check toutes les minutes
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let now = OffsetDateTime::now_utc();
                 let timeout_threshold = now - time::Duration::minutes(timeout_minutes);
                 let mut agents_to_mark_offline = Vec::new();
-                
-                // Identifier les agents qui ont timeout
+
+                // Identifier les agents qui ont timeout - Lock minimal
                 {
                     let agents_map = registry.agents.read().await;
                     for (agent_id, agent) in agents_map.iter() {
@@ -595,14 +605,14 @@ impl AgentRegistry {
                             agents_to_mark_offline.push(agent_id.clone());
                         }
                     }
-                }
-                
-                // Marquer les agents timeout comme offline
+                } // Libère le read lock immédiatement
+
+                // Marquer les agents timeout comme offline (déjà optimisé avec scope interne)
                 for agent_id in agents_to_mark_offline {
                     registry.mark_agent_offline(&agent_id).await;
                 }
-                
-                // Sauvegarder les changements
+
+                // Sauvegarder les changements SANS tenir de lock
                 if let Err(e) = registry.save_agents().await {
                     eprintln!("[agents] failed to save agents during monitoring: {}", e);
                 }

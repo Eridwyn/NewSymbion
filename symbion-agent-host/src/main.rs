@@ -164,17 +164,33 @@ impl Agent {
         mqtt_options.set_clean_session(true);
         
         let (mqtt_client, mut eventloop) = AsyncClient::new(mqtt_options, 10);
-        
+
         // Create command channel
         let (command_sender, command_receiver) = mpsc::channel::<ReceivedCommand>(100);
-        
+
+        // Clone mqtt_client for the event loop to re-subscribe after reconnection
+        let mqtt_client_for_loop = mqtt_client.clone();
+
         // Start MQTT event loop in background
         tokio::spawn(async move {
+            let mut is_subscribed = false;
+
             loop {
                 match eventloop.poll().await {
+                    Ok(Event::Incoming(Incoming::ConnAck(_))) => {
+                        // Reconnected - resubscribe to command topic
+                        info!("🔄 MQTT connected/reconnected - subscribing to command topic...");
+                        if let Err(e) = mqtt_client_for_loop.subscribe("symbion/agents/command@v1", QoS::AtLeastOnce).await {
+                            error!("Failed to subscribe to command topic: {}", e);
+                            is_subscribed = false;
+                        } else {
+                            info!("✅ Subscribed to symbion/agents/command@v1");
+                            is_subscribed = true;
+                        }
+                    }
                     Ok(Event::Incoming(Incoming::Publish(publish))) => {
                         info!("📥 Received MQTT message on topic: {}", publish.topic);
-                        
+
                         // Forward command messages to main loop
                         if publish.topic == "symbion/agents/command@v1" {
                             let payload = String::from_utf8_lossy(&publish.payload).to_string();
@@ -183,7 +199,7 @@ impl Agent {
                                 topic: publish.topic.clone(),
                                 payload,
                             };
-                            
+
                             if let Err(e) = command_sender.send(command).await {
                                 error!("Failed to forward command: {}", e);
                             } else {
@@ -194,6 +210,7 @@ impl Agent {
                     Ok(_) => {}
                     Err(e) => {
                         error!("MQTT connection error: {}", e);
+                        is_subscribed = false;
                         tokio::time::sleep(Duration::from_secs(5)).await;
                     }
                 }
@@ -235,14 +252,10 @@ impl Agent {
     /// Start agent main loop
     async fn run(&mut self) -> Result<()> {
         info!("Starting agent main loop...");
-        
-        // Subscribe to command topic (all agents listen to same topic, filter by agent_id)
-        let command_topic = "symbion/agents/command@v1";
-        self.mqtt_client.subscribe(command_topic, QoS::AtLeastOnce).await
-            .context("Failed to subscribe to command topic")?;
-            
-        info!("Subscribed to commands on: {}", command_topic);
-        
+
+        // Subscription to command topic is now handled automatically in MQTT event loop (on ConnAck)
+        // This ensures re-subscription after reconnections
+
         // Initial registration
         self.register().await?;
         
@@ -253,10 +266,13 @@ impl Agent {
         loop {
             tokio::select! {
                 _ = heartbeat_timer.tick() => {
+                    info!("⏰ Heartbeat timer ticked - sending heartbeat");
                     if let Err(e) = self.send_heartbeat().await {
                         error!("Failed to send heartbeat: {}", e);
+                    } else {
+                        info!("✅ Heartbeat sent successfully");
                     }
-                    
+
                     // Update local API status
                     self.update_local_api_status(true).await;
                 }
@@ -333,12 +349,13 @@ impl Agent {
         let payload = serde_json::to_string(&heartbeat)
             .context("Failed to serialize heartbeat message")?;
             
+        info!("📤 Publishing heartbeat to MQTT...");
         self.mqtt_client
             .publish("symbion/agents/heartbeat@v1", QoS::AtLeastOnce, false, payload)
             .await
             .context("Failed to publish heartbeat")?;
-            
-        debug!("Heartbeat sent");
+
+        info!("📡 Heartbeat published to MQTT successfully");
         Ok(())
     }
     

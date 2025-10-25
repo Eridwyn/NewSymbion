@@ -8,10 +8,14 @@
  * - Build optimisé avec sourcemaps
  */
 
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  // Load env vars
+  const env = loadEnv(mode, process.cwd(), '')
+
+  return {
   plugins: [
     VitePWA({
       // Auto-update du service worker pour déploiement seamless
@@ -50,11 +54,12 @@ export default defineConfig({
     proxy: {
       // Proxy transparent vers l'API Symbion avec auth intégrée
       '/api': {
-        target: 'http://localhost:8080',    // Kernel Symbion
+        target: 'https://localhost:8443',    // Kernel Symbion HTTPS
         changeOrigin: true,
+        secure: false,  // Accept self-signed certificates
         rewrite: (path) => path.replace(/^\/api/, ''),
         headers: {
-          'x-api-key': 's3cr3t-42'         // Auth automatique en dev
+          'x-api-key': env.VITE_SYMBION_API_KEY || 's3cr3t-42'  // Load from .env
         }
       }
     }
@@ -63,4 +68,4 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true    // Debug en production si nécessaire
   }
-})
+}})
