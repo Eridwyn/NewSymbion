@@ -35,13 +35,6 @@ class MqttService extends LitElement {
   }
   
   connect() {
-    // TODO: Configure MQTT broker with WebSocket support
-    // For now, disable MQTT and use API polling only
-    console.log('⚠️ MQTT WebSocket not configured, using API polling only')
-    this.status = 'polling'
-    this.updateStatus('polling')
-    return
-    
     const brokerUrl = `ws://${window.SYMBION_CONFIG?.MQTT_BROKER || 'localhost'}:${window.SYMBION_CONFIG?.MQTT_PORT || 9001}`
     
     console.log('🔌 Connecting to MQTT broker:', brokerUrl)
@@ -113,9 +106,15 @@ class MqttService extends LitElement {
   subscribeToTopics() {
     const topics = [
       'symbion/kernel/health@v1',
-      'symbion/hosts/heartbeat@v2', 
+      'symbion/hosts/heartbeat@v2',
       'symbion/hosts/wake@v1',
-      'symbion/notes/response@v1'
+      'symbion/notes/response@v1',
+      'symbion/dashboard/context@v1',
+      'symbion/dashboard/agents@v1',
+      'symbion/dashboard/health@v1',
+      'symbion/dashboard/notes@v1',
+      'symbion/dashboard/stats@v1',
+      'symbion/dashboard/pattern@v1'
     ]
     
     topics.forEach(topic => {
@@ -135,19 +134,44 @@ class MqttService extends LitElement {
       case 'symbion/kernel/health@v1':
         this.handleSystemHealth(payload)
         break
-        
+
       case 'symbion/hosts/heartbeat@v2':
         this.handleHostHeartbeat(payload)
         break
-        
+
       case 'symbion/hosts/wake@v1':
         this.handleWakeCommand(payload)
         break
-        
+
       case 'symbion/notes/response@v1':
         this.handleNotesResponse(payload)
         break
-        
+
+      // Nouveaux topics dashboard
+      case 'symbion/dashboard/context@v1':
+        this.handleDashboardContext(payload)
+        break
+
+      case 'symbion/dashboard/agents@v1':
+        this.handleDashboardAgents(payload)
+        break
+
+      case 'symbion/dashboard/health@v1':
+        this.handleDashboardHealth(payload)
+        break
+
+      case 'symbion/dashboard/notes@v1':
+        this.handleDashboardNotes(payload)
+        break
+
+      case 'symbion/dashboard/stats@v1':
+        this.handleDashboardStats(payload)
+        break
+
+      case 'symbion/dashboard/pattern@v1':
+        this.handleDashboardPattern(payload)
+        break
+
       default:
         console.log(`🤷 Unhandled topic: ${topic}`)
     }
@@ -180,7 +204,63 @@ class MqttService extends LitElement {
       bubbles: true
     }))
   }
-  
+
+  // === Handlers Dashboard Events ===
+
+  handleDashboardContext(context) {
+    console.log('📨 Dashboard context update:', context)
+    this.dispatchEvent(new CustomEvent('dashboard-context', {
+      detail: { context },
+      bubbles: true,
+      composed: true
+    }))
+  }
+
+  handleDashboardAgents(agents) {
+    console.log('📨 Dashboard agents update:', agents)
+    this.dispatchEvent(new CustomEvent('dashboard-agents', {
+      detail: { agents },
+      bubbles: true,
+      composed: true
+    }))
+  }
+
+  handleDashboardHealth(health) {
+    console.log('📨 Dashboard health update:', health)
+    this.dispatchEvent(new CustomEvent('dashboard-health', {
+      detail: { health },
+      bubbles: true,
+      composed: true
+    }))
+  }
+
+  handleDashboardNotes(note) {
+    console.log('📨 Dashboard note created:', note)
+    this.dispatchEvent(new CustomEvent('dashboard-note-created', {
+      detail: { note },
+      bubbles: true,
+      composed: true
+    }))
+  }
+
+  handleDashboardStats(stats) {
+    console.log('📨 Dashboard stats update:', stats)
+    this.dispatchEvent(new CustomEvent('dashboard-stats', {
+      detail: { stats },
+      bubbles: true,
+      composed: true
+    }))
+  }
+
+  handleDashboardPattern(pattern) {
+    console.log('📨 Dashboard pattern detected:', pattern)
+    this.dispatchEvent(new CustomEvent('dashboard-pattern', {
+      detail: { pattern },
+      bubbles: true,
+      composed: true
+    }))
+  }
+
   updateStatus(status) {
     this.status = status
     this.dispatchEvent(new CustomEvent('status-change', {

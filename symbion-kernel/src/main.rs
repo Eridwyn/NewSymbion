@@ -22,6 +22,7 @@ mod notes_bridge;
 mod agents;
 mod auth;
 mod context;
+mod dashboard_events;
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -120,7 +121,11 @@ async fn main() {
         }
     };
 
-    // Bridge notes pour API /ports/memo → plugin via MQTT  
+    // Dashboard event publisher pour événements temps réel
+    let dashboard_events = dashboard_events::DashboardEventPublisher::new(mqtt_client.clone());
+    println!("[kernel] initialized dashboard event publisher");
+
+    // Bridge notes pour API /ports/memo → plugin via MQTT
     let notes_bridge: Option<SharedNotesBridge> = Some(Arc::new(NotesBridge::new(mqtt_client.clone())));
 
     // Agent registry avec persistance et MQTT
@@ -131,7 +136,7 @@ async fn main() {
     let agents: SharedAgentRegistry = Arc::new(agent_registry);
 
     // MQTT remplit les states + agents
-    mqtt::spawn_mqtt_listener(states.clone(), cfg.clone(), notes_bridge.clone(), Some(agents.clone()), Some(health_tracker.clone()));
+    mqtt::spawn_mqtt_listener(states.clone(), cfg.clone(), notes_bridge.clone(), Some(agents.clone()), Some(health_tracker.clone()), Some(dashboard_events.clone()));
 
     // démarre le healthcheck périodique des plugins
     plugins::spawn_plugin_health_monitor(plugins.clone());
@@ -140,10 +145,10 @@ async fn main() {
     AgentRegistry::start_agent_monitoring(agents.clone(), 2);
 
     // démarre la publication auto du health
-    health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), agents.clone(), plugins.clone());
+    health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), agents.clone(), plugins.clone(), dashboard_events.clone());
 
     // démarre le monitoring contextuel (détection mode toutes les 30s)
-    context::ContextEngine::spawn_context_monitor(context_engine.clone(), agents.clone(), mqtt_client.clone());
+    context::ContextEngine::spawn_context_monitor(context_engine.clone(), agents.clone(), mqtt_client.clone(), dashboard_events.clone());
 
     // fabrique l'état unique pour Axum
     let app_state = AppState {
@@ -157,6 +162,7 @@ async fn main() {
         notes_bridge,
         agents: agents.clone(),
         context_engine: context_engine.clone(),
+        dashboard_events,
     };
 
     // HTTPS avec TLS

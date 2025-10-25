@@ -182,6 +182,7 @@ impl HealthTracker {
         contracts: ContractRegistry,
         agents: crate::agents::SharedAgentRegistry,
         plugins: Shared<crate::plugins::PluginManager>,
+        dashboard_events: crate::dashboard_events::DashboardEventPublisher,
     ) {
         let health_tracker = self.clone();
         
@@ -209,8 +210,13 @@ impl HealthTracker {
                             if let Err(e) = client.publish("symbion/kernel/health@v1", QoS::AtLeastOnce, false, payload).await {
                                 eprintln!("[health] failed to publish: {:?}", e);
                             } else {
-                                println!("[health] published kernel health (uptime: {}s, agents: {})", 
+                                println!("[health] published kernel health (uptime: {}s, agents: {})",
                                         health.uptime_seconds, health.agents_count);
+
+                                // Publier également sur dashboard topic
+                                if let Err(e) = dashboard_events.publish_system_health(&health).await {
+                                    eprintln!("[health] failed to publish to dashboard: {}", e);
+                                }
                             }
                         }
                     },

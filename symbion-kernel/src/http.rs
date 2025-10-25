@@ -124,6 +124,7 @@ pub struct AppState {
     pub notes_bridge: Option<SharedNotesBridge>,
     pub agents: crate::agents::SharedAgentRegistry,
     pub context_engine: std::sync::Arc<crate::context::ContextEngine>,
+    pub dashboard_events: crate::dashboard_events::DashboardEventPublisher,
 }
 
 #[derive(Debug, Deserialize)]
