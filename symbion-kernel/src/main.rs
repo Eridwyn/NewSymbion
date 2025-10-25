@@ -21,6 +21,7 @@ mod plugins;
 mod notes_bridge;
 mod agents;
 mod auth;
+mod context;
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -33,6 +34,7 @@ use crate::plugins::PluginManager;
 use crate::notes_bridge::{NotesBridge, SharedNotesBridge};
 use crate::agents::{AgentRegistry, SharedAgentRegistry};
 use crate::auth::AuthManager;
+use crate::context::ContextEngine;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -62,6 +64,10 @@ async fn main() {
 
     // health tracker
     let health_tracker = HealthTracker::new();
+
+    // context engine
+    let context_engine = Arc::new(ContextEngine::new());
+    println!("[kernel] initialized context engine");
 
     // auth manager
     let auth_manager = match AuthManager::new() {
@@ -136,6 +142,9 @@ async fn main() {
     // démarre la publication auto du health
     health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), agents.clone(), plugins.clone());
 
+    // démarre le monitoring contextuel (détection mode toutes les 30s)
+    context::ContextEngine::spawn_context_monitor(context_engine.clone(), agents.clone(), mqtt_client.clone());
+
     // fabrique l'état unique pour Axum
     let app_state = AppState {
         states,
@@ -146,7 +155,8 @@ async fn main() {
         ports,
         plugins,
         notes_bridge,
-        agents
+        agents: agents.clone(),
+        context_engine: context_engine.clone(),
     };
 
     // HTTPS avec TLS
