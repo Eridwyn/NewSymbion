@@ -1,11 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
+use std::path::PathBuf;
+use std::collections::HashMap;
 use crate::agents::{Agent, SharedAgentRegistry};
 use rumqttc::AsyncClient;
 use time::OffsetDateTime;
 
 /// Mode contextuel de Symbion
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Mode {
     /// Mode professionnel (bureau, travail)
@@ -83,13 +85,81 @@ pub struct ManualOverride {
     pub reason: String,
 }
 
+/// Entrée d'historique de changement de mode
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModeHistoryEntry {
+    pub mode: Mode,
+    #[serde(with = "time::serde::rfc3339")]
+    pub timestamp: OffsetDateTime,
+    pub reason: String,
+    pub was_manual: bool,
+}
+
+/// Pattern détecté dans les changements de mode
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DetectedPattern {
+    pub mode: Mode,
+    pub day_of_week: u8, // 1=lundi, 7=dimanche
+    pub hour: u8,
+    pub occurrences: u32,
+    pub confidence: f32,
+    pub last_seen: String,
+}
+
+/// Statistiques par mode
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModeStats {
+    pub mode: Mode,
+    pub total_duration_minutes: i64,
+    pub entry_count: u32,
+    pub percentage: f32,
+}
+
+/// Métriques de productivité par mode
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProductivityMetrics {
+    pub mode: Mode,
+    pub notes_created: u32,
+    pub sessions_count: u32,
+    pub avg_session_duration_minutes: i64,
+}
+
 /// Moteur de détection contextuelle
 pub struct ContextEngine {
     state: Arc<Mutex<ContextState>>,
+    history: Arc<Mutex<Vec<ModeHistoryEntry>>>,
+    history_path: PathBuf,
 }
 
 impl ContextEngine {
     pub fn new() -> Self {
+        let history_path = PathBuf::from("context-history.json");
+
+        // Charger l'historique depuis le fichier s'il existe
+        let history = if history_path.exists() {
+            match std::fs::read_to_string(&history_path) {
+                Ok(content) => {
+                    match serde_json::from_str::<Vec<ModeHistoryEntry>>(&content) {
+                        Ok(h) => {
+                            println!("[context] Loaded {} history entries from file", h.len());
+                            h
+                        }
+                        Err(e) => {
+                            eprintln!("[context] Failed to parse history file: {}", e);
+                            Vec::new()
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[context] Failed to read history file: {}", e);
+                    Vec::new()
+                }
+            }
+        } else {
+            println!("[context] No history file found, starting fresh");
+            Vec::new()
+        };
+
         let initial_state = ContextState {
             mode: Mode::Neutre,
             changed_at: OffsetDateTime::now_utc(),
@@ -101,6 +171,8 @@ impl ContextEngine {
 
         Self {
             state: Arc::new(Mutex::new(initial_state)),
+            history: Arc::new(Mutex::new(history)),
+            history_path,
         }
     }
 
@@ -173,11 +245,19 @@ impl ContextEngine {
 
             state.mode = new_mode;
             state.changed_at = OffsetDateTime::now_utc();
-            state.reason = reason;
+            state.reason = reason.clone();
             state.confidence = confidence;
             state.theme = new_mode.theme();
 
-            Some(state.clone())
+            let result = state.clone();
+
+            // Libérer le lock avant d'appeler add_to_history
+            drop(state);
+
+            // Ajouter à l'historique
+            self.add_to_history(new_mode, reason, false);
+
+            Some(result)
         } else {
             None
         }
@@ -186,6 +266,32 @@ impl ContextEngine {
     /// Récupère l'état actuel
     pub fn get_state(&self) -> Option<ContextState> {
         self.state.lock().ok().map(|s| s.clone())
+    }
+
+    /// Ajoute une entrée à l'historique et sauvegarde
+    fn add_to_history(&self, mode: Mode, reason: String, was_manual: bool) {
+        if let Ok(mut history) = self.history.lock() {
+            let entry = ModeHistoryEntry {
+                mode,
+                timestamp: OffsetDateTime::now_utc(),
+                reason,
+                was_manual,
+            };
+
+            history.push(entry);
+
+            // Sauvegarder l'historique sur disque
+            if let Ok(json) = serde_json::to_string_pretty(&*history) {
+                if let Err(e) = std::fs::write(&self.history_path, json) {
+                    eprintln!("[context] Failed to save history: {}", e);
+                }
+            }
+        }
+    }
+
+    /// Récupère l'historique complet
+    pub fn get_history(&self) -> Vec<ModeHistoryEntry> {
+        self.history.lock().ok().map(|h| h.clone()).unwrap_or_default()
     }
 
     /// Force un mode manuellement (override temporaire)
@@ -199,7 +305,8 @@ impl ContextEngine {
 
         state.mode = mode;
         state.changed_at = OffsetDateTime::now_utc();
-        state.reason = format!("Override manuel: {}", reason);
+        let full_reason = format!("Override manuel: {}", reason);
+        state.reason = full_reason.clone();
         state.confidence = 1.0;
         state.theme = mode.theme();
         state.manual_override = Some(ManualOverride {
@@ -208,7 +315,15 @@ impl ContextEngine {
             reason,
         });
 
-        Some(state.clone())
+        let result = state.clone();
+
+        // Libérer le lock avant d'appeler add_to_history
+        drop(state);
+
+        // Ajouter à l'historique (marqué comme manuel)
+        self.add_to_history(mode, full_reason, true);
+
+        Some(result)
     }
 
     /// Annule l'override manuel
@@ -232,6 +347,200 @@ impl ContextEngine {
         } else {
             None
         }
+    }
+
+    /// Calcule les statistiques d'utilisation par mode
+    pub fn calculate_stats(&self) -> Vec<ModeStats> {
+        let history = self.get_history();
+        if history.is_empty() {
+            return Vec::new();
+        }
+
+        // Calculer le temps total par mode
+        let mut mode_durations: HashMap<Mode, i64> = HashMap::new();
+        let mut mode_counts: HashMap<Mode, u32> = HashMap::new();
+
+        // Parcourir l'historique par paires pour calculer les durées
+        for i in 0..history.len() {
+            let entry = &history[i];
+            let next_timestamp = if i + 1 < history.len() {
+                history[i + 1].timestamp
+            } else {
+                OffsetDateTime::now_utc()
+            };
+
+            let duration = (next_timestamp - entry.timestamp).whole_minutes();
+            *mode_durations.entry(entry.mode).or_insert(0) += duration;
+            *mode_counts.entry(entry.mode).or_insert(0) += 1;
+        }
+
+        let total_duration: i64 = mode_durations.values().sum();
+
+        // Créer les stats pour chaque mode
+        let mut stats: Vec<ModeStats> = mode_durations
+            .iter()
+            .map(|(mode, duration)| ModeStats {
+                mode: *mode,
+                total_duration_minutes: *duration,
+                entry_count: *mode_counts.get(mode).unwrap_or(&0),
+                percentage: if total_duration > 0 {
+                    (*duration as f32 / total_duration as f32) * 100.0
+                } else {
+                    0.0
+                },
+            })
+            .collect();
+
+        stats.sort_by(|a, b| b.total_duration_minutes.cmp(&a.total_duration_minutes));
+        stats
+    }
+
+    /// Détecte les patterns récurrents dans les changements de mode manuels
+    pub fn detect_patterns(&self) -> Vec<DetectedPattern> {
+        let history = self.get_history();
+
+        // Ne considérer que les changements manuels
+        let manual_changes: Vec<&ModeHistoryEntry> = history
+            .iter()
+            .filter(|entry| entry.was_manual)
+            .collect();
+
+        if manual_changes.len() < 2 {
+            return Vec::new();
+        }
+
+        // Grouper par (mode, jour de la semaine, heure)
+        let mut pattern_map: HashMap<(Mode, u8, u8), Vec<String>> = HashMap::new();
+
+        for entry in manual_changes {
+            let weekday = entry.timestamp.weekday().number_from_monday();
+            let hour = entry.timestamp.hour();
+            let key = (entry.mode, weekday, hour);
+
+            pattern_map
+                .entry(key)
+                .or_insert_with(Vec::new)
+                .push(entry.timestamp.to_string());
+        }
+
+        // Créer les patterns détectés (au moins 2 occurrences)
+        let mut patterns: Vec<DetectedPattern> = pattern_map
+            .iter()
+            .filter(|(_, occurrences)| occurrences.len() >= 2)
+            .map(|((mode, day, hour), timestamps)| {
+                let count = timestamps.len() as u32;
+                // Confiance basée sur le nombre d'occurrences (max 1.0)
+                let confidence = (count as f32 / 10.0).min(1.0);
+
+                DetectedPattern {
+                    mode: *mode,
+                    day_of_week: *day,
+                    hour: *hour,
+                    occurrences: count,
+                    confidence,
+                    last_seen: timestamps.last().cloned().unwrap_or_default(),
+                }
+            })
+            .collect();
+
+        // Trier par confiance décroissante
+        patterns.sort_by(|a, b| {
+            b.confidence
+                .partial_cmp(&a.confidence)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        patterns
+    }
+
+    /// Calcule les métriques de productivité par mode
+    pub fn calculate_productivity(&self) -> Vec<ProductivityMetrics> {
+        let history = self.get_history();
+        if history.is_empty() {
+            return Vec::new();
+        }
+
+        // Lire les notes depuis le fichier JSON
+        let notes_path = PathBuf::from("notes.json");
+        let notes: Vec<serde_json::Value> = if notes_path.exists() {
+            match std::fs::read_to_string(&notes_path) {
+                Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
+                Err(_) => Vec::new(),
+            }
+        } else {
+            Vec::new()
+        };
+
+        // Mapper contexte → mode (case-insensitive)
+        let context_to_mode = |context: &str| -> Option<Mode> {
+            let ctx = context.to_lowercase();
+            if ctx.contains("cravate") || ctx.contains("bureau") || ctx.contains("travail") || ctx.contains("pro") {
+                Some(Mode::Cravate)
+            } else if ctx.contains("intime") || ctx.contains("maison") || ctx.contains("home") {
+                Some(Mode::Intime)
+            } else if ctx.contains("neutre") || ctx.contains("veille") || ctx.contains("neutral") {
+                Some(Mode::Neutre)
+            } else {
+                None
+            }
+        };
+
+        // Compter les notes par mode
+        let mut notes_by_mode: HashMap<Mode, u32> = HashMap::new();
+        for note in &notes {
+            if let Some(context) = note.get("data")
+                .and_then(|d| d.get("context"))
+                .and_then(|c| c.as_str()) {
+                if let Some(mode) = context_to_mode(context) {
+                    *notes_by_mode.entry(mode).or_insert(0) += 1;
+                }
+            }
+        }
+
+        // Compter les sessions (changements de mode) par mode
+        let mut sessions_by_mode: HashMap<Mode, u32> = HashMap::new();
+        for entry in &history {
+            *sessions_by_mode.entry(entry.mode).or_insert(0) += 1;
+        }
+
+        // Calculer durée moyenne par session
+        let mut mode_durations: HashMap<Mode, i64> = HashMap::new();
+        for i in 0..history.len() {
+            let entry = &history[i];
+            let next_timestamp = if i + 1 < history.len() {
+                history[i + 1].timestamp
+            } else {
+                OffsetDateTime::now_utc()
+            };
+
+            let duration = (next_timestamp - entry.timestamp).whole_minutes();
+            *mode_durations.entry(entry.mode).or_insert(0) += duration;
+        }
+
+        // Créer les métriques pour chaque mode
+        let mut metrics: Vec<ProductivityMetrics> = vec![Mode::Cravate, Mode::Intime, Mode::Neutre]
+            .into_iter()
+            .map(|mode| {
+                let notes_count = *notes_by_mode.get(&mode).unwrap_or(&0);
+                let sessions_count = *sessions_by_mode.get(&mode).unwrap_or(&0);
+                let total_duration = *mode_durations.get(&mode).unwrap_or(&0);
+                let avg_duration = if sessions_count > 0 {
+                    total_duration / sessions_count as i64
+                } else {
+                    0
+                };
+
+                ProductivityMetrics {
+                    mode,
+                    notes_created: notes_count,
+                    sessions_count,
+                    avg_session_duration_minutes: avg_duration,
+                }
+            })
+            .collect();
+
+        metrics.sort_by(|a, b| b.notes_created.cmp(&a.notes_created));
+        metrics
     }
 
     /// Démarre la tâche périodique de détection contextuelle

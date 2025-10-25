@@ -58,10 +58,12 @@ class ContextService extends LitElement {
 
         console.log(`[context-service] Mode: ${context.mode} (${context.reason})`)
 
-        // Notify theme change if mode changed
+        // Apply theme (always, even on first load)
+        this.applyTheme(context.theme)
+
+        // Notify mode change only if it actually changed
         if (previousMode !== this.currentMode) {
           console.log(`[context-service] Mode changed: ${previousMode} → ${this.currentMode}`)
-          this.applyTheme(context.theme)
           this.notifyModeChange(context)
         }
       }

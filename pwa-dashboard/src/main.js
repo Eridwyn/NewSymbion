@@ -81,8 +81,23 @@ const startApp = () => {
   const container = document.getElementById('app')
 
   if (container) {
+    // Create and append services to the main document (not shadow DOM)
+    // These are hidden and used by widgets via document.querySelector()
+    const apiService = document.createElement('api-service')
+    apiService.style.display = 'none'
+    const mqttService = document.createElement('mqtt-service')
+    mqttService.style.display = 'none'
+    const contextService = document.createElement('context-service')
+    contextService.style.display = 'none'
+    const agentsService = document.createElement('agents-service')
+    agentsService.style.display = 'none'
+
+    container.appendChild(apiService)
+    container.appendChild(mqttService)
+    container.appendChild(contextService)
+    container.appendChild(agentsService)
     container.appendChild(app)
-    console.log('[app] Boot terminal mounted')
+    console.log('[app] Boot terminal mounted with services')
   }
 }
 
