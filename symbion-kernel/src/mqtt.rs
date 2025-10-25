@@ -122,10 +122,14 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                 } else if p.topic == "symbion/agents/registration@v1" {
                     if let Some(ref agent_registry) = agents {
                         if let Ok(txt) = String::from_utf8(p.payload.to_vec()) {
+                            println!("[kernel] received registration MQTT: {}", txt);
                             match serde_json::from_str::<AgentRegistrationMessage>(&txt) {
                                 Ok(registration) => {
+                                    println!("[kernel] registration parsed for agent: {}", registration.agent_id);
                                     if let Err(e) = agent_registry.handle_agent_registration(registration).await {
                                         eprintln!("[kernel] failed to handle agent registration: {}", e);
+                                    } else {
+                                        println!("[kernel] registration handled successfully");
                                     }
                                 }
                                 Err(e) => eprintln!("[kernel] agent registration JSON invalide: {txt}, error: {}", e),
@@ -135,10 +139,14 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                 } else if p.topic == "symbion/agents/heartbeat@v1" {
                     if let Some(ref agent_registry) = agents {
                         if let Ok(txt) = String::from_utf8(p.payload.to_vec()) {
+                            println!("[kernel] received heartbeat MQTT: {}", txt);
                             match serde_json::from_str::<AgentHeartbeatMessage>(&txt) {
                                 Ok(heartbeat) => {
+                                    println!("[kernel] heartbeat parsed for agent: {}", heartbeat.agent_id);
                                     if let Err(e) = agent_registry.handle_agent_heartbeat(heartbeat).await {
                                         eprintln!("[kernel] failed to handle agent heartbeat: {}", e);
+                                    } else {
+                                        println!("[kernel] heartbeat handled successfully");
                                     }
                                 }
                                 Err(e) => eprintln!("[kernel] agent heartbeat JSON invalide: {txt}, error: {}", e),

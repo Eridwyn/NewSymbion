@@ -1,11 +1,12 @@
 /**
  * Service API Symbion
- * 
+ *
  * Interface avec l'API REST du kernel Symbion
  * Gère l'authentification et les erreurs automatiquement
  */
 
 import { LitElement } from 'lit'
+import authService from './auth-service.js'
 
 class ApiService extends LitElement {
   static properties = {
@@ -25,7 +26,7 @@ class ApiService extends LitElement {
   // Lazy getters pour résoudre la config au moment de l'utilisation
   get baseUrl() {
     if (!this._baseUrl) {
-      this._baseUrl = window.SYMBION_CONFIG?.API_BASE || 'http://localhost:8080'
+      this._baseUrl = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
     }
     return this._baseUrl
   }
@@ -76,10 +77,15 @@ class ApiService extends LitElement {
   
   async request(endpoint, options = {}) {
     const url = `${this.baseUrl}${endpoint}`
+
+    // Inclure le token JWT si l'utilisateur est authentifié
+    const authHeader = authService.getAuthHeader()
+
     const config = {
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': this.apiKey,
+        ...authHeader,  // Ajoute Authorization: Bearer {token} si présent
         ...options.headers
       },
       ...options
@@ -87,6 +93,7 @@ class ApiService extends LitElement {
 
     console.log(`[api-service] request: ${options.method || 'GET'} ${url}`)
     console.log(`[api-service] baseUrl: ${this.baseUrl}`)
+    console.log(`[api-service] auth header:`, authHeader)
     console.log(`[api-service] config:`, config)
 
     try {

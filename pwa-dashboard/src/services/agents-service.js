@@ -63,9 +63,23 @@ class AgentsService extends LitElement {
   // ===== Power Management =====
   
   async shutdownAgent(agentId) {
-    return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/shutdown`, {
-      method: 'POST'
-    })
+    console.log(`[agents-service] shutdownAgent called: agentId=${agentId}`)
+    console.log(`[agents-service] apiService:`, this.apiService)
+    console.log(`[agents-service] apiService.baseUrl:`, this.apiService?.baseUrl)
+
+    const endpoint = `/agents/${encodeURIComponent(agentId)}/shutdown`
+    console.log(`[agents-service] Calling request: ${endpoint}`)
+
+    try {
+      const result = await this.apiService.request(endpoint, {
+        method: 'POST'
+      })
+      console.log(`[agents-service] Shutdown result:`, result)
+      return result
+    } catch (error) {
+      console.error(`[agents-service] Shutdown error:`, error)
+      throw error
+    }
   }
   
   async rebootAgent(agentId) {

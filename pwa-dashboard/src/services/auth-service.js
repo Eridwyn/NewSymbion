@@ -9,7 +9,7 @@
  * - Events auth:login, auth:logout, auth:expired
  */
 
-const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'http://192.168.1.14:8080'
+const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
 const TOKEN_KEY = 'symbion_auth_token'
 const USER_KEY = 'symbion_user_info'
 

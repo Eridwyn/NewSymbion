@@ -37,7 +37,6 @@ use crate::auth::AuthManager;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() {
@@ -150,11 +149,33 @@ async fn main() {
         agents
     };
 
-    // HTTP
+    // HTTPS avec TLS
     let app = http::build_router(app_state);
 
-    let addr = SocketAddr::from(([0,0,0,0], 8080));
-    println!("[kernel] listening on http://{addr}");
-    let listener = TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    // Charger certificats TLS depuis variables d'environnement
+    let cert_path = std::env::var("SYMBION_TLS_CERT_PATH")
+        .unwrap_or_else(|_| "symbion-kernel/certs/cert.pem".to_string());
+    let key_path = std::env::var("SYMBION_TLS_KEY_PATH")
+        .unwrap_or_else(|_| "symbion-kernel/certs/key.pem".to_string());
+
+    let port: u16 = std::env::var("SYMBION_HTTPS_PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(8443);
+
+    let addr = SocketAddr::from(([0,0,0,0], port));
+
+    // Configuration TLS avec rustls
+    let config = axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert_path, &key_path)
+        .await
+        .expect(&format!("Failed to load TLS certificates from {} and {}", cert_path, key_path));
+
+    println!("[kernel] 🔒 HTTPS enabled - listening on https://{}", addr);
+    println!("[kernel] TLS cert: {}", cert_path);
+    println!("[kernel] TLS key: {}", key_path);
+
+    axum_server::bind_rustls(addr, config)
+        .serve(app.into_make_service())
+        .await
+        .unwrap();
 }

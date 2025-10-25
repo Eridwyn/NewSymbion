@@ -124,20 +124,34 @@ impl HealthTracker {
         let contracts_count = contracts.list_contracts().len() as u32;
         let agents_count = agents.agents_count();
         let memory_mb = get_memory_usage_mb();
-        let mqtt_status = self.mqtt_status.lock().clone();
+
+        // Clone immédiatement pour libérer le lock rapidement
+        let mqtt_status = {
+            let status = self.mqtt_status.lock();
+            status.clone()
+        }; // Lock libéré immédiatement
+
         let reconnects = self.mqtt_reconnects.load(Ordering::Relaxed);
         let total_messages = self.mqtt_message_counter.load(Ordering::Relaxed);
-        
-        // Calculer messages par minute
+
+        // Calculer messages par minute - Clone snapshot pour libérer lock rapidement
         let now = Instant::now();
-        let timestamps = self.message_timestamps.lock();
-        let recent_messages = timestamps.iter()
+        let timestamps_snapshot = {
+            let timestamps = self.message_timestamps.lock();
+            timestamps.clone()
+        }; // Lock libéré immédiatement
+
+        let recent_messages = timestamps_snapshot.iter()
             .filter(|t| now.duration_since(**t).as_secs() < 60)
             .count();
         let messages_per_minute = recent_messages as f32;
 
-        // Statistiques des plugins
-        let plugin_infos = plugins.lock().list_plugins();
+        // Statistiques des plugins - Clone snapshot pour libérer lock rapidement
+        let plugin_infos = {
+            let plugins_guard = plugins.lock();
+            plugins_guard.list_plugins()
+        }; // Lock libéré immédiatement
+
         let plugins_total = plugin_infos.len() as u32;
         let plugins_active = plugin_infos.iter()
             .filter(|p| matches!(p.status, crate::plugins::PluginStatus::Running))

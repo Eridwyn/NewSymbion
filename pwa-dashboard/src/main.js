@@ -17,7 +17,7 @@ console.log('🚀 Starting Symbion Dashboard v0.1.0')
 
 // Configuration globale
 window.SYMBION_CONFIG = {
-  API_BASE: 'http://192.168.1.14:8080',  // IP locale du PC (accessible depuis téléphone)
+  API_BASE: 'https://192.168.1.14:8443',  // IP locale du PC (accessible depuis téléphone) - HTTPS
   MQTT_BROKER: '192.168.1.14',
   MQTT_PORT: 9001, // WebSocket port
   VERSION: '0.1.0',
