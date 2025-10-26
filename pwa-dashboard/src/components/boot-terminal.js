@@ -134,6 +134,84 @@ class BootTerminal extends LitElement {
       text-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
     }
 
+    /* Boutons d'action dans le terminal */
+    .cert-setup-box {
+      margin: 1.5rem 0;
+      padding: 1.5rem;
+      border: 2px solid #00ff9f;
+      border-radius: 8px;
+      background: rgba(0, 255, 159, 0.05);
+      box-shadow: 0 0 20px rgba(0, 255, 159, 0.2);
+    }
+
+    .cert-download-btn {
+      display: inline-block;
+      margin: 1rem 0;
+      padding: 1rem 2rem;
+      background: linear-gradient(135deg, #00ff9f 0%, #00d4aa 100%);
+      color: #0a0a0a;
+      font-weight: 700;
+      font-size: 1.1rem;
+      text-decoration: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0, 255, 159, 0.4);
+      text-shadow: none;
+    }
+
+    .cert-download-btn:hover {
+      background: linear-gradient(135deg, #00d4aa 0%, #00ff9f 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 255, 159, 0.6);
+    }
+
+    .retry-btn {
+      display: inline-block;
+      margin: 1rem 0.5rem;
+      padding: 0.8rem 1.5rem;
+      background: rgba(95, 39, 205, 0.8);
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 1rem;
+      text-decoration: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(95, 39, 205, 0.4);
+      border: none;
+    }
+
+    .retry-btn:hover:not(:disabled) {
+      background: rgba(95, 39, 205, 1);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(95, 39, 205, 0.6);
+    }
+
+    .retry-btn:disabled {
+      background: rgba(95, 39, 205, 0.3);
+      color: rgba(255, 255, 255, 0.5);
+      cursor: not-allowed;
+      box-shadow: 0 2px 8px rgba(95, 39, 205, 0.2);
+    }
+
+    .step {
+      color: #ffa502;
+      font-weight: 600;
+      margin-top: 0.5rem;
+    }
+
+    .platform-badge {
+      display: inline-block;
+      padding: 0.3rem 0.8rem;
+      background: rgba(255, 165, 2, 0.2);
+      border: 1px solid #ffa502;
+      border-radius: 4px;
+      color: #ffa502;
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
+
     .cursor {
       display: inline-block;
       width: 10px;
@@ -241,7 +319,12 @@ class BootTerminal extends LitElement {
     loginStep: { type: String }, // 'username', 'password'
     username: { type: String },
     password: { type: String },
-    error: { type: String }
+    error: { type: String },
+    showCertificateUI: { type: Boolean },
+    certUrl: { type: String },
+    platform: { type: String },
+    certVerifying: { type: Boolean },
+    certInstalled: { type: Boolean }
   }
 
   constructor() {
@@ -252,6 +335,11 @@ class BootTerminal extends LitElement {
     this.username = ''
     this.password = ''
     this.error = null
+    this.showCertificateUI = false
+    this.certUrl = ''
+    this.platform = ''
+    this.certVerifying = false
+    this.certInstalled = false
   }
 
   connectedCallback() {
@@ -271,103 +359,107 @@ class BootTerminal extends LitElement {
     this.addLine('', 'logo')
     await this.delay(200)
 
-    this.addLine('[kernel] Initializing neural cortex...')
+    this.addLine('[kernel] Initialisation du cortex neural...')
     await this.delay(100)
 
     // Vérification connexion kernel (CRITIQUE)
     const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
-    const kernelLoadingIdx = this.addLoadingLine(`[kernel] Connecting to ${API_BASE}`)
+    const kernelLoadingIdx = this.addLoadingLine(`[kernel] Connexion à ${API_BASE}`)
     const kernelOk = await this.checkKernel()
     this.updateLine(
       kernelLoadingIdx,
-      kernelOk ? '[kernel] ✓ Connected' : '[kernel] ✗ Connection failed',
+      kernelOk ? '[kernel] ✓ Connecté' : '[kernel] ✗ Échec de connexion',
       kernelOk ? 'success' : 'error'
     )
 
     // ARRÊT IMMÉDIAT si kernel inaccessible
     if (!kernelOk) {
       await this.delay(200)
-      this.addLine('[error] Cannot proceed without kernel connection', 'error')
-      this.addLine('[error] Please check that symbion-kernel is running', 'warning')
+      this.addLine('[error] Impossible de continuer sans connexion au kernel', 'error')
+      this.addLine('[error] Vérifiez que symbion-kernel est démarré', 'warning')
+      await this.delay(300)
+
+      // Afficher l'interface d'installation du certificat
+      this.showCertificateSetup()
       return
     }
 
     await this.delay(150)
 
     // MQTT
-    const mqttLoadingIdx = this.addLoadingLine('[mqtt] Establishing message bus')
+    const mqttLoadingIdx = this.addLoadingLine('[mqtt] Établissement du bus de messages')
     await this.delay(150)
-    this.updateLine(mqttLoadingIdx, '[mqtt] ✓ Connected', 'success')
+    this.updateLine(mqttLoadingIdx, '[mqtt] ✓ Connecté', 'success')
     await this.delay(100)
 
     // Plugins
-    const pluginsLoadingIdx = this.addLoadingLine('[plugins] Loading modules')
+    const pluginsLoadingIdx = this.addLoadingLine('[plugins] Chargement des modules')
     await this.delay(100)
-    this.updateLine(pluginsLoadingIdx, '[plugins] ✓ memory-extension (notes) active', 'success')
+    this.updateLine(pluginsLoadingIdx, '[plugins] ✓ mémoire-externe (notes) actif', 'success')
     await this.delay(100)
 
     // Agents
-    const agentsLoadingIdx = this.addLoadingLine('[agents] Scanning network for agents')
+    const agentsLoadingIdx = this.addLoadingLine('[agents] Scan réseau à la recherche d\'agents')
     const agents = await this.checkAgents()
-    this.updateLine(agentsLoadingIdx, `[agents] ✓ Found ${agents} agent(s)`, 'success')
+    this.updateLine(agentsLoadingIdx, `[agents] ✓ Trouvé ${agents} agent(s)`, 'success')
     await this.delay(150)
 
     // Services registration
-    const servicesLoadingIdx = this.addLoadingLine('[services] Registering service layer')
+    const servicesLoadingIdx = this.addLoadingLine('[services] Enregistrement de la couche de services')
     await this.delay(100)
     const services = this.checkServices()
-    this.updateLine(servicesLoadingIdx, `[services] ✓ ${services.length} services active (${services.join(', ')})`, 'success')
+    this.updateLine(servicesLoadingIdx, `[services] ✓ ${services.length} services actifs (${services.join(', ')})`, 'success')
     await this.delay(100)
 
     // Context detection
-    const contextLoadingIdx = this.addLoadingLine('[context] Detecting current mode')
+    const contextLoadingIdx = this.addLoadingLine('[context] Détection du mode actuel')
     const context = await this.checkContext()
     if (context) {
       this.updateLine(contextLoadingIdx, `[context] ✓ Mode: ${context.mode} (${context.reason})`, 'success')
       await this.delay(100)
 
       // Theme application
-      const themeLoadingIdx = this.addLoadingLine('[theme] Applying contextual theme')
+      const themeLoadingIdx = this.addLoadingLine('[theme] Application du thème contextuel')
       await this.delay(80)
-      this.updateLine(themeLoadingIdx, `[theme] ✓ ${context.theme?.name || 'default'} theme activated`, 'success')
+      this.updateLine(themeLoadingIdx, `[theme] ✓ Thème ${context.theme?.name || 'par défaut'} activé`, 'success')
       await this.delay(100)
     } else {
-      this.updateLine(contextLoadingIdx, '[context] Mode: neutre (default)', 'warning')
+      this.updateLine(contextLoadingIdx, '[context] Mode: neutre (par défaut)', 'warning')
       await this.delay(100)
     }
 
     // Statistics tracking
-    const statsLoadingIdx = this.addLoadingLine('[analytics] Initializing statistics tracking')
+    const statsLoadingIdx = this.addLoadingLine('[analytics] Initialisation du suivi statistique')
     await this.delay(80)
     const statsEnabled = await this.checkStats()
-    this.updateLine(statsLoadingIdx, statsEnabled ? '[analytics] ✓ Stats collection active' : '[analytics] Stats collection disabled', statsEnabled ? 'success' : 'warning')
+    this.updateLine(statsLoadingIdx, statsEnabled ? '[analytics] ✓ Collecte des stats active' : '[analytics] Collecte des stats désactivée', statsEnabled ? 'success' : 'warning')
     await this.delay(100)
 
     // Pattern learning
-    const patternsLoadingIdx = this.addLoadingLine('[learning] Activating pattern recognition')
+    const patternsLoadingIdx = this.addLoadingLine('[learning] Activation de la reconnaissance de patterns')
     await this.delay(80)
     const patternsEnabled = await this.checkPatterns()
-    this.updateLine(patternsLoadingIdx, patternsEnabled ? '[learning] ✓ Pattern learning active' : '[learning] Pattern learning disabled', patternsEnabled ? 'success' : 'warning')
+    this.updateLine(patternsLoadingIdx, patternsEnabled ? '[learning] ✓ Apprentissage de patterns actif' : '[learning] Apprentissage de patterns désactivé', patternsEnabled ? 'success' : 'warning')
     await this.delay(150)
 
     // Auth session check
-    const authLoadingIdx = this.addLoadingLine('[auth] Verifying session')
+    const authLoadingIdx = this.addLoadingLine('[auth] Vérification de la session')
     await this.delay(100)
 
     const hasSession = await this.verifySession()
     this.updateLine(
       authLoadingIdx,
-      hasSession ? '[auth] ✓ Session valid' : '[auth] No valid session found',
+      hasSession ? '[auth] ✓ Session valide' : '[auth] Aucune session valide trouvée',
       hasSession ? 'success' : 'warning'
     )
 
     if (hasSession) {
       await this.delay(50)
-      this.addLine(`[session] User '${authService.getCurrentUser().username}' authorized`, 'success')
+      this.addLine(`[session] Utilisateur '${authService.getCurrentUser().username}' autorisé`, 'success')
       await this.delay(50)
-      const dashLoadingIdx = this.addLoadingLine('[dashboard] Loading interface')
+      const dashLoadingIdx = this.addLoadingLine('[dashboard] Chargement de l\'interface')
       await this.delay(200)
-      this.updateLine(dashLoadingIdx, '[dashboard] ✓ Ready', 'success')
+      this.updateLine(dashLoadingIdx, '[dashboard] ✓ Prêt', 'success')
       await this.delay(100)
       this.phase = 'done'
       console.log('[boot] Dispatching boot-complete event (session valid)')
@@ -378,7 +470,7 @@ class BootTerminal extends LitElement {
       }))
     } else {
       await this.delay(100)
-      this.addLine('[auth] Session required', 'info')
+      this.addLine('[auth] Session requise', 'info')
       await this.delay(200)
 
       // Activer le skip après 3 secondes
@@ -518,6 +610,174 @@ class BootTerminal extends LitElement {
     return new Promise(resolve => setTimeout(resolve, ms))
   }
 
+  // Détecter la plateforme de l'utilisateur
+  detectPlatform() {
+    const userAgent = navigator.userAgent.toLowerCase()
+    if (userAgent.includes('windows')) return 'windows'
+    if (userAgent.includes('android')) return 'android'
+    if (userAgent.includes('iphone') || userAgent.includes('ipad')) return 'ios'
+    if (userAgent.includes('mac')) return 'macos'
+    if (userAgent.includes('linux')) return 'linux'
+    return 'unknown'
+  }
+
+  // Afficher l'interface d'installation du certificat
+  showCertificateSetup() {
+    const platform = this.detectPlatform()
+    const certUrl = `${window.SYMBION_CONFIG.API_BASE}/ca-certificate`
+
+    this.addLine('', '')
+    this.addLine('━'.repeat(60), 'info')
+    this.addLine('[setup] Première connexion détectée - Installation du certificat requise', 'info')
+    this.addLine('━'.repeat(60), 'info')
+    this.addLine('', '')
+
+    // Ajouter le conteneur HTML avec le bouton
+    this.showCertificateUI = true
+    this.certUrl = certUrl
+    this.platform = platform
+    this.certVerifying = false
+    this.certInstalled = false
+    this.requestUpdate()
+
+    // Ajouter les instructions spécifiques à la plateforme
+    this.addPlatformInstructions(platform)
+  }
+
+  // Instructions détaillées par plateforme
+  addPlatformInstructions(platform) {
+    this.addLine('', '')
+
+    switch (platform) {
+      case 'windows':
+        this.addLine('📝 WINDOWS - Instructions d\'installation :', 'step')
+        this.addLine('', '')
+        this.addLine('  1️⃣  Cliquez sur le bouton vert ci-dessus', 'info')
+        this.addLine('  2️⃣  Double-cliquez sur le fichier "symbion-ca.crt" téléchargé', 'info')
+        this.addLine('  3️⃣  Cliquez sur "Installer le certificat..."', 'info')
+        this.addLine('  4️⃣  Sélectionnez "Ordinateur local" → Suivant', 'info')
+        this.addLine('  5️⃣  Sélectionnez "Placer tous les certificats dans le magasin suivant"', 'info')
+        this.addLine('  6️⃣  Cliquez sur "Parcourir" → Sélectionnez "Autorités de certification racines de confiance"', 'info')
+        this.addLine('  7️⃣  Cliquez sur "Suivant" → "Terminer" → "Oui" pour confirmer', 'info')
+        this.addLine('  8️⃣  Cliquez sur le bouton réessayer ci-dessous', 'info')
+        break
+
+      case 'android':
+        this.addLine('📝 ANDROID - Instructions d\'installation :', 'step')
+        this.addLine('', '')
+        this.addLine('  1️⃣  Cliquez sur le bouton ci-dessus', 'info')
+        this.addLine('  2️⃣  Ouvrez Paramètres → Sécurité → Chiffrement et identifiants', 'info')
+        this.addLine('  3️⃣  Appuyez sur "Installer un certificat" → "Certificat CA"', 'info')
+        this.addLine('  4️⃣  Appuyez sur "Installer quand même" si averti', 'info')
+        this.addLine('  5️⃣  Sélectionnez le fichier "symbion-ca.crt" téléchargé', 'info')
+        this.addLine('  6️⃣  Nommez-le "Symbion CA" → OK', 'info')
+        this.addLine('  7️⃣  Cliquez sur le bouton réessayer ci-dessous', 'info')
+        break
+
+      case 'linux':
+        this.addLine('📝 LINUX - Instructions d\'installation :', 'step')
+        this.addLine('', '')
+        this.addLine('  1️⃣  Cliquez sur le bouton ci-dessus', 'info')
+        this.addLine('  2️⃣  Ouvrez un terminal et exécutez :', 'info')
+        this.addLine('     sudo cp ~/Downloads/symbion-ca.crt /usr/local/share/ca-certificates/', 'warning')
+        this.addLine('     sudo update-ca-certificates', 'warning')
+        this.addLine('  3️⃣  Redémarrez votre navigateur', 'info')
+        this.addLine('  4️⃣  Cliquez sur le bouton réessayer ci-dessous', 'info')
+        break
+
+      case 'macos':
+        this.addLine('📝 MACOS - Instructions d\'installation :', 'step')
+        this.addLine('', '')
+        this.addLine('  1️⃣  Cliquez sur le bouton ci-dessus', 'info')
+        this.addLine('  2️⃣  Double-cliquez sur le fichier téléchargé', 'info')
+        this.addLine('  3️⃣  Entrez votre mot de passe si demandé', 'info')
+        this.addLine('  4️⃣  Ouvrez l\'app "Trousseaux d\'accès"', 'info')
+        this.addLine('  5️⃣  Trouvez "Symbion Root CA" dans le trousseau Système', 'info')
+        this.addLine('  6️⃣  Double-cliquez → Confiance → "Toujours faire confiance"', 'info')
+        this.addLine('  7️⃣  Fermez et cliquez sur le bouton réessayer ci-dessous', 'info')
+        break
+
+      default:
+        this.addLine('📝 Instructions d\'installation :', 'step')
+        this.addLine('', '')
+        this.addLine('  1️⃣  Téléchargez le certificat avec le bouton ci-dessus', 'info')
+        this.addLine('  2️⃣  Installez-le dans le magasin CA racine de confiance de votre système', 'info')
+        this.addLine('  3️⃣  Redémarrez votre navigateur', 'info')
+        this.addLine('  4️⃣  Cliquez sur le bouton réessayer ci-dessous', 'info')
+    }
+
+    this.addLine('', '')
+    this.addLine('ℹ️  Pourquoi est-ce nécessaire ? Symbion utilise HTTPS avec un certificat', 'warning')
+    this.addLine('   auto-signé pour la sécurité. Cette configuration unique garantit', 'warning')
+    this.addLine('   que votre connexion est chiffrée et de confiance.', 'warning')
+  }
+
+  // Handler pour retry connection
+  async verifyCertificateInstallation() {
+    if (this.certVerifying) return
+
+    this.certVerifying = true
+    this.certInstalled = false
+    this.requestUpdate()
+
+    this.addLine('[setup] Vérification de l\'installation du certificat...', 'info')
+
+    // Ouvrir une popup pour tester la connexion
+    const testWindow = window.open(
+      window.SYMBION_CONFIG.API_BASE + '/health',
+      'cert_test',
+      'width=400,height=300,left=1000,top=100'
+    )
+
+    if (!testWindow) {
+      this.addLine('[setup] ✗ Impossible d\'ouvrir la fenêtre de test (popup bloquée)', 'error')
+      this.certVerifying = false
+      this.requestUpdate()
+      return
+    }
+
+    // Attendre que la fenêtre charge ou échoue
+    let checkCount = 0
+    const checkInterval = setInterval(() => {
+      checkCount++
+
+      try {
+        // Si on peut accéder à la location de la fenêtre, c'est que le cert est installé
+        if (testWindow.location.href && testWindow.location.href.includes('health')) {
+          clearInterval(checkInterval)
+          testWindow.close()
+
+          this.certInstalled = true
+          this.certVerifying = false
+          this.requestUpdate()
+
+          this.addLine('[setup] ✓ Certificat installé avec succès !', 'success')
+          this.addLine('[setup] Rechargement de l\'interface...', 'info')
+
+          setTimeout(() => {
+            location.reload()
+          }, 1500)
+          return
+        }
+      } catch (e) {
+        // Exception de sécurité = pas installé correctement
+      }
+
+      // Timeout après 10 secondes
+      if (checkCount > 40) {
+        clearInterval(checkInterval)
+        testWindow.close()
+
+        this.certVerifying = false
+        this.requestUpdate()
+
+        this.addLine('[setup] ✗ Certificat non détecté', 'error')
+        this.addLine('[setup] Assurez-vous d\'avoir installé le certificat dans le magasin système', 'warning')
+        this.addLine('[setup] puis réessayez la vérification', 'warning')
+      }
+    }, 250)
+  }
+
   focusInput() {
     setTimeout(() => {
       const input = this.shadowRoot.querySelector('.input-field')
@@ -525,6 +785,10 @@ class BootTerminal extends LitElement {
         input.focus()
       }
     }, 100)
+  }
+
+  get loginLabel() {
+    return this.loginStep === 'username' ? 'identifiant' : 'mot de passe'
   }
 
   handleInput(event) {
@@ -539,7 +803,7 @@ class BootTerminal extends LitElement {
 
     if (this.loginStep === 'username') {
       if (!value) {
-        this.error = 'Username required'
+        this.error = 'Nom d\'utilisateur requis'
         this.requestUpdate()
         return
       }
@@ -554,7 +818,7 @@ class BootTerminal extends LitElement {
 
     } else if (this.loginStep === 'password') {
       if (!value) {
-        this.error = 'Password required'
+        this.error = 'Mot de passe requis'
         this.requestUpdate()
         return
       }
@@ -567,19 +831,19 @@ class BootTerminal extends LitElement {
       this.phase = 'authenticating'
       this.requestUpdate()
 
-      const authIdx = this.addLoadingLine('[auth] Authenticating')
+      const authIdx = this.addLoadingLine('[auth] Authentification')
       await this.delay(200)
 
       try {
         await authService.login(this.username, this.password)
 
-        this.updateLine(authIdx, '[auth] ✓ Authentication successful', 'success')
+        this.updateLine(authIdx, '[auth] ✓ Authentification réussie', 'success')
         await this.delay(100)
-        this.addLine(`[session] User '${this.username}' authorized`, 'success')
+        this.addLine(`[session] Utilisateur '${this.username}' autorisé`, 'success')
         await this.delay(100)
-        const dashIdx = this.addLoadingLine('[dashboard] Loading interface')
+        const dashIdx = this.addLoadingLine('[dashboard] Chargement de l\'interface')
         await this.delay(200)
-        this.updateLine(dashIdx, '[dashboard] ✓ Ready', 'success')
+        this.updateLine(dashIdx, '[dashboard] ✓ Prêt', 'success')
         await this.delay(100)
 
         this.phase = 'done'
@@ -590,18 +854,18 @@ class BootTerminal extends LitElement {
         }))
 
       } catch (error) {
-        this.addLine('[auth] ✗ Authentication failed', 'error')
+        this.addLine('[auth] ✗ Échec d\'authentification', 'error')
 
         // Afficher le message d'erreur spécifique (rate limiting, mauvais mdp, etc.)
-        const errorMsg = error.message || 'Unknown error'
+        const errorMsg = error.message || 'Erreur inconnue'
         if (errorMsg.includes('Too many login attempts')) {
           // Rate limiting - afficher le message complet du backend
           this.addLine(`[auth] ${errorMsg}`, 'warning')
-          this.addLine('[auth] Please try again later', 'warning')
+          this.addLine('[auth] Veuillez réessayer plus tard', 'warning')
           await this.delay(5000) // Attendre plus longtemps pour rate limit
         } else {
           // Erreur normale (mauvais mot de passe)
-          this.addLine('[auth] Access denied. Retry in 3s...', 'warning')
+          this.addLine('[auth] Accès refusé. Nouvel essai dans 3s...', 'warning')
           await this.delay(3000)
         }
 
@@ -624,9 +888,36 @@ class BootTerminal extends LitElement {
           <div class="line ${line.type}">${line.text}</div>
         `)}
 
+        ${this.showCertificateUI ? html`
+          <div class="cert-setup-box">
+            <div style="margin-bottom: 1rem;">
+              <span class="platform-badge">${this.platform.toUpperCase()}</span>
+              <span style="color: #00ff9f; font-weight: 600;">Installation du certificat requise</span>
+            </div>
+
+            <a href="${this.certUrl}"
+               class="cert-download-btn"
+               download="symbion-ca.crt">
+              📥 Télécharger le certificat CA Symbion
+            </a>
+
+            <button
+              class="retry-btn"
+              ?disabled="${this.certVerifying}"
+              @click="${this.verifyCertificateInstallation}">
+              ${this.certVerifying
+                ? '⏳ Vérification en cours...'
+                : this.certInstalled
+                  ? '✓ Certificat installé'
+                  : '🔍 Vérifier l\'installation du certificat'
+              }
+            </button>
+          </div>
+        ` : ''}
+
         ${this.phase === 'login' ? html`
           <div class="input-line">
-            <span>> ${this.loginStep}: </span>
+            <span>> ${this.loginLabel}: </span>
             <input
               class="input-field"
               type="${this.loginStep === 'password' ? 'password' : 'text'}"

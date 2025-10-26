@@ -35,7 +35,7 @@ use crate::wol::trigger_wol_udp;
 use serde::Deserialize;
 use axum::middleware::{self, Next};
 use axum::extract::Request;
-use axum::response::Response;
+use axum::response::{Response, IntoResponse};
 use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 use axum::extract::Path;
 use std::collections::HashMap;
@@ -75,8 +75,8 @@ async fn require_auth(
 ) -> Result<Response, StatusCode> {
     let path = req.uri().path();
 
-    // Health check et auth routes toujours accessibles
-    if path.starts_with("/health") || path.starts_with("/auth") {
+    // Health check, auth routes et CA certificate toujours accessibles
+    if path.starts_with("/health") || path.starts_with("/auth") || path.starts_with("/ca-certificate") {
         return Ok(next.run(req).await);
     }
 
@@ -133,6 +133,7 @@ struct WakeParams { host_id: String }
 pub fn build_router(app_state: AppState) -> Router {
     Router::new()
         .route("/health", get(|| async { "ok" }))
+        .route("/ca-certificate", get(download_ca_certificate))
         .route("/auth/login", post(auth_login))
         .route("/auth/verify", get(auth_verify))
         .route("/auth/session", get(auth_session))
@@ -1098,4 +1099,33 @@ async fn auth_logout() -> Json<serde_json::Value> {
         "success": true,
         "message": "Logged out successfully"
     }))
+}
+
+// GET /ca-certificate - Téléchargement du certificat CA
+async fn download_ca_certificate() -> Result<impl IntoResponse, StatusCode> {
+    use axum::http::header;
+
+    // Construire le chemin vers le certificat CA
+    let ca_cert_path = std::env::var("SYMBION_TLS_CERT_PATH")
+        .unwrap_or_else(|_| "certs/cert.pem".to_string())
+        .replace("cert.pem", "ca/symbion-ca.crt");
+
+    println!("[http] Attempting to read CA certificate from: {}", ca_cert_path);
+
+    match tokio::fs::read(&ca_cert_path).await {
+        Ok(contents) => {
+            println!("[http] CA certificate read successfully ({} bytes)", contents.len());
+            Ok((
+                [
+                    (header::CONTENT_TYPE, "application/x-pem-file"),
+                    (header::CONTENT_DISPOSITION, "attachment; filename=\"symbion-ca.crt\""),
+                ],
+                contents
+            ))
+        }
+        Err(e) => {
+            eprintln!("[http] Failed to read CA certificate from {}: {}", ca_cert_path, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
