@@ -1,0 +1,39 @@
+[Unit]
+Description=Symbion Dashboard - PWA Interface Web
+Documentation=https://github.com/yourusername/NewSymbion
+After=network-online.target symbion-kernel.service
+Wants=network-online.target
+# Dashboard peut fonctionner sans kernel mais recommandé ensemble
+BindsTo=symbion-kernel.service
+
+[Service]
+Type=simple
+User=eridwyn
+Group=eridwyn
+WorkingDirectory=/var/www/symbion-dashboard
+
+# Commande de démarrage: serveur HTTP simple Python
+# Alternative production: utiliser nginx ou caddy pour HTTPS
+ExecStart=/usr/bin/python3 -m http.server 3000 --bind 0.0.0.0
+
+# Restart automatique sur crash
+Restart=always
+RestartSec=10s
+
+# Limites de ressources (très léger)
+MemoryMax=128M
+CPUQuota=10%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=symbion-dashboard
+
+# Sécurité
+NoNewPrivileges=true
+PrivateTmp=true
+ReadOnlyPaths=/etc /usr
+ReadWritePaths=/var/www/symbion-dashboard
+
+[Install]
+WantedBy=multi-user.target
