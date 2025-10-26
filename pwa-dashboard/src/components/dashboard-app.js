@@ -35,8 +35,10 @@ class DashboardApp extends LitElement {
         color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 0%,
         color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent) 100%);
       backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       border-bottom: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
       padding: 1.5rem 2rem;
+      position: -webkit-sticky;
       position: sticky;
       top: 0;
       z-index: 100;
@@ -321,10 +323,29 @@ class DashboardApp extends LitElement {
     .tabs {
       display: flex;
       gap: 0.5rem;
-      margin-bottom: 1.5rem;
       border-bottom: 2px solid color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
+    }
+
+    @media (max-width: 768px) {
+      .tabs {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        margin-bottom: 0;
+        background: linear-gradient(to top, #0f0f0f 0%, rgba(15, 15, 15, 0.98) 80%, rgba(15, 15, 15, 0.95) 100%);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        z-index: 90;
+        padding: 0.5rem 1rem;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+      }
+
+      .tabs-container {
+        padding-bottom: 70px; /* Espace pour les tabs fixes */
+      }
     }
 
     .tab {
