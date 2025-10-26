@@ -1,0 +1,40 @@
+[Unit]
+Description=Symbion Agent Host - Local System Monitoring
+Documentation=https://github.com/yourusername/NewSymbion
+After=network-online.target symbion-kernel.service
+Wants=network-online.target
+BindsTo=symbion-kernel.service
+
+[Service]
+Type=simple
+User=eridwyn
+Group=eridwyn
+WorkingDirectory=/home/eridwyn/RustroverProjects/NewSymbion
+
+# Variables d'environnement
+Environment="SYMBION_MQTT_BROKER=127.0.0.1:1883"
+Environment="RUST_LOG=info"
+
+# Commande de démarrage
+# Utilise /opt/symbion/ pour compatibilité GitHub Actions deployments
+ExecStart=/opt/symbion/symbion-agent-host
+
+# Restart automatique sur crash
+Restart=always
+RestartSec=15s
+
+# Limites de ressources
+MemoryMax=256M
+CPUQuota=25%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=symbion-agent
+
+# Sécurité
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

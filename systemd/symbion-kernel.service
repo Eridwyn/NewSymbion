@@ -1,0 +1,42 @@
+[Unit]
+Description=Symbion Kernel - IoT Home Automation Hub
+Documentation=https://github.com/yourusername/NewSymbion
+After=network-online.target mosquitto.service
+Wants=network-online.target
+Requires=mosquitto.service
+
+[Service]
+Type=simple
+User=eridwyn
+Group=eridwyn
+WorkingDirectory=/home/eridwyn/RustroverProjects/NewSymbion
+
+# Variables d'environnement
+Environment="SYMBION_API_KEY=s3cr3t-42"
+Environment="SYMBION_MQTT_BROKER=127.0.0.1:1883"
+Environment="SYMBION_JWT_SECRET=test-secret-1234567890123456789012345678901234567890123456789012345678901234"
+Environment="RUST_LOG=info"
+
+# Commande de démarrage
+# Utilise /opt/symbion/ pour compatibilité GitHub Actions deployments
+ExecStart=/opt/symbion/symbion-kernel
+
+# Restart automatique sur crash
+Restart=always
+RestartSec=10s
+
+# Limites de ressources (optionnel mais recommandé)
+MemoryMax=512M
+CPUQuota=50%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=symbion-kernel
+
+# Sécurité
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
