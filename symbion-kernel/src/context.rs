@@ -178,7 +178,11 @@ impl ContextEngine {
 
     /// Détecte le mode contextuel basé sur les données agent
     pub fn detect_mode(&self, agents: &[Agent]) -> Option<(Mode, String, f32)> {
-        let now = OffsetDateTime::now_utc();
+        // Utiliser l'heure locale (France UTC+1 en hiver, UTC+2 en été)
+        // Pour simplifier, on utilise UTC+1 fixe
+        use time::UtcOffset;
+        let offset = UtcOffset::from_hms(1, 0, 0).unwrap(); // UTC+1 (France hiver)
+        let now = OffsetDateTime::now_utc().to_offset(offset);
         let hour = now.hour();
         let weekday = now.weekday();
 

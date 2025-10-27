@@ -45,7 +45,10 @@ use std::sync::Arc;
 async fn main() {
     // Charger les variables d'environnement depuis .env (si présent)
     dotenvy::dotenv().ok(); // Ok si .env n'existe pas
-    
+
+    // Initialiser le CryptoProvider pour Rustls (fix crash rustls 0.23)
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     // maps et conf partagées
     let states = new_state::<HostsMap>(HashMap::new());
     let cfg_loaded: HostsConfig = load_config().await;
