@@ -46,6 +46,7 @@ class DashboardApp extends LitElement {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
+      gap: 1rem;
       transition: all 0.5s ease;
     }
 
@@ -148,6 +149,32 @@ class DashboardApp extends LitElement {
         opacity: 0.5;
         transform: scale(0.9);
       }
+    }
+
+    /* Clock Display */
+    .system-clock {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1rem;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      font-family: 'Monaco', 'Consolas', monospace;
+      font-size: 0.85em;
+      font-weight: 500;
+      color: #e0e0e0;
+      letter-spacing: 0.5px;
+      transition: all 0.3s ease;
+    }
+
+    .system-clock:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .system-clock .icon {
+      font-size: 1.1em;
     }
 
     /* User Menu */
@@ -384,14 +411,44 @@ class DashboardApp extends LitElement {
 
     @media (max-width: 768px) {
       .header {
-        padding: 1.2rem 1rem;
+        padding: 0.8rem 0.8rem;
+        gap: 0.5rem;
       }
       .header h1 {
-        font-size: 1.6em;
+        font-size: 1.2em;
+        margin-bottom: 0.3rem;
       }
       .status-bar {
-        flex-wrap: wrap;
-        gap: 0.8rem;
+        flex-wrap: nowrap;
+        gap: 0.3rem;
+        margin-top: 0.3rem;
+      }
+      .status-indicator {
+        padding: 0.2rem 0.4rem;
+        font-size: 0.65em;
+        white-space: nowrap;
+        gap: 0.3rem;
+      }
+      .status-dot {
+        width: 6px;
+        height: 6px;
+      }
+      /* Masquer uptime sur mobile */
+      .uptime-indicator {
+        display: none;
+      }
+      .system-clock {
+        padding: 0.3rem 0.6rem;
+        font-size: 0.7em;
+        border-radius: 6px;
+        gap: 0.25rem;
+      }
+      .system-clock .icon {
+        font-size: 0.9em;
+      }
+      .user-button {
+        padding: 0.3rem 0.6rem;
+        font-size: 0.7em;
       }
       .main-content {
         padding: 1.2rem;
@@ -423,7 +480,8 @@ class DashboardApp extends LitElement {
     error: { type: String },
     showUserMenu: { type: Boolean },
     currentUser: { type: Object },
-    activeTab: { type: String }
+    activeTab: { type: String },
+    currentTime: { type: String }
   }
   
   constructor() {
@@ -437,28 +495,57 @@ class DashboardApp extends LitElement {
     this.showUserMenu = false
     this.currentUser = authService.getCurrentUser()
     this.activeTab = 'controle' // Tab par défaut
+    this.currentTime = this.formatTime(new Date())
 
     this.apiService = null
     this.mqttService = null
     this.agentsService = null
+    this.timeInterval = null
+  }
+
+  formatTime(date) {
+    // Détecter mobile pour afficher HH:MM ou HH:MM:SS
+    const isMobile = window.innerWidth <= 768
+    return date.toLocaleTimeString('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: isMobile ? undefined : '2-digit',
+      hour12: false
+    })
+  }
+
+  updateTime() {
+    this.currentTime = this.formatTime(new Date())
   }
   
   async connectedCallback() {
     super.connectedCallback()
-    
+
+    // Démarrer l'horloge
+    this.timeInterval = setInterval(() => this.updateTime(), 1000)
+
     try {
       // Initialiser les services
       await this.initializeServices()
-      
+
       // Charger les données initiales
       await this.loadInitialData()
-      
+
       // Démarrer les mises à jour temps réel
       this.startRealtimeUpdates()
-      
+
     } catch (error) {
       console.error('❌ Dashboard initialization failed:', error)
       this.error = `Erreur d'initialisation: ${error.message}`
+    }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback()
+    // Nettoyer l'intervalle d'horloge
+    if (this.timeInterval) {
+      clearInterval(this.timeInterval)
+      this.timeInterval = null
     }
   }
   
@@ -562,11 +649,16 @@ class DashboardApp extends LitElement {
               <span>MQTT: ${this.mqttStatus}</span>
             </div>
             ${this.systemHealth ? html`
-              <div class="status-indicator">
+              <div class="status-indicator uptime-indicator">
                 <span>Uptime: ${this.formatUptime(this.systemHealth.uptime_seconds)}</span>
               </div>
             ` : ''}
           </div>
+        </div>
+
+        <div class="system-clock">
+          <span class="icon">🕐</span>
+          <span>${this.currentTime}</span>
         </div>
 
         ${this.currentUser ? html`
