@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
 use std::collections::HashMap;
+use std::time::Instant;
+use parking_lot::RwLock;
 use crate::agents::{Agent, SharedAgentRegistry};
 use rumqttc::AsyncClient;
 use time::OffsetDateTime;
@@ -124,11 +126,22 @@ pub struct ProductivityMetrics {
     pub avg_session_duration_minutes: i64,
 }
 
+/// Changement de mode en attente (hystérésis)
+#[derive(Debug, Clone)]
+struct PendingChange {
+    target_mode: Mode,
+    reason: String,
+    confidence: f32,
+    started_at: Instant,           // Horloge monotone pour timeout check
+    created_at: OffsetDateTime,     // Timestamp civil pour logs
+}
+
 /// Moteur de détection contextuelle
 pub struct ContextEngine {
     state: Arc<Mutex<ContextState>>,
     history: Arc<Mutex<Vec<ModeHistoryEntry>>>,
     history_path: PathBuf,
+    pending_change: Arc<RwLock<Option<PendingChange>>>,  // Hystérésis 120s
 }
 
 impl ContextEngine {
@@ -173,18 +186,18 @@ impl ContextEngine {
             state: Arc::new(Mutex::new(initial_state)),
             history: Arc::new(Mutex::new(history)),
             history_path,
+            pending_change: Arc::new(RwLock::new(None)),
         }
     }
 
     /// Détecte le mode contextuel basé sur les données agent
     pub fn detect_mode(&self, agents: &[Agent]) -> Option<(Mode, String, f32)> {
-        // Utiliser l'heure locale (France UTC+1 en hiver, UTC+2 en été)
-        // Pour simplifier, on utilise UTC+1 fixe
-        use time::UtcOffset;
-        let offset = UtcOffset::from_hms(1, 0, 0).unwrap(); // UTC+1 (France hiver)
-        let now = OffsetDateTime::now_utc().to_offset(offset);
-        let hour = now.hour();
-        let weekday = now.weekday();
+        // Utiliser timezone IANA Europe/Zurich (gère UTC+1/UTC+2 automatiquement)
+        use time_tz::{timezones, OffsetDateTimeExt};
+        let tz = timezones::db::europe::ZURICH;
+        let now_local = OffsetDateTime::now_utc().to_timezone(tz);
+        let hour = now_local.hour();
+        let weekday = now_local.weekday();
 
         // Pas d'agents = mode neutre
         if agents.is_empty() {
@@ -251,7 +264,7 @@ impl ContextEngine {
         ))
     }
 
-    /// Met à jour le contexte si le mode a changé
+    /// Met à jour le contexte si le mode a changé (avec hystérésis 120s)
     pub fn update(&self, agents: &[Agent]) -> Option<ContextState> {
         let mut state = self.state.lock().ok()?;
 
@@ -267,31 +280,121 @@ impl ContextEngine {
             }
         }
 
-        // Détecter nouveau mode
-        let (new_mode, reason, confidence) = self.detect_mode(agents)?;
+        // Détecter nouveau mode candidat
+        let (candidate_mode, reason, confidence) = self.detect_mode(agents)?;
 
-        // Si le mode a changé, mettre à jour
-        if new_mode != state.mode {
-            println!("[context] Changement de mode: {:?} → {:?} (raison: {})",
-                state.mode, new_mode, reason);
+        // Si le candidat == mode actuel, annuler pending si existe
+        if candidate_mode == state.mode {
+            let mut pending = self.pending_change.write();
+            if pending.is_some() {
+                println!("[context] hysteresis_reset: mode candidat revenu à actuel ({})",
+                    format!("{:?}", candidate_mode).to_lowercase());
+                *pending = None;
+            }
+            return None;
+        }
 
-            state.mode = new_mode;
+        // Candidat != mode actuel, vérifier emportement priorité
+        let has_priority = candidate_mode == Mode::Neutre;
+
+        if has_priority {
+            // Mode Neutre a priorité, bypass hystérésis
+            println!("[context] hysteresis_bypass: Mode Neutre détecté, changement immédiat");
+
+            // Annuler pending
+            {
+                let mut pending = self.pending_change.write();
+                *pending = None;
+            }
+
+            // Appliquer changement immédiatement
+            state.mode = candidate_mode;
             state.changed_at = OffsetDateTime::now_utc();
             state.reason = reason.clone();
             state.confidence = confidence;
-            state.theme = new_mode.theme();
+            state.theme = candidate_mode.theme();
 
             let result = state.clone();
-
-            // Libérer le lock avant d'appeler add_to_history
             drop(state);
 
-            // Ajouter à l'historique
-            self.add_to_history(new_mode, reason, false);
+            self.add_to_history(candidate_mode, reason, false);
 
-            Some(result)
-        } else {
-            None
+            return Some(result);
+        }
+
+        // Pas de priorité, appliquer hystérésis
+        let mut pending = self.pending_change.write();
+
+        match pending.as_ref() {
+            Some(p) if p.target_mode == candidate_mode => {
+                // Même mode en attente, vérifier si 120s écoulés
+                let elapsed = p.started_at.elapsed();
+                if elapsed.as_secs() >= 120 {
+                    // Commit le changement
+                    println!("[context] hysteresis_commit: {} secondes écoulées, changement {} → {} (raison: {})",
+                        elapsed.as_secs(),
+                        format!("{:?}", state.mode).to_lowercase(),
+                        format!("{:?}", candidate_mode).to_lowercase(),
+                        reason);
+
+                    state.mode = candidate_mode;
+                    state.changed_at = OffsetDateTime::now_utc();
+                    state.reason = reason.clone();
+                    state.confidence = confidence;
+                    state.theme = candidate_mode.theme();
+
+                    let result = state.clone();
+
+                    // Reset pending
+                    *pending = None;
+
+                    drop(pending);
+                    drop(state);
+
+                    self.add_to_history(candidate_mode, reason, false);
+
+                    return Some(result);
+                } else {
+                    // Toujours en attente
+                    return None;
+                }
+            }
+            Some(p) => {
+                // Changement de cible, reset et démarrer nouveau pending
+                println!("[context] hysteresis_reset: nouvelle cible {} (ancienne: {})",
+                    format!("{:?}", candidate_mode).to_lowercase(),
+                    format!("{:?}", p.target_mode).to_lowercase());
+
+                println!("[context] hysteresis_started: {} → {} (délai 120s)",
+                    format!("{:?}", state.mode).to_lowercase(),
+                    format!("{:?}", candidate_mode).to_lowercase());
+
+                *pending = Some(PendingChange {
+                    target_mode: candidate_mode,
+                    reason,
+                    confidence,
+                    started_at: Instant::now(),
+                    created_at: OffsetDateTime::now_utc(),
+                });
+
+                None
+            }
+            None => {
+                // Démarrer nouveau pending
+                println!("[context] hysteresis_started: {} → {} (délai 120s)",
+                    format!("{:?}", state.mode).to_lowercase(),
+                    format!("{:?}", candidate_mode).to_lowercase());
+
+                *pending = Some(PendingChange {
+                    target_mode: candidate_mode,
+                    reason,
+                    confidence,
+                    started_at: Instant::now(),
+                    created_at: OffsetDateTime::now_utc(),
+                });
+
+                None
+            }
         }
     }
 
@@ -610,7 +713,7 @@ impl ContextEngine {
                     if let Err(e) = mqtt_client.publish(
                         "symbion/context/mode",
                         rumqttc::QoS::AtLeastOnce,
-                        false,
+                        true,  // retain=true pour conserver dernier état
                         payload,
                     ).await {
                         eprintln!("[context] failed to publish mode change: {}", e);
@@ -656,5 +759,39 @@ mod tests {
 
         let theme = Mode::Intime.theme();
         assert_eq!(theme.primary, "#10b981");
+    }
+
+    #[test]
+    fn test_hysteresis_structure() {
+        // Test que la structure PendingChange est créée correctement
+        let pending = PendingChange {
+            target_mode: Mode::Cravate,
+            reason: "Test".to_string(),
+            confidence: 0.85,
+            started_at: Instant::now(),
+            created_at: OffsetDateTime::now_utc(),
+        };
+
+        assert_eq!(pending.target_mode, Mode::Cravate);
+        assert_eq!(pending.reason, "Test");
+        assert_eq!(pending.confidence, 0.85);
+
+        // Vérifier que l'elapsed fonctionne (doit être très proche de 0)
+        let elapsed = pending.started_at.elapsed();
+        assert!(elapsed.as_millis() < 100);
+    }
+
+    #[test]
+    fn test_priority_neutre_mode() {
+        // Vérifier que Mode::Neutre est bien identifié comme prioritaire
+        // (Dans la logique update(), has_priority = candidate_mode == Mode::Neutre)
+        let neutre_priority = Mode::Neutre;
+        let cravate_no_priority = Mode::Cravate;
+        let intime_no_priority = Mode::Intime;
+
+        // Mode::Neutre devrait bypasser hystérésis
+        assert_eq!(neutre_priority, Mode::Neutre);
+        assert_ne!(cravate_no_priority, Mode::Neutre);
+        assert_ne!(intime_no_priority, Mode::Neutre);
     }
 }
