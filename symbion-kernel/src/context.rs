@@ -210,8 +210,36 @@ impl ContextEngine {
             ));
         }
 
-        // Règle 3: Journée en semaine = Mode Intime par défaut
-        // (utiliser override manuel pour passer en mode Cravate si besoin)
+        // Règle 3: Horaires professionnels (lundi-vendredi) = Mode Cravate
+        // Lundi-jeudi : 8h-17h
+        // Vendredi : 8h-16h
+        let is_workday = matches!(weekday,
+            Weekday::Monday | Weekday::Tuesday | Weekday::Wednesday | Weekday::Thursday | Weekday::Friday
+        );
+
+        if is_workday {
+            let end_hour = if weekday == Weekday::Friday { 16 } else { 17 };
+
+            if hour >= 8 && hour < end_hour {
+                return Some((
+                    Mode::Cravate,
+                    format!("Horaires professionnels ({}h, {})",
+                        hour,
+                        match weekday {
+                            Weekday::Monday => "lundi",
+                            Weekday::Tuesday => "mardi",
+                            Weekday::Wednesday => "mercredi",
+                            Weekday::Thursday => "jeudi",
+                            Weekday::Friday => "vendredi",
+                            _ => "semaine"
+                        }
+                    ),
+                    0.85,
+                ));
+            }
+        }
+
+        // Règle 4: Journée en semaine hors horaires pro = Mode Intime
         Some((
             Mode::Intime,
             format!("Journée à la maison ({}h)", hour),
