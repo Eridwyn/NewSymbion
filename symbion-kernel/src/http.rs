@@ -1148,7 +1148,11 @@ async fn auth_login(
     State(app): State<AppState>,
     Json(payload): Json<crate::auth::LoginRequest>,
 ) -> Result<Json<crate::auth::LoginResponse>, (StatusCode, Json<serde_json::Value>)> {
-    match app.auth_manager.authenticate(&payload.username, &payload.password) {
+    match app.auth_manager.authenticate(
+        &payload.username,
+        &payload.password,
+        payload.totp_code.as_deref()
+    ) {
         Ok(response) => Ok(Json(response)),
         Err(e) => {
             let error_msg = e.to_string();

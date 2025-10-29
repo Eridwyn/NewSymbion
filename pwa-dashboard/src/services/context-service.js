@@ -6,6 +6,7 @@
  */
 
 import { LitElement } from 'lit'
+import authService from './auth-service.js'
 
 class ContextService extends LitElement {
   static properties = {
@@ -20,16 +21,38 @@ class ContextService extends LitElement {
     this.contextState = null
     this.status = 'loading'
     this.pollInterval = null
+    this.retryCount = 0
+    this.maxRetries = 10 // Max 10 retries (5 seconds total)
   }
 
   connectedCallback() {
     super.connectedCallback()
-    this.fetchContext()
 
-    // Poll context every 30 seconds (same as backend detection interval)
-    this.pollInterval = setInterval(() => {
+    // Listen for login success event
+    window.addEventListener('login-success', () => {
+      console.log('[context-service] User logged in, fetching context...')
       this.fetchContext()
-    }, 30000)
+
+      // Start polling only after successful login
+      if (!this.pollInterval) {
+        this.pollInterval = setInterval(() => {
+          this.fetchContext()
+        }, 30000)
+      }
+    })
+
+    // Check if already logged in (use authService to verify)
+    if (authService.isAuthenticated()) {
+      console.log('[context-service] User already authenticated, fetching context...')
+      this.fetchContext()
+
+      // Poll context every 30 seconds (same as backend detection interval)
+      this.pollInterval = setInterval(() => {
+        this.fetchContext()
+      }, 30000)
+    } else {
+      console.log('[context-service] No active session, waiting for login event...')
+    }
   }
 
   disconnectedCallback() {
@@ -44,9 +67,19 @@ class ContextService extends LitElement {
     try {
       const apiService = document.querySelector('api-service')
       if (!apiService) {
-        console.warn('[context-service] API service not available')
+        if (this.retryCount < this.maxRetries) {
+          this.retryCount++
+          console.warn(`[context-service] API service not available, retry ${this.retryCount}/${this.maxRetries}...`)
+          setTimeout(() => this.fetchContext(), 500)
+        } else {
+          console.error('[context-service] API service not available after max retries')
+          this.status = 'error'
+        }
         return
       }
+
+      // Reset retry count on successful API service connection
+      this.retryCount = 0
 
       const context = await apiService.request('/context/current')
 

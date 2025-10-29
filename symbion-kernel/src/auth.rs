@@ -50,6 +50,8 @@ pub struct Claims {
 pub struct LoginRequest {
     pub username: String,
     pub password: String,
+    #[serde(default)]
+    pub totp_code: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -166,7 +168,7 @@ impl AuthManager {
                  username, user_attempts.len());
     }
 
-    pub fn authenticate(&self, username: &str, password: &str) -> Result<LoginResponse> {
+    pub fn authenticate(&self, username: &str, password: &str, totp_code: Option<&str>) -> Result<LoginResponse> {
         // Check rate limit BEFORE doing anything else
         self.check_rate_limit(username)?;
 
@@ -188,7 +190,35 @@ impl AuthManager {
             anyhow::bail!("Invalid username or password");
         }
 
-        // Generate JWT
+        // Vérifier si MFA est activé pour cet utilisateur
+        let requires_mfa = user.mfa_config
+            .as_ref()
+            .map(|config| config.enabled)
+            .unwrap_or(false);
+
+        // Si MFA activé, vérifier le code TOTP
+        if requires_mfa {
+            let totp_code = totp_code.ok_or_else(|| {
+                anyhow::anyhow!("MFA is enabled. Please provide a TOTP code.")
+            })?;
+
+            // Vérifier le code TOTP
+            let mfa_config = user.mfa_config.as_ref().unwrap();
+            let mfa_manager = crate::mfa::MfaManager::new("Symbion".to_string(), "Symbion IoT".to_string());
+
+            let is_valid = mfa_manager.verify_totp(&mfa_config.secret_base32, totp_code)
+                .context("Failed to verify TOTP code")?;
+
+            if !is_valid {
+                anyhow::bail!("Invalid TOTP code");
+            }
+
+            println!("[auth] User '{}' authenticated with MFA successfully", username);
+        } else {
+            println!("[auth] User '{}' authenticated successfully (no MFA)", username);
+        }
+
+        // Generate JWT après vérification MFA
         let now = OffsetDateTime::now_utc().unix_timestamp();
         let expires_at = now + (get_token_expiry_hours() * 3600);
 
@@ -201,14 +231,6 @@ impl AuthManager {
 
         let token = encode(&Header::default(), &claims, &self.encoding_key)
             .context("Failed to generate JWT token")?;
-
-        // Vérifier si MFA est activé pour cet utilisateur
-        let requires_mfa = user.mfa_config
-            .as_ref()
-            .map(|config| config.enabled)
-            .unwrap_or(false);
-
-        println!("[auth] User '{}' authenticated successfully (MFA: {})", username, requires_mfa);
 
         Ok(LoginResponse {
             token,

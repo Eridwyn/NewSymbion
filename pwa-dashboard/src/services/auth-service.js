@@ -60,6 +60,7 @@ class AuthService extends EventTarget {
   clearStorage() {
     sessionStorage.removeItem(TOKEN_KEY)
     sessionStorage.removeItem(USER_KEY)
+    sessionStorage.removeItem('symbion_boot_completed') // Reset boot pour prochaine session
     this.token = null
     this.userInfo = null
 
@@ -73,18 +74,24 @@ class AuthService extends EventTarget {
    * Login utilisateur
    * @param {string} username
    * @param {string} password
+   * @param {string} [totpCode] - Code TOTP optionnel (MFA)
    * @returns {Promise<{token, username, role, expires_at}>}
    */
-  async login(username, password) {
+  async login(username, password, totpCode = null) {
     try {
-      console.log('[auth] Sending login request for:', username)
+      console.log('[auth] Sending login request for:', username, 'with MFA:', !!totpCode)
+
+      const body = { username, password }
+      if (totpCode) {
+        body.totp_code = totpCode
+      }
 
       const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify(body)
       })
 
       console.log('[auth] Response status:', response.status, 'OK:', response.ok)
@@ -121,6 +128,11 @@ class AuthService extends EventTarget {
 
       // Émettre événement de login
       this.dispatchEvent(new CustomEvent('auth:login', {
+        detail: { username: data.username, role: data.role }
+      }))
+
+      // Émettre également un événement global pour les autres services
+      window.dispatchEvent(new CustomEvent('login-success', {
         detail: { username: data.username, role: data.role }
       }))
 
