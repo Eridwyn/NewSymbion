@@ -111,6 +111,47 @@ async fn require_auth(
     Err(StatusCode::UNAUTHORIZED)
 }
 
+/// Middleware pour vérifier le nonce CSRF sur les routes destructrices
+async fn require_csrf(
+    State(app): State<AppState>,
+    req: Request,
+    next: Next
+) -> Result<Response, StatusCode> {
+    // Extraire le header X-CSRF-Token
+    let csrf_token = req
+        .headers()
+        .get("x-csrf-token")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| {
+            eprintln!("SECURITY: Missing X-CSRF-Token header for {}", req.uri().path());
+            StatusCode::FORBIDDEN
+        })?;
+
+    // Extraire le username depuis le JWT token
+    let username = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .and_then(|token| app.auth_manager.verify_token(token).ok())
+        .map(|claims| claims.sub)
+        .ok_or_else(|| {
+            eprintln!("SECURITY: No valid JWT token for CSRF verification");
+            StatusCode::UNAUTHORIZED
+        })?;
+
+    // Vérifier et consommer le nonce CSRF
+    match app.csrf_manager.verify_and_consume(csrf_token, &username) {
+        Ok(true) => {
+            println!("[csrf] Valid nonce consumed for user '{}'", username);
+            Ok(next.run(req).await)
+        }
+        Ok(false) | Err(_) => {
+            eprintln!("SECURITY: Invalid or expired CSRF token for user '{}'", username);
+            Err(StatusCode::FORBIDDEN)
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct AppState {
@@ -138,6 +179,22 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/health", get(|| async { "ok" }))
         .route("/ca-certificate", get(download_ca_certificate));
 
+    // Routes destructrices nécessitant protection CSRF (POST/DELETE)
+    let csrf_protected_routes = Router::new()
+        .route("/agents/{id}/shutdown", post(agent_shutdown_endpoint))
+        .route("/agents/{id}/reboot", post(agent_reboot_endpoint))
+        .route("/agents/{id}/hibernate", post(agent_hibernate_endpoint))
+        .route("/agents/{id}/processes/{pid}/kill", post(agent_kill_process_endpoint))
+        .route("/context/override", post(set_context_override))
+        .route("/context/clear", post(clear_context_override))
+        .route("/plugins/{name}/start", post(start_plugin_endpoint))
+        .route("/plugins/{name}/stop", post(stop_plugin_endpoint))
+        .route("/plugins/{name}/restart", post(restart_plugin_endpoint))
+        .route("/ports/memo/{id}", axum::routing::delete(handle_memo_delete).put(handle_memo_update))
+        .route("/ports/{port_name}/{id}", axum::routing::delete(delete_from_port))
+        .with_state(app_state.clone())
+        .layer(middleware::from_fn_with_state(app_state.clone(), require_csrf));
+
     // Routes v1 (API versionnée avec authentification)
     let v1_api_routes = Router::new()
         .route("/auth/login", post(auth_login))
@@ -148,6 +205,7 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/auth/mfa/setup", post(mfa_setup))
         .route("/auth/mfa/verify", post(mfa_verify))
         .route("/auth/mfa/disable", post(mfa_disable))
+        .route("/auth/csrf/nonce", get(csrf_generate_nonce))
         .route("/system/health", get(get_system_health))
         .route("/hosts", get(get_hosts))
         .route("/hosts/{id}", get(get_host))
@@ -156,32 +214,23 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/contracts/{name}", get(get_contract))
         .route("/ports", get(list_ports))
         .route("/ports/memo", get(handle_memo_list).post(handle_memo_create))
-        .route("/ports/memo/{id}", axum::routing::delete(handle_memo_delete).put(handle_memo_update))
         .route("/ports/{port_name}", get(read_from_port).post(write_to_port))
-        .route("/ports/{port_name}/{id}", axum::routing::delete(delete_from_port))
         .route("/plugins", get(list_plugins_endpoint))
-        .route("/plugins/{name}/start", post(start_plugin_endpoint))
-        .route("/plugins/{name}/stop", post(stop_plugin_endpoint))
-        .route("/plugins/{name}/restart", post(restart_plugin_endpoint))
         .route("/agents", get(list_agents_endpoint))
         .route("/agents/{id}", get(get_agent_endpoint))
-        .route("/agents/{id}/shutdown", post(agent_shutdown_endpoint))
-        .route("/agents/{id}/reboot", post(agent_reboot_endpoint))
-        .route("/agents/{id}/hibernate", post(agent_hibernate_endpoint))
         .route("/agents/{id}/processes", get(agent_processes_endpoint))
-        .route("/agents/{id}/processes/{pid}/kill", post(agent_kill_process_endpoint))
         .route("/agents/{id}/command", post(agent_command_endpoint))
         .route("/agents/{id}/metrics", get(agent_metrics_endpoint))
         .route("/agents/{id}/commands", get(agent_commands_endpoint).post(agent_commands_post_endpoint))
         .route("/commands/{command_id}/cancel", post(cancel_command_endpoint))
         .route("/commands/{command_id}/status", get(command_status_endpoint))
         .route("/context/current", get(get_context_current))
-        .route("/context/override", post(set_context_override))
-        .route("/context/clear", post(clear_context_override))
         .route("/context/history", get(get_context_history))
         .route("/context/stats", get(get_context_stats))
         .route("/context/patterns", get(get_context_patterns))
         .route("/context/productivity", get(get_context_productivity))
+        // Fusionner les routes protégées par CSRF
+        .merge(csrf_protected_routes)
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
 
@@ -1375,6 +1424,38 @@ async fn mfa_disable(
     Ok(Json(serde_json::json!({
         "success": true,
         "message": "MFA disabled successfully"
+    })))
+}
+
+// ============================================================================
+// CSRF Protection Endpoints
+// ============================================================================
+
+/// GET /v1/auth/csrf/nonce - Générer un nonce CSRF pour l'utilisateur courant
+async fn csrf_generate_nonce(
+    State(app): State<AppState>,
+    req: Request,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Extraire le token JWT
+    let token = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    // Vérifier et décoder le token
+    let claims = app.auth_manager.verify_token(token)
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+    // Générer un nonce CSRF pour cet utilisateur
+    let nonce = app.csrf_manager.generate_nonce(claims.sub.clone());
+
+    println!("[csrf] Generated nonce for user '{}'", claims.sub);
+
+    Ok(Json(serde_json::json!({
+        "nonce": nonce,
+        "expires_in_seconds": 300  // 5 minutes TTL
     })))
 }
 
