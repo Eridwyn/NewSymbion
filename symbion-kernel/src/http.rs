@@ -119,6 +119,8 @@ pub struct AppState {
     pub contracts: crate::contracts::ContractRegistry,
     pub health_tracker: crate::health::HealthTracker,
     pub auth_manager: crate::auth::AuthManager,
+    pub mfa_manager: std::sync::Arc<crate::mfa::MfaManager>,
+    pub csrf_manager: std::sync::Arc<crate::csrf::CsrfManager>,
     pub ports: Shared<crate::ports::PortRegistry>,
     pub plugins: Shared<crate::plugins::PluginManager>,
     pub notes_bridge: Option<SharedNotesBridge>,
@@ -131,9 +133,13 @@ pub struct AppState {
 struct WakeParams { host_id: String }
 
 pub fn build_router(app_state: AppState) -> Router {
-    Router::new()
+    // Routes publiques (sans version, sans auth)
+    let public_routes = Router::new()
         .route("/health", get(|| async { "ok" }))
-        .route("/ca-certificate", get(download_ca_certificate))
+        .route("/ca-certificate", get(download_ca_certificate));
+
+    // Routes v1 (API versionnée avec authentification)
+    let v1_api_routes = Router::new()
         .route("/auth/login", post(auth_login))
         .route("/auth/verify", get(auth_verify))
         .route("/auth/session", get(auth_session))
@@ -173,7 +179,17 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/context/patterns", get(get_context_patterns))
         .route("/context/productivity", get(get_context_productivity))
         .with_state(app_state.clone())
-        .layer(middleware::from_fn_with_state(app_state, require_auth))
+        .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
+
+    // Router principal avec versioning
+    Router::new()
+        // Routes publiques (toujours accessibles)
+        .merge(public_routes)
+        // API v1 sous namespace /v1/
+        .nest("/v1", v1_api_routes.clone())
+        // Backward compatibility: routes à la racine (DEPRECATED, à supprimer en v0.3.0)
+        .merge(v1_api_routes)
+        // Middlewares globaux
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
