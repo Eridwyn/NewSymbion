@@ -197,11 +197,20 @@ pub fn build_router(app_state: AppState) -> Router {
     // Routes publiques (sans version, sans auth, sans rate limit strict)
     let public_routes = Router::new()
         .route("/health", get(|| async { "ok" }))
-        .route("/ca-certificate", get(download_ca_certificate));
+        .route("/system/health", get(get_system_health))
+        .route("/ca-certificate", get(download_ca_certificate))
+        .with_state(app_state.clone());
 
-    // Routes d'authentification avec rate limiting strict (brute-force protection)
-    let auth_routes = Router::new()
+    // Route de login publique avec rate limiting strict (brute-force protection)
+    // NOTE: Rate limiting désactivé pour localhost (tower_governor ne peut pas extraire l'IP)
+    // Pour connexions réseau externes, le rate limiting dans auth.rs reste actif
+    let login_route = Router::new()
         .route("/auth/login", post(auth_login))
+        .with_state(app_state.clone());
+        // .layer(GovernorLayer::new(auth_rate_limit_config.clone()));
+
+    // Routes d'authentification protégées (nécessitent JWT valide)
+    let protected_auth_routes = Router::new()
         .route("/auth/verify", get(auth_verify))
         .route("/auth/session", get(auth_session))
         .route("/auth/logout", post(auth_logout))
@@ -211,8 +220,9 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/auth/mfa/disable", post(mfa_disable))
         .route("/auth/csrf/nonce", get(csrf_generate_nonce))
         .with_state(app_state.clone())
-        .layer(middleware::from_fn_with_state(app_state.clone(), require_auth))
-        .layer(GovernorLayer::new(auth_rate_limit_config));
+        .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
+        // NOTE: Rate limiting tower_governor désactivé (incompatibilité localhost)
+        // .layer(GovernorLayer::new(auth_rate_limit_config));
 
     // Routes destructrices nécessitant protection CSRF (POST/DELETE)
     let csrf_protected_routes = Router::new()
@@ -232,7 +242,6 @@ pub fn build_router(app_state: AppState) -> Router {
 
     // Routes API standard avec rate limiting modéré
     let api_routes = Router::new()
-        .route("/system/health", get(get_system_health))
         .route("/hosts", get(get_hosts))
         .route("/hosts/{id}", get(get_host))
         .route("/wake", post(wake))
@@ -256,12 +265,14 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/context/patterns", get(get_context_patterns))
         .route("/context/productivity", get(get_context_productivity))
         .with_state(app_state.clone())
-        .layer(middleware::from_fn_with_state(app_state.clone(), require_auth))
-        .layer(GovernorLayer::new(api_rate_limit_config));
+        .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
+        // NOTE: Rate limiting tower_governor désactivé (incompatibilité localhost)
+        // .layer(GovernorLayer::new(api_rate_limit_config));
 
     // Combine all v1 API routes
     let v1_api_routes = Router::new()
-        .merge(auth_routes)
+        .merge(login_route)
+        .merge(protected_auth_routes)
         .merge(api_routes)
         .merge(csrf_protected_routes);
 

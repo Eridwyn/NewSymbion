@@ -9,7 +9,7 @@ axum = "0.8.4"
 axum-server = { version = "0.7", features = ["tls-rustls"] }
 bcrypt = "0.17.1"
 dotenvy = "0.15.7"
-jsonwebtoken = { version = "10.1.0", features = ["aws_lc_rs", "use_pem"], default-features = false }
+jsonwebtoken = { version = "10.1.0", features = ["aws_lc_rs"] }
 parking_lot = "0.12.4"
 rumqttc = "0.24.0"
 rustls = { version = "0.23", features = ["ring"], default-features = false }
