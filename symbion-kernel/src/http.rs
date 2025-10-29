@@ -27,6 +27,7 @@ use axum::{extract::{Query, State}, routing::{get, post}, Json, Router};
 use axum::http::{StatusCode, Method};
 use tower_http::cors::{CorsLayer, Any};
 use tower_http::timeout::TimeoutLayer;
+use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use crate::models::{HostState, HostsMap};
 use crate::state::Shared;
 use crate::config::HostsConfig;
@@ -174,10 +175,44 @@ pub struct AppState {
 struct WakeParams { host_id: String }
 
 pub fn build_router(app_state: AppState) -> Router {
-    // Routes publiques (sans version, sans auth)
+    // Rate limiting configurations
+    // Auth routes: 10 req/min per IP (brute-force protection)
+    let auth_rate_limit_config = std::sync::Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(1)
+            .burst_size(10)
+            .finish()
+            .expect("Failed to build auth rate limit config")
+    );
+
+    // API routes: 5 req/sec per IP (DoS protection)
+    let api_rate_limit_config = std::sync::Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(5)
+            .burst_size(10)
+            .finish()
+            .expect("Failed to build API rate limit config")
+    );
+
+    // Routes publiques (sans version, sans auth, sans rate limit strict)
     let public_routes = Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/ca-certificate", get(download_ca_certificate));
+
+    // Routes d'authentification avec rate limiting strict (brute-force protection)
+    let auth_routes = Router::new()
+        .route("/auth/login", post(auth_login))
+        .route("/auth/verify", get(auth_verify))
+        .route("/auth/session", get(auth_session))
+        .route("/auth/logout", post(auth_logout))
+        .route("/auth/mfa/status", get(mfa_status))
+        .route("/auth/mfa/setup", post(mfa_setup))
+        .route("/auth/mfa/verify", post(mfa_verify))
+        .route("/auth/mfa/disable", post(mfa_disable))
+        .route("/auth/csrf/nonce", get(csrf_generate_nonce))
+        .with_state(app_state.clone())
+        .layer(middleware::from_fn_with_state(app_state.clone(), require_auth))
+        .layer(GovernorLayer::new(auth_rate_limit_config));
 
     // Routes destructrices nécessitant protection CSRF (POST/DELETE)
     let csrf_protected_routes = Router::new()
@@ -195,17 +230,8 @@ pub fn build_router(app_state: AppState) -> Router {
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_csrf));
 
-    // Routes v1 (API versionnée avec authentification)
-    let v1_api_routes = Router::new()
-        .route("/auth/login", post(auth_login))
-        .route("/auth/verify", get(auth_verify))
-        .route("/auth/session", get(auth_session))
-        .route("/auth/logout", post(auth_logout))
-        .route("/auth/mfa/status", get(mfa_status))
-        .route("/auth/mfa/setup", post(mfa_setup))
-        .route("/auth/mfa/verify", post(mfa_verify))
-        .route("/auth/mfa/disable", post(mfa_disable))
-        .route("/auth/csrf/nonce", get(csrf_generate_nonce))
+    // Routes API standard avec rate limiting modéré
+    let api_routes = Router::new()
         .route("/system/health", get(get_system_health))
         .route("/hosts", get(get_hosts))
         .route("/hosts/{id}", get(get_host))
@@ -229,10 +255,15 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/context/stats", get(get_context_stats))
         .route("/context/patterns", get(get_context_patterns))
         .route("/context/productivity", get(get_context_productivity))
-        // Fusionner les routes protégées par CSRF
-        .merge(csrf_protected_routes)
         .with_state(app_state.clone())
-        .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
+        .layer(middleware::from_fn_with_state(app_state.clone(), require_auth))
+        .layer(GovernorLayer::new(api_rate_limit_config));
+
+    // Combine all v1 API routes
+    let v1_api_routes = Router::new()
+        .merge(auth_routes)
+        .merge(api_routes)
+        .merge(csrf_protected_routes);
 
     // Router principal avec versioning
     Router::new()
