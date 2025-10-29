@@ -251,6 +251,21 @@ class BootTerminal extends LitElement {
       color: rgba(0, 255, 159, 0.3);
     }
 
+    .login-form {
+      margin: 0;
+      padding: 0;
+    }
+
+    .input-line label {
+      color: #ffffff;
+      text-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+      font-family: inherit;
+      font-size: inherit;
+      font-weight: normal;
+      cursor: text;
+      user-select: none;
+    }
+
     .skip-hint {
       position: fixed;
       bottom: 2.5rem;
@@ -316,9 +331,10 @@ class BootTerminal extends LitElement {
   static properties = {
     lines: { type: Array },
     phase: { type: String }, // 'booting', 'login', 'authenticating', 'done'
-    loginStep: { type: String }, // 'username', 'password'
+    loginStep: { type: String }, // 'username', 'password', 'totp'
     username: { type: String },
     password: { type: String },
+    totpCode: { type: String },
     error: { type: String },
     showCertificateUI: { type: Boolean },
     certUrl: { type: String },
@@ -334,6 +350,7 @@ class BootTerminal extends LitElement {
     this.loginStep = 'username'
     this.username = ''
     this.password = ''
+    this.totpCode = ''
     this.error = null
     this.showCertificateUI = false
     this.certUrl = ''
@@ -349,6 +366,31 @@ class BootTerminal extends LitElement {
   }
 
   async startBootSequence() {
+    // Vérifier si une session existe déjà (éviter le reload complet)
+    if (authService.isAuthenticated()) {
+      console.log('[boot] Session existante détectée - skip boot sequence')
+      this.phase = 'done'
+      this.dispatchEvent(new CustomEvent('boot-complete', {
+        detail: { authenticated: true },
+        bubbles: true,
+        composed: true
+      }))
+      return
+    }
+
+    // Vérifier si le boot a déjà été fait dans cette session (éviter replay)
+    const bootCompleted = sessionStorage.getItem('symbion_boot_completed')
+    if (bootCompleted === 'true') {
+      console.log('[boot] Boot déjà effectué dans cette session - skip directement au login')
+      this.addLine('  ▸ SYMBION v0.1.0', 'logo')
+      this.addLine('  ━━━━━━━━━━━━━━━━━━━━', 'info')
+      this.addLine('')
+      this.phase = 'login'
+      this.loginStep = 'username'
+      this.requestUpdate()
+      return
+    }
+
     await this.delay(50)
 
     // Logo ultra-compact mobile-friendly
@@ -477,6 +519,9 @@ class BootTerminal extends LitElement {
       setTimeout(() => {
         this.canSkip = true
       }, 3000)
+
+      // Marquer le boot comme complété pour cette session
+      sessionStorage.setItem('symbion_boot_completed', 'true')
 
       this.phase = 'login'
       this.requestUpdate()
@@ -788,20 +833,19 @@ class BootTerminal extends LitElement {
   }
 
   get loginLabel() {
-    return this.loginStep === 'username' ? 'identifiant' : 'mot de passe'
+    if (this.loginStep === 'username') return 'identifiant'
+    if (this.loginStep === 'password') return 'mot de passe'
+    if (this.loginStep === 'totp') return 'code TOTP'
+    return 'input'
   }
 
-  handleInput(event) {
-    if (event.key === 'Enter') {
-      this.handleSubmit()
-    }
-  }
+  async handleFormSubmit(event) {
+    event.preventDefault()
 
-  async handleSubmit() {
-    const input = this.shadowRoot.querySelector('.input-field')
-    const value = input.value.trim()
+    const formData = new FormData(event.target)
 
     if (this.loginStep === 'username') {
+      const value = formData.get('username')?.trim()
       if (!value) {
         this.error = 'Nom d\'utilisateur requis'
         this.requestUpdate()
@@ -812,11 +856,10 @@ class BootTerminal extends LitElement {
       this.addLine(`> login: ${value}`, 'prompt')
       this.loginStep = 'password'
       this.error = null
-      input.value = ''
       this.requestUpdate()
-      this.focusInput()
 
     } else if (this.loginStep === 'password') {
+      const value = formData.get('password')?.trim()
       if (!value) {
         this.error = 'Mot de passe requis'
         this.requestUpdate()
@@ -825,7 +868,6 @@ class BootTerminal extends LitElement {
 
       this.password = value
       this.addLine('> password: ********', 'prompt')
-      input.value = ''
 
       // Tentative d'authentification
       this.phase = 'authenticating'
@@ -854,10 +896,24 @@ class BootTerminal extends LitElement {
         }))
 
       } catch (error) {
+        const errorMsg = error.message || 'Erreur inconnue'
+
+        // Vérifier si MFA est requis
+        if (errorMsg.includes('MFA is enabled') || errorMsg.includes('Please provide a TOTP code')) {
+          this.updateLine(authIdx, '[auth] ⚠ MFA requis', 'warning')
+          this.addLine('[mfa] Authentification à deux facteurs activée', 'info')
+          this.addLine('[mfa] Entrez le code TOTP de votre application (6 chiffres)', 'info')
+          this.loginStep = 'totp'
+          this.phase = 'login'
+          this.error = null
+          this.requestUpdate()
+          this.focusInput()
+          return
+        }
+
+        // Autres erreurs (rate limiting, mauvais mot de passe, etc.)
         this.addLine('[auth] ✗ Échec d\'authentification', 'error')
 
-        // Afficher le message d'erreur spécifique (rate limiting, mauvais mdp, etc.)
-        const errorMsg = error.message || 'Erreur inconnue'
         if (errorMsg.includes('Too many login attempts')) {
           // Rate limiting - afficher le message complet du backend
           this.addLine(`[auth] ${errorMsg}`, 'warning')
@@ -872,6 +928,70 @@ class BootTerminal extends LitElement {
         // Reset login
         this.username = ''
         this.password = ''
+        this.totpCode = ''
+        this.loginStep = 'username'
+        this.phase = 'login'
+        this.error = null
+        this.requestUpdate()
+        this.focusInput()
+      }
+
+    } else if (this.loginStep === 'totp') {
+      const value = formData.get('totp')?.trim()
+      if (!value) {
+        this.error = 'Code TOTP requis (6 chiffres)'
+        this.requestUpdate()
+        return
+      }
+
+      // Vérifier que le code est bien numérique et de 6 chiffres
+      if (!/^\d{6,8}$/.test(value)) {
+        this.error = 'Code TOTP invalide (6 à 8 chiffres requis)'
+        this.requestUpdate()
+        return
+      }
+
+      this.totpCode = value
+      this.addLine(`> totp: ${value}`, 'prompt')
+
+      // Tentative d'authentification avec TOTP
+      this.phase = 'authenticating'
+      this.requestUpdate()
+
+      const authIdx = this.addLoadingLine('[auth] Vérification MFA')
+      await this.delay(200)
+
+      try {
+        await authService.login(this.username, this.password, this.totpCode)
+
+        this.updateLine(authIdx, '[auth] ✓ Authentification réussie', 'success')
+        await this.delay(100)
+        this.addLine(`[session] Utilisateur '${this.username}' autorisé`, 'success')
+        await this.delay(100)
+        const dashIdx = this.addLoadingLine('[dashboard] Chargement de l\'interface')
+        await this.delay(200)
+        this.updateLine(dashIdx, '[dashboard] ✓ Prêt', 'success')
+        await this.delay(100)
+
+        this.phase = 'done'
+        this.dispatchEvent(new CustomEvent('boot-complete', {
+          detail: { authenticated: true },
+          bubbles: true,
+          composed: true
+        }))
+
+      } catch (error) {
+        this.addLine('[auth] ✗ Code TOTP invalide', 'error')
+
+        const errorMsg = error.message || 'Erreur inconnue'
+        this.addLine(`[auth] ${errorMsg}`, 'warning')
+        this.addLine('[auth] Nouvel essai dans 3s...', 'warning')
+        await this.delay(3000)
+
+        // Reset complet du login
+        this.username = ''
+        this.password = ''
+        this.totpCode = ''
         this.loginStep = 'username'
         this.phase = 'login'
         this.error = null
@@ -916,18 +1036,63 @@ class BootTerminal extends LitElement {
         ` : ''}
 
         ${this.phase === 'login' ? html`
-          <div class="input-line">
-            <span>> ${this.loginLabel}: </span>
-            <input
-              class="input-field"
-              type="${this.loginStep === 'password' ? 'password' : 'text'}"
-              @keydown="${this.handleInput}"
-              placeholder="_">
-            <span class="cursor"></span>
-          </div>
-          ${this.error ? html`
-            <div class="line error">[error] ${this.error}</div>
-          ` : ''}
+          <form @submit="${this.handleFormSubmit}" class="login-form">
+            ${this.loginStep === 'username' ? html`
+              <div class="input-line">
+                <label for="username">> identifiant: </label>
+                <input
+                  id="username"
+                  name="username"
+                  type="text"
+                  class="input-field"
+                  autocomplete="username"
+                  placeholder="_"
+                  required
+                  autofocus>
+                <span class="cursor"></span>
+              </div>
+            ` : ''}
+
+            ${this.loginStep === 'password' ? html`
+              <div class="input-line">
+                <label for="password">> mot de passe: </label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  class="input-field"
+                  autocomplete="current-password"
+                  placeholder="_"
+                  required
+                  autofocus>
+                <span class="cursor"></span>
+              </div>
+            ` : ''}
+
+            ${this.loginStep === 'totp' ? html`
+              <div class="input-line">
+                <label for="totp">> code TOTP: </label>
+                <input
+                  id="totp"
+                  name="totp"
+                  type="text"
+                  class="input-field"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  pattern="\\d{6,8}"
+                  placeholder="_"
+                  required
+                  autofocus>
+                <span class="cursor"></span>
+              </div>
+            ` : ''}
+
+            ${this.error ? html`
+              <div class="line error">[error] ${this.error}</div>
+            ` : ''}
+
+            <button type="submit" style="display: none;">Submit</button>
+          </form>
         ` : ''}
       </div>
     `
