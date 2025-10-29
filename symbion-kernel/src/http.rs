@@ -144,6 +144,10 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/auth/verify", get(auth_verify))
         .route("/auth/session", get(auth_session))
         .route("/auth/logout", post(auth_logout))
+        .route("/auth/mfa/status", get(mfa_status))
+        .route("/auth/mfa/setup", post(mfa_setup))
+        .route("/auth/mfa/verify", post(mfa_verify))
+        .route("/auth/mfa/disable", post(mfa_disable))
         .route("/system/health", get(get_system_health))
         .route("/hosts", get(get_hosts))
         .route("/hosts/{id}", get(get_host))
@@ -1115,6 +1119,263 @@ async fn auth_logout() -> Json<serde_json::Value> {
         "success": true,
         "message": "Logged out successfully"
     }))
+}
+
+// ============================================================================
+// MFA (Multi-Factor Authentication) Endpoints
+// ============================================================================
+
+/// GET /v1/auth/mfa/status - Vérifier si MFA est activé pour l'utilisateur courant
+async fn mfa_status(
+    State(app): State<AppState>,
+    req: Request,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Extraire le token JWT
+    let token = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    // Vérifier et décoder le token
+    let claims = app.auth_manager.verify_token(token)
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+    // Récupérer l'utilisateur
+    let user = app.auth_manager.get_user(&claims.sub)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Retourner le status MFA
+    match user.mfa_config {
+        Some(config) => Ok(Json(serde_json::json!({
+            "enabled": config.enabled,
+            "setup_at": config.setup_at,
+            "last_verified_at": config.last_verified_at,
+            "backup_codes_count": config.backup_codes.len(),
+            "recovery_email": config.recovery_email,
+        }))),
+        None => Ok(Json(serde_json::json!({
+            "enabled": false,
+            "setup_at": 0,
+            "last_verified_at": 0,
+            "backup_codes_count": 0,
+            "recovery_email": null,
+        }))),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct MfaSetupRequest {
+    #[serde(default)]
+    recovery_email: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct MfaSetupResponse {
+    secret: String,
+    qr_code: String,
+    backup_codes: Vec<String>,
+}
+
+/// POST /v1/auth/mfa/setup - Initialiser la configuration MFA (génère secret + QR code)
+async fn mfa_setup(
+    State(app): State<AppState>,
+    headers: axum::http::HeaderMap,
+    Json(payload): Json<MfaSetupRequest>,
+) -> Result<Json<MfaSetupResponse>, (StatusCode, Json<serde_json::Value>)> {
+    // Extraire le token JWT depuis le header
+    let token = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or_else(|| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Missing or invalid authorization token"}))
+        ))?;
+
+    // Vérifier le token
+    let claims = app.auth_manager.verify_token(token)
+        .map_err(|e| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": format!("Invalid token: {}", e)}))
+        ))?;
+
+    let username = &claims.sub;
+
+    // Générer un nouveau secret TOTP
+    let secret = app.mfa_manager.generate_secret()
+        .map_err(|e| (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Failed to generate secret: {}", e)}))
+        ))?;
+
+    // Générer le QR code
+    let qr_code = app.mfa_manager.generate_qr_code(username, &secret)
+        .map_err(|e| (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Failed to generate QR code: {}", e)}))
+        ))?;
+
+    // Générer des backup codes
+    let backup_codes = app.mfa_manager.generate_backup_codes(10);
+
+    // Créer la configuration MFA (non activée par défaut)
+    let mfa_config = crate::mfa::MfaConfig {
+        enabled: false,  // Sera activé après vérification du premier code
+        secret_base32: secret.clone(),
+        backup_codes: backup_codes.clone(),
+        recovery_email: payload.recovery_email,
+        setup_at: time::OffsetDateTime::now_utc().unix_timestamp(),
+        last_verified_at: 0,
+    };
+
+    // Sauvegarder la configuration (mais pas encore activée)
+    app.auth_manager.update_user_mfa(username, Some(mfa_config))
+        .map_err(|e| (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Failed to save MFA config: {}", e)}))
+        ))?;
+
+    println!("[mfa] Setup initiated for user '{}' (not yet enabled)", username);
+
+    Ok(Json(MfaSetupResponse {
+        secret,
+        qr_code,
+        backup_codes,
+    }))
+}
+
+#[derive(serde::Deserialize)]
+struct MfaVerifyRequest {
+    code: String,
+}
+
+/// POST /v1/auth/mfa/verify - Vérifier un code TOTP et activer MFA
+async fn mfa_verify(
+    State(app): State<AppState>,
+    headers: axum::http::HeaderMap,
+    Json(payload): Json<MfaVerifyRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    // Extraire le token JWT
+    let token = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or_else(|| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Missing authorization token"}))
+        ))?;
+
+    // Vérifier le token
+    let claims = app.auth_manager.verify_token(token)
+        .map_err(|_| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Invalid token"}))
+        ))?;
+
+    let username = &claims.sub;
+
+    // Récupérer l'utilisateur
+    let user = app.auth_manager.get_user(username)
+        .ok_or_else(|| (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "User not found"}))
+        ))?;
+
+    // Vérifier que MFA est configuré
+    let mut mfa_config = user.mfa_config
+        .ok_or_else(|| (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "MFA not configured. Please run /mfa/setup first"}))
+        ))?;
+
+    // Vérifier le code TOTP
+    let totp = totp_rs::TOTP::new(
+        totp_rs::Algorithm::SHA1,
+        6,
+        1,
+        30,
+        totp_rs::Secret::Encoded(mfa_config.secret_base32.clone()).to_bytes()
+            .map_err(|e| (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("Failed to decode secret: {}", e)}))
+            ))?,
+    ).map_err(|e| (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::json!({"error": format!("Failed to create TOTP: {}", e)}))
+    ))?;
+
+    let is_valid = totp.check_current(&payload.code)
+        .map_err(|e| (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Failed to verify code: {}", e)}))
+        ))?;
+
+    if !is_valid {
+        println!("[mfa] Invalid code for user '{}'", username);
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Invalid TOTP code"}))
+        ));
+    }
+
+    // Code valide : activer MFA
+    mfa_config.enabled = true;
+    mfa_config.last_verified_at = time::OffsetDateTime::now_utc().unix_timestamp();
+
+    app.auth_manager.update_user_mfa(username, Some(mfa_config))
+        .map_err(|e| (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Failed to enable MFA: {}", e)}))
+        ))?;
+
+    println!("[mfa] MFA enabled for user '{}'", username);
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "MFA enabled successfully"
+    })))
+}
+
+/// POST /v1/auth/mfa/disable - Désactiver MFA pour l'utilisateur
+async fn mfa_disable(
+    State(app): State<AppState>,
+    req: Request,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    // Extraire le token JWT
+    let token = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or_else(|| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Missing authorization token"}))
+        ))?;
+
+    // Vérifier le token
+    let claims = app.auth_manager.verify_token(token)
+        .map_err(|_| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Invalid token"}))
+        ))?;
+
+    let username = &claims.sub;
+
+    // Supprimer la configuration MFA
+    app.auth_manager.update_user_mfa(username, None)
+        .map_err(|e| (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Failed to disable MFA: {}", e)}))
+        ))?;
+
+    println!("[mfa] MFA disabled for user '{}'", username);
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "MFA disabled successfully"
+    })))
 }
 
 // GET /ca-certificate - Téléchargement du certificat CA

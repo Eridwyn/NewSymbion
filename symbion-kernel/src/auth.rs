@@ -269,4 +269,29 @@ impl AuthManager {
         println!("[auth] User '{}' created with role '{}'", username, role);
         Ok(())
     }
+
+    /// Récupère un utilisateur par son nom
+    pub fn get_user(&self, username: &str) -> Option<User> {
+        let users = self.users.read();
+        users.get(username).cloned()
+    }
+
+    /// Met à jour la configuration MFA d'un utilisateur
+    pub fn update_user_mfa(&self, username: &str, mfa_config: Option<crate::mfa::MfaConfig>) -> Result<()> {
+        let mut users = self.users.write();
+
+        let user = users.get_mut(username)
+            .context(format!("User '{}' not found", username))?;
+
+        user.mfa_config = mfa_config;
+
+        // Sauvegarder dans le fichier
+        let json = serde_json::to_string_pretty(&*users)
+            .context("Failed to serialize users")?;
+        fs::write(USERS_FILE, json)
+            .context("Failed to write users file")?;
+
+        println!("[auth] MFA config updated for user '{}'", username);
+        Ok(())
+    }
 }
