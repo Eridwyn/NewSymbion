@@ -7,6 +7,7 @@
 
 import { LitElement, html, css } from 'lit'
 import authService from '../services/auth-service.js'
+import csrfService from '../services/csrf-service.js'
 import '../services/api-service.js'
 import '../services/mqtt-service.js'
 import '../services/agents-service.js'
@@ -566,6 +567,10 @@ class DashboardApp extends LitElement {
 
     // Service Context
     this.contextService = document.createElement('context-service')
+
+    // Initialiser CSRF service avec authService
+    csrfService.setAuthService(authService)
+    console.log('🔐 CSRF service initialized with authService')
 
     document.body.appendChild(this.apiService)
     document.body.appendChild(this.mqttService)

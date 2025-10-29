@@ -6,6 +6,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import csrfService from '../services/csrf-service.js'
 
 class ContextWidget extends LitElement {
   static styles = css`
@@ -316,14 +317,14 @@ class ContextWidget extends LitElement {
 
   async setModeOverride(mode) {
     try {
-      const apiService = document.querySelector('api-service')
-      if (!apiService) {
-        console.error('[context-widget] API service not available')
-        return
-      }
+      const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
 
-      const response = await apiService.request('/context/override', {
+      // Utiliser csrfService pour les routes protégées
+      const response = await csrfService.fetchWithCsrf(`${API_BASE}/context/override`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
           mode: mode,
           duration_minutes: this.selectedDuration,
@@ -331,10 +332,15 @@ class ContextWidget extends LitElement {
         })
       })
 
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+      }
+
+      const data = await response.json()
       console.log(`[context-widget] Mode override set: ${mode} for ${this.selectedDuration} minutes`)
 
       // Update local state immediately
-      this.contextState = response
+      this.contextState = data
       this.status = 'ready'
 
       // Notify context service to refresh
@@ -349,20 +355,25 @@ class ContextWidget extends LitElement {
 
   async clearOverride() {
     try {
-      const apiService = document.querySelector('api-service')
-      if (!apiService) {
-        console.error('[context-widget] API service not available')
-        return
-      }
+      const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
 
-      const response = await apiService.request('/context/clear', {
-        method: 'POST'
+      // Utiliser csrfService pour les routes protégées
+      const response = await csrfService.fetchWithCsrf(`${API_BASE}/context/clear`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       })
 
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+      }
+
+      const data = await response.json()
       console.log('[context-widget] Override cleared')
 
       // Update local state
-      this.contextState = response
+      this.contextState = data
       this.status = 'ready'
 
       // Notify context service to refresh
