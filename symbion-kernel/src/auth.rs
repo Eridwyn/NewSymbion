@@ -33,6 +33,9 @@ pub struct User {
     pub password_hash: String,
     pub role: String,
     pub created_at: i64,
+    /// Configuration MFA (optionnelle, None si MFA non activée)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mfa_config: Option<crate::mfa::MfaConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,6 +58,8 @@ pub struct LoginResponse {
     pub username: String,
     pub role: String,
     pub expires_at: i64,
+    /// Indique si MFA est requis pour ce compte
+    pub requires_mfa: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -96,6 +101,7 @@ impl AuthManager {
                     .context("Failed to hash default password")?,
                 role: "admin".to_string(),
                 created_at: OffsetDateTime::now_utc().unix_timestamp(),
+                mfa_config: None,
             };
 
             let mut users = HashMap::new();
@@ -196,13 +202,20 @@ impl AuthManager {
         let token = encode(&Header::default(), &claims, &self.encoding_key)
             .context("Failed to generate JWT token")?;
 
-        println!("[auth] User '{}' authenticated successfully", username);
+        // Vérifier si MFA est activé pour cet utilisateur
+        let requires_mfa = user.mfa_config
+            .as_ref()
+            .map(|config| config.enabled)
+            .unwrap_or(false);
+
+        println!("[auth] User '{}' authenticated successfully (MFA: {})", username, requires_mfa);
 
         Ok(LoginResponse {
             token,
             username: user.username.clone(),
             role: user.role.clone(),
             expires_at,
+            requires_mfa,
         })
     }
 
@@ -242,6 +255,7 @@ impl AuthManager {
             password_hash,
             role: role.to_string(),
             created_at: OffsetDateTime::now_utc().unix_timestamp(),
+            mfa_config: None,
         };
 
         users.insert(username.to_string(), user);
