@@ -163,6 +163,7 @@ pub struct AppState {
     pub auth_manager: crate::auth::AuthManager,
     pub mfa_manager: std::sync::Arc<crate::mfa::MfaManager>,
     pub csrf_manager: std::sync::Arc<crate::csrf::CsrfManager>,
+    pub device_trust_manager: std::sync::Arc<crate::device_trust::DeviceTrustManager>,
     pub ports: Shared<crate::ports::PortRegistry>,
     pub plugins: Shared<crate::plugins::PluginManager>,
     pub notes_bridge: Option<SharedNotesBridge>,
@@ -1146,14 +1147,93 @@ async fn command_status_endpoint(
 // POST /auth/login - Authentification utilisateur
 async fn auth_login(
     State(app): State<AppState>,
-    Json(payload): Json<crate::auth::LoginRequest>,
-) -> Result<Json<crate::auth::LoginResponse>, (StatusCode, Json<serde_json::Value>)> {
+    req: Request,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    // Extraire le body JSON
+    let (parts, body) = req.into_parts();
+    let bytes = axum::body::to_bytes(body, usize::MAX).await
+        .map_err(|_| (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Invalid request body" }))
+        ))?;
+
+    let payload: crate::auth::LoginRequest = serde_json::from_slice(&bytes)
+        .map_err(|_| (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Invalid JSON" }))
+        ))?;
+
+    // Extraire User-Agent pour device fingerprinting
+    let user_agent = parts.headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown");
+
+    let device_fingerprint = crate::device_trust::DeviceTrustManager::generate_fingerprint(user_agent);
+
+    // Vérifier si un device token existe dans les cookies
+    let device_token = parts.headers
+        .get("cookie")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|cookies| {
+            // Parser les cookies (format: "name1=value1; name2=value2")
+            for cookie in cookies.split(';') {
+                let cookie = cookie.trim();
+                if let Some(value) = cookie.strip_prefix("device_token=") {
+                    return Some(value.to_string());
+                }
+            }
+            None
+        });
+
+    // Vérifier si le device est de confiance
+    let trusted_device = if let Some(ref token) = device_token {
+        app.device_trust_manager.verify_device_token(
+            token,
+            &payload.username,
+            &device_fingerprint
+        )
+    } else {
+        false
+    };
+
+    // Authentifier l'utilisateur (avec bypass MFA si device trusted)
     match app.auth_manager.authenticate(
         &payload.username,
         &payload.password,
-        payload.totp_code.as_deref()
+        payload.totp_code.as_deref(),
+        trusted_device
     ) {
-        Ok(response) => Ok(Json(response)),
+        Ok(response) => {
+            // Si remember_device est activé et login réussi, créer un device token
+            let mut headers = axum::http::HeaderMap::new();
+
+            if payload.remember_device && !trusted_device {
+                match app.device_trust_manager.create_device_token(&payload.username, &device_fingerprint) {
+                    Ok(token) => {
+                        // Créer un cookie HttpOnly, Secure, SameSite=Strict, valable 30 jours
+                        let cookie_value = format!(
+                            "device_token={}; Max-Age={}; Path=/; HttpOnly; Secure; SameSite=Strict",
+                            token,
+                            30 * 24 * 3600 // 30 jours en secondes
+                        );
+
+                        headers.insert(
+                            axum::http::header::SET_COOKIE,
+                            cookie_value.parse().unwrap()
+                        );
+
+                        println!("[auth] Device token created for user '{}' (30 days)", payload.username);
+                    }
+                    Err(e) => {
+                        eprintln!("[auth] Failed to create device token: {}", e);
+                        // Ne pas bloquer le login si la création du token échoue
+                    }
+                }
+            }
+
+            Ok((headers, Json(response)))
+        }
         Err(e) => {
             let error_msg = e.to_string();
             eprintln!("[auth] login failed for '{}': {}", payload.username, error_msg);

@@ -170,7 +170,7 @@ impl AuthManager {
                  username, user_attempts.len());
     }
 
-    pub fn authenticate(&self, username: &str, password: &str, totp_code: Option<&str>) -> Result<LoginResponse> {
+    pub fn authenticate(&self, username: &str, password: &str, totp_code: Option<&str>, trusted_device: bool) -> Result<LoginResponse> {
         // Check rate limit BEFORE doing anything else
         self.check_rate_limit(username)?;
 
@@ -198,24 +198,30 @@ impl AuthManager {
             .map(|config| config.enabled)
             .unwrap_or(false);
 
-        // Si MFA activé, vérifier le code TOTP
+        // Si MFA activé, vérifier le code TOTP (sauf si device de confiance)
         if requires_mfa {
-            let totp_code = totp_code.ok_or_else(|| {
-                anyhow::anyhow!("MFA is enabled. Please provide a TOTP code.")
-            })?;
+            if !trusted_device {
+                // Device non-trusted: vérifier le code TOTP
+                let totp_code = totp_code.ok_or_else(|| {
+                    anyhow::anyhow!("MFA is enabled. Please provide a TOTP code.")
+                })?;
 
-            // Vérifier le code TOTP
-            let mfa_config = user.mfa_config.as_ref().unwrap();
-            let mfa_manager = crate::mfa::MfaManager::new("Symbion".to_string(), "Symbion IoT".to_string());
+                // Vérifier le code TOTP
+                let mfa_config = user.mfa_config.as_ref().unwrap();
+                let mfa_manager = crate::mfa::MfaManager::new("Symbion".to_string(), "Symbion IoT".to_string());
 
-            let is_valid = mfa_manager.verify_totp_with_secret(&mfa_config.secret_base32, totp_code)
-                .context("Failed to verify TOTP code")?;
+                let is_valid = mfa_manager.verify_totp_with_secret(&mfa_config.secret_base32, totp_code)
+                    .context("Failed to verify TOTP code")?;
 
-            if !is_valid {
-                anyhow::bail!("Invalid TOTP code");
+                if !is_valid {
+                    anyhow::bail!("Invalid TOTP code");
+                }
+
+                println!("[auth] User '{}' authenticated with MFA successfully", username);
+            } else {
+                // Device de confiance: bypass MFA
+                println!("[auth] User '{}' authenticated with MFA bypassed (trusted device)", username);
             }
-
-            println!("[auth] User '{}' authenticated with MFA successfully", username);
         } else {
             println!("[auth] User '{}' authenticated successfully (no MFA)", username);
         }
