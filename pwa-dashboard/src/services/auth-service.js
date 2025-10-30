@@ -12,12 +12,14 @@
 const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
 const TOKEN_KEY = 'symbion_auth_token'
 const USER_KEY = 'symbion_user_info'
+const LOGIN_TIME_KEY = 'symbion_login_time'
 
 class AuthService extends EventTarget {
   constructor() {
     super()
     this.token = null
     this.userInfo = null
+    this.loginTime = null
     this.refreshTimer = null
 
     // Charger token depuis sessionStorage au démarrage
@@ -30,11 +32,13 @@ class AuthService extends EventTarget {
   loadFromStorage() {
     const token = sessionStorage.getItem(TOKEN_KEY)
     const userInfo = sessionStorage.getItem(USER_KEY)
+    const loginTime = sessionStorage.getItem(LOGIN_TIME_KEY)
 
     if (token && userInfo) {
       try {
         this.token = token
         this.userInfo = JSON.parse(userInfo)
+        this.loginTime = loginTime ? parseInt(loginTime) : null
         console.log('[auth] Session restored from storage:', this.userInfo.username)
         this.scheduleTokenRefresh()
       } catch (error) {
@@ -51,6 +55,9 @@ class AuthService extends EventTarget {
     if (this.token && this.userInfo) {
       sessionStorage.setItem(TOKEN_KEY, this.token)
       sessionStorage.setItem(USER_KEY, JSON.stringify(this.userInfo))
+      if (this.loginTime) {
+        sessionStorage.setItem(LOGIN_TIME_KEY, this.loginTime.toString())
+      }
     }
   }
 
@@ -60,9 +67,11 @@ class AuthService extends EventTarget {
   clearStorage() {
     sessionStorage.removeItem(TOKEN_KEY)
     sessionStorage.removeItem(USER_KEY)
+    sessionStorage.removeItem(LOGIN_TIME_KEY)
     sessionStorage.removeItem('symbion_boot_completed') // Reset boot pour prochaine session
     this.token = null
     this.userInfo = null
+    this.loginTime = null
 
     if (this.refreshTimer) {
       clearTimeout(this.refreshTimer)
@@ -122,6 +131,7 @@ class AuthService extends EventTarget {
         role: data.role,
         expires_at: data.expires_at
       }
+      this.loginTime = Date.now() // Enregistrer le timestamp du login
 
       this.saveToStorage()
       this.scheduleTokenRefresh()
@@ -311,6 +321,14 @@ class AuthService extends EventTarget {
     return {
       'Authorization': `Bearer ${this.token}`
     }
+  }
+
+  /**
+   * Obtenir le timestamp du login (en millisecondes)
+   * @returns {number|null}
+   */
+  getLoginTime() {
+    return this.loginTime
   }
 }
 

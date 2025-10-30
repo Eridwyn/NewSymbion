@@ -1,0 +1,770 @@
+/**
+ * Page Paramètres Utilisateur Symbion
+ *
+ * Interface de configuration utilisateur:
+ * - Profil utilisateur
+ * - Sécurité (changement mot de passe)
+ * - MFA/TOTP (activation, désactivation, codes backup)
+ */
+
+import { LitElement, html, css } from 'lit'
+import authService from '../services/auth-service.js'
+
+class UserSettingsPage extends LitElement {
+  static styles = css`
+    :host {
+      display: block;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      z-index: 9999;
+      overflow-y: auto;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .settings-container {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 2rem;
+      animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .settings-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 2px solid var(--context-primary, #00d4aa);
+    }
+
+    .settings-title {
+      font-size: 2em;
+      font-weight: 600;
+      background: linear-gradient(135deg, var(--context-primary, #00d4aa) 0%, #007acc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .close-button {
+      background: rgba(255, 107, 107, 0.15);
+      border: 1px solid rgba(255, 107, 107, 0.3);
+      color: #ff6b6b;
+      padding: 0.6rem 1.2rem;
+      border-radius: 8px;
+      font-size: 0.9em;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .close-button:hover {
+      background: rgba(255, 107, 107, 0.25);
+      border-color: rgba(255, 107, 107, 0.5);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .tab {
+      background: transparent;
+      border: none;
+      color: #888;
+      padding: 0.8rem 1.5rem;
+      font-size: 0.95em;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.3s ease;
+    }
+
+    .tab:hover {
+      color: #bbb;
+    }
+
+    .tab.active {
+      color: var(--context-primary, #00d4aa);
+      border-bottom-color: var(--context-primary, #00d4aa);
+    }
+
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .section {
+      background: linear-gradient(135deg, rgba(26, 26, 26, 0.9) 0%, rgba(15, 15, 15, 0.85) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .section-title {
+      font-size: 1.2em;
+      font-weight: 600;
+      color: var(--context-primary, #00d4aa);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .section-description {
+      color: #aaa;
+      font-size: 0.9em;
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.8rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+    }
+
+    .info-label {
+      color: #888;
+      font-size: 0.9em;
+    }
+
+    .info-value {
+      color: #e0e0e0;
+      font-weight: 500;
+    }
+
+    .status-badge {
+      padding: 0.3rem 0.8rem;
+      border-radius: 20px;
+      font-size: 0.8em;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-badge.enabled {
+      background: rgba(76, 175, 80, 0.2);
+      color: #4caf50;
+      border: 1px solid rgba(76, 175, 80, 0.4);
+    }
+
+    .status-badge.disabled {
+      background: rgba(255, 107, 107, 0.15);
+      color: #ff6b6b;
+      border: 1px solid rgba(255, 107, 107, 0.3);
+    }
+
+    .button {
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 0%,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent) 100%);
+      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+      color: var(--context-primary, #00d4aa);
+      padding: 0.8rem 1.5rem;
+      border-radius: 8px;
+      font-size: 0.9em;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .button:hover {
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent) 0%,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent) 100%);
+      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 50%, transparent);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
+    }
+
+    .button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .button.danger {
+      background: linear-gradient(135deg, rgba(255, 107, 107, 0.15) 0%, rgba(239, 68, 68, 0.1) 100%);
+      border: 1px solid rgba(255, 107, 107, 0.3);
+      color: #ff6b6b;
+    }
+
+    .button.danger:hover {
+      background: linear-gradient(135deg, rgba(255, 107, 107, 0.25) 0%, rgba(239, 68, 68, 0.2) 100%);
+      border-color: rgba(255, 107, 107, 0.5);
+      box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+    }
+
+    .mfa-setup-container {
+      margin-top: 1.5rem;
+      padding: 1.5rem;
+      background: rgba(0, 212, 170, 0.05);
+      border: 1px dashed rgba(0, 212, 170, 0.3);
+      border-radius: 8px;
+    }
+
+    .qr-code-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .qr-code {
+      padding: 1rem;
+      background: white;
+      border-radius: 8px;
+    }
+
+    .secret-display {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 1rem;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 1.1em;
+      letter-spacing: 2px;
+      text-align: center;
+      color: var(--context-primary, #00d4aa);
+      word-break: break-all;
+    }
+
+    .input-group {
+      margin: 1.5rem 0;
+    }
+
+    .input-label {
+      color: #aaa;
+      font-size: 0.9em;
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .input {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #e0e0e0;
+      padding: 0.8rem 1rem;
+      border-radius: 8px;
+      font-size: 1em;
+      transition: all 0.3s ease;
+    }
+
+    .input:focus {
+      outline: none;
+      border-color: var(--context-primary, #00d4aa);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+    }
+
+    .backup-codes {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      background: rgba(255, 193, 7, 0.05);
+      border: 1px solid rgba(255, 193, 7, 0.3);
+      border-radius: 8px;
+    }
+
+    .backup-codes-title {
+      color: #ffc107;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .backup-codes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 0.5rem;
+    }
+
+    .backup-code {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 0.6rem;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9em;
+      text-align: center;
+      color: #ffc107;
+    }
+
+    .alert {
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.8rem;
+    }
+
+    .alert.success {
+      background: rgba(76, 175, 80, 0.15);
+      border: 1px solid rgba(76, 175, 80, 0.3);
+      color: #4caf50;
+    }
+
+    .alert.error {
+      background: rgba(255, 107, 107, 0.15);
+      border: 1px solid rgba(255, 107, 107, 0.3);
+      color: #ff6b6b;
+    }
+
+    .alert.warning {
+      background: rgba(255, 193, 7, 0.15);
+      border: 1px solid rgba(255, 193, 7, 0.3);
+      color: #ffc107;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 2rem;
+      color: #888;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-top-color: var(--context-primary, #00d4aa);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 768px) {
+      .settings-container {
+        padding: 1rem;
+        margin: 1rem;
+      }
+
+      .settings-title {
+        font-size: 1.5em;
+      }
+
+      .tabs {
+        overflow-x: auto;
+      }
+
+      .tab {
+        white-space: nowrap;
+      }
+    }
+  `
+
+  static properties = {
+    activeTab: { type: String },
+    mfaStatus: { type: Object },
+    mfaSetupData: { type: Object },
+    loading: { type: Boolean },
+    message: { type: Object }, // { type: 'success'|'error'|'warning', text: string }
+    verifyCode: { type: String }
+  }
+
+  constructor() {
+    super()
+    this.activeTab = 'profil'
+    this.mfaStatus = null
+    this.mfaSetupData = null
+    this.loading = false
+    this.message = null
+    this.verifyCode = ''
+  }
+
+  connectedCallback() {
+    super.connectedCallback()
+    this.loadMfaStatus()
+  }
+
+  async loadMfaStatus() {
+    try {
+      const apiService = document.querySelector('api-service')
+      if (!apiService) {
+        console.error('[settings] API service not available')
+        return
+      }
+
+      this.loading = true
+      this.mfaStatus = await apiService.request('/v1/auth/mfa/status')
+      console.log('[settings] MFA status loaded:', this.mfaStatus)
+    } catch (error) {
+      console.error('[settings] Failed to load MFA status:', error)
+      this.showMessage('error', 'Impossible de charger l\'état MFA')
+    } finally {
+      this.loading = false
+    }
+  }
+
+  async handleMfaSetup() {
+    try {
+      const apiService = document.querySelector('api-service')
+      if (!apiService) throw new Error('API service not available')
+
+      this.loading = true
+      this.message = null
+
+      const response = await apiService.request('/v1/auth/mfa/setup', {
+        method: 'POST'
+      })
+
+      this.mfaSetupData = response
+      console.log('[settings] MFA setup initiated:', response)
+      this.showMessage('success', 'Scannez le QR code avec votre application d\'authentification')
+    } catch (error) {
+      console.error('[settings] MFA setup failed:', error)
+      this.showMessage('error', 'Échec de l\'initialisation MFA: ' + error.message)
+    } finally {
+      this.loading = false
+    }
+  }
+
+  async handleMfaVerify() {
+    if (!this.verifyCode || this.verifyCode.length !== 6) {
+      this.showMessage('error', 'Le code doit contenir 6 chiffres')
+      return
+    }
+
+    try {
+      const apiService = document.querySelector('api-service')
+      if (!apiService) throw new Error('API service not available')
+
+      this.loading = true
+      this.message = null
+
+      const response = await apiService.request('/v1/auth/mfa/verify', {
+        method: 'POST',
+        body: JSON.stringify({ code: this.verifyCode })
+      })
+
+      console.log('[settings] MFA verification response:', response)
+
+      if (response.success) {
+        this.showMessage('success', '✅ MFA activé avec succès !')
+        this.verifyCode = ''
+
+        // Recharger le status MFA
+        await this.loadMfaStatus()
+
+        // Effacer les données de setup
+        this.mfaSetupData = null
+      } else {
+        this.showMessage('error', 'Code invalide, veuillez réessayer')
+      }
+    } catch (error) {
+      console.error('[settings] MFA verification failed:', error)
+      this.showMessage('error', 'Vérification échouée: ' + error.message)
+    } finally {
+      this.loading = false
+    }
+  }
+
+  async handleMfaDisable() {
+    if (!confirm('Êtes-vous sûr de vouloir désactiver l\'authentification à deux facteurs ?')) {
+      return
+    }
+
+    try {
+      const apiService = document.querySelector('api-service')
+      if (!apiService) throw new Error('API service not available')
+
+      this.loading = true
+      this.message = null
+
+      await apiService.request('/v1/auth/mfa/disable', {
+        method: 'POST'
+      })
+
+      this.showMessage('success', 'MFA désactivé avec succès')
+
+      // Recharger le status MFA
+      await this.loadMfaStatus()
+    } catch (error) {
+      console.error('[settings] MFA disable failed:', error)
+      this.showMessage('error', 'Échec de la désactivation: ' + error.message)
+    } finally {
+      this.loading = false
+    }
+  }
+
+  showMessage(type, text) {
+    this.message = { type, text }
+    // Auto-clear success messages after 5 seconds
+    if (type === 'success') {
+      setTimeout(() => {
+        if (this.message?.text === text) {
+          this.message = null
+        }
+      }, 5000)
+    }
+  }
+
+  handleClose() {
+    this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }))
+  }
+
+  render() {
+    const currentUser = authService.getCurrentUser()
+
+    return html`
+      <div class="settings-container">
+        <div class="settings-header">
+          <h1 class="settings-title">⚙️ Paramètres</h1>
+          <button class="close-button" @click="${this.handleClose}">
+            ✕ Fermer
+          </button>
+        </div>
+
+        <div class="tabs">
+          <button class="tab ${this.activeTab === 'profil' ? 'active' : ''}"
+                  @click="${() => this.activeTab = 'profil'}">
+            👤 Profil
+          </button>
+          <button class="tab ${this.activeTab === 'securite' ? 'active' : ''}"
+                  @click="${() => this.activeTab = 'securite'}">
+            🔒 Sécurité
+          </button>
+          <button class="tab ${this.activeTab === 'mfa' ? 'active' : ''}"
+                  @click="${() => this.activeTab = 'mfa'}">
+            🛡️ Authentification 2FA
+          </button>
+        </div>
+
+        ${this.message ? html`
+          <div class="alert ${this.message.type}">
+            <span>${this.message.type === 'success' ? '✅' : this.message.type === 'error' ? '❌' : '⚠️'}</span>
+            <span>${this.message.text}</span>
+          </div>
+        ` : ''}
+
+        <!-- Tab Profil -->
+        <div class="tab-content ${this.activeTab === 'profil' ? 'active' : ''}">
+          <div class="section">
+            <h2 class="section-title">👤 Informations Utilisateur</h2>
+            <div class="info-row">
+              <span class="info-label">Nom d'utilisateur</span>
+              <span class="info-value">${currentUser?.username || 'Non connecté'}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Rôle</span>
+              <span class="info-value">${currentUser?.role || 'N/A'}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Durée de session</span>
+              <span class="info-value">${this.getSessionDuration()}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab Sécurité -->
+        <div class="tab-content ${this.activeTab === 'securite' ? 'active' : ''}">
+          <div class="section">
+            <h2 class="section-title">🔒 Changement de Mot de Passe</h2>
+            <p class="section-description">
+              Fonctionnalité à venir dans une prochaine mise à jour.
+            </p>
+          </div>
+        </div>
+
+        <!-- Tab MFA -->
+        <div class="tab-content ${this.activeTab === 'mfa' ? 'active' : ''}">
+          ${this.renderMfaTab()}
+        </div>
+      </div>
+    `
+  }
+
+  renderMfaTab() {
+    if (this.loading && !this.mfaStatus) {
+      return html`
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>Chargement...</p>
+        </div>
+      `
+    }
+
+    const isMfaEnabled = this.mfaStatus?.enabled || false
+
+    return html`
+      <div class="section">
+        <h2 class="section-title">🛡️ Authentification à Deux Facteurs (TOTP)</h2>
+        <p class="section-description">
+          L'authentification à deux facteurs ajoute une couche de sécurité supplémentaire à votre compte.
+          Vous devrez fournir un code généré par une application comme Google Authenticator lors de la connexion.
+        </p>
+
+        <div class="info-row">
+          <span class="info-label">État MFA</span>
+          <span class="status-badge ${isMfaEnabled ? 'enabled' : 'disabled'}">
+            ${isMfaEnabled ? '✓ Activé' : '✗ Désactivé'}
+          </span>
+        </div>
+
+        ${!isMfaEnabled ? html`
+          ${!this.mfaSetupData ? html`
+            <!-- MFA non activé, proposer l'activation -->
+            <div class="mfa-setup-container">
+              <h3 style="color: var(--context-primary, #00d4aa); margin-bottom: 1rem;">
+                📱 Activer l'authentification à deux facteurs
+              </h3>
+              <p style="color: #aaa; margin-bottom: 1rem;">
+                Vous aurez besoin d'une application d'authentification compatible TOTP comme:
+              </p>
+              <ul style="color: #aaa; margin-left: 1.5rem; margin-bottom: 1.5rem;">
+                <li>Google Authenticator</li>
+                <li>Microsoft Authenticator</li>
+                <li>Authy</li>
+              </ul>
+              <button class="button" @click="${this.handleMfaSetup}" ?disabled="${this.loading}">
+                ${this.loading ? '⏳ Chargement...' : '🚀 Commencer l\'activation'}
+              </button>
+            </div>
+          ` : html`
+            <!-- Étape d'activation MFA: scan QR + vérification -->
+            <div class="mfa-setup-container">
+              <h3 style="color: var(--context-primary, #00d4aa); margin-bottom: 1rem;">
+                📱 Scannez ce QR code
+              </h3>
+
+              <div class="qr-code-container">
+                <div class="qr-code">
+                  <img src="${this.mfaSetupData.qr_code}" alt="QR Code TOTP" style="display: block; width: 200px; height: 200px;" />
+                </div>
+
+                <div style="text-align: center; width: 100%;">
+                  <p style="color: #aaa; margin-bottom: 0.5rem;">Ou entrez manuellement ce secret:</p>
+                  <div class="secret-display">
+                    ${this.mfaSetupData.secret}
+                  </div>
+                </div>
+              </div>
+
+              <div class="input-group">
+                <label class="input-label">Entrez le code à 6 chiffres généré par l'application</label>
+                <input
+                  type="text"
+                  class="input"
+                  placeholder="000000"
+                  maxlength="6"
+                  pattern="[0-9]{6}"
+                  .value="${this.verifyCode}"
+                  @input="${(e) => this.verifyCode = e.target.value.replace(/[^0-9]/g, '')}"
+                  @keypress="${(e) => e.key === 'Enter' && this.handleMfaVerify()}"
+                />
+              </div>
+
+              <div style="display: flex; gap: 1rem;">
+                <button class="button" @click="${this.handleMfaVerify}" ?disabled="${this.loading || this.verifyCode.length !== 6}">
+                  ${this.loading ? '⏳ Vérification...' : '✓ Vérifier et Activer'}
+                </button>
+                <button class="button danger" @click="${() => { this.mfaSetupData = null; this.verifyCode = '' }}">
+                  ✕ Annuler
+                </button>
+              </div>
+
+              ${this.mfaSetupData.backup_codes ? html`
+                <div class="backup-codes">
+                  <div class="backup-codes-title">
+                    <span>⚠️</span>
+                    <span>Codes de Récupération (à conserver précieusement)</span>
+                  </div>
+                  <p style="color: #aaa; font-size: 0.85em; margin-bottom: 1rem;">
+                    Conservez ces codes dans un endroit sûr. Ils vous permettent de vous connecter si vous perdez l'accès à votre application d'authentification.
+                  </p>
+                  <div class="backup-codes-grid">
+                    ${this.mfaSetupData.backup_codes.map(code => html`
+                      <div class="backup-code">${code}</div>
+                    `)}
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          `}
+        ` : html`
+          <!-- MFA déjà activé -->
+          <div class="mfa-setup-container">
+            <div class="alert success">
+              <span>✅</span>
+              <div>
+                <strong>L'authentification à deux facteurs est active</strong>
+                <p style="margin: 0.5rem 0 0 0; font-size: 0.9em; opacity: 0.9;">
+                  Votre compte est protégé par une couche de sécurité supplémentaire.
+                </p>
+              </div>
+            </div>
+
+            <button class="button danger" @click="${this.handleMfaDisable}" ?disabled="${this.loading}">
+              ${this.loading ? '⏳ Chargement...' : '🗑️ Désactiver l\'authentification 2FA'}
+            </button>
+          </div>
+        `}
+      </div>
+    `
+  }
+
+  getSessionDuration() {
+    const loginTime = authService.getLoginTime()
+    if (!loginTime) return 'N/A'
+
+    const now = Date.now()
+    const duration = now - loginTime
+    const hours = Math.floor(duration / (1000 * 60 * 60))
+    const minutes = Math.floor((duration % (1000 * 60 * 60)) / (1000 * 60))
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}min`
+    }
+    return `${minutes}min`
+  }
+}
+
+customElements.define('user-settings-page', UserSettingsPage)
+
+export { UserSettingsPage }
