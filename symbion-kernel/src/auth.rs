@@ -64,6 +64,9 @@ pub struct LoginResponse {
     pub expires_at: i64,
     /// Indique si MFA est requis pour ce compte
     pub requires_mfa: bool,
+    /// Device token pour bypass MFA (optionnel, renvoyé si remember_device=true)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_token: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -246,6 +249,7 @@ impl AuthManager {
             role: user.role.clone(),
             expires_at,
             requires_mfa,
+            device_token: None, // Sera rempli par http.rs si remember_device=true
         })
     }
 

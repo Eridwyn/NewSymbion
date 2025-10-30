@@ -288,10 +288,22 @@ pub fn build_router(app_state: AppState) -> Router {
         // Middlewares globaux
         .layer(
             CorsLayer::new()
-                .allow_origin(Any)
+                .allow_origin([
+                    "http://localhost:3000".parse().unwrap(),
+                    "http://192.168.1.14:3000".parse().unwrap(),
+                    "https://192.168.1.14:3000".parse().unwrap(),
+                ])
                 .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT, Method::OPTIONS])
-                .allow_headers(Any)
-                .allow_credentials(false)
+                .allow_headers([
+                    axum::http::header::CONTENT_TYPE,
+                    axum::http::header::AUTHORIZATION,
+                    axum::http::header::ACCEPT,
+                    axum::http::header::USER_AGENT,
+                    axum::http::header::HeaderName::from_static("x-api-key"),
+                    axum::http::header::HeaderName::from_static("x-csrf-token"),
+                    axum::http::header::HeaderName::from_static("x-device-token"),
+                ])
+                .allow_credentials(true) // Requis pour cookies (historique, device_token maintenant via header)
         )
         // Timeout de 30s pour toutes requêtes - Prévient blocages deadlock
         .layer(TimeoutLayer::new(std::time::Duration::from_secs(30)))
@@ -1171,28 +1183,34 @@ async fn auth_login(
 
     let device_fingerprint = crate::device_trust::DeviceTrustManager::generate_fingerprint(user_agent);
 
-    // Vérifier si un device token existe dans les cookies
+    // Vérifier si un device token existe dans le header X-Device-Token (localStorage)
     let device_token = parts.headers
-        .get("cookie")
+        .get("x-device-token")
         .and_then(|v| v.to_str().ok())
-        .and_then(|cookies| {
-            // Parser les cookies (format: "name1=value1; name2=value2")
-            for cookie in cookies.split(';') {
-                let cookie = cookie.trim();
-                if let Some(value) = cookie.strip_prefix("device_token=") {
-                    return Some(value.to_string());
-                }
-            }
-            None
+        .map(|s| {
+            println!("[device-trust] Header X-Device-Token found: {}...", &s[..std::cmp::min(8, s.len())]);
+            s.to_string()
         });
+
+    if device_token.is_none() {
+        println!("[device-trust] No X-Device-Token header found in request");
+    }
 
     // Vérifier si le device est de confiance
     let trusted_device = if let Some(ref token) = device_token {
-        app.device_trust_manager.verify_device_token(
+        let is_trusted = app.device_trust_manager.verify_device_token(
             token,
             &payload.username,
             &device_fingerprint
-        )
+        );
+
+        if is_trusted {
+            println!("[device-trust] ✓ Device token valid for user '{}' - MFA will be bypassed", payload.username);
+        } else {
+            println!("[device-trust] ✗ Device token invalid or expired for user '{}'", payload.username);
+        }
+
+        is_trusted
     } else {
         false
     };
@@ -1204,26 +1222,14 @@ async fn auth_login(
         payload.totp_code.as_deref(),
         trusted_device
     ) {
-        Ok(response) => {
+        Ok(mut response) => {
             // Si remember_device est activé et login réussi, créer un device token
-            let mut headers = axum::http::HeaderMap::new();
-
             if payload.remember_device && !trusted_device {
                 match app.device_trust_manager.create_device_token(&payload.username, &device_fingerprint) {
                     Ok(token) => {
-                        // Créer un cookie HttpOnly, Secure, SameSite=Strict, valable 30 jours
-                        let cookie_value = format!(
-                            "device_token={}; Max-Age={}; Path=/; HttpOnly; Secure; SameSite=Strict",
-                            token,
-                            30 * 24 * 3600 // 30 jours en secondes
-                        );
-
-                        headers.insert(
-                            axum::http::header::SET_COOKIE,
-                            cookie_value.parse().unwrap()
-                        );
-
-                        println!("[auth] Device token created for user '{}' (30 days)", payload.username);
+                        // Retourner le device_token dans la réponse JSON (localStorage frontend)
+                        response.device_token = Some(token.clone());
+                        println!("[auth] Device token created for user '{}' (30 days) - sent in JSON response", payload.username);
                     }
                     Err(e) => {
                         eprintln!("[auth] Failed to create device token: {}", e);
@@ -1232,7 +1238,7 @@ async fn auth_login(
                 }
             }
 
-            Ok((headers, Json(response)))
+            Ok(Json(response))
         }
         Err(e) => {
             let error_msg = e.to_string();
