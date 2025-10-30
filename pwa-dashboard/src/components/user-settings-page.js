@@ -451,7 +451,8 @@ class UserSettingsPage extends LitElement {
       this.message = null
 
       const response = await apiService.request('/auth/mfa/setup', {
-        method: 'POST'
+        method: 'POST',
+        body: JSON.stringify({})  // Body vide requis par backend
       })
 
       this.mfaSetupData = response
