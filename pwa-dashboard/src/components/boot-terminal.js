@@ -326,6 +326,91 @@ class BootTerminal extends LitElement {
       60% { content: '..'; }
       80%, 100% { content: '...'; }
     }
+
+    /* Adaptations mobile - formulaires visibles sans scroll excessif */
+    @media (max-width: 768px) {
+      .terminal {
+        padding: 0.75rem 1rem 1.5rem 1rem;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .line {
+        margin-bottom: 0.2rem;
+      }
+
+      .logo {
+        margin-bottom: 0.75rem;
+        font-size: 0.95em;
+      }
+
+      .input-line {
+        margin-top: 1rem;
+        padding: 0.25rem 0;
+      }
+
+      .login-form {
+        margin-top: 1rem;
+      }
+
+      .cert-setup-box {
+        margin: 1rem 0;
+        padding: 1rem;
+      }
+
+      .cert-download-btn {
+        font-size: 1rem;
+        padding: 0.8rem 1.5rem;
+      }
+
+      .skip-hint {
+        bottom: 1.5rem;
+        right: 1.5rem;
+        font-size: 0.8em;
+        padding: 0.4rem 0.8rem;
+      }
+    }
+
+    /* Très petits écrans - ultra compact */
+    @media (max-width: 480px) {
+      .terminal {
+        padding: 0.5rem 0.75rem 1rem 0.75rem;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .line {
+        margin-bottom: 0.15rem;
+      }
+
+      .logo {
+        font-size: 0.9em;
+        margin-bottom: 0.5rem;
+      }
+
+      .input-line {
+        margin-top: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .input-line label {
+        font-size: 0.9em;
+      }
+
+      .cert-setup-box {
+        padding: 0.75rem;
+      }
+
+      .cert-download-btn {
+        font-size: 0.9rem;
+        padding: 0.7rem 1.2rem;
+      }
+
+      .retry-btn {
+        font-size: 0.85rem;
+        padding: 0.6rem 1rem;
+      }
+    }
   `
 
   static properties = {
@@ -424,6 +509,39 @@ class BootTerminal extends LitElement {
         }
       })
     })
+
+    // POLLING pour formulaire login/password (détection Bitwarden qui remplit les deux champs en même temps)
+    const form = this.shadowRoot.querySelector('form[name="login-form"]')
+    if (form && !form.dataset.autofillPolling) {
+      form.dataset.autofillPolling = 'true'
+      console.log('[autofill] Starting polling for login-form')
+
+      let lastCheckAllFilled = false
+      const checkInterval = setInterval(() => {
+        // Arrêter le polling si le formulaire n'existe plus ou si on n'est plus en phase login
+        if (!this.shadowRoot.querySelector('form[name="login-form"]') || this.phase !== 'login') {
+          clearInterval(checkInterval)
+          console.log('[autofill] Stopping polling - form removed or phase changed')
+          return
+        }
+
+        const usernameInput = form.querySelector('input[name="username"]')
+        const passwordInput = form.querySelector('input[name="password"]')
+
+        if (usernameInput && passwordInput) {
+          const bothFilled = usernameInput.value.length > 0 && passwordInput.value.length > 0
+
+          // Si les deux champs viennent d'être remplis (transition de vide à rempli)
+          if (bothFilled && !lastCheckAllFilled) {
+            console.log('[autofill-polling] ✓ Both fields filled - auto-submitting')
+            clearInterval(checkInterval)
+            form.requestSubmit()
+          }
+
+          lastCheckAllFilled = bothFilled
+        }
+      }, 300) // Vérifier toutes les 300ms
+    }
   }
 
   triggerAutoSubmit(input) {
@@ -434,16 +552,27 @@ class BootTerminal extends LitElement {
 
     setTimeout(() => {
       const form = input.closest('form')
-      if (form && input.value) {
-        console.log('[autofill] ✓ Auto-submitting form:', form.name)
-        form.requestSubmit()
+      if (!form) {
+        input.dataset.submitted = 'false'
+        return
       }
 
-      // Reset après 3 secondes
+      // Vérifier que TOUS les champs requis sont remplis avant de soumettre
+      const requiredInputs = form.querySelectorAll('input[type="text"], input[type="password"], input[type="tel"]')
+      const allFilled = Array.from(requiredInputs).every(inp => inp.value && inp.value.length > 0)
+
+      if (allFilled) {
+        console.log('[autofill] ✓ Tous les champs remplis - Auto-submitting form:', form.name)
+        form.requestSubmit()
+      } else {
+        console.log('[autofill] ⏳ Attente que tous les champs soient remplis...')
+      }
+
+      // Reset après 2 secondes
       setTimeout(() => {
         input.dataset.submitted = 'false'
-      }, 3000)
-    }, 500)
+      }, 2000)
+    }, 800) // Augmenté à 800ms pour laisser le temps au gestionnaire de remplir tous les champs
   }
 
   async startBootSequence() {
@@ -615,7 +744,7 @@ class BootTerminal extends LitElement {
     try {
       const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
       console.log('[boot-terminal] checkKernel API_BASE:', API_BASE)
-      const response = await fetch(`${API_BASE}/health`)
+      const response = await fetch(`${API_BASE}/health`, { credentials: 'include' })
       return response.ok
     } catch {
       return false
@@ -628,7 +757,8 @@ class BootTerminal extends LitElement {
       const response = await fetch(`${API_BASE}/agents`, {
         headers: {
           'x-api-key': import.meta.env.VITE_SYMBION_API_KEY
-        }
+        },
+        credentials: 'include'
       })
       if (response.ok) {
         const data = await response.json()
@@ -663,7 +793,8 @@ class BootTerminal extends LitElement {
       const response = await fetch(`${API_BASE}/context/current`, {
         headers: {
           'x-api-key': import.meta.env.VITE_SYMBION_API_KEY || 's3cr3t-42'
-        }
+        },
+        credentials: 'include'
       })
       if (response.ok) {
         return await response.json()
@@ -678,7 +809,8 @@ class BootTerminal extends LitElement {
       const response = await fetch(`${API_BASE}/context/stats`, {
         headers: {
           'x-api-key': import.meta.env.VITE_SYMBION_API_KEY || 's3cr3t-42'
-        }
+        },
+        credentials: 'include'
       })
       return response.ok
     } catch {}
@@ -691,7 +823,8 @@ class BootTerminal extends LitElement {
       const response = await fetch(`${API_BASE}/context/patterns`, {
         headers: {
           'x-api-key': import.meta.env.VITE_SYMBION_API_KEY || 's3cr3t-42'
-        }
+        },
+        credentials: 'include'
       })
       return response.ok
     } catch {}

@@ -63,12 +63,14 @@ class AuthService extends EventTarget {
 
   /**
    * Effacer token et user info de sessionStorage
+   * Note: device_token dans localStorage n'est PAS supprimé (survit au logout pour remember device 30j)
    */
   clearStorage() {
     sessionStorage.removeItem(TOKEN_KEY)
     sessionStorage.removeItem(USER_KEY)
     sessionStorage.removeItem(LOGIN_TIME_KEY)
     sessionStorage.removeItem('symbion_boot_completed') // Reset boot pour prochaine session
+    // Note: Ne pas supprimer symbion_device_token (localStorage) - il persiste 30 jours
     this.token = null
     this.userInfo = null
     this.loginTime = null
@@ -94,15 +96,26 @@ class AuthService extends EventTarget {
       const body = { username, password }
       if (totpCode) {
         body.totp_code = totpCode
+      }
+      if (rememberDevice) {
         body.remember_device = rememberDevice
+      }
+
+      // Préparer headers avec device token si existant (localStorage)
+      const headers = {
+        'Content-Type': 'application/json'
+      }
+
+      const deviceToken = localStorage.getItem('symbion_device_token')
+      if (deviceToken) {
+        headers['X-Device-Token'] = deviceToken
+        console.log('[auth] Sending device token:', deviceToken.substring(0, 8) + '...')
       }
 
       const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include', // Permet d'envoyer et recevoir les cookies (device trust)
+        headers,
+        credentials: 'include', // Permet d'envoyer et recevoir les cookies (historique)
         body: JSON.stringify(body)
       })
 
@@ -135,6 +148,12 @@ class AuthService extends EventTarget {
         expires_at: data.expires_at
       }
       this.loginTime = Date.now() // Enregistrer le timestamp du login
+
+      // Stocker le device token si renvoyé par le backend (remember_device=true)
+      if (data.device_token) {
+        localStorage.setItem('symbion_device_token', data.device_token)
+        console.log('[auth] Device token saved to localStorage:', data.device_token.substring(0, 8) + '... (30 days)')
+      }
 
       this.saveToStorage()
       this.scheduleTokenRefresh()
