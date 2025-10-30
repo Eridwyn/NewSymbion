@@ -206,7 +206,7 @@ impl AuthManager {
             let mfa_config = user.mfa_config.as_ref().unwrap();
             let mfa_manager = crate::mfa::MfaManager::new("Symbion".to_string(), "Symbion IoT".to_string());
 
-            let is_valid = mfa_manager.verify_totp(&mfa_config.secret_base32, totp_code)
+            let is_valid = mfa_manager.verify_totp_with_secret(&mfa_config.secret_base32, totp_code)
                 .context("Failed to verify TOTP code")?;
 
             if !is_valid {

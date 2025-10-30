@@ -498,7 +498,8 @@ class DashboardApp extends LitElement {
     this.showUserMenu = false
     this.showSettingsPage = false
     this.currentUser = authService.getCurrentUser()
-    this.activeTab = 'controle' // Tab par défaut
+    // Restaurer le dernier onglet actif depuis sessionStorage (persiste aux reloads, reset à la fermeture du navigateur)
+    this.activeTab = sessionStorage.getItem('dashboardTab') || 'controle'
     this.currentTime = this.formatTime(new Date())
 
     this.apiService = null
@@ -839,6 +840,7 @@ class DashboardApp extends LitElement {
   
   setActiveTab(tab) {
     this.activeTab = tab
+    sessionStorage.setItem('dashboardTab', tab)
   }
 
   toggleUserMenu() {
