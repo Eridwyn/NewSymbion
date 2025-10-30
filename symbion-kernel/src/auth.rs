@@ -52,6 +52,8 @@ pub struct LoginRequest {
     pub password: String,
     #[serde(default)]
     pub totp_code: Option<String>,
+    #[serde(default)]
+    pub remember_device: bool,
 }
 
 #[derive(Debug, Serialize)]

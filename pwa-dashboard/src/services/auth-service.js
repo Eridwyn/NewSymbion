@@ -84,15 +84,17 @@ class AuthService extends EventTarget {
    * @param {string} username
    * @param {string} password
    * @param {string} [totpCode] - Code TOTP optionnel (MFA)
+   * @param {boolean} [rememberDevice] - Se souvenir de l'appareil pendant 30 jours
    * @returns {Promise<{token, username, role, expires_at}>}
    */
-  async login(username, password, totpCode = null) {
+  async login(username, password, totpCode = null, rememberDevice = false) {
     try {
-      console.log('[auth] Sending login request for:', username, 'with MFA:', !!totpCode)
+      console.log('[auth] Sending login request for:', username, 'with MFA:', !!totpCode, 'remember:', rememberDevice)
 
       const body = { username, password }
       if (totpCode) {
         body.totp_code = totpCode
+        body.remember_device = rememberDevice
       }
 
       const response = await fetch(`${API_BASE}/auth/login`, {
