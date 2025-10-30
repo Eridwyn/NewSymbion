@@ -102,6 +102,7 @@ class AuthService extends EventTarget {
         headers: {
           'Content-Type': 'application/json'
         },
+        credentials: 'include', // Permet d'envoyer et recevoir les cookies (device trust)
         body: JSON.stringify(body)
       })
 
@@ -168,7 +169,8 @@ class AuthService extends EventTarget {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${this.token}`
-          }
+          },
+          credentials: 'include' // Envoyer les cookies pour potentiellement les invalider
         })
       }
     } catch (error) {
@@ -221,7 +223,8 @@ class AuthService extends EventTarget {
       const response = await fetch(`${API_BASE}/auth/verify`, {
         headers: {
           'Authorization': `Bearer ${this.token}`
-        }
+        },
+        credentials: 'include' // Envoyer les cookies pour vérification device trust
       })
 
       if (!response.ok) {
@@ -269,7 +272,8 @@ class AuthService extends EventTarget {
     const response = await fetch(`${API_BASE}/auth/session`, {
       headers: {
         'Authorization': `Bearer ${this.token}`
-      }
+      },
+      credentials: 'include' // Envoyer les cookies
     })
 
     if (!response.ok) {
