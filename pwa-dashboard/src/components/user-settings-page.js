@@ -432,7 +432,7 @@ class UserSettingsPage extends LitElement {
       }
 
       this.loading = true
-      this.mfaStatus = await apiService.request('/v1/auth/mfa/status')
+      this.mfaStatus = await apiService.request('/auth/mfa/status')
       console.log('[settings] MFA status loaded:', this.mfaStatus)
     } catch (error) {
       console.error('[settings] Failed to load MFA status:', error)
@@ -450,7 +450,7 @@ class UserSettingsPage extends LitElement {
       this.loading = true
       this.message = null
 
-      const response = await apiService.request('/v1/auth/mfa/setup', {
+      const response = await apiService.request('/auth/mfa/setup', {
         method: 'POST'
       })
 
@@ -478,7 +478,7 @@ class UserSettingsPage extends LitElement {
       this.loading = true
       this.message = null
 
-      const response = await apiService.request('/v1/auth/mfa/verify', {
+      const response = await apiService.request('/auth/mfa/verify', {
         method: 'POST',
         body: JSON.stringify({ code: this.verifyCode })
       })
@@ -517,7 +517,7 @@ class UserSettingsPage extends LitElement {
       this.loading = true
       this.message = null
 
-      await apiService.request('/v1/auth/mfa/disable', {
+      await apiService.request('/auth/mfa/disable', {
         method: 'POST'
       })
 
