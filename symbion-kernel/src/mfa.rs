@@ -5,6 +5,7 @@
 
 use anyhow::{Context, Result};
 use base32::{Alphabet, encode as base32_encode};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use parking_lot::RwLock;
 use qrcode::QrCode;
 use rand::Rng;
@@ -89,7 +90,7 @@ impl MfaManager {
     /// * `secret_base32` - Secret TOTP encodé en base32
     ///
     /// # Returns
-    /// String PNG encodée en base64 pour affichage dans le frontend
+    /// String SVG data URI pour affichage dans le frontend
     pub fn generate_qr_code(&self, username: &str, secret_base32: &str) -> Result<String> {
         // Construire l'URL TOTP selon RFC 6238
         // Format: otpauth://totp/{issuer}:{username}?secret={secret}&issuer={issuer}
@@ -102,14 +103,15 @@ impl MfaManager {
         let qr = QrCode::new(totp_url.as_bytes())
             .context("Failed to generate QR code")?;
 
-        // Convertir en image PNG (simple ASCII art pour commencer)
-        // TODO: Implémenter conversion en PNG binaire pour production
-        let qr_string = qr.render::<char>()
-            .quiet_zone(false)
-            .module_dimensions(2, 1)
+        // Convertir en SVG
+        let svg = qr.render::<qrcode::render::svg::Color>()
+            .min_dimensions(200, 200)
             .build();
 
-        Ok(qr_string)
+        // Encoder en data URI pour affichage direct dans <img src="...">
+        let data_uri = format!("data:image/svg+xml;base64,{}", BASE64.encode(svg.as_bytes()));
+
+        Ok(data_uri)
     }
 
     /// Vérifie un code TOTP
