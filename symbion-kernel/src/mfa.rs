@@ -156,6 +156,32 @@ impl MfaManager {
         Ok(is_valid)
     }
 
+    /// Vérifie un code TOTP directement avec le secret (pas de lookup username)
+    ///
+    /// Utilisé pour l'authentification où on a déjà le secret depuis users.json
+    ///
+    /// # Arguments
+    /// * `secret_base32` - Secret TOTP en base32
+    /// * `code` - Code à 6 chiffres entré par l'utilisateur
+    ///
+    /// # Returns
+    /// `true` si le code est valide, `false` sinon
+    pub fn verify_totp_with_secret(&self, secret_base32: &str, code: &str) -> Result<bool> {
+        // Créer l'instance TOTP avec le secret fourni
+        let totp = TOTP::new(
+            Algorithm::SHA1,
+            6,  // 6 chiffres
+            1,  // 1 step (tolérance ±30s)
+            30, // 30 secondes par période
+            Secret::Encoded(secret_base32.to_string()).to_bytes()?,
+        )?;
+
+        // Vérifier le code avec une fenêtre de tolérance (±1 période = ±30s)
+        let is_valid = totp.check_current(code)?;
+
+        Ok(is_valid)
+    }
+
     /// Génère des codes de récupération (backup codes)
     ///
     /// # Arguments

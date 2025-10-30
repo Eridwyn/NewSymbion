@@ -410,7 +410,8 @@ class UserSettingsPage extends LitElement {
 
   constructor() {
     super()
-    this.activeTab = 'profil'
+    // Restaurer le dernier onglet actif depuis sessionStorage (persiste aux reloads, reset à la fermeture du navigateur)
+    this.activeTab = sessionStorage.getItem('userSettingsTab') || 'profil'
     this.mfaStatus = null
     this.mfaSetupData = null
     this.loading = false
@@ -421,6 +422,11 @@ class UserSettingsPage extends LitElement {
   connectedCallback() {
     super.connectedCallback()
     this.loadMfaStatus()
+  }
+
+  switchTab(tab) {
+    this.activeTab = tab
+    sessionStorage.setItem('userSettingsTab', tab)
   }
 
   async loadMfaStatus() {
@@ -564,15 +570,15 @@ class UserSettingsPage extends LitElement {
 
         <div class="tabs">
           <button class="tab ${this.activeTab === 'profil' ? 'active' : ''}"
-                  @click="${() => this.activeTab = 'profil'}">
+                  @click="${() => this.switchTab('profil')}">
             👤 Profil
           </button>
           <button class="tab ${this.activeTab === 'securite' ? 'active' : ''}"
-                  @click="${() => this.activeTab = 'securite'}">
+                  @click="${() => this.switchTab('securite')}">
             🔒 Sécurité
           </button>
           <button class="tab ${this.activeTab === 'mfa' ? 'active' : ''}"
-                  @click="${() => this.activeTab = 'mfa'}">
+                  @click="${() => this.switchTab('mfa')}">
             🛡️ Authentification 2FA
           </button>
         </div>

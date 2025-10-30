@@ -1298,41 +1298,85 @@ async fn mfa_setup(
 
     let username = &claims.sub;
 
-    // Générer un nouveau secret TOTP
-    let secret = app.mfa_manager.generate_secret()
-        .map_err(|e| (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": format!("Failed to generate secret: {}", e)}))
-        ))?;
+    // Durée de persistance du secret TOTP non-activé : 20 minutes
+    const MFA_SETUP_EXPIRY_SECS: i64 = 1200;
 
-    // Générer le QR code
+    // Vérifier si un secret MFA existe déjà (non encore activé)
+    let existing_user = app.auth_manager.get_user(username);
+    let (secret, backup_codes, should_save) = if let Some(user) = existing_user {
+        if let Some(ref mfa) = user.mfa_config {
+            if !mfa.enabled {
+                // Vérifier si le secret est encore valide (< 20 minutes)
+                let now = time::OffsetDateTime::now_utc().unix_timestamp();
+                let elapsed = now - mfa.setup_at;
+
+                if elapsed < MFA_SETUP_EXPIRY_SECS {
+                    // Réutiliser le secret existant (encore dans la fenêtre de 20 min)
+                    let remaining_mins = (MFA_SETUP_EXPIRY_SECS - elapsed) / 60;
+                    println!("[mfa] Reusing existing MFA setup for user '{}' (valid for {} more minutes)", username, remaining_mins);
+                    (mfa.secret_base32.clone(), mfa.backup_codes.clone(), false)
+                } else {
+                    // Secret expiré, générer un nouveau
+                    println!("[mfa] Previous MFA setup expired for user '{}', generating new secret", username);
+                    let new_secret = app.mfa_manager.generate_secret()
+                        .map_err(|e| (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(serde_json::json!({"error": format!("Failed to generate secret: {}", e)}))
+                        ))?;
+                    let new_backup_codes = app.mfa_manager.generate_backup_codes(10);
+                    (new_secret, new_backup_codes, true)
+                }
+            } else {
+                // MFA déjà activé, on ne peut pas régénérer (sécurité)
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error": "MFA already enabled. Disable it first to reconfigure."}))
+                ));
+            }
+        } else {
+            // Pas de config MFA existante, générer un nouveau secret
+            let new_secret = app.mfa_manager.generate_secret()
+                .map_err(|e| (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": format!("Failed to generate secret: {}", e)}))
+                ))?;
+            let new_backup_codes = app.mfa_manager.generate_backup_codes(10);
+            (new_secret, new_backup_codes, true)
+        }
+    } else {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "User not found"}))
+        ));
+    };
+
+    // Générer le QR code (même secret = même QR code)
     let qr_code = app.mfa_manager.generate_qr_code(username, &secret)
         .map_err(|e| (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"error": format!("Failed to generate QR code: {}", e)}))
         ))?;
 
-    // Générer des backup codes
-    let backup_codes = app.mfa_manager.generate_backup_codes(10);
+    // Si c'est un nouveau secret ou expiré, sauvegarder la configuration
+    if should_save {
+        let mfa_config = crate::mfa::MfaConfig {
+            enabled: false,  // Sera activé après vérification du premier code
+            secret_base32: secret.clone(),
+            backup_codes: backup_codes.clone(),
+            recovery_email: payload.recovery_email,
+            setup_at: time::OffsetDateTime::now_utc().unix_timestamp(),
+            last_verified_at: 0,
+        };
 
-    // Créer la configuration MFA (non activée par défaut)
-    let mfa_config = crate::mfa::MfaConfig {
-        enabled: false,  // Sera activé après vérification du premier code
-        secret_base32: secret.clone(),
-        backup_codes: backup_codes.clone(),
-        recovery_email: payload.recovery_email,
-        setup_at: time::OffsetDateTime::now_utc().unix_timestamp(),
-        last_verified_at: 0,
-    };
+        // Sauvegarder la configuration (mais pas encore activée)
+        app.auth_manager.update_user_mfa(username, Some(mfa_config))
+            .map_err(|e| (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("Failed to save MFA config: {}", e)}))
+            ))?;
 
-    // Sauvegarder la configuration (mais pas encore activée)
-    app.auth_manager.update_user_mfa(username, Some(mfa_config))
-        .map_err(|e| (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": format!("Failed to save MFA config: {}", e)}))
-        ))?;
-
-    println!("[mfa] Setup initiated for user '{}' (not yet enabled)", username);
+        println!("[mfa] Setup initiated for user '{}' (not yet enabled)", username);
+    }
 
     Ok(Json(MfaSetupResponse {
         secret,
