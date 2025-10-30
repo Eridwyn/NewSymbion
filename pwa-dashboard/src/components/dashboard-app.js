@@ -21,6 +21,7 @@ import '../widgets/agent-control-widget.js'
 import '../widgets/context-widget.js'
 import '../widgets/context-stats-widget.js'
 import '../widgets/context-settings-widget.js'
+import './user-settings-page.js'
 
 class DashboardApp extends LitElement {
   static styles = css`
@@ -480,6 +481,7 @@ class DashboardApp extends LitElement {
     plugins: { type: Array },
     error: { type: String },
     showUserMenu: { type: Boolean },
+    showSettingsPage: { type: Boolean },
     currentUser: { type: Object },
     activeTab: { type: String },
     currentTime: { type: String }
@@ -494,6 +496,7 @@ class DashboardApp extends LitElement {
     this.plugins = []
     this.error = null
     this.showUserMenu = false
+    this.showSettingsPage = false
     this.currentUser = authService.getCurrentUser()
     this.activeTab = 'controle' // Tab par défaut
     this.currentTime = this.formatTime(new Date())
@@ -680,6 +683,10 @@ class DashboardApp extends LitElement {
                   <div class="user-role">${this.currentUser.role}</div>
                   <div class="user-session">${this.getSessionDuration()}</div>
                 </div>
+                <button class="logout-button" @click="${this.handleOpenSettings}" style="margin-bottom: 0.5rem; background: linear-gradient(135deg, color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 0%, color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent) 100%); border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent); color: var(--context-primary, #00d4aa);">
+                  <span>⚙️</span>
+                  <span>Paramètres</span>
+                </button>
                 <button class="logout-button" @click="${this.handleLogout}">
                   <span>🚪</span>
                   <span>Déconnexion</span>
@@ -821,6 +828,11 @@ class DashboardApp extends LitElement {
         
         <!-- Modal de contrôle agent détaillé -->
         <agent-control-widget></agent-control-widget>
+
+        <!-- Page Paramètres Utilisateur -->
+        ${this.showSettingsPage ? html`
+          <user-settings-page @close="${this.handleCloseSettings}"></user-settings-page>
+        ` : ''}
       </div>
     `
   }
@@ -831,6 +843,15 @@ class DashboardApp extends LitElement {
 
   toggleUserMenu() {
     this.showUserMenu = !this.showUserMenu
+  }
+
+  handleOpenSettings() {
+    this.showSettingsPage = true
+    this.showUserMenu = false // Fermer le menu dropdown
+  }
+
+  handleCloseSettings() {
+    this.showSettingsPage = false
   }
 
   async handleLogout() {
