@@ -1,15 +1,18 @@
 /**
  * Configuration Vite pour le PWA Dashboard Symbion
- * 
+ *
  * Setup complet :
  * - PWA avec service worker et auto-update
  * - Proxy API intégré pour développement
  * - Manifest PWA pour installation mobile
  * - Build optimisé avec sourcemaps
+ * - HTTPS avec certificats auto-signés (sécurité complète)
  */
 
 import { defineConfig, loadEnv } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import fs from 'fs'
+import path from 'path'
 
 export default defineConfig(({ mode }) => {
   // Load env vars
@@ -49,6 +52,11 @@ export default defineConfig(({ mode }) => {
     })
   ],
   server: {
+    https: {
+      // Utiliser les mêmes certificats que le kernel pour sécurité complète
+      key: fs.readFileSync(path.resolve(__dirname, '../symbion-kernel/certs/key.pem')),
+      cert: fs.readFileSync(path.resolve(__dirname, '../symbion-kernel/certs/cert.pem')),
+    },
     host: '0.0.0.0',  // Permet connexions externes (mobile, LAN)
     port: 3000,
     proxy: {
