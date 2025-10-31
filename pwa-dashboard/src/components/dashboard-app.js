@@ -111,7 +111,8 @@ class DashboardApp extends LitElement {
       box-shadow: 0 0 10px currentColor;
     }
 
-    .status-dot.online {
+    .status-dot.online,
+    .status-dot.connected {
       background: var(--context-primary, #00d4aa);
       box-shadow: 0 0 15px var(--context-primary, #00d4aa),
                   0 0 25px color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
