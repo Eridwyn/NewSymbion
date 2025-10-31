@@ -608,21 +608,32 @@ class DashboardApp extends LitElement {
   
   startRealtimeUpdates() {
     console.log('⚡ Starting realtime updates...')
-    
-    // Mise à jour périodique des données
-    setInterval(async () => {
+
+    // Fonction de mise à jour
+    const updateData = async () => {
       if (this.apiStatus === 'online') {
         try {
           const health = await this.apiService.getSystemHealth()
           this.systemHealth = health
-          
+
+          // Mettre à jour le status MQTT du header
+          if (health && health.mqtt_status) {
+            this.mqttStatus = health.mqtt_status
+          }
+
           const plugins = await this.apiService.getPlugins()
           this.plugins = plugins
         } catch (error) {
           console.warn('⚠️ Periodic update failed:', error)
         }
       }
-    }, 10000) // 10 secondes
+    }
+
+    // Première mise à jour immédiate
+    updateData()
+
+    // Puis mise à jour périodique
+    setInterval(updateData, 10000) // 10 secondes
   }
   
   handleApiStatus(event) {
