@@ -7,6 +7,7 @@
 
 import { LitElement } from 'lit'
 import authService from './auth-service.js'
+import csrfService from './csrf-service.js'
 
 class ApiService extends LitElement {
   static properties = {
@@ -159,15 +160,33 @@ class ApiService extends LitElement {
   }
   
   async startPlugin(name) {
-    return await this.request(`/plugins/${name}/start`, { method: 'POST' })
+    const url = `${this.baseUrl}/v1/plugins/${encodeURIComponent(name)}/start`
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    return await response.json()
   }
-  
+
   async stopPlugin(name) {
-    return await this.request(`/plugins/${name}/stop`, { method: 'POST' })
+    const url = `${this.baseUrl}/v1/plugins/${encodeURIComponent(name)}/stop`
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    return await response.json()
   }
-  
+
   async restartPlugin(name) {
-    return await this.request(`/plugins/${name}/restart`, { method: 'POST' })
+    const url = `${this.baseUrl}/v1/plugins/${encodeURIComponent(name)}/restart`
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    return await response.json()
   }
   
   async getHosts() {
@@ -215,16 +234,24 @@ class ApiService extends LitElement {
   }
   
   async updateNote(id, updates) {
-    return await this.request(`/ports/memo/${id}`, {
+    const url = `${this.baseUrl}/v1/ports/memo/${encodeURIComponent(id)}`
+    const response = await csrfService.fetchWithCsrf(url, {
       method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates)
     })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    return await response.json()
   }
-  
+
   async deleteNote(id) {
-    return await this.request(`/ports/memo/${id}`, {
-      method: 'DELETE'
+    const url = `${this.baseUrl}/v1/ports/memo/${encodeURIComponent(id)}`
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
     })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    return await response.json()
   }
   
   // ===== Helpers =====

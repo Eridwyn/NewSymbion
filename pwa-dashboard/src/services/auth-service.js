@@ -12,12 +12,14 @@
 const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
 const TOKEN_KEY = 'symbion_auth_token'
 const USER_KEY = 'symbion_user_info'
+const LOGIN_TIME_KEY = 'symbion_login_time'
 
 class AuthService extends EventTarget {
   constructor() {
     super()
     this.token = null
     this.userInfo = null
+    this.loginTime = null
     this.refreshTimer = null
 
     // Charger token depuis sessionStorage au démarrage
@@ -30,11 +32,13 @@ class AuthService extends EventTarget {
   loadFromStorage() {
     const token = sessionStorage.getItem(TOKEN_KEY)
     const userInfo = sessionStorage.getItem(USER_KEY)
+    const loginTime = sessionStorage.getItem(LOGIN_TIME_KEY)
 
     if (token && userInfo) {
       try {
         this.token = token
         this.userInfo = JSON.parse(userInfo)
+        this.loginTime = loginTime ? parseInt(loginTime) : null
         console.log('[auth] Session restored from storage:', this.userInfo.username)
         this.scheduleTokenRefresh()
       } catch (error) {
@@ -51,17 +55,25 @@ class AuthService extends EventTarget {
     if (this.token && this.userInfo) {
       sessionStorage.setItem(TOKEN_KEY, this.token)
       sessionStorage.setItem(USER_KEY, JSON.stringify(this.userInfo))
+      if (this.loginTime) {
+        sessionStorage.setItem(LOGIN_TIME_KEY, this.loginTime.toString())
+      }
     }
   }
 
   /**
    * Effacer token et user info de sessionStorage
+   * Note: device_token dans localStorage n'est PAS supprimé (survit au logout pour remember device 30j)
    */
   clearStorage() {
     sessionStorage.removeItem(TOKEN_KEY)
     sessionStorage.removeItem(USER_KEY)
+    sessionStorage.removeItem(LOGIN_TIME_KEY)
+    sessionStorage.removeItem('symbion_boot_completed') // Reset boot pour prochaine session
+    // Note: Ne pas supprimer symbion_device_token (localStorage) - il persiste 30 jours
     this.token = null
     this.userInfo = null
+    this.loginTime = null
 
     if (this.refreshTimer) {
       clearTimeout(this.refreshTimer)
@@ -73,18 +85,38 @@ class AuthService extends EventTarget {
    * Login utilisateur
    * @param {string} username
    * @param {string} password
+   * @param {string} [totpCode] - Code TOTP optionnel (MFA)
+   * @param {boolean} [rememberDevice] - Se souvenir de l'appareil pendant 30 jours
    * @returns {Promise<{token, username, role, expires_at}>}
    */
-  async login(username, password) {
+  async login(username, password, totpCode = null, rememberDevice = false) {
     try {
-      console.log('[auth] Sending login request for:', username)
+      console.log('[auth] Sending login request for:', username, 'with MFA:', !!totpCode, 'remember:', rememberDevice)
+
+      const body = { username, password }
+      if (totpCode) {
+        body.totp_code = totpCode
+      }
+      if (rememberDevice) {
+        body.remember_device = rememberDevice
+      }
+
+      // Préparer headers avec device token si existant (localStorage)
+      const headers = {
+        'Content-Type': 'application/json'
+      }
+
+      const deviceToken = localStorage.getItem('symbion_device_token')
+      if (deviceToken) {
+        headers['X-Device-Token'] = deviceToken
+        console.log('[auth] Sending device token:', deviceToken.substring(0, 8) + '...')
+      }
 
       const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ username, password })
+        headers,
+        credentials: 'include', // Permet d'envoyer et recevoir les cookies (historique)
+        body: JSON.stringify(body)
       })
 
       console.log('[auth] Response status:', response.status, 'OK:', response.ok)
@@ -115,12 +147,24 @@ class AuthService extends EventTarget {
         role: data.role,
         expires_at: data.expires_at
       }
+      this.loginTime = Date.now() // Enregistrer le timestamp du login
+
+      // Stocker le device token si renvoyé par le backend (remember_device=true)
+      if (data.device_token) {
+        localStorage.setItem('symbion_device_token', data.device_token)
+        console.log('[auth] Device token saved to localStorage:', data.device_token.substring(0, 8) + '... (30 days)')
+      }
 
       this.saveToStorage()
       this.scheduleTokenRefresh()
 
       // Émettre événement de login
       this.dispatchEvent(new CustomEvent('auth:login', {
+        detail: { username: data.username, role: data.role }
+      }))
+
+      // Émettre également un événement global pour les autres services
+      window.dispatchEvent(new CustomEvent('login-success', {
         detail: { username: data.username, role: data.role }
       }))
 
@@ -144,7 +188,8 @@ class AuthService extends EventTarget {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${this.token}`
-          }
+          },
+          credentials: 'include' // Envoyer les cookies pour potentiellement les invalider
         })
       }
     } catch (error) {
@@ -197,7 +242,8 @@ class AuthService extends EventTarget {
       const response = await fetch(`${API_BASE}/auth/verify`, {
         headers: {
           'Authorization': `Bearer ${this.token}`
-        }
+        },
+        credentials: 'include' // Envoyer les cookies pour vérification device trust
       })
 
       if (!response.ok) {
@@ -245,7 +291,8 @@ class AuthService extends EventTarget {
     const response = await fetch(`${API_BASE}/auth/session`, {
       headers: {
         'Authorization': `Bearer ${this.token}`
-      }
+      },
+      credentials: 'include' // Envoyer les cookies
     })
 
     if (!response.ok) {
@@ -299,6 +346,14 @@ class AuthService extends EventTarget {
     return {
       'Authorization': `Bearer ${this.token}`
     }
+  }
+
+  /**
+   * Obtenir le timestamp du login (en millisecondes)
+   * @returns {number|null}
+   */
+  getLoginTime() {
+    return this.loginTime
   }
 }
 

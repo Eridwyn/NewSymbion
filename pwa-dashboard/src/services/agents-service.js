@@ -7,6 +7,7 @@
 
 import { LitElement } from 'lit'
 import { ApiService } from './api-service.js'
+import csrfService from './csrf-service.js'
 
 class AgentsService extends LitElement {
   static properties = {
@@ -64,16 +65,23 @@ class AgentsService extends LitElement {
   
   async shutdownAgent(agentId) {
     console.log(`[agents-service] shutdownAgent called: agentId=${agentId}`)
-    console.log(`[agents-service] apiService:`, this.apiService)
-    console.log(`[agents-service] apiService.baseUrl:`, this.apiService?.baseUrl)
 
-    const endpoint = `/agents/${encodeURIComponent(agentId)}/shutdown`
-    console.log(`[agents-service] Calling request: ${endpoint}`)
+    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+    const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/shutdown`
 
     try {
-      const result = await this.apiService.request(endpoint, {
-        method: 'POST'
+      const response = await csrfService.fetchWithCsrf(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+      }
+
+      const result = await response.json()
       console.log(`[agents-service] Shutdown result:`, result)
       return result
     } catch (error) {
@@ -83,15 +91,39 @@ class AgentsService extends LitElement {
   }
   
   async rebootAgent(agentId) {
-    return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/reboot`, {
-      method: 'POST'
+    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+    const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/reboot`
+
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
     })
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    }
+
+    return await response.json()
   }
   
   async hibernateAgent(agentId) {
-    return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/hibernate`, {
-      method: 'POST'
+    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+    const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/hibernate`
+
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
     })
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    }
+
+    return await response.json()
   }
   
   // ===== Process Control =====
@@ -101,9 +133,21 @@ class AgentsService extends LitElement {
   }
   
   async killAgentProcess(agentId, pid) {
-    return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/processes/${pid}/kill`, {
-      method: 'POST'
+    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+    const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/processes/${pid}/kill`
+
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
     })
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    }
+
+    return await response.json()
   }
   
   // ===== Command Execution Enhanced =====

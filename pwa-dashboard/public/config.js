@@ -37,6 +37,7 @@ window.SYMBION_CONFIG = {
    * que le dashboard, sur le port 8443 en HTTPS.
    */
   API_BASE: 'https://' + window.location.hostname + ':8443',
+  // API_BASE: 'https://192.168.1.14:8443',  // IP statique si détection auto échoue
 
   /**
    * Configuration MQTT (optionnel, si WebSocket MQTT ajouté)

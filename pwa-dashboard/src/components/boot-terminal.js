@@ -251,6 +251,21 @@ class BootTerminal extends LitElement {
       color: rgba(0, 255, 159, 0.3);
     }
 
+    .login-form {
+      margin: 0;
+      padding: 0;
+    }
+
+    .input-line label {
+      color: #ffffff;
+      text-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+      font-family: inherit;
+      font-size: inherit;
+      font-weight: normal;
+      cursor: text;
+      user-select: none;
+    }
+
     .skip-hint {
       position: fixed;
       bottom: 2.5rem;
@@ -311,14 +326,101 @@ class BootTerminal extends LitElement {
       60% { content: '..'; }
       80%, 100% { content: '...'; }
     }
+
+    /* Adaptations mobile - formulaires visibles sans scroll excessif */
+    @media (max-width: 768px) {
+      .terminal {
+        padding: 0.75rem 1rem 1.5rem 1rem;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .line {
+        margin-bottom: 0.2rem;
+      }
+
+      .logo {
+        margin-bottom: 0.75rem;
+        font-size: 0.95em;
+      }
+
+      .input-line {
+        margin-top: 1rem;
+        padding: 0.25rem 0;
+      }
+
+      .login-form {
+        margin-top: 1rem;
+      }
+
+      .cert-setup-box {
+        margin: 1rem 0;
+        padding: 1rem;
+      }
+
+      .cert-download-btn {
+        font-size: 1rem;
+        padding: 0.8rem 1.5rem;
+      }
+
+      .skip-hint {
+        bottom: 1.5rem;
+        right: 1.5rem;
+        font-size: 0.8em;
+        padding: 0.4rem 0.8rem;
+      }
+    }
+
+    /* Très petits écrans - ultra compact */
+    @media (max-width: 480px) {
+      .terminal {
+        padding: 0.5rem 0.75rem 1rem 0.75rem;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .line {
+        margin-bottom: 0.15rem;
+      }
+
+      .logo {
+        font-size: 0.9em;
+        margin-bottom: 0.5rem;
+      }
+
+      .input-line {
+        margin-top: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .input-line label {
+        font-size: 0.9em;
+      }
+
+      .cert-setup-box {
+        padding: 0.75rem;
+      }
+
+      .cert-download-btn {
+        font-size: 0.9rem;
+        padding: 0.7rem 1.2rem;
+      }
+
+      .retry-btn {
+        font-size: 0.85rem;
+        padding: 0.6rem 1rem;
+      }
+    }
   `
 
   static properties = {
     lines: { type: Array },
     phase: { type: String }, // 'booting', 'login', 'authenticating', 'done'
-    loginStep: { type: String }, // 'username', 'password'
+    loginStep: { type: String }, // 'credentials', 'totp'
     username: { type: String },
     password: { type: String },
+    totpCode: { type: String },
+    rememberDevice: { type: Boolean },
     error: { type: String },
     showCertificateUI: { type: Boolean },
     certUrl: { type: String },
@@ -331,9 +433,11 @@ class BootTerminal extends LitElement {
     super()
     this.lines = []
     this.phase = 'booting'
-    this.loginStep = 'username'
+    this.loginStep = 'credentials' // username + password ensemble
     this.username = ''
     this.password = ''
+    this.totpCode = ''
+    this.rememberDevice = false
     this.error = null
     this.showCertificateUI = false
     this.certUrl = ''
@@ -348,7 +452,155 @@ class BootTerminal extends LitElement {
     this.startBootSequence()
   }
 
+  updated(changedProperties) {
+    super.updated(changedProperties)
+    // Attacher les écouteurs d'autofill après chaque render
+    this.attachAutofillListeners()
+  }
+
+  attachAutofillListeners() {
+    // Détecter l'autofill de Bitwarden/gestionnaires de mots de passe
+    const inputs = this.shadowRoot.querySelectorAll('input[type="text"], input[type="password"], input[type="tel"]')
+
+    inputs.forEach(input => {
+      // Marquer si déjà surveillé
+      if (input.dataset.autofillWatched) return
+      input.dataset.autofillWatched = 'true'
+
+      console.log('[autofill] Attaching listeners to', input.name, 'type:', input.type)
+
+      let previousLength = 0
+      let isTyping = false
+
+      // Détecter la saisie manuelle
+      input.addEventListener('keydown', () => {
+        isTyping = true
+        console.log('[autofill] User is typing manually')
+      })
+
+      // Événement input : différencier saisie manuelle vs autofill
+      input.addEventListener('input', (e) => {
+        const currentLength = input.value.length
+        const lengthDiff = currentLength - previousLength
+
+        // Si l'utilisateur tape, ne pas auto-submit
+        if (isTyping) {
+          console.log('[autofill] Manual typing detected, skipping auto-submit')
+          previousLength = currentLength
+          // Reset le flag après un court délai
+          setTimeout(() => { isTyping = false }, 100)
+          return
+        }
+
+        // Autofill détecté : grosse différence de longueur ou pas d'inputType
+        if (lengthDiff > 3 || !e.inputType) {
+          console.log('[autofill] Autofill detected in', input.name, '- length change:', lengthDiff, 'inputType:', e.inputType)
+          this.triggerAutoSubmit(input)
+        }
+
+        previousLength = currentLength
+      })
+
+      // Événement change : Bitwarden déclenche toujours ça
+      input.addEventListener('change', () => {
+        if (input.value && input.value.length > 0 && !isTyping) {
+          console.log('[autofill-change] Detected in', input.name)
+          this.triggerAutoSubmit(input)
+        }
+      })
+    })
+
+    // POLLING pour formulaire login/password (détection Bitwarden qui remplit les deux champs en même temps)
+    const form = this.shadowRoot.querySelector('form[name="login-form"]')
+    if (form && !form.dataset.autofillPolling) {
+      form.dataset.autofillPolling = 'true'
+      console.log('[autofill] Starting polling for login-form')
+
+      let lastCheckAllFilled = false
+      const checkInterval = setInterval(() => {
+        // Arrêter le polling si le formulaire n'existe plus ou si on n'est plus en phase login
+        if (!this.shadowRoot.querySelector('form[name="login-form"]') || this.phase !== 'login') {
+          clearInterval(checkInterval)
+          console.log('[autofill] Stopping polling - form removed or phase changed')
+          return
+        }
+
+        const usernameInput = form.querySelector('input[name="username"]')
+        const passwordInput = form.querySelector('input[name="password"]')
+
+        if (usernameInput && passwordInput) {
+          const bothFilled = usernameInput.value.length > 0 && passwordInput.value.length > 0
+
+          // Si les deux champs viennent d'être remplis (transition de vide à rempli)
+          if (bothFilled && !lastCheckAllFilled) {
+            console.log('[autofill-polling] ✓ Both fields filled - auto-submitting')
+            clearInterval(checkInterval)
+            form.requestSubmit()
+          }
+
+          lastCheckAllFilled = bothFilled
+        }
+      }, 300) // Vérifier toutes les 300ms
+    }
+  }
+
+  triggerAutoSubmit(input) {
+    // Éviter les soumissions multiples
+    if (input.dataset.submitted === 'true') return
+
+    input.dataset.submitted = 'true'
+
+    setTimeout(() => {
+      const form = input.closest('form')
+      if (!form) {
+        input.dataset.submitted = 'false'
+        return
+      }
+
+      // Vérifier que TOUS les champs requis sont remplis avant de soumettre
+      const requiredInputs = form.querySelectorAll('input[type="text"], input[type="password"], input[type="tel"]')
+      const allFilled = Array.from(requiredInputs).every(inp => inp.value && inp.value.length > 0)
+
+      if (allFilled) {
+        console.log('[autofill] ✓ Tous les champs remplis - Auto-submitting form:', form.name)
+        form.requestSubmit()
+      } else {
+        console.log('[autofill] ⏳ Attente que tous les champs soient remplis...')
+      }
+
+      // Reset après 2 secondes
+      setTimeout(() => {
+        input.dataset.submitted = 'false'
+      }, 2000)
+    }, 800) // Augmenté à 800ms pour laisser le temps au gestionnaire de remplir tous les champs
+  }
+
   async startBootSequence() {
+    // Vérifier si une session existe déjà (éviter le reload complet)
+    if (authService.isAuthenticated()) {
+      console.log('[boot] Session existante détectée - skip boot sequence')
+      this.phase = 'done'
+      this.dispatchEvent(new CustomEvent('boot-complete', {
+        detail: { authenticated: true },
+        bubbles: true,
+        composed: true
+      }))
+      return
+    }
+
+    // Vérifier si le boot a déjà été fait dans cette session (éviter replay)
+    const bootCompleted = sessionStorage.getItem('symbion_boot_completed')
+    if (bootCompleted === 'true') {
+      console.log('[boot] Boot déjà effectué dans cette session - skip directement au login')
+      this.addLine('  ▸ SYMBION v0.1.0', 'logo')
+      this.addLine('  ━━━━━━━━━━━━━━━━━━━━', 'info')
+      this.addLine('')
+      this.phase = 'login'
+      this.loginStep = 'credentials'
+      this.requestUpdate()
+      return
+    }
+
     await this.delay(50)
 
     // Logo ultra-compact mobile-friendly
@@ -478,6 +730,9 @@ class BootTerminal extends LitElement {
         this.canSkip = true
       }, 3000)
 
+      // Marquer le boot comme complété pour cette session
+      sessionStorage.setItem('symbion_boot_completed', 'true')
+
       this.phase = 'login'
       this.requestUpdate()
       await this.delay(50)
@@ -489,7 +744,7 @@ class BootTerminal extends LitElement {
     try {
       const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
       console.log('[boot-terminal] checkKernel API_BASE:', API_BASE)
-      const response = await fetch(`${API_BASE}/health`)
+      const response = await fetch(`${API_BASE}/health`, { credentials: 'include' })
       return response.ok
     } catch {
       return false
@@ -502,7 +757,8 @@ class BootTerminal extends LitElement {
       const response = await fetch(`${API_BASE}/agents`, {
         headers: {
           'x-api-key': import.meta.env.VITE_SYMBION_API_KEY
-        }
+        },
+        credentials: 'include'
       })
       if (response.ok) {
         const data = await response.json()
@@ -537,7 +793,8 @@ class BootTerminal extends LitElement {
       const response = await fetch(`${API_BASE}/context/current`, {
         headers: {
           'x-api-key': import.meta.env.VITE_SYMBION_API_KEY || 's3cr3t-42'
-        }
+        },
+        credentials: 'include'
       })
       if (response.ok) {
         return await response.json()
@@ -552,7 +809,8 @@ class BootTerminal extends LitElement {
       const response = await fetch(`${API_BASE}/context/stats`, {
         headers: {
           'x-api-key': import.meta.env.VITE_SYMBION_API_KEY || 's3cr3t-42'
-        }
+        },
+        credentials: 'include'
       })
       return response.ok
     } catch {}
@@ -565,7 +823,8 @@ class BootTerminal extends LitElement {
       const response = await fetch(`${API_BASE}/context/patterns`, {
         headers: {
           'x-api-key': import.meta.env.VITE_SYMBION_API_KEY || 's3cr3t-42'
-        }
+        },
+        credentials: 'include'
       })
       return response.ok
     } catch {}
@@ -788,44 +1047,36 @@ class BootTerminal extends LitElement {
   }
 
   get loginLabel() {
-    return this.loginStep === 'username' ? 'identifiant' : 'mot de passe'
+    if (this.loginStep === 'credentials') return 'identifiant & mot de passe'
+    if (this.loginStep === 'totp') return 'code TOTP'
+    return 'input'
   }
 
-  handleInput(event) {
-    if (event.key === 'Enter') {
-      this.handleSubmit()
-    }
-  }
+  async handleFormSubmit(event) {
+    event.preventDefault()
 
-  async handleSubmit() {
-    const input = this.shadowRoot.querySelector('.input-field')
-    const value = input.value.trim()
+    const formData = new FormData(event.target)
 
-    if (this.loginStep === 'username') {
-      if (!value) {
+    if (this.loginStep === 'credentials') {
+      const username = formData.get('username')?.trim()
+      const password = formData.get('password')?.trim()
+
+      if (!username) {
         this.error = 'Nom d\'utilisateur requis'
         this.requestUpdate()
         return
       }
 
-      this.username = value
-      this.addLine(`> login: ${value}`, 'prompt')
-      this.loginStep = 'password'
-      this.error = null
-      input.value = ''
-      this.requestUpdate()
-      this.focusInput()
-
-    } else if (this.loginStep === 'password') {
-      if (!value) {
+      if (!password) {
         this.error = 'Mot de passe requis'
         this.requestUpdate()
         return
       }
 
-      this.password = value
+      this.username = username
+      this.password = password
+      this.addLine(`> login: ${username}`, 'prompt')
       this.addLine('> password: ********', 'prompt')
-      input.value = ''
 
       // Tentative d'authentification
       this.phase = 'authenticating'
@@ -854,10 +1105,24 @@ class BootTerminal extends LitElement {
         }))
 
       } catch (error) {
+        const errorMsg = error.message || 'Erreur inconnue'
+
+        // Vérifier si MFA est requis
+        if (errorMsg.includes('MFA is enabled') || errorMsg.includes('Please provide a TOTP code')) {
+          this.updateLine(authIdx, '[auth] ⚠ MFA requis', 'warning')
+          this.addLine('[mfa] Authentification à deux facteurs activée', 'info')
+          this.addLine('[mfa] Entrez le code TOTP de votre application (6 chiffres)', 'info')
+          this.loginStep = 'totp'
+          this.phase = 'login'
+          this.error = null
+          this.requestUpdate()
+          this.focusInput()
+          return
+        }
+
+        // Autres erreurs (rate limiting, mauvais mot de passe, etc.)
         this.addLine('[auth] ✗ Échec d\'authentification', 'error')
 
-        // Afficher le message d'erreur spécifique (rate limiting, mauvais mdp, etc.)
-        const errorMsg = error.message || 'Erreur inconnue'
         if (errorMsg.includes('Too many login attempts')) {
           // Rate limiting - afficher le message complet du backend
           this.addLine(`[auth] ${errorMsg}`, 'warning')
@@ -872,12 +1137,132 @@ class BootTerminal extends LitElement {
         // Reset login
         this.username = ''
         this.password = ''
-        this.loginStep = 'username'
+        this.totpCode = ''
+        this.loginStep = 'credentials'
         this.phase = 'login'
         this.error = null
         this.requestUpdate()
         this.focusInput()
       }
+
+    } else if (this.loginStep === 'totp') {
+      const value = formData.get('totp')?.trim()
+      if (!value) {
+        this.error = 'Code TOTP requis (6 chiffres)'
+        this.requestUpdate()
+        return
+      }
+
+      // Vérifier que le code est bien numérique et de 6 chiffres
+      if (!/^\d{6,8}$/.test(value)) {
+        this.error = 'Code TOTP invalide (6 à 8 chiffres requis)'
+        this.requestUpdate()
+        return
+      }
+
+      this.totpCode = value
+      this.addLine(`> totp: ${value}`, 'prompt')
+
+      if (this.rememberDevice) {
+        this.addLine('[mfa] Appareil sera mémorisé pour 30 jours', 'info')
+      }
+
+      // Tentative d'authentification avec TOTP
+      this.phase = 'authenticating'
+      this.requestUpdate()
+
+      const authIdx = this.addLoadingLine('[auth] Vérification MFA')
+      await this.delay(200)
+
+      try {
+        await authService.login(this.username, this.password, this.totpCode, this.rememberDevice)
+
+        this.updateLine(authIdx, '[auth] ✓ Authentification réussie', 'success')
+        await this.delay(100)
+        this.addLine(`[session] Utilisateur '${this.username}' autorisé`, 'success')
+        await this.delay(100)
+        const dashIdx = this.addLoadingLine('[dashboard] Chargement de l\'interface')
+        await this.delay(200)
+        this.updateLine(dashIdx, '[dashboard] ✓ Prêt', 'success')
+        await this.delay(100)
+
+        this.phase = 'done'
+        this.dispatchEvent(new CustomEvent('boot-complete', {
+          detail: { authenticated: true },
+          bubbles: true,
+          composed: true
+        }))
+
+      } catch (error) {
+        this.addLine('[auth] ✗ Code TOTP invalide', 'error')
+
+        const errorMsg = error.message || 'Erreur inconnue'
+        this.addLine(`[auth] ${errorMsg}`, 'warning')
+        this.addLine('[auth] Nouvel essai dans 3s...', 'warning')
+        await this.delay(3000)
+
+        // Reset complet du login
+        this.username = ''
+        this.password = ''
+        this.totpCode = ''
+        this.loginStep = 'credentials'
+        this.phase = 'login'
+        this.error = null
+        this.requestUpdate()
+        this.focusInput()
+      }
+    }
+  }
+
+  handleTotpPaste(e) {
+    // Laisser le paste natif se faire d'abord
+    setTimeout(() => {
+      const input = e.target
+      const pastedValue = input.value
+      // Nettoyer : garder seulement les chiffres
+      const cleaned = pastedValue.replace(/\D/g, '').slice(0, 8)
+
+      if (cleaned !== pastedValue) {
+        input.value = cleaned
+      }
+
+      // Auto-submit si 6-8 chiffres
+      if (cleaned.length >= 6 && cleaned.length <= 8) {
+        console.log('[totp] Auto-submitting after paste:', cleaned.length, 'digits')
+        this.totpCode = cleaned
+
+        // Attendre un peu pour que l'utilisateur voie le code
+        setTimeout(() => {
+          const form = input.closest('form')
+          if (form) {
+            form.requestSubmit()
+          }
+        }, 500)
+      }
+    }, 0)
+  }
+
+  handleTotpInput(e) {
+    const input = e.target
+    let value = input.value
+
+    // Filtrer les non-chiffres en temps réel
+    const cleaned = value.replace(/\D/g, '').slice(0, 8)
+    if (cleaned !== value) {
+      input.value = cleaned
+    }
+
+    // Auto-submit si exactement 6 chiffres (code standard TOTP)
+    if (cleaned.length === 6) {
+      console.log('[totp] Auto-submitting after input: 6 digits')
+      this.totpCode = cleaned
+
+      setTimeout(() => {
+        const form = input.closest('form')
+        if (form) {
+          form.requestSubmit()
+        }
+      }, 400)
     }
   }
 
@@ -915,19 +1300,72 @@ class BootTerminal extends LitElement {
           </div>
         ` : ''}
 
-        ${this.phase === 'login' ? html`
-          <div class="input-line">
-            <span>> ${this.loginLabel}: </span>
-            <input
-              class="input-field"
-              type="${this.loginStep === 'password' ? 'password' : 'text'}"
-              @keydown="${this.handleInput}"
-              placeholder="_">
-            <span class="cursor"></span>
-          </div>
-          ${this.error ? html`
-            <div class="line error">[error] ${this.error}</div>
-          ` : ''}
+        ${this.phase === 'login' && this.loginStep === 'credentials' ? html`
+          <form @submit="${this.handleFormSubmit}" class="login-form" name="login-form">
+            <div class="input-line">
+              <label for="username">> identifiant: </label>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                class="input-field"
+                autocomplete="username"
+                placeholder="_"
+                autofocus>
+              <span class="cursor"></span>
+            </div>
+            <div class="input-line" style="margin-top: 0.75rem;">
+              <label for="password">> mot de passe: </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                class="input-field"
+                autocomplete="current-password"
+                placeholder="_">
+              <span class="cursor"></span>
+            </div>
+            <button type="submit" style="display: none;">Submit</button>
+          </form>
+        ` : ''}
+
+        ${this.phase === 'login' && this.loginStep === 'totp' ? html`
+          <form @submit="${this.handleFormSubmit}" class="login-form" name="login-totp">
+            <div class="input-line">
+              <label for="totp">> code TOTP: </label>
+              <input
+                id="totp"
+                name="totp"
+                type="tel"
+                class="input-field"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                pattern="[0-9]{6,8}"
+                maxlength="8"
+                placeholder="123456"
+                aria-label="Code TOTP à 6 chiffres"
+                autofocus
+                @paste="${this.handleTotpPaste}"
+                @input="${this.handleTotpInput}">
+              <span class="cursor"></span>
+            </div>
+            <div class="input-line" style="margin-top: 0.5rem; padding-left: 1rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9em; color: #aaa;">
+                <input
+                  type="checkbox"
+                  name="rememberDevice"
+                  .checked="${this.rememberDevice}"
+                  @change="${(e) => this.rememberDevice = e.target.checked}"
+                  style="cursor: pointer;">
+                <span>Ne plus demander sur cet appareil (30 jours)</span>
+              </label>
+            </div>
+            <button type="submit" style="display: none;">Submit</button>
+          </form>
+        ` : ''}
+
+        ${this.phase === 'login' && this.error ? html`
+          <div class="line error">[error] ${this.error}</div>
         ` : ''}
       </div>
     `

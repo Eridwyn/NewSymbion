@@ -27,6 +27,7 @@ use axum::{extract::{Query, State}, routing::{get, post}, Json, Router};
 use axum::http::{StatusCode, Method};
 use tower_http::cors::{CorsLayer, Any};
 use tower_http::timeout::TimeoutLayer;
+use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use crate::models::{HostState, HostsMap};
 use crate::state::Shared;
 use crate::config::HostsConfig;
@@ -111,6 +112,47 @@ async fn require_auth(
     Err(StatusCode::UNAUTHORIZED)
 }
 
+/// Middleware pour vérifier le nonce CSRF sur les routes destructrices
+async fn require_csrf(
+    State(app): State<AppState>,
+    req: Request,
+    next: Next
+) -> Result<Response, StatusCode> {
+    // Extraire le header X-CSRF-Token
+    let csrf_token = req
+        .headers()
+        .get("x-csrf-token")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| {
+            eprintln!("SECURITY: Missing X-CSRF-Token header for {}", req.uri().path());
+            StatusCode::FORBIDDEN
+        })?;
+
+    // Extraire le username depuis le JWT token
+    let username = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .and_then(|token| app.auth_manager.verify_token(token).ok())
+        .map(|claims| claims.sub)
+        .ok_or_else(|| {
+            eprintln!("SECURITY: No valid JWT token for CSRF verification");
+            StatusCode::UNAUTHORIZED
+        })?;
+
+    // Vérifier et consommer le nonce CSRF
+    match app.csrf_manager.verify_and_consume(csrf_token, &username) {
+        Ok(true) => {
+            println!("[csrf] Valid nonce consumed for user '{}'", username);
+            Ok(next.run(req).await)
+        }
+        Ok(false) | Err(_) => {
+            eprintln!("SECURITY: Invalid or expired CSRF token for user '{}'", username);
+            Err(StatusCode::FORBIDDEN)
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct AppState {
@@ -119,6 +161,9 @@ pub struct AppState {
     pub contracts: crate::contracts::ContractRegistry,
     pub health_tracker: crate::health::HealthTracker,
     pub auth_manager: crate::auth::AuthManager,
+    pub mfa_manager: std::sync::Arc<crate::mfa::MfaManager>,
+    pub csrf_manager: std::sync::Arc<crate::csrf::CsrfManager>,
+    pub device_trust_manager: std::sync::Arc<crate::device_trust::DeviceTrustManager>,
     pub ports: Shared<crate::ports::PortRegistry>,
     pub plugins: Shared<crate::plugins::PluginManager>,
     pub notes_bridge: Option<SharedNotesBridge>,
@@ -131,14 +176,73 @@ pub struct AppState {
 struct WakeParams { host_id: String }
 
 pub fn build_router(app_state: AppState) -> Router {
-    Router::new()
+    // Rate limiting configurations
+    // Auth routes: 10 req/min per IP (brute-force protection)
+    let auth_rate_limit_config = std::sync::Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(1)
+            .burst_size(10)
+            .finish()
+            .expect("Failed to build auth rate limit config")
+    );
+
+    // API routes: 5 req/sec per IP (DoS protection)
+    let api_rate_limit_config = std::sync::Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(5)
+            .burst_size(10)
+            .finish()
+            .expect("Failed to build API rate limit config")
+    );
+
+    // Routes publiques (sans version, sans auth, sans rate limit strict)
+    let public_routes = Router::new()
         .route("/health", get(|| async { "ok" }))
+        .route("/system/health", get(get_system_health))
         .route("/ca-certificate", get(download_ca_certificate))
+        .with_state(app_state.clone());
+
+    // Route de login publique avec rate limiting strict (brute-force protection)
+    // NOTE: Rate limiting désactivé pour localhost (tower_governor ne peut pas extraire l'IP)
+    // Pour connexions réseau externes, le rate limiting dans auth.rs reste actif
+    let login_route = Router::new()
         .route("/auth/login", post(auth_login))
+        .with_state(app_state.clone());
+        // .layer(GovernorLayer::new(auth_rate_limit_config.clone()));
+
+    // Routes d'authentification protégées (nécessitent JWT valide)
+    let protected_auth_routes = Router::new()
         .route("/auth/verify", get(auth_verify))
         .route("/auth/session", get(auth_session))
         .route("/auth/logout", post(auth_logout))
-        .route("/system/health", get(get_system_health))
+        .route("/auth/mfa/status", get(mfa_status))
+        .route("/auth/mfa/setup", post(mfa_setup))
+        .route("/auth/mfa/verify", post(mfa_verify))
+        .route("/auth/mfa/disable", post(mfa_disable))
+        .route("/auth/csrf/nonce", get(csrf_generate_nonce))
+        .with_state(app_state.clone())
+        .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
+        // NOTE: Rate limiting tower_governor désactivé (incompatibilité localhost)
+        // .layer(GovernorLayer::new(auth_rate_limit_config));
+
+    // Routes destructrices nécessitant protection CSRF (POST/DELETE)
+    let csrf_protected_routes = Router::new()
+        .route("/agents/{id}/shutdown", post(agent_shutdown_endpoint))
+        .route("/agents/{id}/reboot", post(agent_reboot_endpoint))
+        .route("/agents/{id}/hibernate", post(agent_hibernate_endpoint))
+        .route("/agents/{id}/processes/{pid}/kill", post(agent_kill_process_endpoint))
+        .route("/context/override", post(set_context_override))
+        .route("/context/clear", post(clear_context_override))
+        .route("/plugins/{name}/start", post(start_plugin_endpoint))
+        .route("/plugins/{name}/stop", post(stop_plugin_endpoint))
+        .route("/plugins/{name}/restart", post(restart_plugin_endpoint))
+        .route("/ports/memo/{id}", axum::routing::delete(handle_memo_delete).put(handle_memo_update))
+        .route("/ports/{port_name}/{id}", axum::routing::delete(delete_from_port))
+        .with_state(app_state.clone())
+        .layer(middleware::from_fn_with_state(app_state.clone(), require_csrf));
+
+    // Routes API standard avec rate limiting modéré
+    let api_routes = Router::new()
         .route("/hosts", get(get_hosts))
         .route("/hosts/{id}", get(get_host))
         .route("/wake", post(wake))
@@ -146,40 +250,60 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/contracts/{name}", get(get_contract))
         .route("/ports", get(list_ports))
         .route("/ports/memo", get(handle_memo_list).post(handle_memo_create))
-        .route("/ports/memo/{id}", axum::routing::delete(handle_memo_delete).put(handle_memo_update))
         .route("/ports/{port_name}", get(read_from_port).post(write_to_port))
-        .route("/ports/{port_name}/{id}", axum::routing::delete(delete_from_port))
         .route("/plugins", get(list_plugins_endpoint))
-        .route("/plugins/{name}/start", post(start_plugin_endpoint))
-        .route("/plugins/{name}/stop", post(stop_plugin_endpoint))
-        .route("/plugins/{name}/restart", post(restart_plugin_endpoint))
         .route("/agents", get(list_agents_endpoint))
         .route("/agents/{id}", get(get_agent_endpoint))
-        .route("/agents/{id}/shutdown", post(agent_shutdown_endpoint))
-        .route("/agents/{id}/reboot", post(agent_reboot_endpoint))
-        .route("/agents/{id}/hibernate", post(agent_hibernate_endpoint))
         .route("/agents/{id}/processes", get(agent_processes_endpoint))
-        .route("/agents/{id}/processes/{pid}/kill", post(agent_kill_process_endpoint))
         .route("/agents/{id}/command", post(agent_command_endpoint))
         .route("/agents/{id}/metrics", get(agent_metrics_endpoint))
         .route("/agents/{id}/commands", get(agent_commands_endpoint).post(agent_commands_post_endpoint))
         .route("/commands/{command_id}/cancel", post(cancel_command_endpoint))
         .route("/commands/{command_id}/status", get(command_status_endpoint))
         .route("/context/current", get(get_context_current))
-        .route("/context/override", post(set_context_override))
-        .route("/context/clear", post(clear_context_override))
         .route("/context/history", get(get_context_history))
         .route("/context/stats", get(get_context_stats))
         .route("/context/patterns", get(get_context_patterns))
         .route("/context/productivity", get(get_context_productivity))
         .with_state(app_state.clone())
-        .layer(middleware::from_fn_with_state(app_state, require_auth))
+        .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
+        // NOTE: Rate limiting tower_governor désactivé (incompatibilité localhost)
+        // .layer(GovernorLayer::new(api_rate_limit_config));
+
+    // Combine all v1 API routes
+    let v1_api_routes = Router::new()
+        .merge(login_route)
+        .merge(protected_auth_routes)
+        .merge(api_routes)
+        .merge(csrf_protected_routes);
+
+    // Router principal avec versioning
+    Router::new()
+        // Routes publiques (toujours accessibles)
+        .merge(public_routes)
+        // API v1 sous namespace /v1/
+        .nest("/v1", v1_api_routes.clone())
+        // Backward compatibility: routes à la racine (DEPRECATED, à supprimer en v0.3.0)
+        .merge(v1_api_routes)
+        // Middlewares globaux
         .layer(
             CorsLayer::new()
-                .allow_origin(Any)
+                .allow_origin([
+                    "http://localhost:3000".parse().unwrap(),
+                    "http://192.168.1.14:3000".parse().unwrap(),
+                    "https://192.168.1.14:3000".parse().unwrap(),
+                ])
                 .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT, Method::OPTIONS])
-                .allow_headers(Any)
-                .allow_credentials(false)
+                .allow_headers([
+                    axum::http::header::CONTENT_TYPE,
+                    axum::http::header::AUTHORIZATION,
+                    axum::http::header::ACCEPT,
+                    axum::http::header::USER_AGENT,
+                    axum::http::header::HeaderName::from_static("x-api-key"),
+                    axum::http::header::HeaderName::from_static("x-csrf-token"),
+                    axum::http::header::HeaderName::from_static("x-device-token"),
+                ])
+                .allow_credentials(true) // Requis pour cookies (historique, device_token maintenant via header)
         )
         // Timeout de 30s pour toutes requêtes - Prévient blocages deadlock
         .layer(TimeoutLayer::new(std::time::Duration::from_secs(30)))
@@ -1035,10 +1159,87 @@ async fn command_status_endpoint(
 // POST /auth/login - Authentification utilisateur
 async fn auth_login(
     State(app): State<AppState>,
-    Json(payload): Json<crate::auth::LoginRequest>,
-) -> Result<Json<crate::auth::LoginResponse>, (StatusCode, Json<serde_json::Value>)> {
-    match app.auth_manager.authenticate(&payload.username, &payload.password) {
-        Ok(response) => Ok(Json(response)),
+    req: Request,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    // Extraire le body JSON
+    let (parts, body) = req.into_parts();
+    let bytes = axum::body::to_bytes(body, usize::MAX).await
+        .map_err(|_| (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Invalid request body" }))
+        ))?;
+
+    let payload: crate::auth::LoginRequest = serde_json::from_slice(&bytes)
+        .map_err(|_| (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Invalid JSON" }))
+        ))?;
+
+    // Extraire User-Agent pour device fingerprinting
+    let user_agent = parts.headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown");
+
+    let device_fingerprint = crate::device_trust::DeviceTrustManager::generate_fingerprint(user_agent);
+
+    // Vérifier si un device token existe dans le header X-Device-Token (localStorage)
+    let device_token = parts.headers
+        .get("x-device-token")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| {
+            println!("[device-trust] Header X-Device-Token found: {}...", &s[..std::cmp::min(8, s.len())]);
+            s.to_string()
+        });
+
+    if device_token.is_none() {
+        println!("[device-trust] No X-Device-Token header found in request");
+    }
+
+    // Vérifier si le device est de confiance
+    let trusted_device = if let Some(ref token) = device_token {
+        let is_trusted = app.device_trust_manager.verify_device_token(
+            token,
+            &payload.username,
+            &device_fingerprint
+        );
+
+        if is_trusted {
+            println!("[device-trust] ✓ Device token valid for user '{}' - MFA will be bypassed", payload.username);
+        } else {
+            println!("[device-trust] ✗ Device token invalid or expired for user '{}'", payload.username);
+        }
+
+        is_trusted
+    } else {
+        false
+    };
+
+    // Authentifier l'utilisateur (avec bypass MFA si device trusted)
+    match app.auth_manager.authenticate(
+        &payload.username,
+        &payload.password,
+        payload.totp_code.as_deref(),
+        trusted_device
+    ) {
+        Ok(mut response) => {
+            // Si remember_device est activé et login réussi, créer un device token
+            if payload.remember_device && !trusted_device {
+                match app.device_trust_manager.create_device_token(&payload.username, &device_fingerprint) {
+                    Ok(token) => {
+                        // Retourner le device_token dans la réponse JSON (localStorage frontend)
+                        response.device_token = Some(token.clone());
+                        println!("[auth] Device token created for user '{}' (30 days) - sent in JSON response", payload.username);
+                    }
+                    Err(e) => {
+                        eprintln!("[auth] Failed to create device token: {}", e);
+                        // Ne pas bloquer le login si la création du token échoue
+                    }
+                }
+            }
+
+            Ok(Json(response))
+        }
         Err(e) => {
             let error_msg = e.to_string();
             eprintln!("[auth] login failed for '{}': {}", payload.username, error_msg);
@@ -1099,6 +1300,339 @@ async fn auth_logout() -> Json<serde_json::Value> {
         "success": true,
         "message": "Logged out successfully"
     }))
+}
+
+// ============================================================================
+// MFA (Multi-Factor Authentication) Endpoints
+// ============================================================================
+
+/// GET /v1/auth/mfa/status - Vérifier si MFA est activé pour l'utilisateur courant
+async fn mfa_status(
+    State(app): State<AppState>,
+    req: Request,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Extraire le token JWT
+    let token = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    // Vérifier et décoder le token
+    let claims = app.auth_manager.verify_token(token)
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+    // Récupérer l'utilisateur
+    let user = app.auth_manager.get_user(&claims.sub)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Retourner le status MFA
+    match user.mfa_config {
+        Some(config) => Ok(Json(serde_json::json!({
+            "enabled": config.enabled,
+            "setup_at": config.setup_at,
+            "last_verified_at": config.last_verified_at,
+            "backup_codes_count": config.backup_codes.len(),
+            "recovery_email": config.recovery_email,
+        }))),
+        None => Ok(Json(serde_json::json!({
+            "enabled": false,
+            "setup_at": 0,
+            "last_verified_at": 0,
+            "backup_codes_count": 0,
+            "recovery_email": null,
+        }))),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct MfaSetupRequest {
+    #[serde(default)]
+    recovery_email: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct MfaSetupResponse {
+    secret: String,
+    qr_code: String,
+    backup_codes: Vec<String>,
+}
+
+/// POST /v1/auth/mfa/setup - Initialiser la configuration MFA (génère secret + QR code)
+async fn mfa_setup(
+    State(app): State<AppState>,
+    headers: axum::http::HeaderMap,
+    Json(payload): Json<MfaSetupRequest>,
+) -> Result<Json<MfaSetupResponse>, (StatusCode, Json<serde_json::Value>)> {
+    // Extraire le token JWT depuis le header
+    let token = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or_else(|| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Missing or invalid authorization token"}))
+        ))?;
+
+    // Vérifier le token
+    let claims = app.auth_manager.verify_token(token)
+        .map_err(|e| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": format!("Invalid token: {}", e)}))
+        ))?;
+
+    let username = &claims.sub;
+
+    // Durée de persistance du secret TOTP non-activé : 20 minutes
+    const MFA_SETUP_EXPIRY_SECS: i64 = 1200;
+
+    // Vérifier si un secret MFA existe déjà (non encore activé)
+    let existing_user = app.auth_manager.get_user(username);
+    let (secret, backup_codes, should_save) = if let Some(user) = existing_user {
+        if let Some(ref mfa) = user.mfa_config {
+            if !mfa.enabled {
+                // Vérifier si le secret est encore valide (< 20 minutes)
+                let now = time::OffsetDateTime::now_utc().unix_timestamp();
+                let elapsed = now - mfa.setup_at;
+
+                if elapsed < MFA_SETUP_EXPIRY_SECS {
+                    // Réutiliser le secret existant (encore dans la fenêtre de 20 min)
+                    let remaining_mins = (MFA_SETUP_EXPIRY_SECS - elapsed) / 60;
+                    println!("[mfa] Reusing existing MFA setup for user '{}' (valid for {} more minutes)", username, remaining_mins);
+                    (mfa.secret_base32.clone(), mfa.backup_codes.clone(), false)
+                } else {
+                    // Secret expiré, générer un nouveau
+                    println!("[mfa] Previous MFA setup expired for user '{}', generating new secret", username);
+                    let new_secret = app.mfa_manager.generate_secret()
+                        .map_err(|e| (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(serde_json::json!({"error": format!("Failed to generate secret: {}", e)}))
+                        ))?;
+                    let new_backup_codes = app.mfa_manager.generate_backup_codes(10);
+                    (new_secret, new_backup_codes, true)
+                }
+            } else {
+                // MFA déjà activé, on ne peut pas régénérer (sécurité)
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error": "MFA already enabled. Disable it first to reconfigure."}))
+                ));
+            }
+        } else {
+            // Pas de config MFA existante, générer un nouveau secret
+            let new_secret = app.mfa_manager.generate_secret()
+                .map_err(|e| (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": format!("Failed to generate secret: {}", e)}))
+                ))?;
+            let new_backup_codes = app.mfa_manager.generate_backup_codes(10);
+            (new_secret, new_backup_codes, true)
+        }
+    } else {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "User not found"}))
+        ));
+    };
+
+    // Générer le QR code (même secret = même QR code)
+    let qr_code = app.mfa_manager.generate_qr_code(username, &secret)
+        .map_err(|e| (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Failed to generate QR code: {}", e)}))
+        ))?;
+
+    // Si c'est un nouveau secret ou expiré, sauvegarder la configuration
+    if should_save {
+        let mfa_config = crate::mfa::MfaConfig {
+            enabled: false,  // Sera activé après vérification du premier code
+            secret_base32: secret.clone(),
+            backup_codes: backup_codes.clone(),
+            recovery_email: payload.recovery_email,
+            setup_at: time::OffsetDateTime::now_utc().unix_timestamp(),
+            last_verified_at: 0,
+        };
+
+        // Sauvegarder la configuration (mais pas encore activée)
+        app.auth_manager.update_user_mfa(username, Some(mfa_config))
+            .map_err(|e| (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("Failed to save MFA config: {}", e)}))
+            ))?;
+
+        println!("[mfa] Setup initiated for user '{}' (not yet enabled)", username);
+    }
+
+    Ok(Json(MfaSetupResponse {
+        secret,
+        qr_code,
+        backup_codes,
+    }))
+}
+
+#[derive(serde::Deserialize)]
+struct MfaVerifyRequest {
+    code: String,
+}
+
+/// POST /v1/auth/mfa/verify - Vérifier un code TOTP et activer MFA
+async fn mfa_verify(
+    State(app): State<AppState>,
+    headers: axum::http::HeaderMap,
+    Json(payload): Json<MfaVerifyRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    // Extraire le token JWT
+    let token = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or_else(|| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Missing authorization token"}))
+        ))?;
+
+    // Vérifier le token
+    let claims = app.auth_manager.verify_token(token)
+        .map_err(|_| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Invalid token"}))
+        ))?;
+
+    let username = &claims.sub;
+
+    // Récupérer l'utilisateur
+    let user = app.auth_manager.get_user(username)
+        .ok_or_else(|| (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "User not found"}))
+        ))?;
+
+    // Vérifier que MFA est configuré
+    let mut mfa_config = user.mfa_config
+        .ok_or_else(|| (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "MFA not configured. Please run /mfa/setup first"}))
+        ))?;
+
+    // Vérifier le code TOTP
+    let totp = totp_rs::TOTP::new(
+        totp_rs::Algorithm::SHA1,
+        6,
+        1,
+        30,
+        totp_rs::Secret::Encoded(mfa_config.secret_base32.clone()).to_bytes()
+            .map_err(|e| (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("Failed to decode secret: {}", e)}))
+            ))?,
+    ).map_err(|e| (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::json!({"error": format!("Failed to create TOTP: {}", e)}))
+    ))?;
+
+    let is_valid = totp.check_current(&payload.code)
+        .map_err(|e| (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Failed to verify code: {}", e)}))
+        ))?;
+
+    if !is_valid {
+        println!("[mfa] Invalid code for user '{}'", username);
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Invalid TOTP code"}))
+        ));
+    }
+
+    // Code valide : activer MFA
+    mfa_config.enabled = true;
+    mfa_config.last_verified_at = time::OffsetDateTime::now_utc().unix_timestamp();
+
+    app.auth_manager.update_user_mfa(username, Some(mfa_config))
+        .map_err(|e| (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Failed to enable MFA: {}", e)}))
+        ))?;
+
+    println!("[mfa] MFA enabled for user '{}'", username);
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "MFA enabled successfully"
+    })))
+}
+
+/// POST /v1/auth/mfa/disable - Désactiver MFA pour l'utilisateur
+async fn mfa_disable(
+    State(app): State<AppState>,
+    req: Request,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    // Extraire le token JWT
+    let token = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or_else(|| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Missing authorization token"}))
+        ))?;
+
+    // Vérifier le token
+    let claims = app.auth_manager.verify_token(token)
+        .map_err(|_| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Invalid token"}))
+        ))?;
+
+    let username = &claims.sub;
+
+    // Supprimer la configuration MFA
+    app.auth_manager.update_user_mfa(username, None)
+        .map_err(|e| (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("Failed to disable MFA: {}", e)}))
+        ))?;
+
+    println!("[mfa] MFA disabled for user '{}'", username);
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "MFA disabled successfully"
+    })))
+}
+
+// ============================================================================
+// CSRF Protection Endpoints
+// ============================================================================
+
+/// GET /v1/auth/csrf/nonce - Générer un nonce CSRF pour l'utilisateur courant
+async fn csrf_generate_nonce(
+    State(app): State<AppState>,
+    req: Request,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Extraire le token JWT
+    let token = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    // Vérifier et décoder le token
+    let claims = app.auth_manager.verify_token(token)
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+    // Générer un nonce CSRF pour cet utilisateur
+    let nonce = app.csrf_manager.generate_nonce(claims.sub.clone());
+
+    println!("[csrf] Generated nonce for user '{}'", claims.sub);
+
+    Ok(Json(serde_json::json!({
+        "nonce": nonce,
+        "expires_in_seconds": 300  // 5 minutes TTL
+    })))
 }
 
 // GET /ca-certificate - Téléchargement du certificat CA
