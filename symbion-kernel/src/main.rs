@@ -23,6 +23,9 @@ mod agents;
 mod auth;
 mod context;
 mod dashboard_events;
+mod mfa;
+mod csrf;
+mod device_trust;
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -36,6 +39,8 @@ use crate::notes_bridge::{NotesBridge, SharedNotesBridge};
 use crate::agents::{AgentRegistry, SharedAgentRegistry};
 use crate::auth::AuthManager;
 use crate::context::ContextEngine;
+use crate::mfa::MfaManager;
+use crate::csrf::CsrfManager;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -81,6 +86,27 @@ async fn main() {
             std::process::exit(1);
         }
     };
+
+    // mfa manager
+    let mfa_manager = Arc::new(MfaManager::new(
+        "Symbion".to_string(),
+        "Symbion".to_string(),
+    ));
+    println!("[kernel] initialized MFA manager");
+
+    // csrf manager
+    let csrf_manager = Arc::new(CsrfManager::new());
+    println!("[kernel] initialized CSRF manager");
+
+    // device trust manager
+    let device_trust_manager = match crate::device_trust::DeviceTrustManager::new() {
+        Ok(manager) => Arc::new(manager),
+        Err(e) => {
+            eprintln!("[kernel] failed to initialize device trust manager: {}", e);
+            std::process::exit(1);
+        }
+    };
+    println!("[kernel] initialized Device Trust manager");
 
     // data ports
     std::fs::create_dir_all("./data").unwrap_or_else(|e| {
@@ -160,6 +186,9 @@ async fn main() {
         contracts,
         health_tracker,
         auth_manager,
+        mfa_manager,
+        csrf_manager,
+        device_trust_manager,
         ports,
         plugins,
         notes_bridge,

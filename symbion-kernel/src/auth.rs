@@ -33,6 +33,9 @@ pub struct User {
     pub password_hash: String,
     pub role: String,
     pub created_at: i64,
+    /// Configuration MFA (optionnelle, None si MFA non activée)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mfa_config: Option<crate::mfa::MfaConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,6 +50,10 @@ pub struct Claims {
 pub struct LoginRequest {
     pub username: String,
     pub password: String,
+    #[serde(default)]
+    pub totp_code: Option<String>,
+    #[serde(default)]
+    pub remember_device: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -55,6 +62,11 @@ pub struct LoginResponse {
     pub username: String,
     pub role: String,
     pub expires_at: i64,
+    /// Indique si MFA est requis pour ce compte
+    pub requires_mfa: bool,
+    /// Device token pour bypass MFA (optionnel, renvoyé si remember_device=true)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_token: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -96,6 +108,7 @@ impl AuthManager {
                     .context("Failed to hash default password")?,
                 role: "admin".to_string(),
                 created_at: OffsetDateTime::now_utc().unix_timestamp(),
+                mfa_config: None,
             };
 
             let mut users = HashMap::new();
@@ -160,7 +173,7 @@ impl AuthManager {
                  username, user_attempts.len());
     }
 
-    pub fn authenticate(&self, username: &str, password: &str) -> Result<LoginResponse> {
+    pub fn authenticate(&self, username: &str, password: &str, totp_code: Option<&str>, trusted_device: bool) -> Result<LoginResponse> {
         // Check rate limit BEFORE doing anything else
         self.check_rate_limit(username)?;
 
@@ -182,7 +195,41 @@ impl AuthManager {
             anyhow::bail!("Invalid username or password");
         }
 
-        // Generate JWT
+        // Vérifier si MFA est activé pour cet utilisateur
+        let requires_mfa = user.mfa_config
+            .as_ref()
+            .map(|config| config.enabled)
+            .unwrap_or(false);
+
+        // Si MFA activé, vérifier le code TOTP (sauf si device de confiance)
+        if requires_mfa {
+            if !trusted_device {
+                // Device non-trusted: vérifier le code TOTP
+                let totp_code = totp_code.ok_or_else(|| {
+                    anyhow::anyhow!("MFA is enabled. Please provide a TOTP code.")
+                })?;
+
+                // Vérifier le code TOTP
+                let mfa_config = user.mfa_config.as_ref().unwrap();
+                let mfa_manager = crate::mfa::MfaManager::new("Symbion".to_string(), "Symbion IoT".to_string());
+
+                let is_valid = mfa_manager.verify_totp_with_secret(&mfa_config.secret_base32, totp_code)
+                    .context("Failed to verify TOTP code")?;
+
+                if !is_valid {
+                    anyhow::bail!("Invalid TOTP code");
+                }
+
+                println!("[auth] User '{}' authenticated with MFA successfully", username);
+            } else {
+                // Device de confiance: bypass MFA
+                println!("[auth] User '{}' authenticated with MFA bypassed (trusted device)", username);
+            }
+        } else {
+            println!("[auth] User '{}' authenticated successfully (no MFA)", username);
+        }
+
+        // Generate JWT après vérification MFA
         let now = OffsetDateTime::now_utc().unix_timestamp();
         let expires_at = now + (get_token_expiry_hours() * 3600);
 
@@ -196,13 +243,13 @@ impl AuthManager {
         let token = encode(&Header::default(), &claims, &self.encoding_key)
             .context("Failed to generate JWT token")?;
 
-        println!("[auth] User '{}' authenticated successfully", username);
-
         Ok(LoginResponse {
             token,
             username: user.username.clone(),
             role: user.role.clone(),
             expires_at,
+            requires_mfa,
+            device_token: None, // Sera rempli par http.rs si remember_device=true
         })
     }
 
@@ -242,6 +289,7 @@ impl AuthManager {
             password_hash,
             role: role.to_string(),
             created_at: OffsetDateTime::now_utc().unix_timestamp(),
+            mfa_config: None,
         };
 
         users.insert(username.to_string(), user);
@@ -253,6 +301,31 @@ impl AuthManager {
             .context("Failed to write users file")?;
 
         println!("[auth] User '{}' created with role '{}'", username, role);
+        Ok(())
+    }
+
+    /// Récupère un utilisateur par son nom
+    pub fn get_user(&self, username: &str) -> Option<User> {
+        let users = self.users.read();
+        users.get(username).cloned()
+    }
+
+    /// Met à jour la configuration MFA d'un utilisateur
+    pub fn update_user_mfa(&self, username: &str, mfa_config: Option<crate::mfa::MfaConfig>) -> Result<()> {
+        let mut users = self.users.write();
+
+        let user = users.get_mut(username)
+            .context(format!("User '{}' not found", username))?;
+
+        user.mfa_config = mfa_config;
+
+        // Sauvegarder dans le fichier
+        let json = serde_json::to_string_pretty(&*users)
+            .context("Failed to serialize users")?;
+        fs::write(USERS_FILE, json)
+            .context("Failed to write users file")?;
+
+        println!("[auth] MFA config updated for user '{}'", username);
         Ok(())
     }
 }

@@ -7,6 +7,7 @@
 
 import { LitElement, html, css } from 'lit'
 import authService from '../services/auth-service.js'
+import csrfService from '../services/csrf-service.js'
 import '../services/api-service.js'
 import '../services/mqtt-service.js'
 import '../services/agents-service.js'
@@ -20,6 +21,7 @@ import '../widgets/agent-control-widget.js'
 import '../widgets/context-widget.js'
 import '../widgets/context-stats-widget.js'
 import '../widgets/context-settings-widget.js'
+import './user-settings-page.js'
 
 class DashboardApp extends LitElement {
   static styles = css`
@@ -109,7 +111,8 @@ class DashboardApp extends LitElement {
       box-shadow: 0 0 10px currentColor;
     }
 
-    .status-dot.online {
+    .status-dot.online,
+    .status-dot.connected {
       background: var(--context-primary, #00d4aa);
       box-shadow: 0 0 15px var(--context-primary, #00d4aa),
                   0 0 25px color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
@@ -479,6 +482,7 @@ class DashboardApp extends LitElement {
     plugins: { type: Array },
     error: { type: String },
     showUserMenu: { type: Boolean },
+    showSettingsPage: { type: Boolean },
     currentUser: { type: Object },
     activeTab: { type: String },
     currentTime: { type: String }
@@ -493,8 +497,10 @@ class DashboardApp extends LitElement {
     this.plugins = []
     this.error = null
     this.showUserMenu = false
+    this.showSettingsPage = false
     this.currentUser = authService.getCurrentUser()
-    this.activeTab = 'controle' // Tab par défaut
+    // Restaurer le dernier onglet actif depuis sessionStorage (persiste aux reloads, reset à la fermeture du navigateur)
+    this.activeTab = sessionStorage.getItem('dashboardTab') || 'controle'
     this.currentTime = this.formatTime(new Date())
 
     this.apiService = null
@@ -567,6 +573,10 @@ class DashboardApp extends LitElement {
     // Service Context
     this.contextService = document.createElement('context-service')
 
+    // Initialiser CSRF service avec authService
+    csrfService.setAuthService(authService)
+    console.log('🔐 CSRF service initialized with authService')
+
     document.body.appendChild(this.apiService)
     document.body.appendChild(this.mqttService)
     document.body.appendChild(this.agentsService)
@@ -599,21 +609,32 @@ class DashboardApp extends LitElement {
   
   startRealtimeUpdates() {
     console.log('⚡ Starting realtime updates...')
-    
-    // Mise à jour périodique des données
-    setInterval(async () => {
+
+    // Fonction de mise à jour
+    const updateData = async () => {
       if (this.apiStatus === 'online') {
         try {
           const health = await this.apiService.getSystemHealth()
           this.systemHealth = health
-          
+
+          // Mettre à jour le status MQTT du header
+          if (health && health.mqtt_status) {
+            this.mqttStatus = health.mqtt_status
+          }
+
           const plugins = await this.apiService.getPlugins()
           this.plugins = plugins
         } catch (error) {
           console.warn('⚠️ Periodic update failed:', error)
         }
       }
-    }, 10000) // 10 secondes
+    }
+
+    // Première mise à jour immédiate
+    updateData()
+
+    // Puis mise à jour périodique
+    setInterval(updateData, 10000) // 10 secondes
   }
   
   handleApiStatus(event) {
@@ -675,6 +696,10 @@ class DashboardApp extends LitElement {
                   <div class="user-role">${this.currentUser.role}</div>
                   <div class="user-session">${this.getSessionDuration()}</div>
                 </div>
+                <button class="logout-button" @click="${this.handleOpenSettings}" style="margin-bottom: 0.5rem; background: linear-gradient(135deg, color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 0%, color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent) 100%); border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent); color: var(--context-primary, #00d4aa);">
+                  <span>⚙️</span>
+                  <span>Paramètres</span>
+                </button>
                 <button class="logout-button" @click="${this.handleLogout}">
                   <span>🚪</span>
                   <span>Déconnexion</span>
@@ -816,16 +841,31 @@ class DashboardApp extends LitElement {
         
         <!-- Modal de contrôle agent détaillé -->
         <agent-control-widget></agent-control-widget>
+
+        <!-- Page Paramètres Utilisateur -->
+        ${this.showSettingsPage ? html`
+          <user-settings-page @close="${this.handleCloseSettings}"></user-settings-page>
+        ` : ''}
       </div>
     `
   }
   
   setActiveTab(tab) {
     this.activeTab = tab
+    sessionStorage.setItem('dashboardTab', tab)
   }
 
   toggleUserMenu() {
     this.showUserMenu = !this.showUserMenu
+  }
+
+  handleOpenSettings() {
+    this.showSettingsPage = true
+    this.showUserMenu = false // Fermer le menu dropdown
+  }
+
+  handleCloseSettings() {
+    this.showSettingsPage = false
   }
 
   async handleLogout() {

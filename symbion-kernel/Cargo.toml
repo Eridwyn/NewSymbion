@@ -9,7 +9,7 @@ axum = "0.8.4"
 axum-server = { version = "0.7", features = ["tls-rustls"] }
 bcrypt = "0.17.1"
 dotenvy = "0.15.7"
-jsonwebtoken = { version = "10.1.0", features = ["aws_lc_rs", "use_pem"], default-features = false }
+jsonwebtoken = { version = "10.1.0", features = ["aws_lc_rs"] }
 parking_lot = "0.12.4"
 rumqttc = "0.24.0"
 rustls = { version = "0.23", features = ["ring"], default-features = false }
@@ -24,3 +24,13 @@ tokio = { version = "1.47.1", features = ["full"] }
 tokio-rustls = { version = "0.26", features = ["ring"] }
 tower-http = { version = "0.6", features = ["cors", "timeout"] }
 uuid = { version = "1.11.0", features = ["v4"] }
+
+# PR2: MFA + CSRF + Rate Limiting
+totp-rs = "5.6"           # TOTP 2FA (RFC 6238)
+qrcode = "0.14"           # QR code generation for MFA setup
+base32 = "0.5"            # Base32 encoding for TOTP secrets
+base64 = "0.22"           # Base64 encoding for data URIs
+tower_governor = "0.8"    # Rate limiting middleware compatible with axum 0.8
+rand = "0.8"              # Random generation for backup codes
+sha2 = "0.10"             # SHA-256 hashing for device fingerprinting
+tower = { version = "0.5.2", features = ["full"] }
