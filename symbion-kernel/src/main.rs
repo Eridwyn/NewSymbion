@@ -26,6 +26,7 @@ mod dashboard_events;
 mod mfa;
 mod csrf;
 mod device_trust;
+mod decision;
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
