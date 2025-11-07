@@ -13,6 +13,7 @@ pub mod validation;
 pub mod r#override;
 pub mod audit;
 pub mod agent_status;
+pub mod metrics;
 
 // Re-exports principaux
 pub use types::*;
@@ -27,3 +28,4 @@ pub use validation::{ValidationManager, ValidationRequest, ValidationStatus, Val
 pub use r#override::{OverrideManager, MasterOverride, OverrideType, OverrideStats};
 pub use audit::{AuditManager, AuditStats};
 pub use agent_status::{AgentHealthManager, AgentHealthStatus, AgentHealthStats};
+pub use metrics::DecisionMetrics;
