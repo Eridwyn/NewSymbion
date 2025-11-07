@@ -8,6 +8,7 @@ pub mod trust;
 pub mod engine;
 pub mod persistence;
 pub mod idempotence;
+pub mod config;
 
 // Re-exports principaux
 pub use types::*;
@@ -17,3 +18,4 @@ pub use trust::TrustCalculator;
 pub use engine::DecisionEngine;
 pub use persistence::{PersistenceManager, FsyncMode, PersistenceStats};
 pub use idempotence::IdempotenceManager;
+pub use config::ConfigManager;

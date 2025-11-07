@@ -162,7 +162,7 @@ pub struct DecisionConfig {
 }
 
 /// Poids trust score
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TrustWeights {
     pub context_match: f32,
     pub temporal_consistency: f32,
@@ -172,7 +172,7 @@ pub struct TrustWeights {
 }
 
 /// Seuils par impact level
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ImpactThresholds {
     pub low: f32,
     pub medium: f32,
@@ -181,7 +181,7 @@ pub struct ImpactThresholds {
 }
 
 /// Mapping agent health
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AgentHealthMapping {
     pub online_min_score: f32,
     pub active_min_score: f32,
