@@ -11,6 +11,7 @@ pub mod idempotence;
 pub mod config;
 pub mod validation;
 pub mod r#override;
+pub mod audit;
 
 // Re-exports principaux
 pub use types::*;
@@ -23,3 +24,4 @@ pub use idempotence::IdempotenceManager;
 pub use config::ConfigManager;
 pub use validation::{ValidationManager, ValidationRequest, ValidationStatus, ValidationStats};
 pub use r#override::{OverrideManager, MasterOverride, OverrideType, OverrideStats};
+pub use audit::{AuditManager, AuditStats};
