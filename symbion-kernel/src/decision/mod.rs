@@ -6,6 +6,8 @@ pub mod clock;
 pub mod guards;
 pub mod trust;
 pub mod engine;
+pub mod persistence;
+pub mod idempotence;
 
 // Re-exports principaux
 pub use types::*;
@@ -13,3 +15,5 @@ pub use clock::{Clock, SystemClock, MockClock};
 pub use guards::{Guard, GuardResult, GuardsEvaluator, ShortCircuitStrategy};
 pub use trust::TrustCalculator;
 pub use engine::DecisionEngine;
+pub use persistence::{PersistenceManager, FsyncMode, PersistenceStats};
+pub use idempotence::IdempotenceManager;
