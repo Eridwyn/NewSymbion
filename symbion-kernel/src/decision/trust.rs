@@ -164,7 +164,7 @@ impl TrustCalculator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::decision::{AgentMetrics, AgentState, ImpactLevel, SystemClock};
+    use crate::decision::{AgentMetrics, AgentState, ImpactLevel, SystemClock, Clock};
     use std::collections::HashMap;
     use time::macros::datetime;
 
@@ -172,7 +172,7 @@ mod tests {
     fn test_context_match_perfect() {
         let config = DecisionConfig::default();
         let clock = Arc::new(SystemClock);
-        let calculator = TrustCalculator::new(config, clock);
+        let calculator = TrustCalculator::new(config, clock.clone());
 
         let action = Action {
             action_type: "test".into(),
@@ -199,7 +199,7 @@ mod tests {
     fn test_context_match_mode_mismatch() {
         let config = DecisionConfig::default();
         let clock = Arc::new(SystemClock);
-        let calculator = TrustCalculator::new(config, clock);
+        let calculator = TrustCalculator::new(config, clock.clone());
 
         let action = Action {
             action_type: "test".into(),
@@ -226,7 +226,7 @@ mod tests {
     fn test_agent_health_perfect() {
         let config = DecisionConfig::default();
         let clock = Arc::new(SystemClock);
-        let calculator = TrustCalculator::new(config, clock);
+        let calculator = TrustCalculator::new(config, clock.clone());
 
         let mut agents = HashMap::new();
         agents.insert(
@@ -288,7 +288,7 @@ mod tests {
     fn test_full_trust_score_calculation() {
         let config = DecisionConfig::default();
         let clock = Arc::new(SystemClock);
-        let calculator = TrustCalculator::new(config, clock);
+        let calculator = TrustCalculator::new(config, clock.clone());
 
         let action = Action {
             action_type: "shutdown".into(),

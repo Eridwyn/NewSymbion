@@ -187,7 +187,7 @@ impl DecisionEngine {
 mod tests {
     use super::*;
     use crate::decision::{
-        AgentMetrics, AgentState, ShortCircuitStrategy, SystemClock,
+        AgentMetrics, AgentState, ShortCircuitStrategy, SystemClock, Clock,
         guards::{TimeWindowGuard, AgentHealthGuard, ContextModeGuard},
     };
     use std::collections::HashMap;
@@ -301,10 +301,26 @@ mod tests {
             expected_ssid: None,
         };
 
+        // Ajouter l'agent pour éviter que AgentHealthGuard bloque avant ContextModeGuard
+        let mut agents = HashMap::new();
+        agents.insert(
+            "agent1".to_string(),
+            AgentState {
+                id: "agent1".into(),
+                last_seen: SystemClock.now_utc(),
+                metrics: AgentMetrics {
+                    cpu_usage: 0.2,
+                    memory_usage_percent: 0.3,
+                },
+                maintenance_mode: false,
+                last_reconnect: None,
+            },
+        );
+
         let context = DecisionContext {
             mode: "intime".into(), // Mismatch
             ssid: "home-wifi".into(),
-            agents: HashMap::new(),
+            agents,
         };
 
         let result = engine.decide(&action, &context);
