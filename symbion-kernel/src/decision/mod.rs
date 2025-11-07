@@ -10,6 +10,7 @@ pub mod persistence;
 pub mod idempotence;
 pub mod config;
 pub mod validation;
+pub mod r#override;
 
 // Re-exports principaux
 pub use types::*;
@@ -21,3 +22,4 @@ pub use persistence::{PersistenceManager, FsyncMode, PersistenceStats};
 pub use idempotence::IdempotenceManager;
 pub use config::ConfigManager;
 pub use validation::{ValidationManager, ValidationRequest, ValidationStatus, ValidationStats};
+pub use r#override::{OverrideManager, MasterOverride, OverrideType, OverrideStats};
