@@ -740,7 +740,9 @@ class DashboardApp extends LitElement {
               <context-widget></context-widget>
             </div>
             <div class="widget-container">
-              <agent-control-widget></agent-control-widget>
+              <agents-network-widget
+                .connected="${this.connected}">
+              </agents-network-widget>
             </div>
           </div>
 
@@ -773,11 +775,6 @@ class DashboardApp extends LitElement {
             </div>
             <div class="widget-container">
               <context-stats-widget></context-stats-widget>
-            </div>
-            <div class="widget-container">
-              <agents-network-widget
-                .connected="${this.connected}">
-              </agents-network-widget>
             </div>
           </div>
         </div>
