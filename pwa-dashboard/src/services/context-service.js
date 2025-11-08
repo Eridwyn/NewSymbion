@@ -85,6 +85,7 @@ class ContextService extends LitElement {
 
       if (context && context.mode) {
         const previousMode = this.currentMode
+        const previousState = this.contextState
         this.currentMode = context.mode
         this.contextState = context
         this.status = 'ready'
@@ -94,9 +95,13 @@ class ContextService extends LitElement {
         // Apply theme (always, even on first load)
         this.applyTheme(context.theme)
 
-        // Notify mode change only if it actually changed
-        if (previousMode !== this.currentMode) {
-          console.log(`[context-service] Mode changed: ${previousMode} → ${this.currentMode}`)
+        // Notify mode change if it changed OR if this is the first load (previousState was null)
+        if (previousMode !== this.currentMode || previousState === null) {
+          if (previousState === null) {
+            console.log(`[context-service] Initial context loaded: ${this.currentMode}`)
+          } else {
+            console.log(`[context-service] Mode changed: ${previousMode} → ${this.currentMode}`)
+          }
           this.notifyModeChange(context)
         }
       }

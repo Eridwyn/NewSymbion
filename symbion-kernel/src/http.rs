@@ -255,6 +255,8 @@ pub fn build_router(app_state: AppState) -> Router {
     let decision_csrf_routes = Router::new()
         .route("/decision/evaluate", post(decision_evaluate))
         .route("/decision/validation/{id}/resolve", post(decision_resolve_validation))
+        .route("/decision/validation/{id}", axum::routing::delete(decision_delete_validation))
+        .route("/decision/validations/expired", axum::routing::delete(decision_delete_all_expired_validations))
         .route("/decision/override", post(decision_create_override))
         .route("/decision/override/{id}", axum::routing::delete(decision_revoke_override))
         .with_state(app_state.clone())
@@ -289,6 +291,7 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/decision/audit", get(decision_get_audit))
         .route("/decision/metrics", get(decision_get_metrics))
         .route("/decision/validations/pending", get(decision_list_pending_validations))
+        .route("/decision/validations/expired", get(decision_list_expired_validations))
         .route("/decision/overrides/active", get(decision_list_active_overrides))
         .route("/decision/config", get(decision_get_config))
         .route("/decision/agent-health", get(decision_get_agent_health))
@@ -1927,4 +1930,47 @@ async fn decision_get_stats(
         metrics: app.decision_metrics.clone(),
     };
     crate::decision_http::get_stats(State(state)).await
+}
+
+async fn decision_list_expired_validations(
+    State(app): State<AppState>,
+) -> Json<Vec<crate::decision::ValidationRequest>> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::list_expired_validations(State(state)).await
+}
+
+async fn decision_delete_validation(
+    State(app): State<AppState>,
+    Path(validation_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::delete_validation(State(state), Path(validation_id)).await
+}
+
+async fn decision_delete_all_expired_validations(
+    State(app): State<AppState>,
+) -> Json<serde_json::Value> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::delete_all_expired_validations(State(state)).await
 }

@@ -21,6 +21,7 @@ pub struct Action {
     pub agent_id: String,
     pub impact_level: ImpactLevel,
     pub trace_id: String,                       // Idempotence
+    #[serde(with = "time::serde::rfc3339::option")]
     pub expires_at: Option<OffsetDateTime>,     // TTL
     pub dry_run: bool,                          // Evaluation sans execution
     pub expected_mode: Option<String>,          // Mode contextuel attendu
@@ -39,9 +40,11 @@ pub struct DecisionContext {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentState {
     pub id: String,
+    #[serde(with = "time::serde::rfc3339")]
     pub last_seen: OffsetDateTime,
     pub metrics: AgentMetrics,
     pub maintenance_mode: bool,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub last_reconnect: Option<OffsetDateTime>,
 }
 
@@ -148,6 +151,7 @@ pub struct DecisionRecord {
     pub impact_level: ImpactLevel,
     pub outcome: DecisionOutcome,
     pub trust_score: Option<TrustScore>,
+    #[serde(with = "time::serde::rfc3339")]
     pub timestamp: OffsetDateTime,
     pub config_version: u64,
 }

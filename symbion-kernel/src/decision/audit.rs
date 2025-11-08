@@ -126,7 +126,7 @@ impl AuditManager {
 }
 
 /// Statistiques audit trail
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct AuditStats {
     pub total_records: usize,
     pub capacity: usize,

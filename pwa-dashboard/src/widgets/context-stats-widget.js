@@ -15,8 +15,8 @@ class ContextStatsWidget extends LitElement {
     .widget-container {
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
       border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 16px;
-      padding: 1.5rem;
+      border-radius: 12px;
+      padding: 1rem;
       backdrop-filter: blur(10px);
     }
 
@@ -24,11 +24,11 @@ class ContextStatsWidget extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1rem;
     }
 
     .widget-title {
-      font-size: 1.25rem;
+      font-size: 1.1rem;
       font-weight: 700;
       color: #e0e0e0;
       display: flex;
@@ -53,7 +53,7 @@ class ContextStatsWidget extends LitElement {
     }
 
     .section {
-      margin-bottom: 2rem;
+      margin-bottom: 1rem;
     }
 
     .section:last-child {
@@ -61,55 +61,55 @@ class ContextStatsWidget extends LitElement {
     }
 
     .section-title {
-      font-size: 1rem;
+      font-size: 0.875rem;
       font-weight: 600;
       color: #a0a0a0;
-      margin-bottom: 1rem;
+      margin-bottom: 0.75rem;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
 
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 0.75rem;
     }
 
     .stat-card {
-      padding: 1rem;
-      border-radius: 12px;
+      padding: 0.75rem;
+      border-radius: 8px;
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .stat-icon {
-      font-size: 2rem;
+      font-size: 1.5rem;
       margin-bottom: 0.5rem;
     }
 
     .stat-label {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       color: #808080;
       margin-bottom: 0.25rem;
     }
 
     .stat-value {
-      font-size: 1.5rem;
+      font-size: 1.25rem;
       font-weight: 700;
       color: #e0e0e0;
     }
 
     .stat-subvalue {
-      font-size: 0.875rem;
+      font-size: 0.75rem;
       color: #a0a0a0;
       margin-top: 0.25rem;
     }
 
     .progress-bar {
       width: 100%;
-      height: 8px;
+      height: 6px;
       background: rgba(255, 255, 255, 0.1);
-      border-radius: 4px;
+      border-radius: 3px;
       overflow: hidden;
       margin-top: 0.5rem;
     }
@@ -134,21 +134,21 @@ class ContextStatsWidget extends LitElement {
     .patterns-list {
       display: flex;
       flex-direction: column;
-      gap: 0.75rem;
+      gap: 0.5rem;
     }
 
     .pattern-item {
-      padding: 1rem;
-      border-radius: 12px;
+      padding: 0.75rem;
+      border-radius: 8px;
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.1);
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 0.75rem;
     }
 
     .pattern-icon {
-      font-size: 2rem;
+      font-size: 1.5rem;
     }
 
     .pattern-info {
@@ -156,21 +156,21 @@ class ContextStatsWidget extends LitElement {
     }
 
     .pattern-description {
-      font-size: 0.875rem;
+      font-size: 0.8rem;
       color: #e0e0e0;
       font-weight: 500;
     }
 
     .pattern-meta {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       color: #808080;
       margin-top: 0.25rem;
     }
 
     .pattern-confidence {
-      padding: 0.25rem 0.75rem;
-      border-radius: 20px;
-      font-size: 0.75rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 12px;
+      font-size: 0.7rem;
       font-weight: 600;
       background: rgba(16, 185, 129, 0.15);
       color: #10b981;
@@ -179,12 +179,12 @@ class ContextStatsWidget extends LitElement {
 
     .empty-state {
       text-align: center;
-      padding: 2rem;
+      padding: 1rem;
       color: #808080;
     }
 
     .empty-icon {
-      font-size: 3rem;
+      font-size: 2rem;
       margin-bottom: 0.5rem;
       opacity: 0.5;
     }
@@ -192,7 +192,7 @@ class ContextStatsWidget extends LitElement {
     .loading {
       text-align: center;
       color: #808080;
-      padding: 2rem;
+      padding: 1rem;
     }
 
     .error {
@@ -430,10 +430,7 @@ class ContextStatsWidget extends LitElement {
           ${this.stats.length === 0 ? html`
             <div class="empty-state">
               <div class="empty-icon">⏱️</div>
-              <div>Aucune statistique disponible</div>
-              <div style="font-size: 0.75rem; margin-top: 0.5rem;">
-                Les données seront collectées au fil du temps
-              </div>
+              <div style="font-size: 0.85rem;">Aucune statistique disponible</div>
             </div>
           ` : html`
             <div class="stats-grid">
@@ -458,14 +455,11 @@ class ContextStatsWidget extends LitElement {
           ${this.patterns.length === 0 ? html`
             <div class="empty-state">
               <div class="empty-icon">🔍</div>
-              <div>Aucun pattern détecté</div>
-              <div style="font-size: 0.75rem; margin-top: 0.5rem;">
-                Les patterns seront détectés après plusieurs changements manuels récurrents
-              </div>
+              <div style="font-size: 0.85rem;">Aucun pattern détecté</div>
             </div>
           ` : html`
             <div class="patterns-list">
-              ${this.patterns.slice(0, 3).map(pattern => html`
+              ${this.patterns.slice(0, 1).map(pattern => html`
                 <div class="pattern-item">
                   <div class="pattern-icon">${this.getModeIcon(pattern.mode)}</div>
                   <div class="pattern-info">
@@ -482,7 +476,7 @@ class ContextStatsWidget extends LitElement {
                 </div>
               `)}
             </div>
-            ${this.patterns.length > 3 ? html`
+            ${this.patterns.length > 1 ? html`
               <button class="see-all-btn" @click="${() => this.showAllPatterns = true}">
                 📋 Voir tous les patterns (${this.patterns.length})
               </button>

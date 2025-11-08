@@ -25,7 +25,9 @@ pub struct MasterOverride {
     pub decision_id: String,
     pub reason: String,
     pub created_by: String,  // username
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
     pub expires_at: OffsetDateTime,
     pub mfa_verified: bool,  // MFA obligatoire
 }

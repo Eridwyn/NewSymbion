@@ -27,8 +27,11 @@ pub struct ValidationRequest {
     pub action: Action,
     pub context: DecisionContext,
     pub status: ValidationStatus,
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
     pub expires_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub resolved_at: Option<OffsetDateTime>,
     pub resolved_by: Option<String>, // username
 }
@@ -151,6 +154,20 @@ impl ValidationManager {
             .collect()
     }
 
+    /// Lister toutes les validations expirées (non résolues mais TTL dépassé)
+    pub fn list_expired(&self) -> Vec<ValidationRequest> {
+        let now = self.clock.now_utc();
+        self.validations
+            .read()
+            .values()
+            .filter(|v| {
+                (v.status == ValidationStatus::Pending && v.expires_at <= now)
+                    || v.status == ValidationStatus::Expired
+            })
+            .cloned()
+            .collect()
+    }
+
     /// Lister validations par utilisateur (resolved_by)
     pub fn list_by_user(&self, username: &str) -> Vec<ValidationRequest> {
         self.validations
@@ -161,7 +178,45 @@ impl ValidationManager {
             .collect()
     }
 
-    /// Nettoyer validations expirées
+    /// Supprimer une validation par ID (pour nettoyage manuel)
+    /// Retourne true si la validation a été supprimée, false si non trouvée
+    pub fn delete_validation(&self, validation_id: &str) -> bool {
+        let removed = self.validations.write().remove(validation_id).is_some();
+        if removed {
+            println!("[validation] Deleted validation {}", validation_id);
+        }
+        removed
+    }
+
+    /// Supprimer toutes les validations expirées (nettoyage manuel)
+    /// Retourne le nombre de validations supprimées
+    pub fn delete_all_expired(&self) -> usize {
+        let now = self.clock.now_utc();
+        let mut validations = self.validations.write();
+
+        let expired_ids: Vec<String> = validations
+            .iter()
+            .filter(|(_, v)| {
+                (v.status == ValidationStatus::Pending && v.expires_at <= now)
+                    || v.status == ValidationStatus::Expired
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        let count = expired_ids.len();
+
+        for id in expired_ids {
+            validations.remove(&id);
+        }
+
+        if count > 0 {
+            println!("[validation] Deleted {} expired validations", count);
+        }
+
+        count
+    }
+
+    /// Nettoyer validations expirées (automatique via cron)
     /// Retourne le nombre de validations supprimées
     pub fn cleanup_expired(&self) -> usize {
         let now = self.clock.now_utc();

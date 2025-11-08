@@ -27,6 +27,7 @@ mod mfa;
 mod csrf;
 mod device_trust;
 mod decision;
+mod decision_http;
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -180,6 +181,61 @@ async fn main() {
     // démarre le monitoring contextuel (détection mode toutes les 30s)
     context::ContextEngine::spawn_context_monitor(context_engine.clone(), agents.clone(), mqtt_client.clone(), dashboard_events.clone());
 
+    // Decision Engine PR3 - Initialisation
+    let decision_clock = Arc::new(crate::decision::SystemClock);
+    let decision_config = crate::decision::DecisionConfig::default();
+
+    let decision_validation_manager = Arc::new(crate::decision::ValidationManager::new(
+        decision_clock.clone(),
+        1800, // TTL 30 minutes (plus raisonnable pour validation humaine)
+    ));
+
+    let decision_override_manager = Arc::new(crate::decision::OverrideManager::new(
+        decision_clock.clone(),
+        86400, // Default TTL 24h
+    ));
+
+    let decision_audit_manager = Arc::new(crate::decision::AuditManager::new(
+        decision_clock.clone(),
+        10000, // Max 10k records
+    ));
+
+    // Agent Health Mapping configuration
+    let agent_health_mapping = crate::decision::AgentHealthMapping {
+        online_min_score: 0.8,
+        active_min_score: 0.7,
+        idle_min_score: 0.5,
+        degraded_min_score: 0.3,
+        degraded_consecutive_threshold: 3,
+        stale_max_age_secs: 120, // 2 minutes
+    };
+
+    let decision_agent_health_manager = Arc::new(crate::decision::AgentHealthManager::new(
+        decision_clock.clone(),
+        agent_health_mapping,
+    ));
+
+    let decision_metrics = Arc::new(crate::decision::DecisionMetrics::new());
+
+    // Guards Evaluator avec stratégie court-circuit OnBlock
+    let guards_evaluator = crate::decision::GuardsEvaluator::new(
+        crate::decision::ShortCircuitStrategy::OnBlock
+    );
+
+    // Trust Calculator
+    let trust_calculator = crate::decision::TrustCalculator::new(
+        decision_config.clone(),
+        decision_clock.clone(),
+    );
+
+    let decision_engine = Arc::new(crate::decision::DecisionEngine::new(
+        guards_evaluator,
+        trust_calculator,
+        decision_config,
+    ));
+
+    println!("[kernel] initialized Decision Engine PR3");
+
     // fabrique l'état unique pour Axum
     let app_state = AppState {
         states,
@@ -196,6 +252,12 @@ async fn main() {
         agents: agents.clone(),
         context_engine: context_engine.clone(),
         dashboard_events,
+        decision_engine,
+        decision_validation_manager,
+        decision_override_manager,
+        decision_audit_manager,
+        decision_agent_health_manager,
+        decision_metrics,
     };
 
     // HTTPS avec TLS

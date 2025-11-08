@@ -9,6 +9,7 @@
 
 import { LitElement, html, css } from 'lit'
 import authService from '../services/auth-service.js'
+import decisionService from '../services/decision-service.js'
 
 class UserSettingsPage extends LitElement {
   static styles = css`
@@ -407,7 +408,12 @@ class UserSettingsPage extends LitElement {
     message: { type: Object }, // { type: 'success'|'error'|'warning', text: string }
     verifyCode: { type: String },
     users: { type: Array },
-    newUser: { type: Object }
+    newUser: { type: Object },
+    // PR3 Décisions
+    validations: { type: Array },
+    expiredValidations: { type: Array },
+    overrides: { type: Array },
+    stats: { type: Object }
   }
 
   constructor() {
@@ -421,17 +427,33 @@ class UserSettingsPage extends LitElement {
     this.verifyCode = ''
     this.users = []
     this.newUser = { username: '', password: '', role: 'admin' }
+    // PR3 Décisions
+    this.validations = []
+    this.expiredValidations = []
+    this.overrides = []
+    this.stats = null
   }
 
   connectedCallback() {
     super.connectedCallback()
     this.loadMfaStatus()
     this.loadUsers()
+
+    // Charger données PR3 si onglet Décisions est actif au chargement
+    if (this.activeTab === 'decisions') {
+      this.loadDecisionsData()
+    }
   }
 
   switchTab(tab) {
     this.activeTab = tab
     sessionStorage.setItem('userSettingsTab', tab)
+
+    // Charger données PR3 si onglet Décisions activé
+    // Rafraîchit toujours les données pour avoir les dernières validations/overrides
+    if (tab === 'decisions') {
+      this.loadDecisionsData()
+    }
   }
 
   async loadMfaStatus() {
@@ -574,6 +596,45 @@ class UserSettingsPage extends LitElement {
     }
   }
 
+  async loadDecisionsData() {
+    try {
+      this.loading = true
+
+      // Charger validations en attente
+      const validationsData = await decisionService.getPendingValidations()
+      this.validations = validationsData || []
+
+      // Charger validations expirées
+      const expiredData = await decisionService.getExpiredValidations()
+      this.expiredValidations = expiredData || []
+
+      // Charger overrides actifs
+      const overridesData = await decisionService.getActiveOverrides()
+      this.overrides = overridesData || []
+
+      // Charger statistiques et transformer au format attendu par le frontend
+      const rawStats = await decisionService.getStats()
+      this.stats = {
+        total_evaluations: rawStats.audit?.total_records || 0,
+        approved: rawStats.validation?.approved || 0,
+        rejected: rawStats.validation?.denied || 0,
+        pending: rawStats.validation?.pending || 0
+      }
+
+      console.log('[settings] Loaded PR3 data:', {
+        validations: this.validations.length,
+        expiredValidations: this.expiredValidations.length,
+        overrides: this.overrides.length,
+        stats: this.stats
+      })
+    } catch (error) {
+      console.error('[settings] Failed to load decisions data:', error)
+      this.showMessage('error', 'Impossible de charger les données de décisions')
+    } finally {
+      this.loading = false
+    }
+  }
+
   async handleCreateUser() {
     if (!this.newUser.username || !this.newUser.password) {
       this.showMessage('error', 'Nom d\'utilisateur et mot de passe requis')
@@ -688,6 +749,10 @@ class UserSettingsPage extends LitElement {
                   @click="${() => this.switchTab('users')}">
             👥 Utilisateurs
           </button>
+          <button class="tab ${this.activeTab === 'decisions' ? 'active' : ''}"
+                  @click="${() => this.switchTab('decisions')}">
+            ⚖️ Décisions
+          </button>
         </div>
 
         ${this.message ? html`
@@ -734,6 +799,11 @@ class UserSettingsPage extends LitElement {
         <!-- Tab Utilisateurs -->
         <div class="tab-content ${this.activeTab === 'users' ? 'active' : ''}">
           ${this.renderUsersTab()}
+        </div>
+
+        <!-- Tab Décisions -->
+        <div class="tab-content ${this.activeTab === 'decisions' ? 'active' : ''}">
+          ${this.renderDecisionsTab()}
         </div>
       </div>
     `
@@ -992,6 +1062,344 @@ class UserSettingsPage extends LitElement {
       return `${hours}h ${minutes}min`
     }
     return `${minutes}min`
+  }
+
+  async handleValidationResolve(validationId, approved) {
+    if (!confirm(`Confirmer ${approved ? 'l\'approbation' : 'le rejet'} de cette action ?`)) {
+      return
+    }
+
+    try {
+      this.loading = true
+      await decisionService.resolveValidation(validationId, approved)
+      this.showMessage('success', `Validation ${approved ? 'approuvée' : 'rejetée'} avec succès`)
+      await this.loadDecisionsData()
+    } catch (error) {
+      console.error('[settings] Failed to resolve validation:', error)
+      this.showMessage('error', 'Échec de la résolution: ' + error.message)
+    } finally {
+      this.loading = false
+    }
+  }
+
+  async handleDeleteExpired(validationId) {
+    try {
+      this.loading = true
+      await decisionService.deleteValidation(validationId)
+      this.showMessage('success', 'Validation expirée supprimée')
+      await this.loadDecisionsData()
+    } catch (error) {
+      console.error('[settings] Failed to delete expired validation:', error)
+      this.showMessage('error', 'Échec de la suppression: ' + error.message)
+    } finally {
+      this.loading = false
+    }
+  }
+
+  async handleDeleteAllExpired() {
+    if (!confirm(`Supprimer toutes les validations expirées (${this.expiredValidations.length}) ?`)) {
+      return
+    }
+
+    try {
+      this.loading = true
+      const result = await decisionService.deleteAllExpiredValidations()
+      this.showMessage('success', result.message || 'Toutes les validations expirées ont été supprimées')
+      await this.loadDecisionsData()
+    } catch (error) {
+      console.error('[settings] Failed to delete all expired validations:', error)
+      this.showMessage('error', 'Échec de la suppression: ' + error.message)
+    } finally {
+      this.loading = false
+    }
+  }
+
+  async generateTestData() {
+    if (!confirm('Générer des données de test pour PR3 Decision Engine ?')) return
+
+    try {
+      this.loading = true
+
+      // Générer une évaluation de test (action avec mode mismatch → RequireValidation)
+      const action = {
+        action_type: 'test_shutdown',
+        agent_id: 'test-agent-123',
+        impact_level: 'Medium',
+        trace_id: `test-trace-${Date.now()}`,
+        expires_at: null,
+        dry_run: false,
+        expected_mode: 'cravate',
+        expected_ssid: null
+      }
+
+      const context = {
+        mode: 'intime',
+        ssid: 'home-wifi',
+        agents: {}
+      }
+
+      await decisionService.evaluateAction(action, context)
+
+      this.showMessage('success', 'Données de test générées avec succès')
+      await this.loadDecisionsData()
+    } catch (error) {
+      console.error('[settings] Failed to generate test data:', error)
+      this.showMessage('error', 'Échec génération test: ' + error.message)
+    } finally {
+      this.loading = false
+    }
+  }
+
+  renderDecisionsTab() {
+    if (this.loading && !this.stats) {
+      return html`
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>Chargement...</p>
+        </div>
+      `
+    }
+
+    return html`
+      <!-- Métriques temps réel -->
+      <div class="section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <div>
+            <h2 class="section-title" style="margin-bottom: 0.5rem;">📊 Métriques Décisions</h2>
+            <p class="section-description" style="margin: 0;">
+              Statistiques temps réel du Decision Engine PR3
+            </p>
+          </div>
+          <button
+            class="btn-secondary"
+            @click="${() => this.generateTestData()}"
+            ?disabled="${this.loading}">
+            🧪 Générer Test
+          </button>
+        </div>
+
+        ${this.stats ? html`
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+            <div style="background: rgba(0, 212, 170, 0.05); border: 1px solid rgba(0, 212, 170, 0.2); border-radius: 8px; padding: 1rem; text-align: center;">
+              <div style="font-size: 2em; color: var(--context-primary, #00d4aa);">
+                ${this.stats.total_evaluations || 0}
+              </div>
+              <div style="color: #888; font-size: 0.9em; margin-top: 0.5rem;">
+                Évaluations totales
+              </div>
+            </div>
+            <div style="background: rgba(76, 175, 80, 0.05); border: 1px solid rgba(76, 175, 80, 0.2); border-radius: 8px; padding: 1rem; text-align: center;">
+              <div style="font-size: 2em; color: #4caf50;">
+                ${this.stats.approved || 0}
+              </div>
+              <div style="color: #888; font-size: 0.9em; margin-top: 0.5rem;">
+                Approuvées
+              </div>
+            </div>
+            <div style="background: rgba(255, 107, 107, 0.05); border: 1px solid rgba(255, 107, 107, 0.2); border-radius: 8px; padding: 1rem; text-align: center;">
+              <div style="font-size: 2em; color: #ff6b6b;">
+                ${this.stats.rejected || 0}
+              </div>
+              <div style="color: #888; font-size: 0.9em; margin-top: 0.5rem;">
+                Rejetées
+              </div>
+            </div>
+            <div style="background: rgba(255, 193, 7, 0.05); border: 1px solid rgba(255, 193, 7, 0.2); border-radius: 8px; padding: 1rem; text-align: center;">
+              <div style="font-size: 2em; color: #ffc107;">
+                ${this.stats.pending || 0}
+              </div>
+              <div style="color: #888; font-size: 0.9em; margin-top: 0.5rem;">
+                En attente
+              </div>
+            </div>
+          </div>
+        ` : html`
+          <div class="alert warning">
+            <span>⚠️</span>
+            <span>Aucune statistique disponible</span>
+          </div>
+        `}
+      </div>
+
+      <!-- Validations en attente -->
+      <div class="section">
+        <h2 class="section-title">⏳ Validations en Attente</h2>
+        <p class="section-description">
+          Actions nécessitant une validation manuelle avant exécution
+        </p>
+
+        ${this.validations.length === 0 ? html`
+          <div class="alert success">
+            <span>✅</span>
+            <span>Aucune validation en attente</span>
+          </div>
+        ` : html`
+          <div style="display: flex; flex-direction: column; gap: 1rem;">
+            ${this.validations.map(validation => html`
+              <div class="section" style="padding: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                  <div style="flex: 1;">
+                    <div style="font-weight: 600; font-size: 1.1em; color: #e0e0e0; margin-bottom: 0.5rem;">
+                      ${validation.action?.action_type || 'Action'}
+                    </div>
+                    <div style="color: #888; font-size: 0.9em; margin-bottom: 0.3rem;">
+                      Agent: ${validation.action?.agent_id || 'N/A'}
+                    </div>
+                    <div style="color: #888; font-size: 0.9em;">
+                      Impact: <span style="color: ${this.getImpactColor(validation.action?.impact_level)}; font-weight: 600;">
+                        ${validation.action?.impact_level || 'MEDIUM'}
+                      </span>
+                    </div>
+                  </div>
+                  <div style="display: flex; gap: 0.5rem;">
+                    <button
+                      class="button"
+                      style="padding: 0.5rem 1rem;"
+                      @click="${() => this.handleValidationResolve(validation.validation_id, true)}"
+                      ?disabled="${this.loading}"
+                    >
+                      ✓ Approuver
+                    </button>
+                    <button
+                      class="button danger"
+                      style="padding: 0.5rem 1rem;"
+                      @click="${() => this.handleValidationResolve(validation.validation_id, false)}"
+                      ?disabled="${this.loading}"
+                    >
+                      ✗ Rejeter
+                    </button>
+                  </div>
+                </div>
+                ${validation.reason ? html`
+                  <div style="background: rgba(0, 0, 0, 0.3); border-left: 3px solid var(--context-primary, #00d4aa); padding: 0.8rem; border-radius: 4px;">
+                    <div style="color: #aaa; font-size: 0.85em; margin-bottom: 0.3rem;">Raison:</div>
+                    <div style="color: #e0e0e0; font-size: 0.95em;">${validation.reason}</div>
+                  </div>
+                ` : ''}
+              </div>
+            `)}
+          </div>
+        `}
+      </div>
+
+      <!-- Validations expirées -->
+      ${this.expiredValidations.length > 0 ? html`
+        <div class="section">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div>
+              <h2 class="section-title">📋 Validations Expirées (${this.expiredValidations.length})</h2>
+              <p class="section-description" style="margin: 0;">
+                Validations ayant dépassé leur délai de traitement
+              </p>
+            </div>
+            <button
+              class="button danger"
+              style="padding: 0.6rem 1rem; font-size: 0.9em;"
+              @click="${() => this.handleDeleteAllExpired()}"
+              ?disabled="${this.loading}"
+            >
+              🗑️ Tout supprimer
+            </button>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 1rem;">
+            ${this.expiredValidations.map(validation => html`
+              <div class="section" style="padding: 1rem; opacity: 0.7; border: 1px solid rgba(255, 193, 7, 0.3);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                  <div style="flex: 1;">
+                    <div style="font-weight: 600; font-size: 1.1em; color: #e0e0e0; margin-bottom: 0.5rem;">
+                      ${validation.action?.action_type || 'Action'}
+                      <span style="color: #ffc107; font-size: 0.8em; margin-left: 0.5rem;">⏱️ EXPIRÉ</span>
+                    </div>
+                    <div style="color: #888; font-size: 0.9em; margin-bottom: 0.3rem;">
+                      Agent: ${validation.action?.agent_id || 'N/A'}
+                    </div>
+                    <div style="color: #888; font-size: 0.9em; margin-bottom: 0.3rem;">
+                      Impact: <span style="color: ${this.getImpactColor(validation.action?.impact_level)}; font-weight: 600;">
+                        ${validation.action?.impact_level || 'MEDIUM'}
+                      </span>
+                    </div>
+                    <div style="color: #888; font-size: 0.85em;">
+                      Expiré le: ${validation.expires_at ? new Date(validation.expires_at).toLocaleString('fr-FR') : 'N/A'}
+                    </div>
+                  </div>
+                  <button
+                    class="button danger"
+                    style="padding: 0.5rem 1rem; font-size: 0.85em;"
+                    @click="${() => this.handleDeleteExpired(validation.validation_id)}"
+                    ?disabled="${this.loading}"
+                  >
+                    🗑️ Supprimer
+                  </button>
+                </div>
+                ${validation.reason ? html`
+                  <div style="background: rgba(0, 0, 0, 0.3); border-left: 3px solid #ffc107; padding: 0.8rem; border-radius: 4px;">
+                    <div style="color: #aaa; font-size: 0.85em; margin-bottom: 0.3rem;">Raison:</div>
+                    <div style="color: #e0e0e0; font-size: 0.95em;">${validation.reason}</div>
+                  </div>
+                ` : ''}
+              </div>
+            `)}
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Overrides actifs -->
+      <div class="section">
+        <h2 class="section-title">🔓 Overrides Actifs</h2>
+        <p class="section-description">
+          Contournements de sécurité temporaires activés
+        </p>
+
+        ${this.overrides.length === 0 ? html`
+          <div class="alert success">
+            <span>✅</span>
+            <span>Aucun override actif</span>
+          </div>
+        ` : html`
+          <div style="display: flex; flex-direction: column; gap: 1rem;">
+            ${this.overrides.map(override => html`
+              <div class="section" style="padding: 1rem; border: 1px solid rgba(255, 193, 7, 0.3);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                  <div style="flex: 1;">
+                    <div style="font-weight: 600; font-size: 1.1em; color: #ffc107; margin-bottom: 0.5rem;">
+                      Override: ${override.override_type || 'N/A'}
+                    </div>
+                    <div style="color: #888; font-size: 0.9em; margin-bottom: 0.3rem;">
+                      Décision: ${override.decision_id || 'N/A'}
+                    </div>
+                    <div style="color: #888; font-size: 0.9em; margin-bottom: 0.3rem;">
+                      Par: ${override.created_by || 'N/A'}
+                    </div>
+                    <div style="color: #888; font-size: 0.9em;">
+                      Expire: ${override.expires_at ? new Date(override.expires_at).toLocaleString('fr-FR') : 'N/A'}
+                    </div>
+                  </div>
+                  <div style="background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.3); padding: 0.5rem 1rem; border-radius: 6px;">
+                    <span style="color: #ffc107; font-weight: 600; font-size: 0.85em;">ACTIF</span>
+                  </div>
+                </div>
+                ${override.reason ? html`
+                  <div style="background: rgba(0, 0, 0, 0.3); border-left: 3px solid #ffc107; padding: 0.8rem; border-radius: 4px; margin-top: 1rem;">
+                    <div style="color: #aaa; font-size: 0.85em; margin-bottom: 0.3rem;">Raison:</div>
+                    <div style="color: #e0e0e0; font-size: 0.95em;">${override.reason}</div>
+                  </div>
+                ` : ''}
+              </div>
+            `)}
+          </div>
+        `}
+      </div>
+    `
+  }
+
+  getImpactColor(level) {
+    switch (level?.toUpperCase()) {
+      case 'HIGH': return '#ff6b6b'
+      case 'MEDIUM': return '#ffc107'
+      case 'LOW': return '#4caf50'
+      default: return '#888'
+    }
   }
 }
 
