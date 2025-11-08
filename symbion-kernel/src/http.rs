@@ -170,6 +170,13 @@ pub struct AppState {
     pub agents: crate::agents::SharedAgentRegistry,
     pub context_engine: std::sync::Arc<crate::context::ContextEngine>,
     pub dashboard_events: crate::dashboard_events::DashboardEventPublisher,
+    // Decision Engine PR3
+    pub decision_engine: std::sync::Arc<crate::decision::DecisionEngine>,
+    pub decision_validation_manager: std::sync::Arc<crate::decision::ValidationManager>,
+    pub decision_override_manager: std::sync::Arc<crate::decision::OverrideManager>,
+    pub decision_audit_manager: std::sync::Arc<crate::decision::AuditManager>,
+    pub decision_agent_health_manager: std::sync::Arc<crate::decision::AgentHealthManager>,
+    pub decision_metrics: std::sync::Arc<crate::decision::DecisionMetrics>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -233,11 +240,23 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/agents/{id}/processes/{pid}/kill", post(agent_kill_process_endpoint))
         .route("/context/override", post(set_context_override))
         .route("/context/clear", post(clear_context_override))
+        .route("/auth/reload", post(auth_reload_users))
+        .route("/v1/users", post(create_user))
+        .route("/v1/users/{username}", axum::routing::delete(delete_user))
         .route("/plugins/{name}/start", post(start_plugin_endpoint))
         .route("/plugins/{name}/stop", post(stop_plugin_endpoint))
         .route("/plugins/{name}/restart", post(restart_plugin_endpoint))
         .route("/ports/memo/{id}", axum::routing::delete(handle_memo_delete).put(handle_memo_update))
         .route("/ports/{port_name}/{id}", axum::routing::delete(delete_from_port))
+        .with_state(app_state.clone())
+        .layer(middleware::from_fn_with_state(app_state.clone(), require_csrf));
+
+    // Decision Engine routes (CSRF protection pour POST/DELETE)
+    let decision_csrf_routes = Router::new()
+        .route("/decision/evaluate", post(decision_evaluate))
+        .route("/decision/validation/{id}/resolve", post(decision_resolve_validation))
+        .route("/decision/override", post(decision_create_override))
+        .route("/decision/override/{id}", axum::routing::delete(decision_revoke_override))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_csrf));
 
@@ -265,6 +284,15 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/context/stats", get(get_context_stats))
         .route("/context/patterns", get(get_context_patterns))
         .route("/context/productivity", get(get_context_productivity))
+        .route("/v1/users", get(list_users))
+        // Decision Engine API (read-only endpoints)
+        .route("/decision/audit", get(decision_get_audit))
+        .route("/decision/metrics", get(decision_get_metrics))
+        .route("/decision/validations/pending", get(decision_list_pending_validations))
+        .route("/decision/overrides/active", get(decision_list_active_overrides))
+        .route("/decision/config", get(decision_get_config))
+        .route("/decision/agent-health", get(decision_get_agent_health))
+        .route("/decision/stats", get(decision_get_stats))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
         // NOTE: Rate limiting tower_governor désactivé (incompatibilité localhost)
@@ -275,7 +303,8 @@ pub fn build_router(app_state: AppState) -> Router {
         .merge(login_route)
         .merge(protected_auth_routes)
         .merge(api_routes)
-        .merge(csrf_protected_routes);
+        .merge(csrf_protected_routes)
+        .merge(decision_csrf_routes);
 
     // Router principal avec versioning
     Router::new()
@@ -1302,6 +1331,75 @@ async fn auth_logout() -> Json<serde_json::Value> {
     }))
 }
 
+/// POST /auth/reload - Recharger les utilisateurs depuis users.json sans redémarrer le kernel
+async fn auth_reload_users(
+    State(app): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    app.auth_manager.reload_users()
+        .map_err(|e| {
+            eprintln!("[http] Failed to reload users: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "Users reloaded successfully"
+    })))
+}
+
+// ============================================================================
+// User Management Endpoints (Admin)
+// ============================================================================
+
+#[derive(Debug, serde::Deserialize)]
+struct CreateUserRequest {
+    username: String,
+    password: String,
+    role: String,
+}
+
+/// POST /v1/users - Créer un nouvel utilisateur (admin seulement)
+async fn create_user(
+    State(app): State<AppState>,
+    Json(req): Json<CreateUserRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    app.auth_manager.create_user(&req.username, &req.password, &req.role)
+        .map_err(|e| {
+            eprintln!("[http] Failed to create user '{}': {}", req.username, e);
+            StatusCode::BAD_REQUEST
+        })?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": format!("User '{}' created successfully", req.username)
+    })))
+}
+
+/// DELETE /v1/users/{username} - Supprimer un utilisateur (admin seulement)
+async fn delete_user(
+    State(app): State<AppState>,
+    Path(username): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    app.auth_manager.delete_user(&username)
+        .map_err(|e| {
+            eprintln!("[http] Failed to delete user '{}': {}", username, e);
+            StatusCode::NOT_FOUND
+        })?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": format!("User '{}' deleted successfully", username)
+    })))
+}
+
+/// GET /v1/users - Lister tous les utilisateurs (admin seulement, sans mots de passe)
+async fn list_users(
+    State(app): State<AppState>,
+) -> Json<Vec<serde_json::Value>> {
+    let users = app.auth_manager.list_users();
+    Json(users)
+}
+
 // ============================================================================
 // MFA (Multi-Factor Authentication) Endpoints
 // ============================================================================
@@ -1662,4 +1760,171 @@ async fn download_ca_certificate() -> Result<impl IntoResponse, StatusCode> {
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+// ========================================================================
+// DECISION ENGINE ENDPOINTS - Wrappers vers decision_http.rs
+// ========================================================================
+
+use crate::decision_http::{EvaluateRequest, AuditQueryParams, ResolveValidationRequest, CreateOverrideRequest, RevokeOverrideRequest};
+
+async fn decision_evaluate(
+    State(app): State<AppState>,
+    Json(req): Json<EvaluateRequest>,
+) -> Json<crate::decision::DecisionResult> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::evaluate_action(State(state), Json(req)).await
+}
+
+async fn decision_get_audit(
+    State(app): State<AppState>,
+    Query(params): Query<AuditQueryParams>,
+) -> Json<serde_json::Value> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::get_audit_trail(State(state), Query(params)).await
+}
+
+async fn decision_get_metrics(
+    State(app): State<AppState>,
+) -> Result<String, StatusCode> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::get_metrics(State(state)).await
+}
+
+async fn decision_list_pending_validations(
+    State(app): State<AppState>,
+) -> Json<Vec<crate::decision::ValidationRequest>> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::list_pending_validations(State(state)).await
+}
+
+async fn decision_resolve_validation(
+    State(app): State<AppState>,
+    Path(validation_id): Path<String>,
+    Json(req): Json<ResolveValidationRequest>,
+) -> Result<Json<crate::decision::ValidationRequest>, StatusCode> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::resolve_validation(State(state), Path(validation_id), Json(req)).await
+}
+
+async fn decision_create_override(
+    State(app): State<AppState>,
+    Json(req): Json<CreateOverrideRequest>,
+) -> Result<Json<crate::decision::MasterOverride>, StatusCode> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::create_override(State(state), Json(req)).await
+}
+
+async fn decision_list_active_overrides(
+    State(app): State<AppState>,
+) -> Json<Vec<crate::decision::MasterOverride>> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::list_active_overrides(State(state)).await
+}
+
+async fn decision_revoke_override(
+    State(app): State<AppState>,
+    Path(override_id): Path<String>,
+    Json(req): Json<RevokeOverrideRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::revoke_override(State(state), Path(override_id), Json(req)).await
+}
+
+async fn decision_get_config(
+    State(app): State<AppState>,
+) -> Json<crate::decision::DecisionConfig> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::get_config(State(state)).await
+}
+
+async fn decision_get_agent_health(
+    State(app): State<AppState>,
+) -> Json<serde_json::Value> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::get_agent_health(State(state)).await
+}
+
+async fn decision_get_stats(
+    State(app): State<AppState>,
+) -> Json<crate::decision_http::DecisionStats> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::get_stats(State(state)).await
 }

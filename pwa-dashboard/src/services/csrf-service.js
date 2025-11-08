@@ -183,11 +183,10 @@ class CsrfService extends EventTarget {
         headers
       })
 
-      // Si 403 Forbidden, le nonce a probablement été consommé ou expiré
-      if (response.status === 403) {
-        console.warn('[csrf] Got 403 - nonce may be consumed or expired, invalidating')
-        this.invalidateNonce()
-      }
+      // Les nonces CSRF sont à usage unique - invalider après chaque utilisation
+      // (même en cas de succès, le nonce est consommé côté serveur)
+      this.invalidateNonce()
+      console.log('[csrf] Nonce consumed after request, next request will fetch a fresh one')
 
       return response
 

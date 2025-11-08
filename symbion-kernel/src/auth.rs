@@ -133,6 +133,15 @@ impl AuthManager {
         Ok(users)
     }
 
+    /// Save users to users.json file
+    fn save_users(&self, users: &HashMap<String, User>) -> Result<()> {
+        let json = serde_json::to_string_pretty(users)
+            .context("Failed to serialize users")?;
+        fs::write(USERS_FILE, json)
+            .context("Failed to write users file")?;
+        Ok(())
+    }
+
     /// Check if user has exceeded rate limit
     /// Returns Ok(()) if allowed, Err with remaining time if blocked
     fn check_rate_limit(&self, username: &str) -> Result<()> {
@@ -181,46 +190,94 @@ impl AuthManager {
         // This prevents brute-force attacks with non-existent usernames
         self.record_attempt(username);
 
-        let users = self.users.read();
+        // Clone user data we'll need later (before any lock drops)
+        let (user_username, user_role, requires_mfa) = {
+            let users = self.users.read();
 
-        let user = users
-            .get(username)
-            .context("Invalid username or password")?;
+            let user = users
+                .get(username)
+                .context("Invalid username or password")?;
 
-        // Verify password
-        let password_valid = verify(password, &user.password_hash)
-            .context("Password verification failed")?;
+            // Verify password
+            let password_valid = verify(password, &user.password_hash)
+                .context("Password verification failed")?;
 
-        if !password_valid {
-            anyhow::bail!("Invalid username or password");
-        }
+            if !password_valid {
+                anyhow::bail!("Invalid username or password");
+            }
 
-        // Vérifier si MFA est activé pour cet utilisateur
-        let requires_mfa = user.mfa_config
-            .as_ref()
-            .map(|config| config.enabled)
-            .unwrap_or(false);
+            // Clone data we'll need after releasing lock
+            let requires_mfa = user.mfa_config
+                .as_ref()
+                .map(|config| config.enabled)
+                .unwrap_or(false);
 
-        // Si MFA activé, vérifier le code TOTP (sauf si device de confiance)
+            (user.username.clone(), user.role.clone(), requires_mfa)
+        }; // Read lock released here
+
+        // Si MFA activé, vérifier le code TOTP ou backup code (sauf si device de confiance)
         if requires_mfa {
             if !trusted_device {
-                // Device non-trusted: vérifier le code TOTP
+                // Device non-trusted: vérifier le code TOTP ou backup code
                 let totp_code = totp_code.ok_or_else(|| {
                     anyhow::anyhow!("MFA is enabled. Please provide a TOTP code.")
                 })?;
 
-                // Vérifier le code TOTP
-                let mfa_config = user.mfa_config.as_ref().unwrap();
-                let mfa_manager = crate::mfa::MfaManager::new("Symbion".to_string(), "Symbion IoT".to_string());
+                // Check backup codes first (single-use)
+                let is_backup_code = {
+                    let users = self.users.read();
+                    users.get(username)
+                        .and_then(|u| u.mfa_config.as_ref())
+                        .map(|mfa| mfa.backup_codes.contains(&totp_code.to_string()))
+                        .unwrap_or(false)
+                };
 
-                let is_valid = mfa_manager.verify_totp_with_secret(&mfa_config.secret_base32, totp_code)
-                    .context("Failed to verify TOTP code")?;
+                if is_backup_code {
+                    // Backup code trouvé : le retirer et sauvegarder
+                    let mut users_write = self.users.write();
+                    if let Some(user_mut) = users_write.get_mut(username) {
+                        if let Some(ref mut mfa_mut) = user_mut.mfa_config {
+                            if let Some(index) = mfa_mut.backup_codes.iter().position(|c| c == totp_code) {
+                                mfa_mut.backup_codes.remove(index);
+                                mfa_mut.last_verified_at = time::OffsetDateTime::now_utc().unix_timestamp();
 
-                if !is_valid {
-                    anyhow::bail!("Invalid TOTP code");
+                                let remaining = mfa_mut.backup_codes.len();
+
+                                // Sauvegarder users.json (clone pour éviter conflit borrow)
+                                drop(user_mut); // Release mutable borrow
+                                let users_clone = users_write.clone();
+                                drop(users_write); // Release write lock
+
+                                if let Err(e) = self.save_users(&users_clone) {
+                                    eprintln!("[auth] Failed to save users after backup code consumption: {}", e);
+                                }
+
+                                println!("[auth] User '{}' authenticated with MFA backup code (remaining: {})",
+                                    username, remaining);
+                            }
+                        }
+                    }
+                } else {
+                    // Pas un backup code : vérifier le code TOTP
+                    let mfa_manager = crate::mfa::MfaManager::new("Symbion".to_string(), "Symbion IoT".to_string());
+
+                    let secret = {
+                        let users = self.users.read();
+                        users.get(username)
+                            .and_then(|u| u.mfa_config.as_ref())
+                            .map(|mfa| mfa.secret_base32.clone())
+                            .context("MFA config not found")?
+                    };
+
+                    let is_valid = mfa_manager.verify_totp_with_secret(&secret, totp_code)
+                        .context("Failed to verify TOTP code")?;
+
+                    if !is_valid {
+                        anyhow::bail!("Invalid TOTP code");
+                    }
+
+                    println!("[auth] User '{}' authenticated with MFA TOTP successfully", username);
                 }
-
-                println!("[auth] User '{}' authenticated with MFA successfully", username);
             } else {
                 // Device de confiance: bypass MFA
                 println!("[auth] User '{}' authenticated with MFA bypassed (trusted device)", username);
@@ -234,8 +291,8 @@ impl AuthManager {
         let expires_at = now + (get_token_expiry_hours() * 3600);
 
         let claims = Claims {
-            sub: user.username.clone(),
-            role: user.role.clone(),
+            sub: user_username.clone(),
+            role: user_role.clone(),
             exp: expires_at,
             iat: now,
         };
@@ -245,8 +302,8 @@ impl AuthManager {
 
         Ok(LoginResponse {
             token,
-            username: user.username.clone(),
-            role: user.role.clone(),
+            username: user_username,
+            role: user_role,
             expires_at,
             requires_mfa,
             device_token: None, // Sera rempli par http.rs si remember_device=true
@@ -327,5 +384,48 @@ impl AuthManager {
 
         println!("[auth] MFA config updated for user '{}'", username);
         Ok(())
+    }
+
+    /// Recharge les utilisateurs depuis users.json sans redémarrer le kernel
+    pub fn reload_users(&self) -> Result<()> {
+        let new_users = Self::load_users()?;
+
+        let mut users = self.users.write();
+        *users = new_users;
+
+        println!("[auth] Users reloaded from disk ({} user(s))", users.len());
+        Ok(())
+    }
+
+    /// Supprime un utilisateur
+    pub fn delete_user(&self, username: &str) -> Result<()> {
+        let mut users = self.users.write();
+
+        if !users.contains_key(username) {
+            anyhow::bail!("User '{}' not found", username);
+        }
+
+        users.remove(username);
+
+        // Sauvegarder dans le fichier
+        let json = serde_json::to_string_pretty(&*users)
+            .context("Failed to serialize users")?;
+        fs::write(USERS_FILE, json)
+            .context("Failed to write users file")?;
+
+        println!("[auth] User '{}' deleted", username);
+        Ok(())
+    }
+
+    /// Liste tous les utilisateurs (sans les mots de passe)
+    pub fn list_users(&self) -> Vec<serde_json::Value> {
+        let users = self.users.read();
+        users.iter().map(|(username, user)| {
+            serde_json::json!({
+                "username": username,
+                "role": user.role,
+                "mfa_enabled": user.mfa_config.is_some()
+            })
+        }).collect()
     }
 }

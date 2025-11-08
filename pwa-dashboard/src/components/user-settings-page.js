@@ -405,7 +405,9 @@ class UserSettingsPage extends LitElement {
     mfaSetupData: { type: Object },
     loading: { type: Boolean },
     message: { type: Object }, // { type: 'success'|'error'|'warning', text: string }
-    verifyCode: { type: String }
+    verifyCode: { type: String },
+    users: { type: Array },
+    newUser: { type: Object }
   }
 
   constructor() {
@@ -417,11 +419,14 @@ class UserSettingsPage extends LitElement {
     this.loading = false
     this.message = null
     this.verifyCode = ''
+    this.users = []
+    this.newUser = { username: '', password: '', role: 'admin' }
   }
 
   connectedCallback() {
     super.connectedCallback()
     this.loadMfaStatus()
+    this.loadUsers()
   }
 
   switchTab(tab) {
@@ -552,6 +557,104 @@ class UserSettingsPage extends LitElement {
     }
   }
 
+  async loadUsers() {
+    try {
+      const apiService = document.querySelector('api-service')
+      if (!apiService) {
+        console.warn('[settings] API service not available')
+        return
+      }
+
+      const users = await apiService.request('/v1/users')
+      this.users = users || []
+      console.log('[settings] Loaded users:', this.users)
+    } catch (error) {
+      console.error('[settings] Failed to load users:', error)
+      this.users = []
+    }
+  }
+
+  async handleCreateUser() {
+    if (!this.newUser.username || !this.newUser.password) {
+      this.showMessage('error', 'Nom d\'utilisateur et mot de passe requis')
+      return
+    }
+
+    try {
+      const apiService = document.querySelector('api-service')
+      const csrfService = (await import('../services/csrf-service.js')).default
+      if (!apiService) throw new Error('API service not available')
+
+      // Initialiser csrfService avec authService si nécessaire
+      if (!csrfService.authService) {
+        const authServiceModule = await import('../services/auth-service.js')
+        csrfService.setAuthService(authServiceModule.default)
+      }
+
+      this.loading = true
+      this.message = null
+
+      const url = `${apiService.baseUrl}/v1/users`
+      const response = await csrfService.fetchWithCsrf(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.newUser)
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      this.showMessage('success', `Utilisateur "${this.newUser.username}" créé avec succès`)
+      this.newUser = { username: '', password: '', role: 'admin' }
+      await this.loadUsers()
+    } catch (error) {
+      console.error('[settings] Failed to create user:', error)
+      this.showMessage('error', 'Échec de la création: ' + error.message)
+    } finally {
+      this.loading = false
+    }
+  }
+
+  async handleDeleteUser(username) {
+    if (!confirm(`Supprimer l'utilisateur "${username}" ?`)) {
+      return
+    }
+
+    try {
+      const apiService = document.querySelector('api-service')
+      const csrfService = (await import('../services/csrf-service.js')).default
+      if (!apiService) throw new Error('API service not available')
+
+      // Initialiser csrfService avec authService si nécessaire
+      if (!csrfService.authService) {
+        const authServiceModule = await import('../services/auth-service.js')
+        csrfService.setAuthService(authServiceModule.default)
+      }
+
+      this.loading = true
+      this.message = null
+
+      const url = `${apiService.baseUrl}/v1/users/${encodeURIComponent(username)}`
+      const response = await csrfService.fetchWithCsrf(url, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      this.showMessage('success', `Utilisateur "${username}" supprimé`)
+      await this.loadUsers()
+    } catch (error) {
+      console.error('[settings] Failed to delete user:', error)
+      this.showMessage('error', 'Échec de la suppression: ' + error.message)
+    } finally {
+      this.loading = false
+    }
+  }
+
   handleClose() {
     this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }))
   }
@@ -580,6 +683,10 @@ class UserSettingsPage extends LitElement {
           <button class="tab ${this.activeTab === 'mfa' ? 'active' : ''}"
                   @click="${() => this.switchTab('mfa')}">
             🛡️ Authentification 2FA
+          </button>
+          <button class="tab ${this.activeTab === 'users' ? 'active' : ''}"
+                  @click="${() => this.switchTab('users')}">
+            👥 Utilisateurs
           </button>
         </div>
 
@@ -622,6 +729,11 @@ class UserSettingsPage extends LitElement {
         <!-- Tab MFA -->
         <div class="tab-content ${this.activeTab === 'mfa' ? 'active' : ''}">
           ${this.renderMfaTab()}
+        </div>
+
+        <!-- Tab Utilisateurs -->
+        <div class="tab-content ${this.activeTab === 'users' ? 'active' : ''}">
+          ${this.renderUsersTab()}
         </div>
       </div>
     `
@@ -752,6 +864,117 @@ class UserSettingsPage extends LitElement {
             </button>
           </div>
         `}
+      </div>
+    `
+  }
+
+  renderUsersTab() {
+    const currentUser = authService.getCurrentUser()
+
+    return html`
+      <div class="section">
+        <h2 class="section-title">👥 Gestion des Utilisateurs</h2>
+        <p class="section-description">
+          Créez et gérez les comptes utilisateurs ayant accès à Symbion.
+        </p>
+
+        <!-- Formulaire création utilisateur -->
+        <div class="mfa-setup-container">
+          <h3 style="color: var(--context-primary, #00d4aa); margin-bottom: 1rem;">
+            ➕ Créer un nouvel utilisateur
+          </h3>
+
+          <div class="input-group">
+            <label class="input-label">Nom d'utilisateur</label>
+            <input
+              type="text"
+              class="input"
+              placeholder="john_doe"
+              .value="${this.newUser.username}"
+              @input="${(e) => this.newUser = { ...this.newUser, username: e.target.value }}"
+            />
+          </div>
+
+          <div class="input-group">
+            <label class="input-label">Mot de passe</label>
+            <input
+              type="password"
+              class="input"
+              placeholder="••••••••"
+              .value="${this.newUser.password}"
+              @input="${(e) => this.newUser = { ...this.newUser, password: e.target.value }}"
+            />
+          </div>
+
+          <div class="input-group">
+            <label class="input-label">Rôle</label>
+            <select
+              class="input"
+              .value="${this.newUser.role}"
+              @change="${(e) => this.newUser = { ...this.newUser, role: e.target.value }}"
+            >
+              <option value="admin">Administrateur</option>
+              <option value="user">Utilisateur</option>
+            </select>
+          </div>
+
+          <button
+            class="button"
+            @click="${this.handleCreateUser}"
+            ?disabled="${this.loading || !this.newUser.username || !this.newUser.password}"
+          >
+            ${this.loading ? '⏳ Création...' : '✓ Créer l\'utilisateur'}
+          </button>
+        </div>
+
+        <!-- Liste des utilisateurs existants -->
+        <div style="margin-top: 2rem;">
+          <h3 style="color: var(--context-primary, #00d4aa); margin-bottom: 1rem;">
+            📋 Utilisateurs existants
+          </h3>
+
+          ${this.users.length === 0 ? html`
+            <div class="alert warning">
+              <span>⚠️</span>
+              <span>Aucun utilisateur trouvé. Le fichier users.json n'est peut-être pas accessible.</span>
+            </div>
+          ` : html`
+            <div style="display: flex; flex-direction: column; gap: 0.8rem;">
+              ${this.users.map(user => html`
+                <div class="section" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem;">
+                  <div>
+                    <div style="font-weight: 600; font-size: 1.1em; color: #e0e0e0; margin-bottom: 0.3rem;">
+                      ${user.username}
+                      ${user.username === currentUser?.username ? html`
+                        <span style="color: var(--context-primary, #00d4aa); font-size: 0.8em; margin-left: 0.5rem;">(Vous)</span>
+                      ` : ''}
+                    </div>
+                    <div style="color: #888; font-size: 0.9em;">
+                      Rôle: ${user.role}
+                      ${user.mfa_config?.enabled ? html`
+                        <span style="color: #4caf50; margin-left: 1rem;">🛡️ MFA activé</span>
+                      ` : ''}
+                    </div>
+                  </div>
+
+                  ${user.username !== currentUser?.username ? html`
+                    <button
+                      class="button danger"
+                      @click="${() => this.handleDeleteUser(user.username)}"
+                      ?disabled="${this.loading}"
+                    >
+                      🗑️ Supprimer
+                    </button>
+                  ` : html`
+                    <span style="color: #888; font-size: 0.9em; font-style: italic;">
+                      (Impossible de supprimer votre propre compte)
+                    </span>
+                  `}
+                </div>
+              `)}
+            </div>
+          `}
+        </div>
       </div>
     `
   }
