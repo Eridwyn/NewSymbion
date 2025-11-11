@@ -35,10 +35,11 @@ class MqttService extends LitElement {
   }
   
   connect() {
-    const brokerUrl = `ws://${window.SYMBION_CONFIG?.MQTT_BROKER || 'localhost'}:${window.SYMBION_CONFIG?.MQTT_PORT || 9001}`
-    
+    // MQTT_BROKER contient déjà le protocole et le port (ex: wss://symbion.local:9001)
+    const brokerUrl = window.SYMBION_CONFIG?.MQTT_BROKER || 'ws://localhost:9001'
+
     console.log('🔌 Connecting to MQTT broker:', brokerUrl)
-    
+
     this.client = mqtt.connect(brokerUrl, {
       clientId: `symbion-dashboard-${Math.random().toString(16).substr(2, 8)}`,
       reconnectPeriod: 3000,

@@ -53,12 +53,16 @@ export default defineConfig(({ mode }) => {
   ],
   server: {
     https: {
-      // Utiliser les mêmes certificats que le kernel pour sécurité complète
-      key: fs.readFileSync(path.resolve(__dirname, '../symbion-kernel/certs/key.pem')),
-      cert: fs.readFileSync(path.resolve(__dirname, '../symbion-kernel/certs/cert.pem')),
+      // Utiliser les certificats mkcert de confiance
+      key: fs.readFileSync(path.resolve(__dirname, '../symbion-kernel/certs/key-mkcert.pem')),
+      cert: fs.readFileSync(path.resolve(__dirname, '../symbion-kernel/certs/cert-mkcert.pem')),
     },
     host: '0.0.0.0',  // Permet connexions externes (mobile, LAN)
     port: 3000,
+    hmr: {
+      clientPort: 3000,
+      host: 'symbion.local', // HMR WebSocket via symbion.local au lieu de localhost
+    },
     proxy: {
       // Proxy transparent vers l'API Symbion avec auth intégrée
       '/api': {

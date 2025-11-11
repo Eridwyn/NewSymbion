@@ -411,6 +411,71 @@ class BootTerminal extends LitElement {
         padding: 0.6rem 1rem;
       }
     }
+
+    .biometric-btn {
+      margin-top: 1.5rem;
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.15) 0%, rgba(0, 122, 204, 0.1) 100%);
+      border: 1px solid rgba(0, 212, 170, 0.3);
+      color: #00d4aa;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.95em;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      text-shadow: 0 0 8px rgba(0, 255, 159, 0.4);
+    }
+
+    .biometric-btn:hover {
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.25) 0%, rgba(0, 122, 204, 0.15) 100%);
+      border-color: rgba(0, 212, 170, 0.5);
+      transform: translateY(-1px);
+      box-shadow: 0 0 15px rgba(0, 212, 170, 0.3);
+    }
+
+    .biometric-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .biometric-separator {
+      margin: 1.5rem 0 1rem 0;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      opacity: 0.5;
+    }
+
+    .biometric-separator::before,
+    .biometric-separator::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0, 255, 159, 0.3), transparent);
+    }
+
+    .biometric-separator span {
+      font-size: 0.85em;
+      color: #00ff9f;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #00d4aa;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
   `
 
   static properties = {
@@ -426,7 +491,9 @@ class BootTerminal extends LitElement {
     certUrl: { type: String },
     platform: { type: String },
     certVerifying: { type: Boolean },
-    certInstalled: { type: Boolean }
+    certInstalled: { type: Boolean },
+    authenticatingBiometric: { type: Boolean },
+    biometricAvailable: { type: Boolean }
   }
 
   constructor() {
@@ -444,12 +511,35 @@ class BootTerminal extends LitElement {
     this.platform = ''
     this.certVerifying = false
     this.certInstalled = false
+    this.authenticatingBiometric = false
+    this.biometricAvailable = false
+    // Base URL dynamique (même logique que passkey-manager et api-service)
+    this.baseUrl = window.SYMBION_CONFIG?.API_BASE || 'https://symbion.local:8443'
   }
 
   connectedCallback() {
     super.connectedCallback()
+    // Vérifier disponibilité WebAuthn/biométrie
+    this.checkBiometricAvailability()
     // Démarrer la séquence de boot
     this.startBootSequence()
+  }
+
+  async checkBiometricAvailability() {
+    // Vérifier si le navigateur supporte WebAuthn
+    if (window.PublicKeyCredential) {
+      try {
+        // Vérifier si un authenticator est disponible (platform = biométrie intégrée)
+        const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+        this.biometricAvailable = available
+        console.log('[boot-terminal] Biometric authentication available:', available)
+      } catch (error) {
+        console.warn('[boot-terminal] Failed to check biometric availability:', error)
+        this.biometricAvailable = false
+      }
+    } else {
+      this.biometricAvailable = false
+    }
   }
 
   updated(changedProperties) {
@@ -1201,6 +1291,200 @@ class BootTerminal extends LitElement {
     }
   }
 
+  async authenticateWithBiometric() {
+    if (this.authenticatingBiometric) return
+
+    this.authenticatingBiometric = true
+    this.error = null
+    this.requestUpdate()
+
+    try {
+      // Mode "discoverable" : pas de username demandé !
+      // L'authenticator présente toutes les passkeys disponibles
+      this.addLine(`> biometric_auth`, 'prompt')
+      this.phase = 'authenticating'
+      this.requestUpdate()
+
+      const authIdx = this.addLoadingLine('[auth] 🔐 Authentification biométrique')
+      await this.delay(200)
+
+      // Étape 1: Démarrer l'authentification en mode découvrable (sans username)
+      const startResponse = await fetch(`${this.baseUrl}/auth/webauthn/authenticate-discoverable-start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!startResponse.ok) {
+        const errorData = await startResponse.json()
+        throw new Error(errorData.error || 'Failed to start authentication')
+      }
+
+      const requestOptions = await startResponse.json()
+      console.log('[boot-terminal] Received authentication options:', requestOptions)
+
+      // Préparer les options pour le navigateur (conversion base64 → ArrayBuffer)
+      const publicKeyOptions = this.prepareAuthenticationOptions(requestOptions)
+      console.log('[boot-terminal] Prepared options for browser:', publicKeyOptions)
+
+      // Étape 2: Demander au navigateur d'authentifier avec biométrie
+      // L'utilisateur va voir Touch ID, Face ID, Windows Hello, etc.
+      const credential = await navigator.credentials.get({
+        publicKey: publicKeyOptions
+      })
+
+      if (!credential) {
+        throw new Error('Aucune passkey trouvée ou authentification annulée')
+      }
+
+      // Étape 3: Envoyer le credential au serveur pour validation
+      const finishResponse = await fetch(`${this.baseUrl}/auth/webauthn/authenticate-finish`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          credential: {
+            id: credential.id,
+            rawId: this.arrayBufferToBase64(credential.rawId),
+            response: {
+              authenticatorData: this.arrayBufferToBase64(credential.response.authenticatorData),
+              clientDataJSON: this.arrayBufferToBase64(credential.response.clientDataJSON),
+              signature: this.arrayBufferToBase64(credential.response.signature),
+              userHandle: credential.response.userHandle ? this.arrayBufferToBase64(credential.response.userHandle) : null
+            },
+            type: credential.type
+          }
+        })
+      })
+
+      if (!finishResponse.ok) {
+        const errorData = await finishResponse.json()
+        throw new Error(errorData.error || 'Authentication failed')
+      }
+
+      const authData = await finishResponse.json()
+      console.log('[boot-terminal] Authentication successful:', authData)
+
+      // Succès !
+      this.updateLine(authIdx, '[auth] ✓ Authentification réussie', 'success')
+      await this.delay(100)
+      this.addLine(`[session] Utilisateur '${authData.username}' autorisé`, 'success')
+      await this.delay(100)
+      const dashIdx = this.addLoadingLine('[dashboard] Chargement de l\'interface')
+      await this.delay(200)
+
+      // Sauvegarder la session (même pattern que login normal dans auth-service.js:143-157)
+      authService.token = authData.token
+      authService.userInfo = {
+        username: authData.username,
+        role: authData.role,
+        expires_at: authData.expires_at
+      }
+      authService.loginTime = Date.now()
+
+      // Sauvegarder device token si fourni
+      if (authData.device_token) {
+        localStorage.setItem('symbion_device_token', authData.device_token)
+        console.log('[boot-terminal] Device token saved')
+      }
+
+      authService.saveToStorage()
+      authService.scheduleTokenRefresh()
+
+      // Émettre événement de login
+      authService.dispatchEvent(new CustomEvent('auth:login', {
+        detail: { username: authData.username, role: authData.role }
+      }))
+
+      window.dispatchEvent(new CustomEvent('login-success', {
+        detail: { username: authData.username, role: authData.role }
+      }))
+
+      this.updateLine(dashIdx, '[dashboard] ✓ Interface prête', 'success')
+      await this.delay(200)
+
+      // Animation finale
+      this.addLine('[kernel] ✓ Tous les services opérationnels', 'success')
+      await this.delay(200)
+      this.addLine('[kernel] Bienvenue, ' + authData.username, 'prompt')
+      await this.delay(500)
+
+      this.phase = 'done'
+      this.authenticatingBiometric = false
+      this.requestUpdate()
+
+      // Notifier le composant parent
+      await this.delay(500)
+      this.dispatchEvent(new CustomEvent('boot-complete', {
+        detail: { authenticated: true },
+        bubbles: true,
+        composed: true
+      }))
+
+    } catch (error) {
+      console.error('[boot-terminal] Biometric authentication failed:', error)
+
+      let errorMsg = 'Authentification biométrique échouée'
+
+      if (error.name === 'NotAllowedError') {
+        errorMsg = 'Authentification annulée ou échouée. Utilisez votre biométrie.'
+      } else if (error.name === 'InvalidStateError') {
+        errorMsg = 'Aucune passkey trouvée pour cet utilisateur'
+      } else if (error.message) {
+        errorMsg = `Erreur : ${error.message}`
+      }
+
+      this.error = errorMsg
+      this.addLine(`[auth] ${errorMsg}`, 'warning')
+      this.addLine('[auth] Utilisez le formulaire classique pour vous connecter', 'warning')
+      await this.delay(2000)
+
+      this.phase = 'login'
+      this.authenticatingBiometric = false
+      this.requestUpdate()
+      this.focusInput()
+    }
+  }
+
+  arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer)
+    let binary = ''
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i])
+    }
+    return btoa(binary)
+  }
+
+  base64ToArrayBuffer(base64) {
+    // Decode base64 (handle URL-safe base64)
+    const binaryString = atob(base64.replace(/-/g, '+').replace(/_/g, '/'))
+    const bytes = new Uint8Array(binaryString.length)
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i)
+    }
+    return bytes.buffer
+  }
+
+  // Convertir les champs base64 en ArrayBuffer pour WebAuthn authentication
+  prepareAuthenticationOptions(options) {
+    // La structure peut être soit options.publicKey soit options directement
+    const publicKey = options.publicKey || options.public_key || options
+
+    return {
+      challenge: this.base64ToArrayBuffer(publicKey.challenge),
+      timeout: publicKey.timeout,
+      rpId: publicKey.rpId || publicKey.rp_id,
+      allowCredentials: publicKey.allowCredentials?.map(cred => ({
+        type: cred.type,
+        id: this.base64ToArrayBuffer(cred.id),
+        transports: cred.transports
+      })) || [],
+      userVerification: publicKey.userVerification || publicKey.user_verification || 'preferred'
+    }
+  }
+
   handleTotpPaste(e) {
     // Laisser le paste natif se faire d'abord
     setTimeout(() => {
@@ -1314,6 +1598,19 @@ class BootTerminal extends LitElement {
             </div>
             <button type="submit" style="display: none;">Submit</button>
           </form>
+
+          ${this.biometricAvailable ? html`
+            <div class="biometric-separator">
+              <span>ou</span>
+            </div>
+            <button
+              class="biometric-btn"
+              @click="${this.authenticateWithBiometric}"
+              ?disabled="${this.authenticatingBiometric}">
+              🔐 Connexion biométrique
+              ${this.authenticatingBiometric ? html` <span class="spinner"></span>` : ''}
+            </button>
+          ` : ''}
         ` : ''}
 
         ${this.phase === 'login' && this.loginStep === 'totp' ? html`

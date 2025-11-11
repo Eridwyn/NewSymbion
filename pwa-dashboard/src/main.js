@@ -15,14 +15,8 @@ import './services/mqtt-service.js'
 
 console.log('🚀 Starting Symbion Dashboard v0.1.0')
 
-// Configuration globale
-window.SYMBION_CONFIG = {
-  API_BASE: 'https://192.168.1.14:8443',  // IP locale du PC (accessible depuis téléphone) - HTTPS
-  MQTT_BROKER: '192.168.1.14',
-  MQTT_PORT: 9001, // WebSocket port
-  VERSION: '0.1.0',
-  HOST_AGENT_IP: '192.168.1.14' // IP de l'agent qui héberge le kernel/dashboard (ne pas shutdown!)
-}
+// Configuration chargée depuis /public/config.js (ne pas écraser ici)
+// window.SYMBION_CONFIG est défini par /config.js avant ce fichier
 
 // App Router Component
 class SymbionApp extends LitElement {

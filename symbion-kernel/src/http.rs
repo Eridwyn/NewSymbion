@@ -40,6 +40,8 @@ use axum::response::{Response, IntoResponse};
 use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 use axum::extract::Path;
 use std::collections::HashMap;
+use sha2::Digest;
+use base64::Engine;
 
 
 
@@ -164,6 +166,7 @@ pub struct AppState {
     pub mfa_manager: std::sync::Arc<crate::mfa::MfaManager>,
     pub csrf_manager: std::sync::Arc<crate::csrf::CsrfManager>,
     pub device_trust_manager: std::sync::Arc<crate::device_trust::DeviceTrustManager>,
+    pub webauthn_manager: std::sync::Arc<crate::webauthn::WebAuthnManager>,
     pub ports: Shared<crate::ports::PortRegistry>,
     pub plugins: Shared<crate::plugins::PluginManager>,
     pub notes_bridge: Option<SharedNotesBridge>,
@@ -214,6 +217,10 @@ pub fn build_router(app_state: AppState) -> Router {
     // Pour connexions réseau externes, le rate limiting dans auth.rs reste actif
     let login_route = Router::new()
         .route("/auth/login", post(auth_login))
+        // WebAuthn passkey authentication (public - used for login)
+        .route("/auth/webauthn/authenticate-start", post(webauthn_authenticate_start))
+        .route("/auth/webauthn/authenticate-discoverable-start", post(webauthn_authenticate_discoverable_start))
+        .route("/auth/webauthn/authenticate-finish", post(webauthn_authenticate_finish))
         .with_state(app_state.clone());
         // .layer(GovernorLayer::new(auth_rate_limit_config.clone()));
 
@@ -227,6 +234,10 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/auth/mfa/verify", post(mfa_verify))
         .route("/auth/mfa/disable", post(mfa_disable))
         .route("/auth/csrf/nonce", get(csrf_generate_nonce))
+        // WebAuthn passkey registration (protected - requires JWT)
+        .route("/auth/webauthn/register-start", post(webauthn_register_start))
+        .route("/auth/webauthn/register-finish", post(webauthn_register_finish))
+        .route("/auth/webauthn/passkeys", get(webauthn_list_passkeys))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
         // NOTE: Rate limiting tower_governor désactivé (incompatibilité localhost)
@@ -322,8 +333,10 @@ pub fn build_router(app_state: AppState) -> Router {
             CorsLayer::new()
                 .allow_origin([
                     "http://localhost:3000".parse().unwrap(),
+                    "https://localhost:3000".parse().unwrap(),
                     "http://192.168.1.14:3000".parse().unwrap(),
                     "https://192.168.1.14:3000".parse().unwrap(),
+                    "https://symbion.local:3000".parse().unwrap(),
                 ])
                 .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT, Method::OPTIONS])
                 .allow_headers([
@@ -1740,10 +1753,9 @@ async fn csrf_generate_nonce(
 async fn download_ca_certificate() -> Result<impl IntoResponse, StatusCode> {
     use axum::http::header;
 
-    // Construire le chemin vers le certificat CA
-    let ca_cert_path = std::env::var("SYMBION_TLS_CERT_PATH")
-        .unwrap_or_else(|_| "certs/cert.pem".to_string())
-        .replace("cert.pem", "ca/symbion-ca.crt");
+    // Construire le chemin vers le certificat CA (toujours dans certs/ca/)
+    let ca_cert_path = std::env::var("SYMBION_CA_CERT_PATH")
+        .unwrap_or_else(|_| "symbion-kernel/certs/ca/symbion-ca.crt".to_string());
 
     println!("[http] Attempting to read CA certificate from: {}", ca_cert_path);
 
@@ -1973,4 +1985,289 @@ async fn decision_delete_all_expired_validations(
         metrics: app.decision_metrics.clone(),
     };
     crate::decision_http::delete_all_expired_validations(State(state)).await
+}
+
+// ============================================================================
+// WebAuthn Biometric Authentication Endpoints
+// ============================================================================
+
+/// POST /auth/webauthn/register-start - Démarrer l'enregistrement d'une passkey
+/// Protégé par JWT - l'utilisateur doit être authentifié pour ajouter une passkey
+#[derive(serde::Deserialize)]
+struct WebAuthnRegisterStartRequest {
+    friendly_name: String, // Ex: "iPhone 15 Pro", "Windows Hello"
+}
+
+async fn webauthn_register_start(
+    State(app): State<AppState>,
+    req: Request,
+) -> Result<Json<webauthn_rs::prelude::CreationChallengeResponse>, (StatusCode, Json<serde_json::Value>)> {
+    // Extraire headers et body
+    let (parts, body) = req.into_parts();
+
+    // Extraire le token JWT pour identifier l'utilisateur
+    let token = parts
+        .headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .ok_or_else(|| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "Missing or invalid Authorization header"
+            }))
+        ))?;
+
+    let session = app.auth_manager.get_session_info(token)
+        .map_err(|_| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "Invalid or expired token"
+            }))
+        ))?;
+
+    // Démarrer l'enregistrement WebAuthn
+    let ccr = app.webauthn_manager.start_registration(
+        &session.username,
+        &session.username, // display_name = username par défaut
+    ).map_err(|e| (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::json!({
+            "error": format!("Failed to start registration: {}", e)
+        }))
+    ))?;
+
+    println!("[webauthn] Started registration for user '{}'", session.username);
+    Ok(Json(ccr))
+}
+
+/// POST /auth/webauthn/register-finish - Terminer l'enregistrement d'une passkey
+#[derive(serde::Deserialize)]
+struct WebAuthnRegisterFinishRequest {
+    friendly_name: String,
+    credential: webauthn_rs::prelude::RegisterPublicKeyCredential,
+}
+
+async fn webauthn_register_finish(
+    State(app): State<AppState>,
+    req: Request,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    // Extraire headers et body
+    let (parts, body) = req.into_parts();
+
+    // Extraire le token JWT pour identifier l'utilisateur
+    let token = parts
+        .headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .ok_or_else(|| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "Missing or invalid Authorization header"
+            }))
+        ))?;
+
+    let session = app.auth_manager.get_session_info(token)
+        .map_err(|_| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "Invalid or expired token"
+            }))
+        ))?;
+
+    // Parser le body JSON
+    let bytes = axum::body::to_bytes(body, usize::MAX).await
+        .map_err(|_| (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Invalid request body" }))
+        ))?;
+
+    // Log du JSON brut pour debugging
+    if let Ok(json_str) = std::str::from_utf8(&bytes) {
+        println!("[webauthn] Received JSON (first 500 chars): {}", &json_str.chars().take(500).collect::<String>());
+    }
+
+    let payload: WebAuthnRegisterFinishRequest = serde_json::from_slice(&bytes)
+        .map_err(|e| {
+            eprintln!("[webauthn] JSON parsing error: {}", e);
+            (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": format!("Invalid JSON body: {}", e) }))
+            )
+        })?;
+
+    // Terminer l'enregistrement WebAuthn
+    app.webauthn_manager.finish_registration(
+        &session.username,
+        &payload.credential,
+        payload.friendly_name.clone(),
+    ).map_err(|e| (
+        StatusCode::BAD_REQUEST,
+        Json(serde_json::json!({
+            "error": format!("Failed to finish registration: {}", e)
+        }))
+    ))?;
+
+    println!("[webauthn] ✅ Registered passkey '{}' for user '{}'", payload.friendly_name, session.username);
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "Passkey registered successfully"
+    })))
+}
+
+/// GET /auth/webauthn/passkeys - Lister les passkeys de l'utilisateur connecté
+async fn webauthn_list_passkeys(
+    State(app): State<AppState>,
+    req: Request,
+) -> Result<Json<Vec<serde_json::Value>>, (StatusCode, Json<serde_json::Value>)> {
+    let (parts, _body) = req.into_parts();
+
+    // Extraire le token JWT pour identifier l'utilisateur
+    let token = parts
+        .headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .ok_or_else(|| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "Missing or invalid Authorization header"
+            }))
+        ))?;
+
+    let session = app.auth_manager.get_session_info(token)
+        .map_err(|_| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "Invalid or expired token"
+            }))
+        ))?;
+
+    // Récupérer la liste des passkeys pour cet utilisateur
+    let passkeys = app.webauthn_manager.list_user_passkeys(&session.username);
+
+    // Transformer en format JSON simplifié
+    let passkeys_json: Vec<serde_json::Value> = passkeys.into_iter().map(|pk| {
+        serde_json::json!({
+            "credential_id": base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&pk.credential_id),
+            "friendly_name": pk.friendly_name,
+            "created_at": pk.created_at,
+            "last_used_at": pk.last_used_at
+        })
+    }).collect();
+
+    println!("[webauthn] Listed {} passkeys for user '{}'", passkeys_json.len(), session.username);
+    Ok(Json(passkeys_json))
+}
+
+/// POST /auth/webauthn/authenticate-start - Démarrer l'authentification avec passkey
+#[derive(serde::Deserialize)]
+struct WebAuthnAuthenticateStartRequest {
+    username: String,
+}
+
+async fn webauthn_authenticate_start(
+    State(app): State<AppState>,
+    Json(payload): Json<WebAuthnAuthenticateStartRequest>,
+) -> Result<Json<webauthn_rs::prelude::RequestChallengeResponse>, (StatusCode, Json<serde_json::Value>)> {
+    // Démarrer l'authentification WebAuthn
+    let rcr = app.webauthn_manager.start_authentication(&payload.username)
+        .map_err(|e| (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": format!("Failed to start authentication: {}", e)
+            }))
+        ))?;
+
+    println!("[webauthn] Started authentication for user '{}'", payload.username);
+    Ok(Json(rcr))
+}
+
+/// POST /auth/webauthn/authenticate-discoverable-start - Démarrer l'authentification sans username
+/// Mode "discoverable credentials" : l'authenticator présente toutes les passkeys disponibles
+async fn webauthn_authenticate_discoverable_start(
+    State(app): State<AppState>,
+) -> Result<Json<webauthn_rs::prelude::RequestChallengeResponse>, (StatusCode, Json<serde_json::Value>)> {
+    // Démarrer l'authentification WebAuthn en mode découvrable (sans username)
+    let rcr = app.webauthn_manager.start_discoverable_authentication()
+        .map_err(|e| (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": format!("Failed to start discoverable authentication: {}", e)
+            }))
+        ))?;
+
+    println!("[webauthn] Started discoverable authentication (passwordless)");
+    Ok(Json(rcr))
+}
+
+/// POST /auth/webauthn/authenticate-finish - Terminer l'authentification avec passkey
+/// Retourne un JWT token si succès
+#[derive(serde::Deserialize)]
+struct WebAuthnAuthenticateFinishRequest {
+    credential: webauthn_rs::prelude::PublicKeyCredential,
+}
+
+async fn webauthn_authenticate_finish(
+    State(app): State<AppState>,
+    req: Request,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    // Extraire headers et body
+    let (parts, body) = req.into_parts();
+
+    // Extraire l'IP du client pour device trust
+    let client_ip = parts
+        .headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .unwrap_or("127.0.0.1")
+        .to_string();
+
+    // Parser le body JSON
+    let bytes = axum::body::to_bytes(body, usize::MAX).await
+        .map_err(|_| (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Invalid request body" }))
+        ))?;
+
+    let payload: WebAuthnAuthenticateFinishRequest = serde_json::from_slice(&bytes)
+        .map_err(|_| (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Invalid JSON body" }))
+        ))?;
+
+    // Terminer l'authentification WebAuthn
+    let username = app.webauthn_manager.finish_authentication(&payload.credential)
+        .map_err(|e| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": format!("Authentication failed: {}", e)
+            }))
+        ))?;
+
+    // Générer JWT token
+    // Note: WebAuthn passkey est déjà le facteur de confiance biométrique,
+    // pas besoin de device trust supplémentaire
+    let token_data = app.auth_manager.create_token_for_user(&username)
+        .map_err(|e| (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "error": format!("Failed to create token: {}", e)
+            }))
+        ))?;
+
+    // Récupérer le rôle de l'utilisateur
+    let role = app.auth_manager.get_user(&username)
+        .map(|user| user.role.clone())
+        .unwrap_or_else(|| "user".to_string());
+
+    println!("[webauthn] ✅ Authenticated user '{}' via passkey", username);
+    Ok(Json(serde_json::json!({
+        "token": token_data,
+        "username": username,
+        "role": role,
+        "expires_at": OffsetDateTime::now_utc().unix_timestamp() + 86400 // 24h
+    })))
 }

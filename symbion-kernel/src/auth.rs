@@ -331,6 +331,32 @@ impl AuthManager {
         })
     }
 
+    /// Create JWT token for authenticated user (for WebAuthn, etc.)
+    pub fn create_token_for_user(&self, username: &str) -> Result<String> {
+        let (user_role, user_username) = {
+            let users = self.users.read();
+            let user = users
+                .get(username)
+                .context("User not found")?;
+            (user.role.clone(), user.username.clone())
+        };
+
+        let now = OffsetDateTime::now_utc().unix_timestamp();
+        let expires_at = now + (get_token_expiry_hours() * 3600);
+
+        let claims = Claims {
+            sub: user_username,
+            role: user_role,
+            exp: expires_at,
+            iat: now,
+        };
+
+        let token = encode(&Header::default(), &claims, &self.encoding_key)
+            .context("Failed to generate JWT token")?;
+
+        Ok(token)
+    }
+
     pub fn create_user(&self, username: &str, password: &str, role: &str) -> Result<()> {
         let mut users = self.users.write();
 

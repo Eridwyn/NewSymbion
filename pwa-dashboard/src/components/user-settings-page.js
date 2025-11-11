@@ -10,6 +10,7 @@
 import { LitElement, html, css } from 'lit'
 import authService from '../services/auth-service.js'
 import decisionService from '../services/decision-service.js'
+import './passkey-manager.js'
 
 class UserSettingsPage extends LitElement {
   static styles = css`
@@ -741,6 +742,10 @@ class UserSettingsPage extends LitElement {
                   @click="${() => this.switchTab('securite')}">
             🔒 Sécurité
           </button>
+          <button class="tab ${this.activeTab === 'passkeys' ? 'active' : ''}"
+                  @click="${() => this.switchTab('passkeys')}">
+            🔐 Passkeys
+          </button>
           <button class="tab ${this.activeTab === 'mfa' ? 'active' : ''}"
                   @click="${() => this.switchTab('mfa')}">
             🛡️ Authentification 2FA
@@ -789,6 +794,11 @@ class UserSettingsPage extends LitElement {
               Fonctionnalité à venir dans une prochaine mise à jour.
             </p>
           </div>
+        </div>
+
+        <!-- Tab Passkeys -->
+        <div class="tab-content ${this.activeTab === 'passkeys' ? 'active' : ''}">
+          <passkey-manager></passkey-manager>
         </div>
 
         <!-- Tab MFA -->

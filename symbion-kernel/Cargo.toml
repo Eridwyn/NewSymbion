@@ -34,3 +34,7 @@ tower_governor = "0.8"    # Rate limiting middleware compatible with axum 0.8
 rand = "0.8"              # Random generation for backup codes
 sha2 = "0.10"             # SHA-256 hashing for device fingerprinting
 tower = { version = "0.5.2", features = ["full"] }
+
+# PR3: WebAuthn Biometric Authentication
+webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
+webauthn-rs-proto = "0.5"  # Protocol types for WebAuthn
