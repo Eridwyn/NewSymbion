@@ -28,6 +28,7 @@ mod csrf;
 mod device_trust;
 mod decision;
 mod decision_http;
+mod webauthn;
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -43,6 +44,7 @@ use crate::auth::AuthManager;
 use crate::context::ContextEngine;
 use crate::mfa::MfaManager;
 use crate::csrf::CsrfManager;
+use crate::webauthn::WebAuthnManager;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -99,6 +101,21 @@ async fn main() {
     // csrf manager
     let csrf_manager = Arc::new(CsrfManager::new());
     println!("[kernel] initialized CSRF manager");
+
+    // webauthn manager
+    let rp_id = std::env::var("SYMBION_WEBAUTHN_RP_ID")
+        .unwrap_or_else(|_| "symbion.local".to_string());
+    let rp_origin = std::env::var("SYMBION_WEBAUTHN_RP_ORIGIN")
+        .unwrap_or_else(|_| "https://symbion.local:3000".to_string());
+    let webauthn_storage_path = std::path::PathBuf::from("./data/webauthn_credentials.json");
+    let webauthn_manager = match WebAuthnManager::new(&rp_id, &rp_origin, webauthn_storage_path) {
+        Ok(manager) => Arc::new(manager),
+        Err(e) => {
+            eprintln!("[kernel] failed to initialize webauthn manager: {}", e);
+            std::process::exit(1);
+        }
+    };
+    println!("[kernel] initialized WebAuthn manager");
 
     // device trust manager
     let device_trust_manager = match crate::device_trust::DeviceTrustManager::new() {
@@ -246,6 +263,7 @@ async fn main() {
         mfa_manager,
         csrf_manager,
         device_trust_manager,
+        webauthn_manager,
         ports,
         plugins,
         notes_bridge,
@@ -265,9 +283,9 @@ async fn main() {
 
     // Charger certificats TLS depuis variables d'environnement
     let cert_path = std::env::var("SYMBION_TLS_CERT_PATH")
-        .unwrap_or_else(|_| "symbion-kernel/certs/cert.pem".to_string());
+        .unwrap_or_else(|_| "symbion-kernel/certs/cert-mkcert.pem".to_string());
     let key_path = std::env::var("SYMBION_TLS_KEY_PATH")
-        .unwrap_or_else(|_| "symbion-kernel/certs/key.pem".to_string());
+        .unwrap_or_else(|_| "symbion-kernel/certs/key-mkcert.pem".to_string());
 
     let port: u16 = std::env::var("SYMBION_HTTPS_PORT")
         .ok()
