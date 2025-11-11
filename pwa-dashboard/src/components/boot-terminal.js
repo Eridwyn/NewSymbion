@@ -469,42 +469,20 @@ class BootTerminal extends LitElement {
 
       console.log('[autofill] Attaching listeners to', input.name, 'type:', input.type)
 
-      let previousLength = 0
-      let isTyping = false
-
-      // Détecter la saisie manuelle
-      input.addEventListener('keydown', () => {
-        isTyping = true
-        console.log('[autofill] User is typing manually')
-      })
-
-      // Événement input : différencier saisie manuelle vs autofill
-      input.addEventListener('input', (e) => {
-        const currentLength = input.value.length
-        const lengthDiff = currentLength - previousLength
-
-        // Si l'utilisateur tape, ne pas auto-submit
-        if (isTyping) {
-          console.log('[autofill] Manual typing detected, skipping auto-submit')
-          previousLength = currentLength
-          // Reset le flag après un court délai
-          setTimeout(() => { isTyping = false }, 100)
-          return
-        }
-
-        // Autofill détecté : grosse différence de longueur ou pas d'inputType
-        if (lengthDiff > 3 || !e.inputType) {
-          console.log('[autofill] Autofill detected in', input.name, '- length change:', lengthDiff, 'inputType:', e.inputType)
+      // Détecter PASTE explicite (Ctrl+V ou clic droit → coller)
+      input.addEventListener('paste', (e) => {
+        console.log('[autofill] Paste detected in', input.name)
+        // Permettre le paste, puis trigger auto-submit après un petit délai
+        setTimeout(() => {
           this.triggerAutoSubmit(input)
-        }
-
-        previousLength = currentLength
+        }, 100)
       })
 
-      // Événement change : Bitwarden déclenche toujours ça
+      // Événement change : Bitwarden/gestionnaires déclenchent toujours ça lors de l'autofill
+      // NOTE: Ne se déclenche PAS lors de la saisie manuelle, seulement lors de l'autofill
       input.addEventListener('change', () => {
-        if (input.value && input.value.length > 0 && !isTyping) {
-          console.log('[autofill-change] Detected in', input.name)
+        if (input.value && input.value.length > 0) {
+          console.log('[autofill-change] Autofill detected in', input.name)
           this.triggerAutoSubmit(input)
         }
       })
@@ -531,11 +509,20 @@ class BootTerminal extends LitElement {
         if (usernameInput && passwordInput) {
           const bothFilled = usernameInput.value.length > 0 && passwordInput.value.length > 0
 
+          // Vérifier si l'utilisateur est en train de taper (input a le focus)
+          const userIsTyping = document.activeElement === usernameInput ||
+                               document.activeElement === passwordInput ||
+                               this.shadowRoot.activeElement === usernameInput ||
+                               this.shadowRoot.activeElement === passwordInput
+
           // Si les deux champs viennent d'être remplis (transition de vide à rempli)
-          if (bothFilled && !lastCheckAllFilled) {
-            console.log('[autofill-polling] ✓ Both fields filled - auto-submitting')
+          // ET que l'utilisateur n'est PAS en train de taper
+          if (bothFilled && !lastCheckAllFilled && !userIsTyping) {
+            console.log('[autofill-polling] ✓ Both fields filled (not typing) - auto-submitting')
             clearInterval(checkInterval)
             form.requestSubmit()
+          } else if (bothFilled && !lastCheckAllFilled && userIsTyping) {
+            console.log('[autofill-polling] User is typing, skipping auto-submit')
           }
 
           lastCheckAllFilled = bothFilled
