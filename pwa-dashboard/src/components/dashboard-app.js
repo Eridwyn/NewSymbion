@@ -22,6 +22,7 @@ import '../widgets/context-widget.js'
 import '../widgets/context-stats-widget.js'
 import '../widgets/context-settings-widget.js'
 import './user-settings-page.js'
+import './notes-page.js'
 
 class DashboardApp extends LitElement {
   static styles = css`
@@ -483,6 +484,7 @@ class DashboardApp extends LitElement {
     error: { type: String },
     showUserMenu: { type: Boolean },
     showSettingsPage: { type: Boolean },
+    showNotesPage: { type: Boolean },
     currentUser: { type: Object },
     activeTab: { type: String },
     currentTime: { type: String }
@@ -498,6 +500,7 @@ class DashboardApp extends LitElement {
     this.error = null
     this.showUserMenu = false
     this.showSettingsPage = false
+    this.showNotesPage = false
     this.currentUser = authService.getCurrentUser()
     // Restaurer le dernier onglet actif depuis sessionStorage (persiste aux reloads, reset à la fermeture du navigateur)
     this.activeTab = sessionStorage.getItem('dashboardTab') || 'controle'
@@ -529,6 +532,10 @@ class DashboardApp extends LitElement {
 
     // Démarrer l'horloge
     this.timeInterval = setInterval(() => this.updateTime(), 1000)
+
+    // Écouter les événements du notes-widget
+    this.addEventListener('open-notes-page', this.handleOpenNotesPage.bind(this))
+    this.addEventListener('create-note', this.handleCreateNote.bind(this))
 
     try {
       // Initialiser les services
@@ -740,7 +747,9 @@ class DashboardApp extends LitElement {
               <context-widget></context-widget>
             </div>
             <div class="widget-container">
-              <agent-control-widget></agent-control-widget>
+              <agents-network-widget
+                .connected="${this.connected}">
+              </agents-network-widget>
             </div>
           </div>
 
@@ -773,11 +782,6 @@ class DashboardApp extends LitElement {
             </div>
             <div class="widget-container">
               <context-stats-widget></context-stats-widget>
-            </div>
-            <div class="widget-container">
-              <agents-network-widget
-                .connected="${this.connected}">
-              </agents-network-widget>
             </div>
           </div>
         </div>
@@ -846,6 +850,11 @@ class DashboardApp extends LitElement {
         ${this.showSettingsPage ? html`
           <user-settings-page @close="${this.handleCloseSettings}"></user-settings-page>
         ` : ''}
+
+        <!-- Page Gestion Notes -->
+        ${this.showNotesPage ? html`
+          <notes-page @close="${this.handleCloseNotesPage}"></notes-page>
+        ` : ''}
       </div>
     `
   }
@@ -866,6 +875,29 @@ class DashboardApp extends LitElement {
 
   handleCloseSettings() {
     this.showSettingsPage = false
+  }
+
+  handleOpenNotesPage(event) {
+    console.log('[dashboard] Opening notes page', event)
+    this.showNotesPage = true
+  }
+
+  handleCloseNotesPage() {
+    this.showNotesPage = false
+  }
+
+  handleCreateNote(event) {
+    console.log('[dashboard] Opening notes page in create mode', event)
+    // Ouvrir la page notes (elle détectera automatiquement qu'on veut créer)
+    this.showNotesPage = true
+
+    // Déclencher l'ouverture du formulaire de création après un court délai
+    setTimeout(() => {
+      const notesPage = this.shadowRoot.querySelector('notes-page')
+      if (notesPage && notesPage.openCreateModal) {
+        notesPage.openCreateModal()
+      }
+    }, 100)
   }
 
   async handleLogout() {
