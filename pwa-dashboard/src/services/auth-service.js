@@ -115,7 +115,6 @@ class AuthService extends EventTarget {
       const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers,
-        credentials: 'include', // Permet d'envoyer et recevoir les cookies (historique)
         body: JSON.stringify(body)
       })
 

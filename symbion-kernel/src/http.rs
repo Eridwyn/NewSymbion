@@ -40,6 +40,8 @@ use axum::response::{Response, IntoResponse};
 use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 use axum::extract::Path;
 use std::collections::HashMap;
+use sha2::Digest;
+use base64::Engine;
 
 
 
@@ -164,12 +166,20 @@ pub struct AppState {
     pub mfa_manager: std::sync::Arc<crate::mfa::MfaManager>,
     pub csrf_manager: std::sync::Arc<crate::csrf::CsrfManager>,
     pub device_trust_manager: std::sync::Arc<crate::device_trust::DeviceTrustManager>,
+    pub webauthn_manager: std::sync::Arc<crate::webauthn::WebAuthnManager>,
     pub ports: Shared<crate::ports::PortRegistry>,
     pub plugins: Shared<crate::plugins::PluginManager>,
     pub notes_bridge: Option<SharedNotesBridge>,
     pub agents: crate::agents::SharedAgentRegistry,
     pub context_engine: std::sync::Arc<crate::context::ContextEngine>,
     pub dashboard_events: crate::dashboard_events::DashboardEventPublisher,
+    // Decision Engine PR3
+    pub decision_engine: std::sync::Arc<crate::decision::DecisionEngine>,
+    pub decision_validation_manager: std::sync::Arc<crate::decision::ValidationManager>,
+    pub decision_override_manager: std::sync::Arc<crate::decision::OverrideManager>,
+    pub decision_audit_manager: std::sync::Arc<crate::decision::AuditManager>,
+    pub decision_agent_health_manager: std::sync::Arc<crate::decision::AgentHealthManager>,
+    pub decision_metrics: std::sync::Arc<crate::decision::DecisionMetrics>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -207,6 +217,10 @@ pub fn build_router(app_state: AppState) -> Router {
     // Pour connexions réseau externes, le rate limiting dans auth.rs reste actif
     let login_route = Router::new()
         .route("/auth/login", post(auth_login))
+        // WebAuthn passkey authentication (public - used for login)
+        .route("/auth/webauthn/authenticate-start", post(webauthn_authenticate_start))
+        .route("/auth/webauthn/authenticate-discoverable-start", post(webauthn_authenticate_discoverable_start))
+        .route("/auth/webauthn/authenticate-finish", post(webauthn_authenticate_finish))
         .with_state(app_state.clone());
         // .layer(GovernorLayer::new(auth_rate_limit_config.clone()));
 
@@ -220,6 +234,10 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/auth/mfa/verify", post(mfa_verify))
         .route("/auth/mfa/disable", post(mfa_disable))
         .route("/auth/csrf/nonce", get(csrf_generate_nonce))
+        // WebAuthn passkey registration (protected - requires JWT)
+        .route("/auth/webauthn/register-start", post(webauthn_register_start))
+        .route("/auth/webauthn/register-finish", post(webauthn_register_finish))
+        .route("/auth/webauthn/passkeys", get(webauthn_list_passkeys))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
         // NOTE: Rate limiting tower_governor désactivé (incompatibilité localhost)
@@ -233,11 +251,25 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/agents/{id}/processes/{pid}/kill", post(agent_kill_process_endpoint))
         .route("/context/override", post(set_context_override))
         .route("/context/clear", post(clear_context_override))
+        .route("/auth/reload", post(auth_reload_users))
+        .route("/v1/users", post(create_user))
+        .route("/v1/users/{username}", axum::routing::delete(delete_user))
         .route("/plugins/{name}/start", post(start_plugin_endpoint))
         .route("/plugins/{name}/stop", post(stop_plugin_endpoint))
         .route("/plugins/{name}/restart", post(restart_plugin_endpoint))
         .route("/ports/memo/{id}", axum::routing::delete(handle_memo_delete).put(handle_memo_update))
         .route("/ports/{port_name}/{id}", axum::routing::delete(delete_from_port))
+        .with_state(app_state.clone())
+        .layer(middleware::from_fn_with_state(app_state.clone(), require_csrf));
+
+    // Decision Engine routes (CSRF protection pour POST/DELETE)
+    let decision_csrf_routes = Router::new()
+        .route("/decision/evaluate", post(decision_evaluate))
+        .route("/decision/validation/{id}/resolve", post(decision_resolve_validation))
+        .route("/decision/validation/{id}", axum::routing::delete(decision_delete_validation))
+        .route("/decision/validations/expired", axum::routing::delete(decision_delete_all_expired_validations))
+        .route("/decision/override", post(decision_create_override))
+        .route("/decision/override/{id}", axum::routing::delete(decision_revoke_override))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_csrf));
 
@@ -265,6 +297,16 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/context/stats", get(get_context_stats))
         .route("/context/patterns", get(get_context_patterns))
         .route("/context/productivity", get(get_context_productivity))
+        .route("/v1/users", get(list_users))
+        // Decision Engine API (read-only endpoints)
+        .route("/decision/audit", get(decision_get_audit))
+        .route("/decision/metrics", get(decision_get_metrics))
+        .route("/decision/validations/pending", get(decision_list_pending_validations))
+        .route("/decision/validations/expired", get(decision_list_expired_validations))
+        .route("/decision/overrides/active", get(decision_list_active_overrides))
+        .route("/decision/config", get(decision_get_config))
+        .route("/decision/agent-health", get(decision_get_agent_health))
+        .route("/decision/stats", get(decision_get_stats))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
         // NOTE: Rate limiting tower_governor désactivé (incompatibilité localhost)
@@ -275,7 +317,8 @@ pub fn build_router(app_state: AppState) -> Router {
         .merge(login_route)
         .merge(protected_auth_routes)
         .merge(api_routes)
-        .merge(csrf_protected_routes);
+        .merge(csrf_protected_routes)
+        .merge(decision_csrf_routes);
 
     // Router principal avec versioning
     Router::new()
@@ -290,8 +333,10 @@ pub fn build_router(app_state: AppState) -> Router {
             CorsLayer::new()
                 .allow_origin([
                     "http://localhost:3000".parse().unwrap(),
+                    "https://localhost:3000".parse().unwrap(),
                     "http://192.168.1.14:3000".parse().unwrap(),
                     "https://192.168.1.14:3000".parse().unwrap(),
+                    "https://symbion.local:3000".parse().unwrap(),
                 ])
                 .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT, Method::OPTIONS])
                 .allow_headers([
@@ -1302,6 +1347,75 @@ async fn auth_logout() -> Json<serde_json::Value> {
     }))
 }
 
+/// POST /auth/reload - Recharger les utilisateurs depuis users.json sans redémarrer le kernel
+async fn auth_reload_users(
+    State(app): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    app.auth_manager.reload_users()
+        .map_err(|e| {
+            eprintln!("[http] Failed to reload users: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "Users reloaded successfully"
+    })))
+}
+
+// ============================================================================
+// User Management Endpoints (Admin)
+// ============================================================================
+
+#[derive(Debug, serde::Deserialize)]
+struct CreateUserRequest {
+    username: String,
+    password: String,
+    role: String,
+}
+
+/// POST /v1/users - Créer un nouvel utilisateur (admin seulement)
+async fn create_user(
+    State(app): State<AppState>,
+    Json(req): Json<CreateUserRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    app.auth_manager.create_user(&req.username, &req.password, &req.role)
+        .map_err(|e| {
+            eprintln!("[http] Failed to create user '{}': {}", req.username, e);
+            StatusCode::BAD_REQUEST
+        })?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": format!("User '{}' created successfully", req.username)
+    })))
+}
+
+/// DELETE /v1/users/{username} - Supprimer un utilisateur (admin seulement)
+async fn delete_user(
+    State(app): State<AppState>,
+    Path(username): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    app.auth_manager.delete_user(&username)
+        .map_err(|e| {
+            eprintln!("[http] Failed to delete user '{}': {}", username, e);
+            StatusCode::NOT_FOUND
+        })?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": format!("User '{}' deleted successfully", username)
+    })))
+}
+
+/// GET /v1/users - Lister tous les utilisateurs (admin seulement, sans mots de passe)
+async fn list_users(
+    State(app): State<AppState>,
+) -> Json<Vec<serde_json::Value>> {
+    let users = app.auth_manager.list_users();
+    Json(users)
+}
+
 // ============================================================================
 // MFA (Multi-Factor Authentication) Endpoints
 // ============================================================================
@@ -1639,10 +1753,9 @@ async fn csrf_generate_nonce(
 async fn download_ca_certificate() -> Result<impl IntoResponse, StatusCode> {
     use axum::http::header;
 
-    // Construire le chemin vers le certificat CA
-    let ca_cert_path = std::env::var("SYMBION_TLS_CERT_PATH")
-        .unwrap_or_else(|_| "certs/cert.pem".to_string())
-        .replace("cert.pem", "ca/symbion-ca.crt");
+    // Construire le chemin vers le certificat CA (toujours dans certs/ca/)
+    let ca_cert_path = std::env::var("SYMBION_CA_CERT_PATH")
+        .unwrap_or_else(|_| "symbion-kernel/certs/ca/symbion-ca.crt".to_string());
 
     println!("[http] Attempting to read CA certificate from: {}", ca_cert_path);
 
@@ -1662,4 +1775,499 @@ async fn download_ca_certificate() -> Result<impl IntoResponse, StatusCode> {
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+// ========================================================================
+// DECISION ENGINE ENDPOINTS - Wrappers vers decision_http.rs
+// ========================================================================
+
+use crate::decision_http::{EvaluateRequest, AuditQueryParams, ResolveValidationRequest, CreateOverrideRequest, RevokeOverrideRequest};
+
+async fn decision_evaluate(
+    State(app): State<AppState>,
+    Json(req): Json<EvaluateRequest>,
+) -> Json<crate::decision::DecisionResult> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::evaluate_action(State(state), Json(req)).await
+}
+
+async fn decision_get_audit(
+    State(app): State<AppState>,
+    Query(params): Query<AuditQueryParams>,
+) -> Json<serde_json::Value> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::get_audit_trail(State(state), Query(params)).await
+}
+
+async fn decision_get_metrics(
+    State(app): State<AppState>,
+) -> Result<String, StatusCode> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::get_metrics(State(state)).await
+}
+
+async fn decision_list_pending_validations(
+    State(app): State<AppState>,
+) -> Json<Vec<crate::decision::ValidationRequest>> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::list_pending_validations(State(state)).await
+}
+
+async fn decision_resolve_validation(
+    State(app): State<AppState>,
+    Path(validation_id): Path<String>,
+    Json(req): Json<ResolveValidationRequest>,
+) -> Result<Json<crate::decision::ValidationRequest>, StatusCode> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::resolve_validation(State(state), Path(validation_id), Json(req)).await
+}
+
+async fn decision_create_override(
+    State(app): State<AppState>,
+    Json(req): Json<CreateOverrideRequest>,
+) -> Result<Json<crate::decision::MasterOverride>, StatusCode> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::create_override(State(state), Json(req)).await
+}
+
+async fn decision_list_active_overrides(
+    State(app): State<AppState>,
+) -> Json<Vec<crate::decision::MasterOverride>> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::list_active_overrides(State(state)).await
+}
+
+async fn decision_revoke_override(
+    State(app): State<AppState>,
+    Path(override_id): Path<String>,
+    Json(req): Json<RevokeOverrideRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::revoke_override(State(state), Path(override_id), Json(req)).await
+}
+
+async fn decision_get_config(
+    State(app): State<AppState>,
+) -> Json<crate::decision::DecisionConfig> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::get_config(State(state)).await
+}
+
+async fn decision_get_agent_health(
+    State(app): State<AppState>,
+) -> Json<serde_json::Value> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::get_agent_health(State(state)).await
+}
+
+async fn decision_get_stats(
+    State(app): State<AppState>,
+) -> Json<crate::decision_http::DecisionStats> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::get_stats(State(state)).await
+}
+
+async fn decision_list_expired_validations(
+    State(app): State<AppState>,
+) -> Json<Vec<crate::decision::ValidationRequest>> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::list_expired_validations(State(state)).await
+}
+
+async fn decision_delete_validation(
+    State(app): State<AppState>,
+    Path(validation_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::delete_validation(State(state), Path(validation_id)).await
+}
+
+async fn decision_delete_all_expired_validations(
+    State(app): State<AppState>,
+) -> Json<serde_json::Value> {
+    let state = crate::decision_http::DecisionEngineState {
+        engine: app.decision_engine.clone(),
+        validation_manager: app.decision_validation_manager.clone(),
+        override_manager: app.decision_override_manager.clone(),
+        audit_manager: app.decision_audit_manager.clone(),
+        agent_health_manager: app.decision_agent_health_manager.clone(),
+        metrics: app.decision_metrics.clone(),
+    };
+    crate::decision_http::delete_all_expired_validations(State(state)).await
+}
+
+// ============================================================================
+// WebAuthn Biometric Authentication Endpoints
+// ============================================================================
+
+/// POST /auth/webauthn/register-start - Démarrer l'enregistrement d'une passkey
+/// Protégé par JWT - l'utilisateur doit être authentifié pour ajouter une passkey
+#[derive(serde::Deserialize)]
+struct WebAuthnRegisterStartRequest {
+    friendly_name: String, // Ex: "iPhone 15 Pro", "Windows Hello"
+}
+
+async fn webauthn_register_start(
+    State(app): State<AppState>,
+    req: Request,
+) -> Result<Json<webauthn_rs::prelude::CreationChallengeResponse>, (StatusCode, Json<serde_json::Value>)> {
+    // Extraire headers et body
+    let (parts, body) = req.into_parts();
+
+    // Extraire le token JWT pour identifier l'utilisateur
+    let token = parts
+        .headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .ok_or_else(|| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "Missing or invalid Authorization header"
+            }))
+        ))?;
+
+    let session = app.auth_manager.get_session_info(token)
+        .map_err(|_| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "Invalid or expired token"
+            }))
+        ))?;
+
+    // Démarrer l'enregistrement WebAuthn
+    let ccr = app.webauthn_manager.start_registration(
+        &session.username,
+        &session.username, // display_name = username par défaut
+    ).map_err(|e| (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::json!({
+            "error": format!("Failed to start registration: {}", e)
+        }))
+    ))?;
+
+    println!("[webauthn] Started registration for user '{}'", session.username);
+    Ok(Json(ccr))
+}
+
+/// POST /auth/webauthn/register-finish - Terminer l'enregistrement d'une passkey
+#[derive(serde::Deserialize)]
+struct WebAuthnRegisterFinishRequest {
+    friendly_name: String,
+    credential: webauthn_rs::prelude::RegisterPublicKeyCredential,
+}
+
+async fn webauthn_register_finish(
+    State(app): State<AppState>,
+    req: Request,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    // Extraire headers et body
+    let (parts, body) = req.into_parts();
+
+    // Extraire le token JWT pour identifier l'utilisateur
+    let token = parts
+        .headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .ok_or_else(|| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "Missing or invalid Authorization header"
+            }))
+        ))?;
+
+    let session = app.auth_manager.get_session_info(token)
+        .map_err(|_| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "Invalid or expired token"
+            }))
+        ))?;
+
+    // Parser le body JSON
+    let bytes = axum::body::to_bytes(body, usize::MAX).await
+        .map_err(|_| (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Invalid request body" }))
+        ))?;
+
+    // Log du JSON brut pour debugging
+    if let Ok(json_str) = std::str::from_utf8(&bytes) {
+        println!("[webauthn] Received JSON (first 500 chars): {}", &json_str.chars().take(500).collect::<String>());
+    }
+
+    let payload: WebAuthnRegisterFinishRequest = serde_json::from_slice(&bytes)
+        .map_err(|e| {
+            eprintln!("[webauthn] JSON parsing error: {}", e);
+            (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": format!("Invalid JSON body: {}", e) }))
+            )
+        })?;
+
+    // Terminer l'enregistrement WebAuthn
+    app.webauthn_manager.finish_registration(
+        &session.username,
+        &payload.credential,
+        payload.friendly_name.clone(),
+    ).map_err(|e| (
+        StatusCode::BAD_REQUEST,
+        Json(serde_json::json!({
+            "error": format!("Failed to finish registration: {}", e)
+        }))
+    ))?;
+
+    println!("[webauthn] ✅ Registered passkey '{}' for user '{}'", payload.friendly_name, session.username);
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "Passkey registered successfully"
+    })))
+}
+
+/// GET /auth/webauthn/passkeys - Lister les passkeys de l'utilisateur connecté
+async fn webauthn_list_passkeys(
+    State(app): State<AppState>,
+    req: Request,
+) -> Result<Json<Vec<serde_json::Value>>, (StatusCode, Json<serde_json::Value>)> {
+    let (parts, _body) = req.into_parts();
+
+    // Extraire le token JWT pour identifier l'utilisateur
+    let token = parts
+        .headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .ok_or_else(|| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "Missing or invalid Authorization header"
+            }))
+        ))?;
+
+    let session = app.auth_manager.get_session_info(token)
+        .map_err(|_| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "Invalid or expired token"
+            }))
+        ))?;
+
+    // Récupérer la liste des passkeys pour cet utilisateur
+    let passkeys = app.webauthn_manager.list_user_passkeys(&session.username);
+
+    // Transformer en format JSON simplifié
+    let passkeys_json: Vec<serde_json::Value> = passkeys.into_iter().map(|pk| {
+        serde_json::json!({
+            "credential_id": base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&pk.credential_id),
+            "friendly_name": pk.friendly_name,
+            "created_at": pk.created_at,
+            "last_used_at": pk.last_used_at
+        })
+    }).collect();
+
+    println!("[webauthn] Listed {} passkeys for user '{}'", passkeys_json.len(), session.username);
+    Ok(Json(passkeys_json))
+}
+
+/// POST /auth/webauthn/authenticate-start - Démarrer l'authentification avec passkey
+#[derive(serde::Deserialize)]
+struct WebAuthnAuthenticateStartRequest {
+    username: String,
+}
+
+async fn webauthn_authenticate_start(
+    State(app): State<AppState>,
+    Json(payload): Json<WebAuthnAuthenticateStartRequest>,
+) -> Result<Json<webauthn_rs::prelude::RequestChallengeResponse>, (StatusCode, Json<serde_json::Value>)> {
+    // Démarrer l'authentification WebAuthn
+    let rcr = app.webauthn_manager.start_authentication(&payload.username)
+        .map_err(|e| (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": format!("Failed to start authentication: {}", e)
+            }))
+        ))?;
+
+    println!("[webauthn] Started authentication for user '{}'", payload.username);
+    Ok(Json(rcr))
+}
+
+/// POST /auth/webauthn/authenticate-discoverable-start - Démarrer l'authentification sans username
+/// Mode "discoverable credentials" : l'authenticator présente toutes les passkeys disponibles
+async fn webauthn_authenticate_discoverable_start(
+    State(app): State<AppState>,
+) -> Result<Json<webauthn_rs::prelude::RequestChallengeResponse>, (StatusCode, Json<serde_json::Value>)> {
+    // Démarrer l'authentification WebAuthn en mode découvrable (sans username)
+    let rcr = app.webauthn_manager.start_discoverable_authentication()
+        .map_err(|e| (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": format!("Failed to start discoverable authentication: {}", e)
+            }))
+        ))?;
+
+    println!("[webauthn] Started discoverable authentication (passwordless)");
+    Ok(Json(rcr))
+}
+
+/// POST /auth/webauthn/authenticate-finish - Terminer l'authentification avec passkey
+/// Retourne un JWT token si succès
+#[derive(serde::Deserialize)]
+struct WebAuthnAuthenticateFinishRequest {
+    credential: webauthn_rs::prelude::PublicKeyCredential,
+}
+
+async fn webauthn_authenticate_finish(
+    State(app): State<AppState>,
+    req: Request,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    // Extraire headers et body
+    let (parts, body) = req.into_parts();
+
+    // Extraire l'IP du client pour device trust
+    let client_ip = parts
+        .headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .unwrap_or("127.0.0.1")
+        .to_string();
+
+    // Parser le body JSON
+    let bytes = axum::body::to_bytes(body, usize::MAX).await
+        .map_err(|_| (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Invalid request body" }))
+        ))?;
+
+    let payload: WebAuthnAuthenticateFinishRequest = serde_json::from_slice(&bytes)
+        .map_err(|_| (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Invalid JSON body" }))
+        ))?;
+
+    // Terminer l'authentification WebAuthn
+    let username = app.webauthn_manager.finish_authentication(&payload.credential)
+        .map_err(|e| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": format!("Authentication failed: {}", e)
+            }))
+        ))?;
+
+    // Générer JWT token
+    // Note: WebAuthn passkey est déjà le facteur de confiance biométrique,
+    // pas besoin de device trust supplémentaire
+    let token_data = app.auth_manager.create_token_for_user(&username)
+        .map_err(|e| (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "error": format!("Failed to create token: {}", e)
+            }))
+        ))?;
+
+    // Récupérer le rôle de l'utilisateur
+    let role = app.auth_manager.get_user(&username)
+        .map(|user| user.role.clone())
+        .unwrap_or_else(|| "user".to_string());
+
+    println!("[webauthn] ✅ Authenticated user '{}' via passkey", username);
+    Ok(Json(serde_json::json!({
+        "token": token_data,
+        "username": username,
+        "role": role,
+        "expires_at": OffsetDateTime::now_utc().unix_timestamp() + 86400 // 24h
+    })))
 }

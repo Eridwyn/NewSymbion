@@ -27,7 +27,7 @@ class ApiService extends LitElement {
   // Lazy getters pour résoudre la config au moment de l'utilisation
   get baseUrl() {
     if (!this._baseUrl) {
-      this._baseUrl = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+      this._baseUrl = window.SYMBION_CONFIG?.API_BASE || `https://${window.location.hostname}:8443`
     }
     return this._baseUrl
   }

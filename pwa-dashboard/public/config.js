@@ -42,7 +42,7 @@ window.SYMBION_CONFIG = {
   /**
    * Configuration MQTT (optionnel, si WebSocket MQTT ajouté)
    */
-  MQTT_BROKER: 'ws://localhost:9001',  // WebSocket MQTT broker
+  MQTT_BROKER: (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.hostname + ':9001',  // WebSocket MQTT broker
 }
 
 console.log('[config] Symbion configuration loaded:', window.SYMBION_CONFIG)

@@ -17,20 +17,20 @@ class ContextWidget extends LitElement {
     .widget-container {
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
       border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 16px;
-      padding: 1.5rem;
+      border-radius: 12px;
+      padding: 0.75rem 1rem;
       backdrop-filter: blur(10px);
     }
 
     .mode-display {
       display: flex;
       align-items: center;
-      gap: 1.5rem;
-      margin-bottom: 1rem;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
     }
 
     .mode-icon {
-      font-size: 4rem;
+      font-size: 2.5rem;
       line-height: 1;
       animation: float 3s ease-in-out infinite;
     }
@@ -45,26 +45,26 @@ class ContextWidget extends LitElement {
     }
 
     .mode-title {
-      font-size: 1.5rem;
+      font-size: 1.25rem;
       font-weight: 700;
       color: var(--context-primary, #10b981);
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.125rem;
       transition: color 0.5s ease;
     }
 
     .mode-reason {
-      font-size: 0.875rem;
+      font-size: 0.75rem;
       color: #a0a0a0;
-      line-height: 1.4;
+      line-height: 1.3;
     }
 
     .mode-badge {
-      padding: 0.5rem 1rem;
-      border-radius: 20px;
-      font-size: 0.75rem;
+      padding: 0.375rem 0.75rem;
+      border-radius: 16px;
+      font-size: 0.625rem;
       font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.8px;
+      letter-spacing: 0.5px;
       background: var(--context-bg, rgba(16, 185, 129, 0.15));
       color: var(--context-primary, #10b981);
       border: 1px solid var(--context-primary, #10b981);
@@ -72,35 +72,36 @@ class ContextWidget extends LitElement {
     }
 
     .mode-details {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 0.75rem;
-      margin-top: 1rem;
-      padding-top: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 0.5rem;
+      padding-top: 0.5rem;
       border-top: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 0.625rem;
     }
 
     .detail-item {
-      font-size: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
     }
 
     .detail-label {
       color: #808080;
-      margin-bottom: 0.25rem;
     }
 
     .detail-value {
       color: #e0e0e0;
-      font-weight: 500;
+      font-weight: 600;
     }
 
     .confidence-bar {
-      width: 100%;
-      height: 4px;
+      width: 60px;
+      height: 3px;
       background: rgba(255, 255, 255, 0.1);
       border-radius: 2px;
       overflow: hidden;
-      margin-top: 0.5rem;
     }
 
     .confidence-fill {
@@ -136,18 +137,40 @@ class ContextWidget extends LitElement {
 
     /* Manual controls */
     .manual-controls {
-      margin-top: 1.5rem;
-      padding-top: 1.5rem;
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
       border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
 
-    .controls-header {
-      font-size: 0.875rem;
-      font-weight: 600;
+    .controls-toggle {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
       color: #a0a0a0;
-      margin-bottom: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.75rem;
+      font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .controls-toggle:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+
+    .controls-content {
+      margin-top: 0.75rem;
+    }
+
+    .controls-content.hidden {
+      display: none;
     }
 
     .mode-buttons {
@@ -252,7 +275,8 @@ class ContextWidget extends LitElement {
   static properties = {
     contextState: { type: Object },
     status: { type: String },
-    selectedDuration: { type: Number }
+    selectedDuration: { type: Number },
+    showControls: { type: Boolean }
   }
 
   constructor() {
@@ -260,6 +284,9 @@ class ContextWidget extends LitElement {
     this.contextState = null
     this.status = 'loading'
     this.selectedDuration = 120 // Default: 2 hours
+    this.showControls = false // Collapsed by default
+    this.fetchRetries = 0
+    this.maxFetchRetries = 10 // Max 10 retries (5 seconds total)
   }
 
   connectedCallback() {
@@ -288,6 +315,16 @@ class ContextWidget extends LitElement {
     if (contextService) {
       this.contextState = contextService.getContextState()
       this.status = contextService.status
+      this.fetchRetries = 0 // Reset retry counter on success
+    } else if (this.fetchRetries < this.maxFetchRetries) {
+      // Retry after 500ms if service not ready yet
+      this.fetchRetries++
+      console.warn(`[context-widget] context-service not found, retry ${this.fetchRetries}/${this.maxFetchRetries} in 500ms...`)
+      setTimeout(() => this.fetchContext(), 500)
+    } else {
+      // Max retries reached, show error
+      console.error('[context-widget] context-service not found after max retries')
+      this.status = 'error'
     }
   }
 
@@ -422,30 +459,34 @@ class ContextWidget extends LitElement {
 
         <div class="mode-details">
           <div class="detail-item">
-            <div class="detail-label">Changé à</div>
+            <div class="detail-label">Changé:</div>
             <div class="detail-value">${this.formatTimestamp(changed_at)}</div>
           </div>
           <div class="detail-item">
-            <div class="detail-label">Confiance</div>
+            <div class="detail-label">Confiance:</div>
             <div class="detail-value">${Math.round(confidence * 100)}%</div>
-            <div class="confidence-bar">
-              <div class="confidence-fill" style="width: ${confidence * 100}%"></div>
-            </div>
+          </div>
+          <div class="confidence-bar">
+            <div class="confidence-fill" style="width: ${confidence * 100}%"></div>
           </div>
         </div>
 
         ${manual_override ? html`
-          <div style="margin-top: 1rem; padding: 0.75rem; background: rgba(255, 217, 61, 0.1); border: 1px solid rgba(255, 217, 61, 0.3); border-radius: 8px;">
-            <div style="font-size: 0.75rem; color: #ffd93d;">
-              ⚠️ Override manuel actif: ${manual_override.reason}
+          <div style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(255, 217, 61, 0.1); border: 1px solid rgba(255, 217, 61, 0.3); border-radius: 6px;">
+            <div style="font-size: 0.625rem; color: #ffd93d;">
+              ⚠️ Override manuel: ${manual_override.reason}
             </div>
           </div>
         ` : ''}
 
         <div class="manual-controls">
-          <div class="controls-header">Contrôle Manuel</div>
+          <button class="controls-toggle" @click="${() => this.showControls = !this.showControls}">
+            <span>Contrôle Manuel</span>
+            <span>${this.showControls ? '▲' : '▼'}</span>
+          </button>
 
-          <div class="mode-buttons">
+          <div class="controls-content ${this.showControls ? '' : 'hidden'}">
+            <div class="mode-buttons">
             <div
               class="mode-button ${mode === 'cravate' ? 'active' : ''}"
               @click="${() => this.setModeOverride('cravate')}"
@@ -493,11 +534,12 @@ class ContextWidget extends LitElement {
             </div>
           </div>
 
-          ${manual_override ? html`
-            <button class="clear-button" @click="${() => this.clearOverride()}">
-              🔄 Annuler Override Manuel
-            </button>
-          ` : ''}
+            ${manual_override ? html`
+              <button class="clear-button" @click="${() => this.clearOverride()}">
+                🔄 Annuler Override Manuel
+              </button>
+            ` : ''}
+          </div>
         </div>
       </div>
     `

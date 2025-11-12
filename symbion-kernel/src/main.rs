@@ -26,6 +26,9 @@ mod dashboard_events;
 mod mfa;
 mod csrf;
 mod device_trust;
+mod decision;
+mod decision_http;
+mod webauthn;
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -41,6 +44,7 @@ use crate::auth::AuthManager;
 use crate::context::ContextEngine;
 use crate::mfa::MfaManager;
 use crate::csrf::CsrfManager;
+use crate::webauthn::WebAuthnManager;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -97,6 +101,21 @@ async fn main() {
     // csrf manager
     let csrf_manager = Arc::new(CsrfManager::new());
     println!("[kernel] initialized CSRF manager");
+
+    // webauthn manager
+    let rp_id = std::env::var("SYMBION_WEBAUTHN_RP_ID")
+        .unwrap_or_else(|_| "symbion.local".to_string());
+    let rp_origin = std::env::var("SYMBION_WEBAUTHN_RP_ORIGIN")
+        .unwrap_or_else(|_| "https://symbion.local:3000".to_string());
+    let webauthn_storage_path = std::path::PathBuf::from("./data/webauthn_credentials.json");
+    let webauthn_manager = match WebAuthnManager::new(&rp_id, &rp_origin, webauthn_storage_path) {
+        Ok(manager) => Arc::new(manager),
+        Err(e) => {
+            eprintln!("[kernel] failed to initialize webauthn manager: {}", e);
+            std::process::exit(1);
+        }
+    };
+    println!("[kernel] initialized WebAuthn manager");
 
     // device trust manager
     let device_trust_manager = match crate::device_trust::DeviceTrustManager::new() {
@@ -179,6 +198,61 @@ async fn main() {
     // démarre le monitoring contextuel (détection mode toutes les 30s)
     context::ContextEngine::spawn_context_monitor(context_engine.clone(), agents.clone(), mqtt_client.clone(), dashboard_events.clone());
 
+    // Decision Engine PR3 - Initialisation
+    let decision_clock = Arc::new(crate::decision::SystemClock);
+    let decision_config = crate::decision::DecisionConfig::default();
+
+    let decision_validation_manager = Arc::new(crate::decision::ValidationManager::new(
+        decision_clock.clone(),
+        1800, // TTL 30 minutes (plus raisonnable pour validation humaine)
+    ));
+
+    let decision_override_manager = Arc::new(crate::decision::OverrideManager::new(
+        decision_clock.clone(),
+        86400, // Default TTL 24h
+    ));
+
+    let decision_audit_manager = Arc::new(crate::decision::AuditManager::new(
+        decision_clock.clone(),
+        10000, // Max 10k records
+    ));
+
+    // Agent Health Mapping configuration
+    let agent_health_mapping = crate::decision::AgentHealthMapping {
+        online_min_score: 0.8,
+        active_min_score: 0.7,
+        idle_min_score: 0.5,
+        degraded_min_score: 0.3,
+        degraded_consecutive_threshold: 3,
+        stale_max_age_secs: 120, // 2 minutes
+    };
+
+    let decision_agent_health_manager = Arc::new(crate::decision::AgentHealthManager::new(
+        decision_clock.clone(),
+        agent_health_mapping,
+    ));
+
+    let decision_metrics = Arc::new(crate::decision::DecisionMetrics::new());
+
+    // Guards Evaluator avec stratégie court-circuit OnBlock
+    let guards_evaluator = crate::decision::GuardsEvaluator::new(
+        crate::decision::ShortCircuitStrategy::OnBlock
+    );
+
+    // Trust Calculator
+    let trust_calculator = crate::decision::TrustCalculator::new(
+        decision_config.clone(),
+        decision_clock.clone(),
+    );
+
+    let decision_engine = Arc::new(crate::decision::DecisionEngine::new(
+        guards_evaluator,
+        trust_calculator,
+        decision_config,
+    ));
+
+    println!("[kernel] initialized Decision Engine PR3");
+
     // fabrique l'état unique pour Axum
     let app_state = AppState {
         states,
@@ -189,12 +263,19 @@ async fn main() {
         mfa_manager,
         csrf_manager,
         device_trust_manager,
+        webauthn_manager,
         ports,
         plugins,
         notes_bridge,
         agents: agents.clone(),
         context_engine: context_engine.clone(),
         dashboard_events,
+        decision_engine,
+        decision_validation_manager,
+        decision_override_manager,
+        decision_audit_manager,
+        decision_agent_health_manager,
+        decision_metrics,
     };
 
     // HTTPS avec TLS
@@ -202,9 +283,9 @@ async fn main() {
 
     // Charger certificats TLS depuis variables d'environnement
     let cert_path = std::env::var("SYMBION_TLS_CERT_PATH")
-        .unwrap_or_else(|_| "symbion-kernel/certs/cert.pem".to_string());
+        .unwrap_or_else(|_| "symbion-kernel/certs/cert-mkcert.pem".to_string());
     let key_path = std::env::var("SYMBION_TLS_KEY_PATH")
-        .unwrap_or_else(|_| "symbion-kernel/certs/key.pem".to_string());
+        .unwrap_or_else(|_| "symbion-kernel/certs/key-mkcert.pem".to_string());
 
     let port: u16 = std::env::var("SYMBION_HTTPS_PORT")
         .ok()
