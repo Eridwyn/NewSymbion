@@ -1,0 +1,82 @@
+═══════════════════════════════════════════════════════════
+   SCRIPTS DE MONITORING SYMBION - INSTALLATION LOCALE
+═══════════════════════════════════════════════════════════
+
+⚠️  IMPORTANT : Ces scripts sont exclus du repo public pour raisons de sécurité
+    Ne pas commit le dossier scripts/
+
+📍 Emplacement : ~/RustroverProjects/NewSymbion/scripts/
+
+═══════════════════════════════════════════════════════════
+   UTILISATION RAPIDE
+═══════════════════════════════════════════════════════════
+
+1. Test manuel immédiat :
+   ./scripts/monitor-symbion.sh
+
+2. Installation automatique avec cron :
+   ./scripts/install-monitoring.sh
+
+3. Configuration email (optionnel) :
+   cp scripts/config-mail-example.conf ~/.msmtprc
+   chmod 600 ~/.msmtprc
+   nano ~/.msmtprc  # Configurer vos credentials
+
+4. Test avec email :
+   ./scripts/monitor-symbion.sh votre-email@example.com
+
+═══════════════════════════════════════════════════════════
+   FICHIERS DISPONIBLES
+═══════════════════════════════════════════════════════════
+
+✅ monitor-symbion.sh          - Script principal de monitoring
+✅ install-monitoring.sh       - Installation automatique crontab
+✅ config-mail-example.conf    - Exemple config msmtp
+✅ README.md                   - Documentation complète
+
+═══════════════════════════════════════════════════════════
+   SURVEILLANCE AUTOMATIQUE
+═══════════════════════════════════════════════════════════
+
+Le script vérifie automatiquement :
+• Kernel alive (http://localhost:8080)
+• MQTT status (connected/disconnected)
+• Agents online/offline + métriques
+• Plugins running/failed
+
+Envoie des alertes mail pour :
+• Kernel DOWN
+• MQTT déconnecté
+• Tous agents offline
+• Plugin crashed
+• Système récupéré
+
+═══════════════════════════════════════════════════════════
+   LOGS ET ÉTATS
+═══════════════════════════════════════════════════════════
+
+Logs :     /tmp/symbion-monitor.log
+État :     /tmp/symbion-monitor.state
+Alertes :  /tmp/symbion-alerts.txt (si mail échoue)
+
+Voir logs : tail -f /tmp/symbion-monitor.log
+
+═══════════════════════════════════════════════════════════
+   CONFIGURATION CRONTAB RECOMMANDÉE
+═══════════════════════════════════════════════════════════
+
+Toutes les 15 minutes (production) :
+*/15 * * * * /home/eridwyn/RustroverProjects/NewSymbion/scripts/monitor-symbion.sh votre-email@example.com >> /tmp/symbion-monitor.log 2>&1
+
+Une fois par heure (développement) :
+0 * * * * /home/eridwyn/RustroverProjects/NewSymbion/scripts/monitor-symbion.sh >> /tmp/symbion-monitor.log 2>&1
+
+═══════════════════════════════════════════════════════════
+   SÉCURITÉ
+═══════════════════════════════════════════════════════════
+
+⚠️  scripts/ est dans .gitignore - ne jamais commit
+⚠️  ~/.msmtprc doit être chmod 600 (contient mots de passe)
+⚠️  Ne pas partager les logs publiquement (peuvent contenir IPs)
+
+═══════════════════════════════════════════════════════════
