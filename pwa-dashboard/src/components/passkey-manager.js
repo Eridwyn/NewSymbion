@@ -271,10 +271,20 @@ class PasskeyManager extends LitElement {
       // Convertir les champs base64 en ArrayBuffer
       const preparedOptions = this.prepareCreationOptions(creationOptions)
       console.log('[passkey-manager] Options prepared for browser:', preparedOptions)
+      console.log('[passkey-manager] PublicKey options:', JSON.stringify({
+        rp: creationOptions.publicKey.rp,
+        user: { name: creationOptions.publicKey.user.name, displayName: creationOptions.publicKey.user.displayName },
+        pubKeyCredParams: creationOptions.publicKey.pubKeyCredParams,
+        authenticatorSelection: creationOptions.publicKey.authenticatorSelection,
+        attestation: creationOptions.publicKey.attestation,
+        timeout: creationOptions.publicKey.timeout
+      }, null, 2))
 
       // Étape 2: Demander au navigateur de créer la passkey
       // L'utilisateur va devoir utiliser Touch ID, Face ID, Windows Hello, etc.
+      console.log('[passkey-manager] Calling navigator.credentials.create()...')
       const credential = await navigator.credentials.create(preparedOptions)
+      console.log('[passkey-manager] Credential created successfully')
 
       console.log('[passkey-manager] Credential created:', credential)
 
@@ -312,13 +322,18 @@ class PasskeyManager extends LitElement {
 
     } catch (error) {
       console.error('[passkey-manager] Registration failed:', error)
+      console.error('[passkey-manager] Error name:', error.name)
+      console.error('[passkey-manager] Error message:', error.message)
+      console.error('[passkey-manager] Error stack:', error.stack)
 
       if (error.name === 'NotAllowedError') {
         this.error = 'Enregistrement annulé ou échoué. Vérifiez que vous avez bien utilisé votre biométrie.'
       } else if (error.name === 'InvalidStateError') {
         this.error = 'Cette passkey existe déjà. Utilisez un nom différent.'
+      } else if (error.name === 'NotSupportedError') {
+        this.error = 'Authenticator non supporté. Vérifiez que Windows Hello est activé et configuré.'
       } else {
-        this.error = `Erreur : ${error.message}`
+        this.error = `Erreur (${error.name}): ${error.message}`
       }
     } finally {
       this.registering = false
