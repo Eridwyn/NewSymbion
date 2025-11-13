@@ -221,8 +221,8 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/auth/webauthn/authenticate-start", post(webauthn_authenticate_start))
         .route("/auth/webauthn/authenticate-discoverable-start", post(webauthn_authenticate_discoverable_start))
         .route("/auth/webauthn/authenticate-finish", post(webauthn_authenticate_finish))
-        .with_state(app_state.clone());
-        // .layer(GovernorLayer::new(auth_rate_limit_config.clone()));
+        .with_state(app_state.clone())
+        .layer(GovernorLayer::new(auth_rate_limit_config.clone()));
 
     // Routes d'authentification protégées (nécessitent JWT valide)
     let protected_auth_routes = Router::new()
@@ -239,9 +239,8 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/auth/webauthn/register-finish", post(webauthn_register_finish))
         .route("/auth/webauthn/passkeys", get(webauthn_list_passkeys))
         .with_state(app_state.clone())
-        .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
-        // NOTE: Rate limiting tower_governor désactivé (incompatibilité localhost)
-        // .layer(GovernorLayer::new(auth_rate_limit_config));
+        .layer(middleware::from_fn_with_state(app_state.clone(), require_auth))
+        .layer(GovernorLayer::new(auth_rate_limit_config));
 
     // Routes destructrices nécessitant protection CSRF (POST/DELETE)
     let csrf_protected_routes = Router::new()
