@@ -831,17 +831,18 @@ class BootTerminal extends LitElement {
   async checkAgents() {
     try {
       const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+      const headers = { ...authService.getAuthHeader() }
       const response = await fetch(`${API_BASE}/agents`, {
-        headers: {
-          'x-api-key': import.meta.env.VITE_SYMBION_API_KEY
-        },
+        headers,
         credentials: 'include'
       })
       if (response.ok) {
         const data = await response.json()
         return data.length
       }
-    } catch {}
+    } catch (error) {
+      // Silently fail if not authenticated yet
+    }
     return 0
   }
 
@@ -867,44 +868,47 @@ class BootTerminal extends LitElement {
   async checkContext() {
     try {
       const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+      const headers = { ...authService.getAuthHeader() }
       const response = await fetch(`${API_BASE}/context/current`, {
-        headers: {
-          'x-api-key': import.meta.env.VITE_SYMBION_API_KEY || 's3cr3t-42'
-        },
+        headers,
         credentials: 'include'
       })
       if (response.ok) {
         return await response.json()
       }
-    } catch {}
+    } catch (error) {
+      // Silently fail if not authenticated yet
+    }
     return null
   }
 
   async checkStats() {
     try {
       const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+      const headers = { ...authService.getAuthHeader() }
       const response = await fetch(`${API_BASE}/context/stats`, {
-        headers: {
-          'x-api-key': import.meta.env.VITE_SYMBION_API_KEY || 's3cr3t-42'
-        },
+        headers,
         credentials: 'include'
       })
       return response.ok
-    } catch {}
+    } catch (error) {
+      // Silently fail if not authenticated yet
+    }
     return false
   }
 
   async checkPatterns() {
     try {
       const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+      const headers = { ...authService.getAuthHeader() }
       const response = await fetch(`${API_BASE}/context/patterns`, {
-        headers: {
-          'x-api-key': import.meta.env.VITE_SYMBION_API_KEY || 's3cr3t-42'
-        },
+        headers,
         credentials: 'include'
       })
       return response.ok
-    } catch {}
+    } catch (error) {
+      // Silently fail if not authenticated yet
+    }
     return false
   }
 

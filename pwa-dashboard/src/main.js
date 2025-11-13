@@ -102,8 +102,8 @@ if (document.readyState === 'loading') {
   startApp()
 }
 
-// Service Worker pour PWA
-if ('serviceWorker' in navigator) {
+// Service Worker pour PWA (uniquement en production)
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then(registration => {
