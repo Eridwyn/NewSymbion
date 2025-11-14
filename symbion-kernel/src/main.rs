@@ -192,6 +192,9 @@ async fn main() {
     // démarre le monitoring des agents (timeout 2min)
     AgentRegistry::start_agent_monitoring(agents.clone(), 2);
 
+    // démarre la sauvegarde périodique débounced des agents (toutes les 5min si modifiés)
+    AgentRegistry::start_periodic_save(agents.clone());
+
     // démarre la publication auto du health
     health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), agents.clone(), plugins.clone(), dashboard_events.clone());
 
