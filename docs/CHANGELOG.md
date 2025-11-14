@@ -8,6 +8,38 @@ Historique des améliorations et changements majeurs du projet.
 
 **Status**: 🟢 100% complété (5/5 tâches)
 
+### Améliorations Post-Phase 2 (14 Novembre 2025 - soir)
+
+#### Fix: MQTT Streaming Pagination pour Notes
+- **Problème** : HTTP 504 timeout sur `/ports/memo` avec >5 notes (dépassement limite 10KB MQTT)
+- **Solution** : Implémentation protocole streaming (1 note/message + marker `ListEnd`)
+- **Bénéfices** :
+  - Scalable pour nombre arbitraire de notes
+  - Pas de limite taille payload
+  - Performance stable quelle que soit la quantité
+- **Fichiers modifiés** :
+  - `symbion-plugin-notes/src/main.rs:329-368` (streaming émetteur)
+  - `symbion-kernel/src/notes_bridge.rs:154-241` (agrégation récepteur)
+- **Commits** : `6f4deb5`, `cea078e`
+
+#### Fix: AgentRegistry Persistence avec Dirty Flag
+- **Problème** : Heartbeats d'agents pas sauvegardés (perte données au redémarrage kernel)
+- **Solution** : Pattern debounced I/O avec dirty flag + periodic save (5 min)
+- **Bénéfices** :
+  - Max 5 min perte données vs perte totale avant
+  - Pas de write I/O à chaque heartbeat (économie disque)
+  - Thread-safe avec AtomicBool
+- **Fichier modifié** : `symbion-kernel/src/agents.rs:258-605`
+- **Commit** : `cee08f9`
+
+#### Fix: MQTT Packet Size Limits
+- **Problème** : Rejet payloads >10KB par défaut
+- **Solution** : Augmentation limite 1MB pour kernel + agents
+- **Fichiers modifiés** :
+  - `symbion-kernel/src/mqtt.rs:29-30`
+  - `symbion-agent-host/src/mqtt.rs` (limites similaires)
+- **Commit** : `479b00d`
+
 ### Vulnérabilités Corrigées
 
 #### VULN-005: Bcrypt Cost Factor
