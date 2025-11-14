@@ -275,7 +275,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Configuration MQTT
     let mut mqttopts = MqttOptions::new("symbion-plugin-notes", "localhost", 1883);
     mqttopts.set_keep_alive(Duration::from_secs(30));
-    
+    mqttopts.set_clean_session(true); // Nettoie la session à la déconnexion (évite collision client ID)
+
     let (client, mut eventloop) = AsyncClient::new(mqttopts, 10);
     
     // S'abonner aux topics de commandes
@@ -296,7 +297,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             Err(e) => {
                 eprintln!("[notes] MQTT error: {:?}", e);
-                sleep(Duration::from_secs(1)).await;
+                eprintln!("[notes] Fatal error - exiting to allow restart");
+                std::process::exit(1); // Exit proprement pour que le kernel relance
             }
         }
     }
