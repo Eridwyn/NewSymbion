@@ -27,7 +27,6 @@ use axum::{extract::{Query, State}, routing::{get, post}, Json, Router};
 use axum::http::{StatusCode, Method};
 use tower_http::cors::{CorsLayer, Any};
 use tower_http::timeout::TimeoutLayer;
-use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use crate::models::{HostState, HostsMap};
 use crate::state::Shared;
 use crate::config::HostsConfig;
@@ -186,25 +185,6 @@ pub struct AppState {
 struct WakeParams { host_id: String }
 
 pub fn build_router(app_state: AppState) -> Router {
-    // Rate limiting configurations
-    // Auth routes: 10 req/min per IP (brute-force protection)
-    let auth_rate_limit_config = std::sync::Arc::new(
-        GovernorConfigBuilder::default()
-            .per_second(1)
-            .burst_size(10)
-            .finish()
-            .expect("Failed to build auth rate limit config")
-    );
-
-    // API routes: 5 req/sec per IP (DoS protection)
-    let api_rate_limit_config = std::sync::Arc::new(
-        GovernorConfigBuilder::default()
-            .per_second(5)
-            .burst_size(10)
-            .finish()
-            .expect("Failed to build API rate limit config")
-    );
-
     // Routes publiques (sans version, sans auth, sans rate limit strict)
     let public_routes = Router::new()
         .route("/health", get(|| async { "ok" }))
@@ -221,8 +201,7 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/auth/webauthn/authenticate-start", post(webauthn_authenticate_start))
         .route("/auth/webauthn/authenticate-discoverable-start", post(webauthn_authenticate_discoverable_start))
         .route("/auth/webauthn/authenticate-finish", post(webauthn_authenticate_finish))
-        .with_state(app_state.clone())
-        .layer(GovernorLayer::new(auth_rate_limit_config.clone()));
+        .with_state(app_state.clone());
 
     // Routes d'authentification protégées (nécessitent JWT valide)
     let protected_auth_routes = Router::new()
@@ -239,8 +218,7 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/auth/webauthn/register-finish", post(webauthn_register_finish))
         .route("/auth/webauthn/passkeys", get(webauthn_list_passkeys))
         .with_state(app_state.clone())
-        .layer(middleware::from_fn_with_state(app_state.clone(), require_auth))
-        .layer(GovernorLayer::new(auth_rate_limit_config));
+        .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
 
     // Routes destructrices nécessitant protection CSRF (POST/DELETE)
     let csrf_protected_routes = Router::new()
