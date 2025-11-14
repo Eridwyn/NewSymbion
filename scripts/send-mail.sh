@@ -2,6 +2,11 @@
 # Helper script pour envoyer emails via msmtp
 # Utilise la même approche que monitor-symbion.sh
 
+# Si exécuté en root, basculer vers eridwyn (qui a la config msmtp)
+if [ "$(id -u)" -eq 0 ] && [ -f /home/eridwyn/.msmtprc ]; then
+    exec sudo -u eridwyn bash "$0" "$@"
+fi
+
 RECIPIENT="${1:-Markchavatte@gmail.com}"
 SUBJECT="$2"
 BODY="$3"
