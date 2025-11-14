@@ -12,12 +12,12 @@
 |-------|--------|------------|-------------|
 | **PR1** - Context Engine v2 | 🟢 Nearly Complete | 95% | ✅ Done |
 | **PR2** - Security Hardening | 🟢 Production Ready | 100% | ✅ Done |
-| **PR3** - Decision Engine | 🟢 Feature Complete | 90% | ✅ Done |
+| **PR3** - Decision Engine | 🟢 Production Ready | 100% | ✅ Done |
 | **PR4** - Metrics & Observability | 🟡 Infra Ready | 75% | Dec 2025 |
 | **PR5** - Kernel Reliability | 🔴 In Progress | 30% | Jan 2026 |
 | **PR6** - Production Readiness | ⚪ Not Started | 5% | Feb 2026 |
 
-**Overall Progress**: 69% (413/600 estimated tasks)
+**Overall Progress**: 75% (450/600 estimated tasks)
 
 ---
 
@@ -182,7 +182,7 @@ Remediate 4 CRITICAL vulnerabilities from security audit (2025-11-12).
 
 ## 🤖 PR3 - Decision Engine (v0.2.0-beta.1)
 
-**Status**: 🟢 **90% Complete** - Feature complete, refinement pending
+**Status**: 🟢 **100% Complete** - Production-ready (backend + frontend)
 
 ### Objectives
 
@@ -229,36 +229,54 @@ symbion-kernel/src/decision/
 └── tests/            # 109 unit tests
 ```
 
-### Remaining Tasks 🔴
+#### Frontend Complete ✅
 
-- [ ] **Mobile approval interface** - User validation for Medium/High impact decisions
-  - Backend: Intention generation ready
-  - Frontend: Mobile approval UI missing
-  - Priority: P1 (required for production automation)
+- [x] **Approval interface UI** - User validation for Medium/High impact decisions
+  - File: `pwa-dashboard/src/components/user-settings-page.js` (lines 757-1400+)
+  - Tab "Decisions" avec interface complète
+  - Features:
+    - ⏳ Validations en attente (approve/reject buttons)
+    - 📊 Métriques temps réel (total, approved, rejected, pending)
+    - 📋 Validations expirées (suppression individuelle/masse)
+    - 🧪 Générateur de test pour PR3
+  - Service: `pwa-dashboard/src/services/decision-service.js` (280 lines)
+  - Status: ✅ Fully functional, deployed
+
+- [x] **Decision Service API client** - Complete API integration
+  - GET /v1/decision/validations/pending
+  - POST /v1/decision/validation/:id/resolve
+  - DELETE /v1/decision/validation/:id
+  - GET /v1/decision/stats, /audit, /metrics
+  - CSRF protection integrated
+
+### Future Enhancements (Post-v1.0) 🔮
 
 - [ ] **Consent management** - Durable consent for repeated actions
   - Scope: Limited by action type, time window, conditions
-  - Revocation: Via mobile interface
-  - Priority: P2
+  - Revocation: Via approval interface
+  - Priority: P2 (nice-to-have)
 
 - [ ] **Trust score tuning** - Adjust weights based on real-world usage
   - Current weights: Placeholder values (context 30%, etc.)
   - Requires: Historical data collection and analysis
-  - Priority: P2
+  - Priority: P2 (optimization)
 
 ### Testing
 
 - ✅ 109 unit tests passing
 - ✅ Trust score calculation validated with mock data
 - ✅ Idempotence prevents duplicate commands
-- ⚠️ No real-world decision data yet (not deployed in production)
+- ✅ Frontend approval UI tested manually (approve/reject workflow)
+- ✅ API integration tested (validations/pending, resolve, stats)
+- ⚠️ No automated integration tests yet
 
 ### Documentation
 
 - ✅ Decision engine architecture: `CLAUDE.md` (lines 299-476)
 - ✅ Trust score formula documented
 - ✅ Intention structure defined
-- ⚠️ User approval workflow not yet documented (pending mobile UI)
+- ✅ User approval workflow: UI in `user-settings-page.js`
+- ✅ API endpoints: `docs/api/endpoints.md` (decision engine section)
 
 ---
 
