@@ -196,7 +196,8 @@ impl HealthTracker {
             
             let mut opts = MqttOptions::new("symbion-kernel-health", &mqtt_cfg.host, mqtt_cfg.port);
             opts.set_keep_alive(Duration::from_secs(15));
-            
+            opts.set_max_packet_size(1024 * 1024, 1024 * 1024); // 1 MB max pour gros payloads (notes, etc.)
+
             let (client, mut eventloop) = AsyncClient::new(opts, 10);
             
             // Boucle principale : publish health toutes les 30s

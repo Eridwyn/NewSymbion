@@ -26,6 +26,7 @@ pub fn create_mqtt_client(config: &HostsConfig) -> Result<AsyncClient, Box<dyn s
     
     let mut opts = MqttOptions::new("symbion-kernel-bridge", &mqtt_cfg.host, mqtt_cfg.port);
     opts.set_keep_alive(std::time::Duration::from_secs(15));
+    opts.set_max_packet_size(1024 * 1024, 1024 * 1024); // 1 MB max pour gros payloads (notes, etc.)
     let (client, mut eventloop) = AsyncClient::new(opts, 10);
     
     // Lancer l'eventloop du client bridge en arrière-plan
@@ -51,6 +52,7 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
         
         let mut opts = MqttOptions::new("symbion-kernel-listener", &mqtt_cfg.host, mqtt_cfg.port);
         opts.set_keep_alive(std::time::Duration::from_secs(15));
+        opts.set_max_packet_size(1024 * 1024, 1024 * 1024); // 1 MB max pour gros payloads (notes, etc.)
         let (client, mut eventloop) = AsyncClient::new(opts, 10);
         
         if let Err(e) = client.subscribe("symbion/hosts/heartbeat@v2", QoS::AtLeastOnce).await {
