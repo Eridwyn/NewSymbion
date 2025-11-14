@@ -11,13 +11,13 @@
 | Phase | Status | Completion | Target Date |
 |-------|--------|------------|-------------|
 | **PR1** - Context Engine v2 | 🟢 Nearly Complete | 95% | ✅ Done |
-| **PR2** - Security Hardening | 🟡 Backend Done | 85% | Nov 2025 |
+| **PR2** - Security Hardening | 🟢 Production Ready | 98% | ✅ Done |
 | **PR3** - Decision Engine | 🟢 Feature Complete | 90% | ✅ Done |
 | **PR4** - Metrics & Observability | 🟡 Infra Ready | 75% | Dec 2025 |
 | **PR5** - Kernel Reliability | 🔴 In Progress | 30% | Jan 2026 |
 | **PR6** - Production Readiness | ⚪ Not Started | 0% | Feb 2026 |
 
-**Overall Progress**: 62% (374/600 estimated tasks)
+**Overall Progress**: 68% (408/600 estimated tasks)
 
 ---
 
@@ -76,7 +76,7 @@ Improve context detection accuracy and eliminate timezone/hysteresis bugs.
 
 ## 🔐 PR2 - Security Hardening (v0.2.0-alpha.2)
 
-**Status**: 🟡 **85% Complete** - Backend production-ready, PWA pending
+**Status**: 🟢 **98% Complete** - Production-ready (backend + frontend)
 
 ### Objectives
 
@@ -124,22 +124,33 @@ Remediate 4 CRITICAL vulnerabilities from security audit (2025-11-12).
   - Next rotation: 12 February 2026
   - Procedure: `docs/security/procedures/SECRETS_ROTATION_PROCEDURE.md`
 
-### Frontend Pending 🔴
+### Frontend Completed ✅
 
-- [ ] **PWA login page** - JWT token acquisition UI
-  - Currently: No login interface (development uses hardcoded tokens)
-  - Priority: P0 (blocking production deployment)
+- [x] **Login page** - Integrated in boot sequence (`boot-terminal.js` 1665 lines)
+  - JWT token acquisition with username + password
+  - TOTP step if MFA enabled
+  - WebAuthn/biometric support (36 references)
+  - Autofill detection (Bitwarden compatible)
+  - Multi-phase boot: booting → login → authenticating → done
 
-- [ ] **MFA setup wizard** - QR code display + code verification
-  - Backend ready, frontend missing
-  - Priority: P1
+- [x] **MFA setup wizard** - Complete in `user-settings-page.js` (1418 lines)
+  - QR code display (200x200px SVG)
+  - TOTP code verification
+  - Backup codes generation
+  - Enable/disable toggle
+  - Status monitoring
 
-- [ ] **CSRF nonce management** - Automatic nonce refresh in fetch interceptor
-  - Current: Manual nonce requests in development
-  - Priority: P0
+- [x] **CSRF service** - Full auto-management (`csrf-service.js` 214 lines)
+  - Auto-refresh before expiration (TTL 5 min)
+  - `fetchWithCsrf()` wrapper
+  - Events: csrf:fetched, csrf:expired, csrf:error
+  - Integrated in decision-service and destructive operations
 
-- [ ] **User settings page** - Password change, MFA toggle, session management
-  - Priority: P1
+- [x] **User settings page** - Complete authentication management
+  - Password change
+  - MFA configuration
+  - Session info
+  - Security settings
 
 ### Testing
 
