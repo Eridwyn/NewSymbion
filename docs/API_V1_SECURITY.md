@@ -266,40 +266,59 @@ Authorization: Bearer {jwt_token}
 
 ## 🚦 **Rate Limiting**
 
-Symbion implémente deux niveaux de rate limiting:
+### ⚠️ **Mise à Jour Architecture (14 Nov 2025)**
 
-### **1. Auth Rate Limiting (Application-Level)**
+**CHANGEMENT MAJEUR**: tower_governor middleware **RETIRÉ** suite à vulnérabilité critique (VULN-009).
 
-Implémenté dans `auth.rs` - Protection brute-force login.
+**Raison**:
+- `GovernorLayer` causait HTTP 500 "Unable To Extract Key!" sur localhost ET VPN
+- Bloquait **toute authentification** (impact critique)
+- Tous les IP extractors (Peer, Smart) échouaient
+- Commit retrait: `b358b9b`
+
+### **Protection Active: auth.rs Rate Limiting**
+
+Implémenté dans `symbion-kernel/src/auth.rs:145-171` - Protection brute-force login.
 
 **Limites**:
-- **10 tentatives max / 15 minutes** par username
+- **5 tentatives max / 15 minutes** par username (corrigé de 10 → 5)
 - Compteur in-memory (reset au redémarrage kernel)
+- Basé sur **username** (pas IP) → fonctionne partout
 
 **Comportement**:
-- Après 10 échecs: HTTP 429 avec message `retry_after`
-- Window sliding: tentatives expirées après 15 minutes
+- Après 5 échecs: HTTP 401 avec message temps d'attente
+- Window sliding: tentatives expirées automatiquement après 15 minutes
 
-### **2. API Rate Limiting (Tower Middleware)**
-
-⚠️ **Status**: Désactivé temporairement (incompatibilité localhost)
-
-**Configuration prévue**:
-```rust
-// Auth routes: 10 req/min par IP
-- POST /auth/login
-- POST /auth/logout
-
-// API routes: 5 req/sec par IP
-- All /v1/* routes
+**Exemple réponse rate limit**:
+```json
+{
+  "error": "Too many login attempts. Please wait 12 minute(s) before trying again."
+}
 ```
 
-**Headers Rate Limit** (quand activé):
-```
-X-RateLimit-Limit: 300
-X-RateLimit-Remaining: 287
-X-RateLimit-Reset: 1730304000
-```
+**Avantages**:
+- ✅ Fonctionne sur localhost, VPN, production
+- ✅ Pas de dépendance IP extraction complexe
+- ✅ Protection efficace par compte utilisateur
+
+**Limitations**:
+- ⚠️ Pas de rate limiting global par IP (DoS possible sur différents usernames)
+- ⚠️ Pas de headers `X-RateLimit-*` (application-level, pas middleware HTTP)
+
+### **Endpoints Protégés**
+
+| Endpoint | Rate Limit | Window | Status |
+|----------|-----------|--------|--------|
+| `POST /auth/login` | 5 attempts | 15 min | ✅ Active |
+| `POST /v1/auth/mfa/verify` | 5 attempts | 15 min | ✅ Active |
+| Autres endpoints API | Aucun | - | ⚠️ Non limité |
+
+### **Mitigation DoS Recommandée (P1)**
+
+En l'absence de rate limiting global HTTP:
+- Monitoring Prometheus pour détecter patterns anomalies
+- Alertes email si > 50 tentatives login/heure
+- Considérer nginx rate limiting en production (upstream du kernel)
 
 ---
 
