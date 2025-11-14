@@ -356,35 +356,75 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 **QoS** : 1 (At least once)
 **Fréquence** : En réponse à requête
 
-**Description** : Résultat opération CRUD
+**Description** : Résultat opération CRUD avec streaming pour `list` (pagination MQTT)
 
-**Payload (SUCCESS)** :
+**Types de Réponse** :
+
+#### **SUCCESS** (create/update/delete)
 ```json
 {
+  "type": "success",
   "request_id": "req-123",
-  "success": true,
+  "action": "create",
   "data": {
     "id": "note-456",
-    "content": "Acheter lait + pain",
-    "context": "intime",
-    "tags": ["courses"],
-    "created_at": 1699887200
+    "timestamp": "2025-11-14T20:00:00Z",
+    "data": {
+      "content": "Acheter lait + pain",
+      "context": "intime",
+      "tags": ["courses"],
+      "urgent": false
+    }
   }
 }
 ```
 
-**Payload (ERROR)** :
+#### **NOTE_ITEM** (list streaming - 1 note par message)
 ```json
 {
-  "request_id": "req-789",
-  "success": false,
-  "error": "Note not found: note-999"
+  "type": "note_item",
+  "request_id": "req-123",
+  "note": {
+    "id": "note-456",
+    "timestamp": "2025-11-14T20:00:00Z",
+    "data": {
+      "content": "Note example",
+      "context": "intime",
+      "tags": ["example"]
+    },
+    "metadata": {}
+  }
 }
 ```
 
+#### **LIST_END** (fin du stream list)
+```json
+{
+  "type": "list_end",
+  "request_id": "req-123",
+  "total_count": 5
+}
+```
+
+#### **ERROR**
+```json
+{
+  "type": "error",
+  "request_id": "req-789",
+  "action": "delete",
+  "error": "Note not found"
+}
+```
+
+**Protocole Streaming** :
+- Pour `list` : Plugin envoie N messages `note_item` + 1 message `list_end`
+- Kernel bridge agrège tous les `note_item` jusqu'à `list_end`
+- Contourne limite taille paquet MQTT (10KB par défaut)
+- Scalable pour nombre arbitraire de notes
+
 **Fichier source** :
-- **Publisher** : `symbion-plugin-notes/src/main.rs`
-- **Subscriber** : `symbion-kernel/src/mqtt.rs:63`
+- **Publisher** : `symbion-plugin-notes/src/main.rs:106-118,320-399`
+- **Subscriber** : `symbion-kernel/src/notes_bridge.rs:122-151`
 
 ---
 
