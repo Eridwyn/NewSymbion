@@ -103,6 +103,18 @@ pub enum NoteResponse {
         action: String,
         error: String,
     },
+    /// Item de note individuel pour streaming (pagination)
+    #[serde(rename = "note_item")]
+    NoteItem {
+        request_id: String,
+        note: Note,
+    },
+    /// Marqueur de fin de stream pour list
+    #[serde(rename = "list_end")]
+    ListEnd {
+        request_id: String,
+        total_count: usize,
+    },
 }
 
 /// Gestionnaire de stockage des notes (similaire au port memo)
@@ -276,6 +288,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut mqttopts = MqttOptions::new("symbion-plugin-notes", "localhost", 1883);
     mqttopts.set_keep_alive(Duration::from_secs(30));
     mqttopts.set_clean_session(true); // Nettoie la session à la déconnexion (évite collision client ID)
+    mqttopts.set_max_packet_size(1024 * 1024, 1024 * 1024); // 1 MB max pour les gros payloads (notes)
 
     let (client, mut eventloop) = AsyncClient::new(mqttopts, 10);
     
@@ -311,23 +324,76 @@ async fn handle_command(
     payload: &[u8],
 ) {
     let command_result: Result<NoteCommand, _> = serde_json::from_slice(payload);
-    
-    let response = match command_result {
-        Ok(command) => process_command(storage, command).await,
-        Err(e) => NoteResponse::Error {
-            request_id: "unknown".to_string(),
-            action: "parse".to_string(),
-            error: format!("Invalid command JSON: {}", e),
-        },
-    };
-    
-    // Publier la réponse
-    if let Ok(response_json) = serde_json::to_string(&response) {
-        if let Err(e) = client
-            .publish("symbion/notes/response@v1", QoS::AtLeastOnce, false, response_json)
-            .await
-        {
-            eprintln!("[notes] failed to publish response: {:?}", e);
+
+    match command_result {
+        Ok(NoteCommand::List { request_id, filters }) => {
+            // Streaming: envoyer 1 note par message
+            let notes = storage.list_notes(filters);
+            let total_count = notes.len();
+
+            eprintln!("[notes] streaming {} notes for request {}", total_count, request_id);
+
+            // Publier chaque note individuellement
+            for note in notes {
+                let response = NoteResponse::NoteItem {
+                    request_id: request_id.clone(),
+                    note,
+                };
+
+                if let Ok(response_json) = serde_json::to_string(&response) {
+                    if let Err(e) = client
+                        .publish("symbion/notes/response@v1", QoS::AtLeastOnce, false, response_json)
+                        .await
+                    {
+                        eprintln!("[notes] failed to publish note item: {:?}", e);
+                        return;
+                    }
+                }
+            }
+
+            // Publier le marqueur de fin
+            let end_response = NoteResponse::ListEnd {
+                request_id,
+                total_count,
+            };
+
+            if let Ok(response_json) = serde_json::to_string(&end_response) {
+                if let Err(e) = client
+                    .publish("symbion/notes/response@v1", QoS::AtLeastOnce, false, response_json)
+                    .await
+                {
+                    eprintln!("[notes] failed to publish list end: {:?}", e);
+                }
+            }
+        }
+        Ok(command) => {
+            // Autres commandes: réponse unique
+            let response = process_command(storage, command).await;
+
+            if let Ok(response_json) = serde_json::to_string(&response) {
+                if let Err(e) = client
+                    .publish("symbion/notes/response@v1", QoS::AtLeastOnce, false, response_json)
+                    .await
+                {
+                    eprintln!("[notes] failed to publish response: {:?}", e);
+                }
+            }
+        }
+        Err(e) => {
+            let response = NoteResponse::Error {
+                request_id: "unknown".to_string(),
+                action: "parse".to_string(),
+                error: format!("Invalid command JSON: {}", e),
+            };
+
+            if let Ok(response_json) = serde_json::to_string(&response) {
+                if let Err(e) = client
+                    .publish("symbion/notes/response@v1", QoS::AtLeastOnce, false, response_json)
+                    .await
+                {
+                    eprintln!("[notes] failed to publish error response: {:?}", e);
+                }
+            }
         }
     }
 }
@@ -352,16 +418,16 @@ async fn process_command(
                 },
             }
         }
-        
-        NoteCommand::List { request_id, filters } => {
-            let notes = storage.list_notes(filters);
-            NoteResponse::Success {
+
+        NoteCommand::List { request_id, .. } => {
+            // List est géré en streaming dans handle_command
+            NoteResponse::Error {
                 request_id,
                 action: "list".to_string(),
-                data: serde_json::to_value(notes).unwrap_or_default(),
+                error: "List command should be handled in handle_command".to_string(),
             }
         }
-        
+
         NoteCommand::Delete { request_id, id } => {
             match storage.delete_note(&id) {
                 Ok(true) => NoteResponse::Success {
