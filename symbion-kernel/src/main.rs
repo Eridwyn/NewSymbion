@@ -279,7 +279,7 @@ async fn main() {
     };
 
     // HTTPS avec TLS
-    let app = http::build_router(app_state);
+    let app_https = http::build_router(app_state);
 
     // Charger certificats TLS depuis variables d'environnement
     let cert_path = std::env::var("SYMBION_TLS_CERT_PATH")
@@ -287,24 +287,40 @@ async fn main() {
     let key_path = std::env::var("SYMBION_TLS_KEY_PATH")
         .unwrap_or_else(|_| "symbion-kernel/certs/key-mkcert.pem".to_string());
 
-    let port: u16 = std::env::var("SYMBION_HTTPS_PORT")
+    let https_port: u16 = std::env::var("SYMBION_HTTPS_PORT")
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(8443);
 
-    let addr = SocketAddr::from(([0,0,0,0], port));
+    let http_port: u16 = std::env::var("SYMBION_HTTP_PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(8080);
+
+    let https_addr = SocketAddr::from(([0,0,0,0], https_port));
+    let http_addr = SocketAddr::from(([0,0,0,0], http_port));
 
     // Configuration TLS avec rustls
-    let config = axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert_path, &key_path)
+    let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert_path, &key_path)
         .await
         .expect(&format!("Failed to load TLS certificates from {} and {}", cert_path, key_path));
 
-    println!("[kernel] 🔒 HTTPS enabled - listening on https://{}", addr);
+    println!("[kernel] 🔒 HTTPS enabled - listening on https://{}", https_addr);
     println!("[kernel] TLS cert: {}", cert_path);
     println!("[kernel] TLS key: {}", key_path);
 
-    axum_server::bind_rustls(addr, config)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    // Serveur HTTP simple pour redirection vers HTTPS
+    let redirect_app = http::build_redirect_router(https_port);
+    println!("[kernel] 🔄 HTTP redirect enabled - listening on http://{} → https://localhost:{}", http_addr, https_port);
+
+    // Lancer les deux serveurs en parallèle
+    let https_server = axum_server::bind_rustls(https_addr, tls_config)
+        .serve(app_https.into_make_service());
+
+    let http_server = axum::serve(
+        tokio::net::TcpListener::bind(http_addr).await.unwrap(),
+        redirect_app.into_make_service()
+    );
+
+    tokio::try_join!(https_server, http_server).unwrap();
 }

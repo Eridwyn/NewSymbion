@@ -11,13 +11,13 @@
 | Phase | Status | Completion | Target Date |
 |-------|--------|------------|-------------|
 | **PR1** - Context Engine v2 | 🟢 Nearly Complete | 95% | ✅ Done |
-| **PR2** - Security Hardening | 🟢 Production Ready | 98% | ✅ Done |
+| **PR2** - Security Hardening | 🟢 Production Ready | 100% | ✅ Done |
 | **PR3** - Decision Engine | 🟢 Feature Complete | 90% | ✅ Done |
 | **PR4** - Metrics & Observability | 🟡 Infra Ready | 75% | Dec 2025 |
 | **PR5** - Kernel Reliability | 🔴 In Progress | 30% | Jan 2026 |
-| **PR6** - Production Readiness | ⚪ Not Started | 0% | Feb 2026 |
+| **PR6** - Production Readiness | ⚪ Not Started | 5% | Feb 2026 |
 
-**Overall Progress**: 68% (408/600 estimated tasks)
+**Overall Progress**: 69% (413/600 estimated tasks)
 
 ---
 
@@ -76,7 +76,7 @@ Improve context detection accuracy and eliminate timezone/hysteresis bugs.
 
 ## 🔐 PR2 - Security Hardening (v0.2.0-alpha.2)
 
-**Status**: 🟢 **98% Complete** - Production-ready (backend + frontend)
+**Status**: 🟢 **100% Complete** - Production-ready (backend + frontend)
 
 ### Objectives
 
@@ -117,6 +117,17 @@ Remediate 4 CRITICAL vulnerabilities from security audit (2025-11-12).
   - Cert path: `/etc/mosquitto/certs/cert-mkcert.pem`
   - Key permissions: 600 (VULN-001 fix)
   - CA download: `GET /ca-certificate` endpoint
+
+- [x] **HTTP→HTTPS automatic redirect** - Port 8080 redirects to 8443
+  - Implementation: `symbion-kernel/src/http.rs:352-375`
+  - Status code: 301 Moved Permanently
+  - Deployed: 14 November 2025
+
+- [x] **HSTS headers** - Force HTTPS in browsers (VULN-007)
+  - Header: `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+  - Implementation: `symbion-kernel/src/http.rs:336-348`
+  - Max age: 1 year (31536000 seconds)
+  - Deployed: 14 November 2025
 
 #### Secrets Management
 - [x] **Secrets rotation** - 90-day cycle implemented
@@ -392,9 +403,9 @@ Final production deployment requirements.
   - Domain: symbion.yourdomain.com
   - Renewal: Automatic via cron (every 2 months)
 
-- [ ] **HSTS headers** - Force HTTPS, prevent downgrade attacks
+- [x] **HSTS headers** - Force HTTPS, prevent downgrade attacks
   - Header: `Strict-Transport-Security: max-age=31536000; includeSubDomains`
-  - Priority: P0 (VULN-007)
+  - ✅ Completed in PR2 (14 November 2025) - See PR2 section above
 
 - [ ] **CSP headers** - Content Security Policy
   - Prevent XSS attacks
