@@ -329,8 +329,50 @@ pub fn build_router(app_state: AppState) -> Router {
         )
         // Timeout de 30s pour toutes requêtes - Prévient blocages deadlock
         .layer(TimeoutLayer::new(std::time::Duration::from_secs(30)))
+        // HSTS header - Force HTTPS, max-age 1 year
+        .layer(middleware::from_fn(add_hsts_header))
 }
 
+/// Middleware pour ajouter le header HSTS (HTTP Strict Transport Security)
+/// Force les navigateurs à toujours utiliser HTTPS pour ce domaine pendant 1 an
+async fn add_hsts_header(
+    req: Request,
+    next: Next,
+) -> Response {
+    let mut response = next.run(req).await;
+    response.headers_mut().insert(
+        axum::http::header::STRICT_TRANSPORT_SECURITY,
+        "max-age=31536000; includeSubDomains".parse().unwrap()
+    );
+    response
+}
+
+/// Router HTTP simple qui redirige toutes les requêtes vers HTTPS
+/// Utilisé sur port 8080 pour rediriger vers port 8443 (HTTPS)
+pub fn build_redirect_router(https_port: u16) -> Router {
+    Router::new()
+        .fallback(move |req: Request| async move {
+            let host = req.headers()
+                .get(axum::http::header::HOST)
+                .and_then(|h| h.to_str().ok())
+                .unwrap_or("localhost");
+
+            // Retirer le port HTTP s'il est présent dans le host header
+            let host_without_port = host.split(':').next().unwrap_or(host);
+
+            let uri = req.uri();
+            let path_and_query = uri.path_and_query()
+                .map(|pq| pq.as_str())
+                .unwrap_or("/");
+
+            let https_url = format!("https://{}:{}{}", host_without_port, https_port, path_and_query);
+
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                [(axum::http::header::LOCATION, https_url)]
+            )
+        })
+}
 
 // GET /hosts (liste)
 async fn get_hosts(State(app): State<AppState>) -> Json<Vec<HostView>> {
