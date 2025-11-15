@@ -8,16 +8,18 @@
 
 ## 📊 Global Progress
 
-| Phase | Status | Completion | Target Date |
-|-------|--------|------------|-------------|
-| **PR1** - Context Engine v2 | 🟢 Production Ready | 100% | ✅ Done |
-| **PR2** - Security Hardening | 🟢 Production Ready | 100% | ✅ Done |
-| **PR3** - Decision Engine | 🟢 Production Ready | 100% | ✅ Done |
-| **PR4** - Metrics & Observability | 🟢 Production Ready | 100% | ✅ Done |
-| **PR5** - Kernel Reliability | 🟢 Production Ready | 100% | ✅ Done |
-| **PR6** - Production Readiness | 🟡 CSP Only | 10% | Q1 2026 |
+| Phase | Status | P1 Complete | Total (P1+P2) | Target Date |
+|-------|--------|-------------|---------------|-------------|
+| **PR1** - Context Engine v2 | 🟢 P1 Core Complete | 5/5 | 5/7 (71%) | ✅ Done |
+| **PR2** - Security Hardening | 🟢 P1 Core Complete | 13/13 | 13/13 (100%) | ✅ Done |
+| **PR3** - Decision Engine | 🟢 P1 Core Complete | 7/7 | 7/9 (78%) | ✅ Done |
+| **PR4** - Metrics & Observability | 🟢 P1 Core Complete | 7/7 | 7/10 (70%) | ✅ Done |
+| **PR5** - Kernel Reliability | 🟢 P1 Core Complete | 7/7 | 7/11 (64%) | ✅ Done |
+| **PR6** - Production Readiness | 🟡 CSP Only | 2/2 | 2/11 (18%) | Q1 2026 |
 
-**Overall Progress**: 86% (516/600 estimated tasks)
+**Overall Progress**: 67% (41/61 checkbox tasks) | 100% P1 Core Features Complete
+
+> **Note sur les pourcentages** : Les phases PR1-PR5 sont marquées "P1 Core Complete" car toutes les fonctionnalités prioritaires (P1) sont implémentées et production-ready. Les tâches restantes (P2/P3) sont des améliorations optionnelles reportées à post-v1.0.
 
 ---
 
@@ -681,7 +683,7 @@ Final production deployment requirements. **Note: Most tasks (Docker, PostgreSQL
 ### Code Quality
 - ✅ 131 total unit tests: 109 kernel + 14 agent + 8 devkit (target: 200+)
 - ✅ Zero CRITICAL vulnerabilities (security audit)
-- ⚠️ Test coverage: Unknown (target: 80%+ - requires cargo-llvm-cov setup)
+- ⚠️ Test coverage: Unknown (target: 80%+ - requires cargo-llvm-cov installation and configuration)
 
 ### Performance
 - ✅ Kernel memory: 23.6 MB (target: <50 MB)
@@ -712,4 +714,4 @@ Final production deployment requirements. **Note: Most tasks (Docker, PostgreSQL
 
 **Maintained by**: Mark (with Claude Code assistance)
 **Contact**: markchavatte@gmail.com
-**Last Updated**: 14 November 2025
+**Last Updated**: 15 November 2025
