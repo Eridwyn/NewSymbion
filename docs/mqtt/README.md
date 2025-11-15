@@ -338,7 +338,10 @@ const client = mqtt.connect('wss://symbion.local:9001', {
 
 client.on('connect', () => {
   console.log('MQTT connected');
-  client.subscribe('symbion/dashboard/update@v1', { qos: 1 });
+  // Subscribe to current dashboard topics (6 topics)
+  client.subscribe('symbion/dashboard/context@v1', { qos: 1 });
+  client.subscribe('symbion/dashboard/agents@v1', { qos: 1 });
+  client.subscribe('symbion/dashboard/health@v1', { qos: 1 });
 });
 
 client.on('message', (topic, payload) => {

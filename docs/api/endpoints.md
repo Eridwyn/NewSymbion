@@ -562,9 +562,19 @@
   },
   "processes": [
     {
-      "name": "firefox",
-      "cpu": 15.2,
-      "memory_mb": 1024
+      "name": "symbion-kernel",
+      "cpu": 2.1,
+      "memory_mb": 24
+    },
+    {
+      "name": "docker-containerd",
+      "cpu": 0.8,
+      "memory_mb": 156
+    },
+    {
+      "name": "postgres",
+      "cpu": 1.5,
+      "memory_mb": 512
     }
   ]
 }
