@@ -317,6 +317,300 @@ curl -k https://localhost:8443/health
 
 ---
 
+## 🔄 Migration & Upgrade Strategy
+
+### Versioning Symbion
+
+**Semantic Versioning** : `MAJOR.MINOR.PATCH` (ex: `1.2.3`)
+- **MAJOR** : Breaking changes (API, MQTT topics, database schema)
+- **MINOR** : New features (backward compatible)
+- **PATCH** : Bug fixes, documentation
+
+**Version actuelle** : `1.1.7` (Novembre 2025)
+
+### Upgrade Path
+
+#### Minor/Patch Upgrades (Safe, Rolling)
+
+**Exemple** : `1.1.7` → `1.2.0` ou `1.1.8`
+
+```bash
+# 1. Backup données
+./scripts/backup-symbion.sh
+
+# 2. Pull nouvelle version
+cd /home/symbion/NewSymbion
+git fetch origin
+git checkout v1.2.0  # Tag version
+
+# 3. Build
+cargo build --release -p symbion-kernel
+
+# 4. Restart (downtime < 5s)
+sudo systemctl restart symbion-kernel
+
+# 5. Vérifier santé
+curl -k https://localhost:8443/health
+tail -f /var/log/syslog | grep symbion-kernel
+```
+
+**Backward Compatibility** :
+- ✅ MQTT topics `@v1` continuent de fonctionner
+- ✅ API HTTP endpoints inchangés
+- ✅ JSON data files format compatible
+
+#### Major Upgrades (Breaking Changes)
+
+**Exemple** : `1.x.x` → `2.0.0`
+
+**⚠️ Requires Planning** :
+- MQTT topics versioning (`@v1` → `@v2` coexistence)
+- API backward compatibility window (6 mois minimum)
+- Database schema migration (JSON → SQLite/Postgres)
+
+**Migration Steps** :
+
+```bash
+# 1. READ CHANGELOG & MIGRATION GUIDE
+cat docs/CHANGELOG.md | grep "BREAKING"
+cat docs/MIGRATION_v2.md  # Version-specific guide
+
+# 2. Test migration sur environnement staging
+git clone /home/symbion/NewSymbion /tmp/symbion-staging
+cd /tmp/symbion-staging
+git checkout v2.0.0
+
+# Build & run on different port
+SYMBION_API_PORT=9443 cargo run --release
+
+# Test endpoints
+curl -k https://localhost:9443/health
+
+# 3. Backup production
+./scripts/backup-symbion.sh --full
+
+# 4. Maintenance mode (optionnel)
+sudo systemctl stop symbion-kernel
+
+# 5. Run migration scripts
+./scripts/migrate-v1-to-v2.sh
+# Exemple : Convertir users.json → SQLite
+# sqlite3 symbion.db < migrations/001_users.sql
+
+# 6. Deploy nouvelle version
+git checkout v2.0.0
+cargo build --release -p symbion-kernel
+
+# 7. Start nouveau kernel
+sudo systemctl start symbion-kernel
+
+# 8. Monitor logs intensivement (24-48h)
+journalctl -u symbion-kernel -f
+
+# 9. Rollback si problèmes critiques
+# (Voir section Rollback)
+```
+
+### MQTT Topic Version Migration
+
+**Stratégie Coexistence** : Kernel supporte `@v1` et `@v2` simultanément
+
+**Exemple Migration** : `symbion/agents/heartbeat@v1` → `@v2`
+
+```rust
+// Phase 1 : Kernel accepte les deux versions (6 mois)
+client.subscribe("symbion/agents/heartbeat@v1", QoS::AtLeastOnce).await?;
+client.subscribe("symbion/agents/heartbeat@v2", QoS::AtLeastOnce).await?;
+
+match topic.as_str() {
+    "symbion/agents/heartbeat@v1" => handle_heartbeat_v1(payload),
+    "symbion/agents/heartbeat@v2" => handle_heartbeat_v2(payload),
+}
+
+// Phase 2 : Agents upgrade progressivement vers @v2
+// - Agent 1 publish @v2 (nouveau schema avec métriques GPU)
+// - Agent 2 encore @v1 (ancien schema)
+// - Kernel gère les deux
+
+// Phase 3 : Dépréciation @v1 (après 12 mois)
+// - Kernel log warnings si @v1 détecté
+// - Documentation update: "@v1 deprecated, use @v2"
+
+// Phase 4 : Suppression @v1 (après 18 mois)
+// - Kernel v3.0.0 ne subscribe plus @v1
+// - BREAKING CHANGE documenté
+```
+
+**Référence** : [mqtt/README.md - Versioning Topics](mqtt/README.md#versioning-topics)
+
+### Database Migration
+
+**État actuel** : JSON files (`users.json`, `agents.json`)
+**Migration future** : SQLite → PostgreSQL
+
+**Example Migration Script** : `scripts/migrate-json-to-sqlite.sh`
+
+```bash
+#!/bin/bash
+# migrate-json-to-sqlite.sh
+
+set -e
+
+DB_FILE="symbion.db"
+BACKUP_DIR="backups/$(date +%Y%m%d_%H%M%S)"
+
+# 1. Backup JSON
+mkdir -p "$BACKUP_DIR"
+cp users.json agents.json "$BACKUP_DIR/"
+
+# 2. Create SQLite schema
+sqlite3 "$DB_FILE" <<EOF
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS agents (
+    agent_id TEXT PRIMARY KEY,
+    hostname TEXT NOT NULL,
+    platform TEXT NOT NULL,
+    last_seen INTEGER NOT NULL,
+    status TEXT NOT NULL
+);
+EOF
+
+# 3. Import data
+jq -r '.users[] | [.id, .username, .password_hash, .created_at] | @csv' users.json | \
+  while IFS=, read -r id username hash created; do
+    sqlite3 "$DB_FILE" "INSERT INTO users VALUES ($id, $username, $hash, $created);"
+  done
+
+echo "Migration complete. Backup: $BACKUP_DIR"
+```
+
+**Testing Migration** :
+```bash
+# Dry-run
+./scripts/migrate-json-to-sqlite.sh --dry-run
+
+# Actual migration
+./scripts/migrate-json-to-sqlite.sh
+
+# Verify data
+sqlite3 symbion.db "SELECT COUNT(*) FROM users;"
+sqlite3 symbion.db "SELECT COUNT(*) FROM agents;"
+```
+
+### API Version Migration
+
+**Current** : No API versioning (implicit v1)
+**Future** : `/v1/agents`, `/v2/agents` coexistence
+
+**Strategy** :
+- **v1 endpoints** : `/agents`, `/notes` (current, deprecated in v2.0.0)
+- **v2 endpoints** : `/v2/agents`, `/v2/notes` (introduced v2.0.0)
+- **Coexistence** : 12 months, then v1 removed in v3.0.0
+
+**Example** :
+```rust
+// symbion-kernel/src/http.rs (v2.0.0+)
+
+// Legacy v1 (deprecated)
+.route("/agents", get(get_agents_v1))
+.route("/agents/:id", get(get_agent_v1))
+
+// New v2 (recommended)
+.route("/v2/agents", get(get_agents_v2))
+.route("/v2/agents/:id", get(get_agent_v2))
+
+// v1 responses include deprecation header
+async fn get_agents_v1() -> Response {
+    let agents = /* ... */;
+    Response::builder()
+        .header("X-API-Version", "1")
+        .header("Deprecation", "true")
+        .header("Sunset", "2026-12-31")  // RFC 8594
+        .header("Link", "</v2/agents>; rel=\"successor-version\"")
+        .json(agents)
+}
+```
+
+### Agents Upgrade Coordination
+
+**Challenge** : Agents déployés sur N machines domestiques
+
+**Strategy** : Progressive rollout
+
+```bash
+# 1. Upgrade kernel (backward compatible)
+# Kernel v2.0.0 accepte agents v1.x et v2.x
+
+# 2. Upgrade agents progressivement
+# Machine par machine, tester stabilité
+
+# Agent 1 (PC-Salon)
+ssh pc-salon
+cd ~/symbion-agent-host
+git pull && cargo build --release
+sudo systemctl restart symbion-agent-host
+
+# Vérifier dans dashboard : Agent online, métriques OK
+
+# Agent 2 (PC-Bureau)
+# ... repeat
+
+# 3. Si un agent échoue → rollback cet agent uniquement
+# Kernel continue avec mix v1/v2 agents
+```
+
+### Rollback Strategy
+
+**Voir section** : [Rollback Procédure](#rollback-procédure)
+
+**Key Points** :
+- Backup avant toute migration
+- Git tags pour versions stables (`git checkout v1.1.7`)
+- Kernel downgrade possible si data format compatible
+- Database migrations **must be reversible** (scripts `migrate-up.sh` + `migrate-down.sh`)
+
+### Pre-Migration Checklist
+
+- [ ] **Backup complet** : users.json, agents.json, certs/, kernel binary
+- [ ] **Read CHANGELOG** : Breaking changes identifiés
+- [ ] **Test staging** : Migration testée sur environnement non-prod
+- [ ] **Downtime window** : Si migration nécessite arrêt (communiquer utilisateurs)
+- [ ] **Rollback plan** : Procédure documentée et testée
+- [ ] **Monitoring ready** : Logs, alertes, dashboard actifs
+- [ ] **Database backup** : Export SQL/JSON avant schema changes
+
+### Post-Migration Validation
+
+```bash
+# 1. Health check
+curl -k https://localhost:8443/health
+# Expected: {"status":"healthy"}
+
+# 2. Agents online
+curl -k https://localhost:8443/agents | jq '.[] | {id, status}'
+# Expected: All agents "online"
+
+# 3. MQTT connectivity
+mosquitto_sub -h localhost -t 'symbion/agents/heartbeat@v1' -C 1 -v
+# Expected: Heartbeat received dans 30s
+
+# 4. API endpoints
+curl -k https://localhost:8443/v1/metrics/system | jq '.uptime_seconds'
+# Expected: Uptime > 0
+
+# 5. Logs sans erreurs critiques
+journalctl -u symbion-kernel -n 100 | grep -i error
+# Expected: No critical errors
+```
+
+---
+
 ## 📚 Références
 
 - **Architecture**: [docs/architecture/SYSTEM_OVERVIEW.md](architecture/SYSTEM_OVERVIEW.md)
