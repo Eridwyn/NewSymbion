@@ -205,8 +205,23 @@ impl PluginInstance {
         
         // Préparation environnement
         let mut cmd = Command::new(&self.manifest.binary);
-        cmd.stdout(Stdio::piped())
-           .stderr(Stdio::piped());
+
+        // Créer fichier de log pour debug plugin (temporaire)
+        let log_path = format!("/tmp/plugin-{}.log", self.manifest.name);
+        let log_file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)
+            .map_err(|e| PluginError::StartFailed(format!("Can't create log file: {}", e)))?;
+        let log_file_clone = log_file.try_clone()
+            .map_err(|e| PluginError::StartFailed(format!("Can't clone log file: {}", e)))?;
+
+        cmd.stdout(Stdio::from(log_file))
+           .stderr(Stdio::from(log_file_clone));
+
+        // Définit le répertoire de travail à la racine du projet
+        // pour que le plugin puisse accéder aux fichiers relatifs (ex: ./notes.json)
+        cmd.current_dir(".");
 
         // Variables globales du kernel
         for (k, v) in global_env {
@@ -449,11 +464,14 @@ impl PluginManager {
     /// Scanne le dossier plugins/ et charge tous les manifests
     pub async fn discover_plugins(&mut self) -> Result<Vec<String>, PluginError> {
         let mut discovered = Vec::new();
+        eprintln!("[plugins] scanning directory: {:?}", &self.plugins_dir);
         let mut entries = fs::read_dir(&self.plugins_dir).await?;
 
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
+            eprintln!("[plugins] found file: {:?}", path);
             if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                eprintln!("[plugins] processing JSON: {:?}", path);
                 if let Some(filename) = path.file_stem().and_then(|s| s.to_str()) {
                     match self.load_manifest(&path).await {
                         Ok(manifest) => {
@@ -464,13 +482,14 @@ impl PluginManager {
                             eprintln!("[plugins] discovered: {} (from {})", plugin_name, filename);
                         }
                         Err(e) => {
-                            eprintln!("[plugins] failed to load manifest {}: {}", filename, e);
+                            eprintln!("[plugins] failed to load manifest {:?}: {}", path, e);
                         }
                     }
                 }
             }
         }
 
+        eprintln!("[plugins] discovery complete, found {} plugins", discovered.len());
         Ok(discovered)
     }
 
@@ -516,10 +535,10 @@ impl PluginManager {
                 .ok_or_else(|| PluginError::NotFound(name.to_string()))?;
             let _ = plugin.stop(false); // Arrêt temporaire pour restart
         }
-        
-        // Petit délai pour laisser le processus se terminer proprement
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        
+
+        // Délai pour laisser le processus se terminer proprement et permettre au broker MQTT de nettoyer la connexion
+        std::thread::sleep(std::time::Duration::from_millis(2000));
+
         let plugin = self.plugins.get_mut(name).unwrap();
         plugin.restart_count += 1;
         plugin.intentionally_stopped = false; // Reset le flag pour permettre auto-restart

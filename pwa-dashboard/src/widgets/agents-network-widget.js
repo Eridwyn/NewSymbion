@@ -10,6 +10,7 @@
 
 import { LitElement, html, css } from 'lit'
 import '../services/agents-service.js'
+import '../components/organic-loader.js'
 
 class AgentsNetworkWidget extends LitElement {
   static properties = {
@@ -665,9 +666,7 @@ class AgentsNetworkWidget extends LitElement {
 
       <div class="agents-container">
         ${this.loading ? html`
-          <div class="loading-state">
-            <div>🔄 Loading agents...</div>
-          </div>
+          <organic-loader text="🌐 Chargement agents réseau..."></organic-loader>
         ` : this.error ? html`
           <div class="error-state">
             <div>❌ ${this.error}</div>

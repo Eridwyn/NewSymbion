@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::oneshot;
+use tokio::sync::mpsc;
 use tokio::time::{timeout, Duration};
 use uuid::Uuid;
 use parking_lot::Mutex;
@@ -71,7 +71,7 @@ pub enum NoteCommand {
 }
 
 /// Réponses MQTT du plugin (identique au plugin)
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
 pub enum NoteResponse {
     #[serde(rename = "success")]
@@ -88,14 +88,26 @@ pub enum NoteResponse {
         action: String,
         error: String,
     },
+    /// Item de note individuel pour streaming (pagination)
+    #[serde(rename = "note_item")]
+    NoteItem {
+        request_id: String,
+        note: Value,
+    },
+    /// Marqueur de fin de stream pour list
+    #[serde(rename = "list_end")]
+    ListEnd {
+        request_id: String,
+        total_count: usize,
+    },
 }
 
 /// Gestionnaire des requêtes en attente de réponse
 pub struct NotesBridge {
     /// Client MQTT pour communication avec le plugin
-    mqtt_client: AsyncClient,
-    /// Map des requêtes en attente : request_id -> sender pour réponse
-    pending_requests: Arc<Mutex<HashMap<String, oneshot::Sender<NoteResponse>>>>,
+    pub mqtt_client: AsyncClient,
+    /// Map des requêtes en attente : request_id -> sender pour réponses streamées
+    pub pending_requests: Arc<Mutex<HashMap<String, mpsc::Sender<NoteResponse>>>>,
 }
 
 impl NotesBridge {
@@ -109,17 +121,30 @@ impl NotesBridge {
     
     /// Traite une réponse MQTT du plugin
     pub fn handle_response(&self, response: NoteResponse) {
-        let mut pending = self.pending_requests.lock();
-        
         let request_id = match &response {
             NoteResponse::Success { request_id, .. } => request_id.clone(),
             NoteResponse::Error { request_id, .. } => request_id.clone(),
+            NoteResponse::NoteItem { request_id, .. } => request_id.clone(),
+            NoteResponse::ListEnd { request_id, .. } => request_id.clone(),
         };
-        
-        if let Some(sender) = pending.remove(&request_id) {
-            if sender.send(response).is_err() {
-                eprintln!("[notes-bridge] failed to send response for request {}", request_id);
+
+        // Pour ListEnd, on retire le sender de la map et on le drop (ce qui ferme le channel)
+        let is_list_end = matches!(response, NoteResponse::ListEnd { .. });
+
+        let sender = if is_list_end {
+            self.pending_requests.lock().remove(&request_id)
+        } else {
+            self.pending_requests.lock().get(&request_id).cloned()
+        };
+
+        if let Some(sender) = sender {
+            // Envoyer la réponse via le channel
+            if let Err(e) = sender.try_send(response) {
+                eprintln!("[notes-bridge] failed to send response for request {}: {:?}", request_id, e);
+                // En cas d'erreur, retirer de la map
+                self.pending_requests.lock().remove(&request_id);
             }
+            // Si c'est ListEnd, le sender est déjà retiré et sera drop ici
         } else {
             eprintln!("[notes-bridge] received response for unknown request {}", request_id);
         }
@@ -133,32 +158,84 @@ impl NotesBridge {
             NoteCommand::Delete { request_id, .. } => request_id.clone(),
             NoteCommand::Update { request_id, .. } => request_id.clone(),
         };
-        
-        // Créer le canal pour la réponse
-        let (tx, rx) = oneshot::channel();
+
+        let is_list = matches!(command, NoteCommand::List { .. });
+
+        // Créer le canal mpsc pour recevoir potentiellement plusieurs réponses
+        // Buffer de 100 devrait suffire pour la plupart des cas
+        let (tx, mut rx) = mpsc::channel(100);
         self.pending_requests.lock().insert(request_id.clone(), tx);
-        
+
         // Sérialiser et envoyer la commande
         let payload = serde_json::to_string(&command)
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        
+
         self.mqtt_client
             .publish("symbion/notes/command@v1", QoS::AtLeastOnce, false, payload)
             .await
             .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-        
-        // Attendre la réponse avec timeout
-        match timeout(Duration::from_secs(5), rx).await {
-            Ok(Ok(response)) => Ok(response),
-            Ok(Err(_)) => {
-                // Canal fermé
-                self.pending_requests.lock().remove(&request_id);
-                Err(StatusCode::INTERNAL_SERVER_ERROR)
+
+        if is_list {
+            // Pour List: collecter toutes les notes jusqu'à ListEnd
+            let mut notes = Vec::new();
+            let timeout_duration = Duration::from_secs(10); // Timeout plus long pour liste
+
+            loop {
+                match timeout(timeout_duration, rx.recv()).await {
+                    Ok(Some(response)) => match response {
+                        NoteResponse::NoteItem { note, .. } => {
+                            notes.push(note);
+                        }
+                        NoteResponse::ListEnd { total_count, .. } => {
+                            // Fin du stream - construire la réponse finale
+                            eprintln!("[notes-bridge] received {} notes (expected {})", notes.len(), total_count);
+                            return Ok(NoteResponse::Success {
+                                request_id: request_id.clone(),
+                                action: "list".to_string(),
+                                data: serde_json::json!(notes),
+                            });
+                        }
+                        NoteResponse::Error { error, .. } => {
+                            self.pending_requests.lock().remove(&request_id);
+                            return Ok(NoteResponse::Error {
+                                request_id,
+                                action: "list".to_string(),
+                                error,
+                            });
+                        }
+                        _ => {
+                            eprintln!("[notes-bridge] unexpected response type for list");
+                        }
+                    },
+                    Ok(None) => {
+                        // Channel fermé sans ListEnd
+                        self.pending_requests.lock().remove(&request_id);
+                        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                    }
+                    Err(_) => {
+                        // Timeout
+                        self.pending_requests.lock().remove(&request_id);
+                        return Err(StatusCode::GATEWAY_TIMEOUT);
+                    }
+                }
             }
-            Err(_) => {
-                // Timeout
-                self.pending_requests.lock().remove(&request_id);
-                Err(StatusCode::GATEWAY_TIMEOUT)
+        } else {
+            // Pour les autres commandes: attendre une seule réponse
+            match timeout(Duration::from_secs(5), rx.recv()).await {
+                Ok(Some(response)) => {
+                    self.pending_requests.lock().remove(&request_id);
+                    Ok(response)
+                }
+                Ok(None) => {
+                    // Channel fermé
+                    self.pending_requests.lock().remove(&request_id);
+                    Err(StatusCode::INTERNAL_SERVER_ERROR)
+                }
+                Err(_) => {
+                    // Timeout
+                    self.pending_requests.lock().remove(&request_id);
+                    Err(StatusCode::GATEWAY_TIMEOUT)
+                }
             }
         }
     }
@@ -204,6 +281,11 @@ pub async fn list_notes_endpoint(
             eprintln!("[notes-bridge] list error: {}", error);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
+        _ => {
+            // NoteItem/ListEnd ne devraient jamais arriver ici (déjà agrégés dans send_command)
+            eprintln!("[notes-bridge] unexpected response type");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
@@ -223,6 +305,10 @@ pub async fn create_note_endpoint(
         NoteResponse::Success { data, .. } => Ok(Json(data)),
         NoteResponse::Error { error, .. } => {
             eprintln!("[notes-bridge] create error: {}", error);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+        _ => {
+            eprintln!("[notes-bridge] unexpected response type");
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -250,6 +336,10 @@ pub async fn delete_note_endpoint(
                 Err(StatusCode::INTERNAL_SERVER_ERROR)
             }
         }
+        _ => {
+            eprintln!("[notes-bridge] unexpected response type");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
@@ -276,6 +366,10 @@ pub async fn update_note_endpoint(
                 eprintln!("[notes-bridge] update error: {}", error);
                 Err(StatusCode::INTERNAL_SERVER_ERROR)
             }
+        }
+        _ => {
+            eprintln!("[notes-bridge] unexpected response type");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }

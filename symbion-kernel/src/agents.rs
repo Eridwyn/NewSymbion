@@ -255,6 +255,7 @@ pub struct AgentRegistry {
     data_file: String,
     mqtt_client: Option<AsyncClient>,
     pending_commands: Arc<RwLock<HashMap<String, PendingCommand>>>,
+    dirty: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl AgentRegistry {
@@ -264,6 +265,7 @@ impl AgentRegistry {
             data_file: data_file.to_string(),
             mqtt_client: None,
             pending_commands: Arc::new(RwLock::new(HashMap::new())),
+            dirty: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
 
@@ -362,8 +364,8 @@ impl AgentRegistry {
             }
         }
 
-        // Sauvegarde périodique moins fréquente (on ne sauvegarde pas chaque heartbeat)
-        // La sauvegarde sera fait par un job périodique ou lors d'events importants
+        // Marquer comme dirty pour sauvegarde périodique
+        self.dirty.store(true, std::sync::atomic::Ordering::Relaxed);
         Ok(())
     }
 
@@ -581,6 +583,25 @@ impl AgentRegistry {
         }
         
         Ok(())
+    }
+
+    /// Lance une tâche périodique de sauvegarde débounced (toutes les 5 min si dirty)
+    pub fn start_periodic_save(registry: SharedAgentRegistry) {
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300)); // 5 min
+            loop {
+                interval.tick().await;
+
+                // Si dirty, sauvegarder
+                if registry.dirty.swap(false, std::sync::atomic::Ordering::Relaxed) {
+                    if let Err(e) = registry.save_agents().await {
+                        eprintln!("[agents] periodic save failed: {}", e);
+                    } else {
+                        println!("[agents] ✅ periodic save completed");
+                    }
+                }
+            }
+        });
     }
 
     /// Surveille périodiquement les agents et marque ceux inactifs comme offline

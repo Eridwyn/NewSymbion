@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use bcrypt::{hash, verify, DEFAULT_COST};
+use bcrypt::{hash, verify};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -104,7 +104,7 @@ impl AuthManager {
             println!("[auth] Creating default admin user...");
             let default_user = User {
                 username: "Mark".to_string(),
-                password_hash: hash("Sourire951", DEFAULT_COST)
+                password_hash: hash("Sourire951", 12)
                     .context("Failed to hash default password")?,
                 role: "admin".to_string(),
                 created_at: OffsetDateTime::now_utc().unix_timestamp(),
@@ -364,7 +364,7 @@ impl AuthManager {
             anyhow::bail!("User '{}' already exists", username);
         }
 
-        let password_hash = hash(password, DEFAULT_COST)
+        let password_hash = hash(password, 12)
             .context("Failed to hash password")?;
 
         let user = User {

@@ -19,6 +19,7 @@ mod health;
 mod ports;
 mod plugins;
 mod notes_bridge;
+mod notes_ws;
 mod agents;
 mod auth;
 mod context;
@@ -54,6 +55,38 @@ use std::sync::Arc;
 async fn main() {
     // Charger les variables d'environnement depuis .env (si présent)
     dotenvy::dotenv().ok(); // Ok si .env n'existe pas
+
+    // PR5: Panic hook pour logging avant crash (aide au debugging)
+    std::panic::set_hook(Box::new(|panic_info| {
+        use time::OffsetDateTime;
+        let timestamp = OffsetDateTime::now_utc();
+        let payload = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = panic_info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "Unknown panic payload".to_string()
+        };
+
+        let location = if let Some(loc) = panic_info.location() {
+            format!("{}:{}:{}", loc.file(), loc.line(), loc.column())
+        } else {
+            "Unknown location".to_string()
+        };
+
+        eprintln!("\n╔════════════════════════════════════════════════════════════════╗");
+        eprintln!("║ 🔴 KERNEL PANIC DETECTED - PR5                                  ║");
+        eprintln!("╠════════════════════════════════════════════════════════════════╣");
+        eprintln!("║ Timestamp: {}-{:02}-{:02} {:02}:{:02}:{:02} UTC                ║",
+            timestamp.year(), timestamp.month() as u8, timestamp.day(),
+            timestamp.hour(), timestamp.minute(), timestamp.second());
+        eprintln!("║ Location:  {:<54} ║", &location[..location.len().min(54)]);
+        eprintln!("║ Message:   {:<54} ║", &payload[..payload.len().min(54)]);
+        eprintln!("╠════════════════════════════════════════════════════════════════╣");
+        eprintln!("║ Systemd will auto-restart kernel in 5 seconds...               ║");
+        eprintln!("║ Check logs: journalctl -u symbion-kernel -n 100                ║");
+        eprintln!("╚════════════════════════════════════════════════════════════════╝\n");
+    }));
 
     // Initialiser le CryptoProvider pour Rustls (fix crash rustls 0.23)
     let _ = rustls::crypto::ring::default_provider().install_default();
@@ -192,6 +225,9 @@ async fn main() {
     // démarre le monitoring des agents (timeout 2min)
     AgentRegistry::start_agent_monitoring(agents.clone(), 2);
 
+    // démarre la sauvegarde périodique débounced des agents (toutes les 5min si modifiés)
+    AgentRegistry::start_periodic_save(agents.clone());
+
     // démarre la publication auto du health
     health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), agents.clone(), plugins.clone(), dashboard_events.clone());
 
@@ -279,7 +315,7 @@ async fn main() {
     };
 
     // HTTPS avec TLS
-    let app = http::build_router(app_state);
+    let app_https = http::build_router(app_state);
 
     // Charger certificats TLS depuis variables d'environnement
     let cert_path = std::env::var("SYMBION_TLS_CERT_PATH")
@@ -287,24 +323,40 @@ async fn main() {
     let key_path = std::env::var("SYMBION_TLS_KEY_PATH")
         .unwrap_or_else(|_| "symbion-kernel/certs/key-mkcert.pem".to_string());
 
-    let port: u16 = std::env::var("SYMBION_HTTPS_PORT")
+    let https_port: u16 = std::env::var("SYMBION_HTTPS_PORT")
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(8443);
 
-    let addr = SocketAddr::from(([0,0,0,0], port));
+    let http_port: u16 = std::env::var("SYMBION_HTTP_PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(8080);
+
+    let https_addr = SocketAddr::from(([0,0,0,0], https_port));
+    let http_addr = SocketAddr::from(([0,0,0,0], http_port));
 
     // Configuration TLS avec rustls
-    let config = axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert_path, &key_path)
+    let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert_path, &key_path)
         .await
         .expect(&format!("Failed to load TLS certificates from {} and {}", cert_path, key_path));
 
-    println!("[kernel] 🔒 HTTPS enabled - listening on https://{}", addr);
+    println!("[kernel] 🔒 HTTPS enabled - listening on https://{}", https_addr);
     println!("[kernel] TLS cert: {}", cert_path);
     println!("[kernel] TLS key: {}", key_path);
 
-    axum_server::bind_rustls(addr, config)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    // Serveur HTTP simple pour redirection vers HTTPS
+    let redirect_app = http::build_redirect_router(https_port);
+    println!("[kernel] 🔄 HTTP redirect enabled - listening on http://{} → https://localhost:{}", http_addr, https_port);
+
+    // Lancer les deux serveurs en parallèle
+    let https_server = axum_server::bind_rustls(https_addr, tls_config)
+        .serve(app_https.into_make_service());
+
+    let http_server = axum::serve(
+        tokio::net::TcpListener::bind(http_addr).await.unwrap(),
+        redirect_app.into_make_service()
+    );
+
+    tokio::try_join!(https_server, http_server).unwrap();
 }

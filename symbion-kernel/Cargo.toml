@@ -5,8 +5,9 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
-axum = "0.8.4"
+axum = { version = "0.8.4", features = ["ws"] }
 axum-server = { version = "0.7", features = ["tls-rustls"] }
+futures = "0.3"
 bcrypt = "0.17.1"
 dotenvy = "0.15.7"
 jsonwebtoken = { version = "10.1.0", features = ["aws_lc_rs"] }
@@ -30,7 +31,6 @@ totp-rs = "5.6"           # TOTP 2FA (RFC 6238)
 qrcode = "0.14"           # QR code generation for MFA setup
 base32 = "0.5"            # Base32 encoding for TOTP secrets
 base64 = "0.22"           # Base64 encoding for data URIs
-tower_governor = "0.8"    # Rate limiting middleware compatible with axum 0.8
 rand = "0.8"              # Random generation for backup codes
 sha2 = "0.10"             # SHA-256 hashing for device fingerprinting
 tower = { version = "0.5.2", features = ["full"] }

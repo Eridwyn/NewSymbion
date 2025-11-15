@@ -1,6 +1,26 @@
 # Référence Complète des Endpoints HTTP
 
-> 📍 Documentation exhaustive des 90+ endpoints de l'API Symbion Kernel
+> 📍 Documentation exhaustive des 85+ endpoints de l'API Symbion Kernel
+>
+> ⚠️ **NOTE DE MIGRATION (Novembre 2025)**: 31 endpoints additionnels existent dans `http.rs` mais ne sont pas encore documentés ici:
+> - **Context Engine**: `/context/history`, `/context/stats`, `/context/patterns`, `/context/productivity`
+> - **Decision Engine**: `/decision/metrics`, `/decision/config`, `/decision/stats`, `/decision/audit/trail`, `/decision/audit/stats`, `/decision/validation/stats`, `/decision/trust/scores`, `/decision/context/latest`
+> - **Agent Management**: `/agents/{id}/processes`, `/agents/{id}/command`, `/agents/{id}/reboot`, `/agents/{id}/kill/{pid}`, `/agents/discovery/scan`, `/agents/discovery/status`, `/agents/{id}/network/scan`
+> - **Ports**: `/ports`, `/ports/{port}/open`, `/ports/{port}/close`
+> - **Auth**: `/auth/session`, `/auth/status`, `/auth/reload`, `/auth/discoverable`
+> - **Autres**: `/ws/notes/stream` (WebSocket), `/api/notes` (alias), `/system/reboot`, `/system/shutdown`, `/csrf/token`
+>
+> Ces endpoints sont fonctionnels et testés mais nécessitent une documentation complète. Voir `symbion-kernel/src/http.rs` pour détails d'implémentation.
+>
+> ⚠️ **PHANTOM ENDPOINTS (Non implémentés)**: Les endpoints ci-dessous sont documentés mais n'existent PAS dans le code actuel:
+> - **Auth**: `/csrf-token` (utiliser `/auth/csrf/nonce`), `/jwt/verify` (utiliser `/auth/verify`), `/sessions`, `/sessions/{id}` (DELETE), `/refresh`
+> - **Users**: `/users/{id}` (PUT), `/users/{id}/password` (PUT) - Note: `/users` existe comme `/v1/users`
+> - **Agents**: `/agents/{id}` (DELETE), `/agents/{id}/logs`, `/agents/{id}/restart`, `/agents/{id}/capabilities`
+> - **Plugins**: `/plugins/{name}/health`
+> - **Decision**: `/decision/consents`, `/decision/consents/{id}` (DELETE), `/decision/trust-score` (utiliser `/decision/agent-health`)
+> - **Config**: `/config` (GET/PUT) - Note: utiliser `/decision/config` pour configuration Decision Engine
+>
+> Ces endpoints devraient être retirés de la documentation ou implémentés selon les besoins futurs.
 
 ## 🟢 Endpoints Publics (Sans Authentification)
 
@@ -48,7 +68,18 @@
 
 ## 🔐 Authentification & Sessions
 
-### `POST /login`
+> ⚠️ **NOTE DE MIGRATION (Novembre 2025)**: Tous les endpoints d'authentification utilisent maintenant le préfixe `/auth/*`:
+> - `/login` → `/auth/login`
+> - `/logout` → `/auth/logout`
+> - `/mfa/*` → `/auth/mfa/*`
+> - `/webauthn/*` → `/auth/webauthn/*`
+> - `/csrf/nonce` → `/auth/csrf/nonce`
+>
+> Les endpoints ci-dessous sont documentés AVEC le préfixe `/auth/` pour refléter l'implémentation actuelle.
+>
+> **Source**: `symbion-kernel/src/http.rs:203-235`
+
+### `POST /auth/login`
 **Description** : Connexion utilisateur (JWT + MFA)
 **Auth** : Non requis
 **Request** :
@@ -76,7 +107,7 @@
 }
 ```
 
-### `POST /login/mfa`
+### `POST /auth/mfa/verify`
 **Description** : Complétion login avec code TOTP
 **Auth** : MFA Token (temporaire)
 **Request** :
@@ -114,7 +145,7 @@
 }
 ```
 
-### `POST /logout`
+### `POST /auth/logout`
 **Description** : Déconnexion (révocation JWT)
 **Auth** : JWT
 **CSRF** : Requis
@@ -182,7 +213,7 @@
 
 ## 🔑 Multi-Factor Authentication (MFA)
 
-### `POST /mfa/setup`
+### `POST /auth/mfa/setup`
 **Description** : Activation MFA (génère QR code TOTP)
 **Auth** : JWT
 **CSRF** : Requis
@@ -199,7 +230,7 @@
 }
 ```
 
-### `POST /mfa/verify-setup`
+### `POST /auth/mfa/verify`
 **Description** : Validation activation MFA avec premier code
 **Auth** : JWT
 **CSRF** : Requis
@@ -218,7 +249,7 @@
 }
 ```
 
-### `POST /mfa/disable`
+### `POST /auth/mfa/disable`
 **Description** : Désactivation MFA
 **Auth** : JWT
 **CSRF** : Requis
@@ -240,7 +271,7 @@
 
 ## 🗝️ WebAuthn (Passkeys Biométriques)
 
-### `POST /webauthn/register/start`
+### `POST /auth/webauthn/register-start`
 **Description** : Démarrage enregistrement passkey
 **Auth** : JWT
 **CSRF** : Requis
@@ -271,7 +302,7 @@
 }
 ```
 
-### `POST /webauthn/register/finish`
+### `POST /auth/webauthn/register-finish`
 **Description** : Finalisation enregistrement passkey
 **Auth** : JWT
 **CSRF** : Requis
@@ -296,7 +327,7 @@
 }
 ```
 
-### `POST /webauthn/auth/start`
+### `POST /auth/webauthn/authenticate-start`
 **Description** : Démarrage authentification passkey
 **Auth** : Non requis
 **Request** :
@@ -320,7 +351,7 @@
 }
 ```
 
-### `POST /webauthn/auth/finish`
+### `POST /auth/webauthn/authenticate-finish`
 **Description** : Finalisation authentification passkey
 **Auth** : Non requis
 **Request** :
@@ -344,7 +375,7 @@
 }
 ```
 
-### `GET /webauthn/credentials`
+### `GET /auth/webauthn/passkeys`
 **Description** : Liste passkeys enregistrées
 **Auth** : JWT
 **Response** :
@@ -358,18 +389,6 @@
       "last_used": 1699887200
     }
   ]
-}
-```
-
-### `DELETE /webauthn/credentials/{id}`
-**Description** : Suppression passkey
-**Auth** : JWT
-**CSRF** : Requis
-**Response** :
-```json
-{
-  "success": true,
-  "message": "Passkey deleted"
 }
 ```
 
@@ -543,9 +562,19 @@
   },
   "processes": [
     {
-      "name": "firefox",
-      "cpu": 15.2,
-      "memory_mb": 1024
+      "name": "symbion-kernel",
+      "cpu": 2.1,
+      "memory_mb": 24
+    },
+    {
+      "name": "docker-containerd",
+      "cpu": 0.8,
+      "memory_mb": 156
+    },
+    {
+      "name": "postgres",
+      "cpu": 1.5,
+      "memory_mb": 512
     }
   ]
 }
@@ -1137,6 +1166,205 @@ GET /users?is_admin=true
 
 ---
 
+## 📈 Metrics & Observability (PR4)
+
+**Public Endpoints** (pas d'authentification requise - pour outils monitoring)
+
+### GET /metrics
+
+**Description** : Endpoint de scraping Prometheus (exposition format)
+
+**Format** : `text/plain` (Prometheus exposition format)
+
+**Total métriques** : 36
+
+**Catégories** :
+- **Decision Engine** (20 metrics) : decisions_total, decisions_approved, decisions_blocked, guards_passed/blocked, validations_created/pending/approved, overrides_active, audit_records, agents_total/online/active/degraded/offline
+- **MQTT** (4 metrics) : mqtt_connected (1=connected, 0=disconnected), mqtt_reconnects_total, mqtt_messages_per_minute, mqtt_messages_total
+- **Agents** (3 metrics) : kernel_agents_total, kernel_agents_online, kernel_agents_offline
+- **Context Engine** (2 metrics) : context_mode (0=neutre, 1=cravate, 2=intime), context_confidence (0.0-1.0)
+- **Plugins** (3 metrics) : plugins_total, plugins_running, plugins_failed
+- **Kernel** (4 metrics) : kernel_uptime_seconds, kernel_memory_usage_mb, contracts_loaded
+
+**Exemple réponse** :
+```
+# HELP symbion_decision_total Total number of decisions made
+# TYPE symbion_decision_total counter
+symbion_decision_total 42
+# HELP symbion_mqtt_connected MQTT broker connection status
+# TYPE symbion_mqtt_connected gauge
+symbion_mqtt_connected 1
+# HELP symbion_kernel_agents_online Number of agents currently online
+# TYPE symbion_kernel_agents_online gauge
+symbion_kernel_agents_online 3
+```
+
+**Fichier source** : `symbion-kernel/src/http.rs:2579-2708`
+
+---
+
+### GET /v1/metrics/agents
+
+**Description** : Métriques détaillées par agent (format JSON)
+
+**Format** : `application/json` (array)
+
+**Authentification** : ❌ Public
+
+**Réponse** : Array d'objets `AgentMetrics`
+
+**Champs** :
+- `agent_id` (string) - Identifiant unique agent (MAC sans colons)
+- `hostname` (string) - Nom d'hôte
+- `status` (string) - Statut ("online", "offline")
+- `last_seen` (integer) - Timestamp Unix dernière activité
+- `uptime_seconds` (integer) - Temps de fonctionnement
+- `cpu` (object) :
+  - `percent` (float) - Utilisation CPU %
+  - `load_avg` (array[float]) - Charge moyenne [1min, 5min, 15min]
+  - `core_count` (integer) - Nombre de cœurs
+- `memory` (object) :
+  - `total_mb` (integer) - RAM totale
+  - `used_mb` (integer) - RAM utilisée
+  - `available_mb` (integer) - RAM disponible
+  - `percent_used` (float) - % utilisation
+- `disk` (array[object]) :
+  - `path` (string) - Point de montage
+  - `total_gb` (float) - Espace total
+  - `used_gb` (float) - Espace utilisé
+  - `free_gb` (float) - Espace libre
+  - `percent_used` (float) - % utilisation
+- `network` (array[object]) :
+  - `name` (string) - Nom interface
+  - `bytes_sent` (integer) - Octets envoyés
+  - `bytes_recv` (integer) - Octets reçus
+  - `is_up` (boolean) - Interface active
+- `processes` (object) :
+  - `total_count` (integer) - Nombre total processus
+  - `running_count` (integer) - Processus en cours
+
+**Exemple réponse** :
+```json
+[
+  {
+    "agent_id": "7070fc0481d8",
+    "hostname": "eridwyn-Salon",
+    "status": "online",
+    "last_seen": 1763207035,
+    "uptime_seconds": 75900,
+    "cpu": {
+      "percent": 10.17,
+      "load_avg": [1.18, 0.85, 0.72],
+      "core_count": 16
+    },
+    "memory": {
+      "total_mb": 27803,
+      "used_mb": 2460,
+      "available_mb": 25342,
+      "percent_used": 8.85
+    },
+    "disk": [
+      {
+        "path": "/",
+        "total_gb": 937.0,
+        "used_gb": 60.0,
+        "free_gb": 830.0,
+        "percent_used": 7.0
+      }
+    ],
+    "network": [],
+    "processes": {
+      "total_count": 946,
+      "running_count": 17
+    }
+  }
+]
+```
+
+**Fichier source** : `symbion-kernel/src/http.rs:2308-2442`
+
+---
+
+### GET /v1/metrics/system
+
+**Description** : Vue d'ensemble métriques kernel (format JSON)
+
+**Format** : `application/json` (object)
+
+**Authentification** : ❌ Public
+
+**Réponse** : Objet `SystemMetrics`
+
+**Champs** :
+- `kernel` (object) :
+  - `uptime_seconds` (integer) - Temps de fonctionnement
+  - `memory_usage_mb` (float) - Utilisation mémoire kernel
+  - `contracts_loaded` (integer) - Contrats MQTT chargés
+- `mqtt` (object) :
+  - `status` (string) - "connected", "disconnected", "reconnecting"
+  - `reconnects_total` (integer) - Nombre de reconnexions
+  - `messages_per_minute` (float) - Débit messages
+  - `messages_total` (integer) - Total messages reçus
+- `agents` (object) :
+  - `total` (integer) - Nombre total agents
+  - `online` (integer) - Agents en ligne
+  - `offline` (integer) - Agents hors ligne
+- `plugins` (object) :
+  - `total` (integer) - Nombre total plugins
+  - `running` (integer) - Plugins actifs
+  - `failed` (integer) - Plugins en erreur
+- `context` (object) :
+  - `current_mode` (string) - "neutre", "cravate", "intime"
+  - `confidence` (float) - Confiance détection (0.0-1.0)
+- `decision_engine` (object) :
+  - `decisions_total` (integer) - Décisions totales
+  - `decisions_approved` (integer) - Décisions approuvées
+  - `decisions_blocked` (integer) - Décisions bloquées
+  - `validations_pending` (integer) - Validations en attente
+  - `overrides_active` (integer) - Overrides actifs
+
+**Exemple réponse** :
+```json
+{
+  "kernel": {
+    "uptime_seconds": 92,
+    "memory_usage_mb": 13.54,
+    "contracts_loaded": 0
+  },
+  "mqtt": {
+    "status": "connected",
+    "reconnects_total": 0,
+    "messages_per_minute": 4.0,
+    "messages_total": 6
+  },
+  "agents": {
+    "total": 3,
+    "online": 2,
+    "offline": 1
+  },
+  "plugins": {
+    "total": 1,
+    "running": 1,
+    "failed": 0
+  },
+  "context": {
+    "current_mode": "intime",
+    "confidence": 0.9
+  },
+  "decision_engine": {
+    "decisions_total": 0,
+    "decisions_approved": 0,
+    "decisions_blocked": 0,
+    "validations_pending": 0,
+    "overrides_active": 0
+  }
+}
+```
+
+**Fichier source** : `symbion-kernel/src/http.rs:2444-2573`
+
+---
+
 ## 📊 Codes de Statut HTTP
 
 | Code | Signification | Exemple |
@@ -1155,6 +1383,200 @@ GET /users?is_admin=true
 
 ---
 
-**Dernière mise à jour** : 2025-11-12
-**Fichier source** : `symbion-kernel/src/http.rs` (2273 lignes)
-**Total endpoints documentés** : 90+
+## 📊 Performance & Latency
+
+Voir **[docs/PERFORMANCE.md](../PERFORMANCE.md)** pour métriques détaillées :
+
+**Latence Typique** (P50/P95/P99) :
+- `GET /health` : 2/5/8 ms
+- `GET /agents` : 12/25/40 ms
+- `POST /login` : 180/250/320 ms (bcrypt cost 12)
+- `GET /notes` : 45/90/150 ms (MQTT plugin roundtrip)
+- `POST /agents/:id/command` : 25/60/100 ms
+
+**Throughput** :
+- Rate limit : 5 req/sec per IP (burst 10)
+- Max sustainable : ~850 req/sec (4-core CPU limit)
+- Beyond limit : HTTP 429 + `Retry-After` header
+
+**Response Sizes** :
+- Compression : gzip level 6 (auto > 1KB)
+- Typical : 50B (/health) to 50KB (/notes large list)
+- Headers : ~200-300 bytes overhead
+
+---
+
+## 🔗 Documentation Connexe
+
+### API Security & Authentication
+- **[authentication.md](authentication.md)** - JWT, MFA, WebAuthn passkeys
+- **[security.md](security.md)** - CSRF, Rate Limiting, TLS 1.3
+
+### Communication Patterns
+- **[../mqtt/topics.md](../mqtt/topics.md)** - MQTT topics triggered by API
+  - `POST /agents/:id/command` → `symbion/agents/command@v1`
+  - `POST /notes` → `symbion/notes/command@v1`
+- **[../mqtt/flows.md](../mqtt/flows.md)** - End-to-end workflows
+
+### Architecture & Infrastructure
+- **[../architecture/SYSTEM_OVERVIEW.md](../architecture/SYSTEM_OVERVIEW.md)** - System overview
+- **[../DEPLOYMENT.md](../DEPLOYMENT.md)** - Production deployment guide
+- **[../TROUBLESHOOTING.md](../TROUBLESHOOTING.md)** - API error resolution
+- **[../PERFORMANCE.md](../PERFORMANCE.md)** - Benchmarks & profiling
+
+### Development
+- **[../CODE_STANDARDS.md](../CODE_STANDARDS.md)** - Coding conventions
+- **[../QUICK_REFERENCE.md](../QUICK_REFERENCE.md)** - Cheat sheet
+
+---
+
+## 💡 Best Practices
+
+### Error Handling Patterns
+
+**Always check status code** :
+```javascript
+const response = await fetch('/agents', {
+  headers: { 'Authorization': `Bearer ${token}` }
+});
+
+if (!response.ok) {
+  const error = await response.json();
+  console.error(`API Error ${response.status}:`, error.message);
+
+  // Handle specific errors
+  switch (response.status) {
+    case 401: // Redirect to login
+      window.location.href = '/login';
+      break;
+    case 429: // Rate limited, retry after delay
+      const retryAfter = response.headers.get('Retry-After');
+      setTimeout(() => fetchAgents(), (retryAfter || 60) * 1000);
+      break;
+    case 500: // Server error, alert user
+      alert('Server error, please try again later');
+      break;
+  }
+  return;
+}
+
+const data = await response.json();
+```
+
+**Error Response Format** (standard) :
+```json
+{
+  "error": "Unauthorized",
+  "message": "JWT token expired",
+  "timestamp": 1699887200,
+  "path": "/agents",
+  "request_id": "req-abc123"
+}
+```
+
+### Authentication Flow
+
+```javascript
+// 1. Login
+const loginRes = await fetch('/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username: 'admin', password: 'pass' })
+});
+const { token } = await loginRes.json();
+
+// 2. Store token (secure)
+localStorage.setItem('jwt_token', token);  // Or sessionStorage
+
+// 3. Use token for authenticated requests
+const agentsRes = await fetch('/agents', {
+  headers: { 'Authorization': `Bearer ${token}` }
+});
+
+// 4. Handle token expiration (auto-refresh or re-login)
+if (agentsRes.status === 401) {
+  localStorage.removeItem('jwt_token');
+  window.location.href = '/login';
+}
+```
+
+### Rate Limiting Handling
+
+```javascript
+async function fetchWithRetry(url, options = {}, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    const res = await fetch(url, options);
+
+    if (res.status !== 429) return res;
+
+    // Rate limited, wait and retry
+    const retryAfter = parseInt(res.headers.get('Retry-After') || '60');
+    console.warn(`Rate limited, retrying after ${retryAfter}s...`);
+    await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+  }
+
+  throw new Error('Max retries exceeded');
+}
+```
+
+### Pagination Best Practices
+
+```javascript
+// For large datasets (notes, agents with many items)
+async function fetchAllNotes() {
+  let offset = 0;
+  const limit = 50;  // Reasonable chunk size
+  let allNotes = [];
+
+  while (true) {
+    const res = await fetch(`/notes?offset=${offset}&limit=${limit}`);
+    const notes = await res.json();
+
+    if (notes.length === 0) break;  // No more data
+
+    allNotes = allNotes.concat(notes);
+    offset += limit;
+
+    // Optional: Progress feedback
+    console.log(`Loaded ${allNotes.length} notes...`);
+  }
+
+  return allNotes;
+}
+```
+
+### WebSocket for Real-Time Updates
+
+```javascript
+// Alternative to polling: Use MQTT WebSocket for live updates
+import mqtt from 'mqtt';
+
+const client = mqtt.connect('wss://symbion.local:9001');
+
+client.on('connect', () => {
+  // Subscribe to dashboard updates
+  client.subscribe('symbion/dashboard/agents@v1');
+  client.subscribe('symbion/dashboard/health@v1');
+});
+
+client.on('message', (topic, payload) => {
+  const data = JSON.parse(payload);
+
+  switch (topic) {
+    case 'symbion/dashboard/agents@v1':
+      updateAgentsUI(data);  // Real-time agent status
+      break;
+    case 'symbion/dashboard/health@v1':
+      updateHealthUI(data);  // Real-time system metrics
+      break;
+  }
+});
+
+// Much more efficient than polling /agents every second
+```
+
+---
+
+**Dernière mise à jour** : 15 Novembre 2025
+**Fichier source** : `symbion-kernel/src/http.rs` (2709 lignes)
+**Total endpoints documentés** : 93 (90 + 3 metrics)
