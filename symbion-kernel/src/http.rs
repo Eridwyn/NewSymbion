@@ -189,6 +189,7 @@ pub fn build_router(app_state: AppState) -> Router {
     let public_routes = Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/system/health", get(get_system_health))
+        .route("/metrics", get(prometheus_metrics_endpoint))
         .route("/ca-certificate", get(download_ca_certificate))
         .with_state(app_state.clone());
 
@@ -2295,4 +2296,123 @@ async fn webauthn_authenticate_finish(
         "role": role,
         "expires_at": OffsetDateTime::now_utc().unix_timestamp() + 86400 // 24h
     })))
+}
+
+// ============================================================================
+// Prometheus Metrics Endpoint (PR4 - P0)
+// ============================================================================
+
+/// GET /metrics - Prometheus scraping endpoint (public, no auth required)
+/// Exports all kernel metrics in Prometheus exposition format:
+/// - Decision Engine metrics (decisions, guards, validations)
+/// - Agent telemetry (count, online/offline status)
+/// - System metrics (MQTT status, uptime)
+/// - HTTP metrics (placeholder for future request counters)
+async fn prometheus_metrics_endpoint(
+    State(app): State<AppState>,
+) -> Result<String, StatusCode> {
+    let mut output = String::new();
+
+    // ========== Decision Engine Metrics ==========
+    let audit_stats = app.decision_audit_manager.stats();
+    let validation_stats = app.decision_validation_manager.stats();
+    let override_stats = app.decision_override_manager.stats();
+    let agent_health_stats = app.decision_agent_health_manager.stats();
+
+    output.push_str(&app.decision_metrics.export_prometheus(
+        &audit_stats,
+        &validation_stats,
+        &override_stats,
+        &agent_health_stats,
+    ));
+
+    // ========== System Metrics ==========
+    // Get kernel health for MQTT status
+    let kernel_health = app.health_tracker.get_health(&app.contracts, &app.agents, &app.plugins);
+
+    // MQTT Connection Status
+    let mqtt_connected = if kernel_health.mqtt_status == "connected" { 1 } else { 0 };
+    output.push_str("# HELP symbion_mqtt_connected MQTT broker connection status (1=connected, 0=disconnected)\n");
+    output.push_str("# TYPE symbion_mqtt_connected gauge\n");
+    output.push_str(&format!("symbion_mqtt_connected {}\n", mqtt_connected));
+
+    output.push_str("# HELP symbion_mqtt_reconnects_total Total number of MQTT reconnections since startup\n");
+    output.push_str("# TYPE symbion_mqtt_reconnects_total counter\n");
+    output.push_str(&format!("symbion_mqtt_reconnects_total {}\n", kernel_health.mqtt_reconnects));
+
+    output.push_str("# HELP symbion_mqtt_messages_per_minute MQTT messages received per minute\n");
+    output.push_str("# TYPE symbion_mqtt_messages_per_minute gauge\n");
+    output.push_str(&format!("symbion_mqtt_messages_per_minute {:.2}\n", kernel_health.mqtt_messages_per_minute));
+
+    output.push_str("# HELP symbion_mqtt_messages_total Total MQTT messages since startup\n");
+    output.push_str("# TYPE symbion_mqtt_messages_total counter\n");
+    output.push_str(&format!("symbion_mqtt_messages_total {}\n", kernel_health.mqtt_messages_total));
+
+    // Agent Metrics
+    let agents_map = app.agents.list_agents().await;
+    let total_agents = agents_map.len();
+    let online_agents = agents_map.values()
+        .filter(|a| a.status.status == "online")
+        .count();
+    let offline_agents = total_agents - online_agents;
+
+    output.push_str("# HELP symbion_kernel_agents_total Total number of registered agents\n");
+    output.push_str("# TYPE symbion_kernel_agents_total gauge\n");
+    output.push_str(&format!("symbion_kernel_agents_total {}\n", total_agents));
+
+    output.push_str("# HELP symbion_kernel_agents_online Number of agents currently online\n");
+    output.push_str("# TYPE symbion_kernel_agents_online gauge\n");
+    output.push_str(&format!("symbion_kernel_agents_online {}\n", online_agents));
+
+    output.push_str("# HELP symbion_kernel_agents_offline Number of agents currently offline\n");
+    output.push_str("# TYPE symbion_kernel_agents_offline gauge\n");
+    output.push_str(&format!("symbion_kernel_agents_offline {}\n", offline_agents));
+
+    // Context Engine Metrics
+    if let Some(context_state) = app.context_engine.get_state() {
+        use crate::context::Mode;
+        let mode_value = match context_state.mode {
+            Mode::Neutre => 0,
+            Mode::Cravate => 1,
+            Mode::Intime => 2,
+        };
+        output.push_str("# HELP symbion_context_mode Current context mode (0=neutre, 1=cravate, 2=intime)\n");
+        output.push_str("# TYPE symbion_context_mode gauge\n");
+        output.push_str(&format!("symbion_context_mode {}\n", mode_value));
+
+        output.push_str("# HELP symbion_context_confidence Context detection confidence (0.0-1.0)\n");
+        output.push_str("# TYPE symbion_context_confidence gauge\n");
+        output.push_str(&format!("symbion_context_confidence {:.2}\n", context_state.confidence));
+    }
+
+    // Plugin Metrics (already computed in kernel_health)
+    output.push_str("# HELP symbion_plugins_total Total number of registered plugins\n");
+    output.push_str("# TYPE symbion_plugins_total gauge\n");
+    output.push_str(&format!("symbion_plugins_total {}\n", kernel_health.plugins_total));
+
+    output.push_str("# HELP symbion_plugins_running Number of plugins currently running\n");
+    output.push_str("# TYPE symbion_plugins_running gauge\n");
+    output.push_str(&format!("symbion_plugins_running {}\n", kernel_health.plugins_active));
+
+    output.push_str("# HELP symbion_plugins_failed Number of plugins in failed state\n");
+    output.push_str("# TYPE symbion_plugins_failed gauge\n");
+    output.push_str(&format!("symbion_plugins_failed {}\n", kernel_health.plugins_failed));
+
+    // Kernel Runtime Metrics
+    output.push_str("# HELP symbion_kernel_uptime_seconds Kernel uptime in seconds since startup\n");
+    output.push_str("# TYPE symbion_kernel_uptime_seconds gauge\n");
+    output.push_str(&format!("symbion_kernel_uptime_seconds {}\n", kernel_health.uptime_seconds));
+
+    output.push_str("# HELP symbion_kernel_memory_usage_mb Kernel memory usage in megabytes\n");
+    output.push_str("# TYPE symbion_kernel_memory_usage_mb gauge\n");
+    output.push_str(&format!("symbion_kernel_memory_usage_mb {:.2}\n", kernel_health.memory_usage_mb));
+
+    output.push_str("# HELP symbion_contracts_loaded Number of MQTT contracts loaded\n");
+    output.push_str("# TYPE symbion_contracts_loaded gauge\n");
+    output.push_str(&format!("symbion_contracts_loaded {}\n", kernel_health.contracts_loaded));
+
+    // TODO: Add HTTP request metrics (counter, latency histogram)
+    // Requires instrumentation with prometheus middleware
+
+    Ok(output)
 }
