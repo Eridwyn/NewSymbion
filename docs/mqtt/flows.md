@@ -135,14 +135,14 @@ loop {
 
     app.agent_registry.update_heartbeat(heartbeat.clone()).await;
 
-    // Notifier dashboard temps réel
+    // Notifier dashboard temps réel (utiliser dashboard/agents@v1 pour updates agents)
     client.publish(
-        "symbion/dashboard/update@v1",
+        "symbion/dashboard/agents@v1",
         QoS::AtLeastOnce,
         false,
-        serde_json::to_vec(&DashboardUpdate {
-            event_type: "agent_heartbeat",
+        serde_json::to_vec(&AgentUpdate {
             agent_id: heartbeat.agent_id,
+            status: "online",
             metrics: heartbeat.metrics,
         })?
     ).await?;
@@ -545,19 +545,27 @@ class MQTTService {
 
         this.client.on('connect', () => {
             console.log('[mqtt] Connected');
-            this.client.subscribe('symbion/dashboard/update@v1', { qos: 1 });
-            this.client.subscribe('symbion/dashboard/notification@v1', { qos: 1 });
+            // Subscribe to current dashboard topics (6 total)
+            this.client.subscribe('symbion/dashboard/context@v1', { qos: 1 });
+            this.client.subscribe('symbion/dashboard/agents@v1', { qos: 1 });
+            this.client.subscribe('symbion/dashboard/health@v1', { qos: 1 });
+            this.client.subscribe('symbion/dashboard/notes@v1', { qos: 1 });
+            this.client.subscribe('symbion/dashboard/stats@v1', { qos: 1 });
+            this.client.subscribe('symbion/dashboard/pattern@v1', { qos: 1 });
         });
 
         this.client.on('message', (topic, payload) => {
             const message = JSON.parse(payload.toString());
 
             switch (topic) {
-                case 'symbion/dashboard/update@v1':
-                    this.handleDashboardUpdate(message);
+                case 'symbion/dashboard/agents@v1':
+                    this.handleAgentsUpdate(message);
                     break;
-                case 'symbion/dashboard/notification@v1':
-                    this.handleNotification(message);
+                case 'symbion/dashboard/health@v1':
+                    this.handleHealthUpdate(message);
+                    break;
+                case 'symbion/dashboard/context@v1':
+                    this.handleContextUpdate(message);
                     break;
             }
         });
