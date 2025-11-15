@@ -341,6 +341,8 @@ pub fn build_router(app_state: AppState) -> Router {
         .layer(TimeoutLayer::new(std::time::Duration::from_secs(30)))
         // HSTS header - Force HTTPS, max-age 1 year
         .layer(middleware::from_fn(add_hsts_header))
+        // CSP header - Content Security Policy (prévention XSS)
+        .layer(middleware::from_fn(add_csp_header))
 }
 
 /// Middleware pour ajouter le header HSTS (HTTP Strict Transport Security)
@@ -353,6 +355,43 @@ async fn add_hsts_header(
     response.headers_mut().insert(
         axum::http::header::STRICT_TRANSPORT_SECURITY,
         "max-age=31536000; includeSubDomains".parse().unwrap()
+    );
+    response
+}
+
+/// Middleware pour ajouter le header CSP (Content Security Policy)
+/// Prévient les attaques XSS en restreignant les sources de contenu autorisées
+///
+/// Politique stricte :
+/// - default-src 'none' : Rien par défaut (principe du moindre privilège)
+/// - script-src 'self' : Scripts depuis même origine uniquement
+/// - style-src 'self' 'unsafe-inline' : Styles locaux + inline (requis pour <style> tag)
+/// - img-src 'self' data: : Images locales + data URIs
+/// - connect-src 'self' ws://localhost:* wss://localhost:* : API + WebSocket MQTT
+/// - manifest-src 'self' : PWA manifest
+/// - base-uri 'self' : Prévient injection <base> tag
+/// - form-action 'self' : Forms submit vers même origine
+/// - frame-ancestors 'none' : Aucun framing (prévient clickjacking)
+async fn add_csp_header(
+    req: Request,
+    next: Next,
+) -> Response {
+    let mut response = next.run(req).await;
+
+    let csp_policy = "default-src 'none'; \
+                      script-src 'self'; \
+                      style-src 'self' 'unsafe-inline'; \
+                      img-src 'self' data:; \
+                      font-src 'self'; \
+                      connect-src 'self' ws://localhost:* wss://localhost:*; \
+                      manifest-src 'self'; \
+                      base-uri 'self'; \
+                      form-action 'self'; \
+                      frame-ancestors 'none'";
+
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_SECURITY_POLICY,
+        csp_policy.parse().unwrap()
     );
     response
 }
