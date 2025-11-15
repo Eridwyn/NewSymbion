@@ -148,7 +148,7 @@ Calculé **par décision** selon:
 - ✅ Latence réseau (communication stable)
 - ✅ Présence locale détectée (vs absent)
 
-**Formule**:
+**Formule** (résultat toujours dans [0.0, 1.0]):
 ```
 trust_score = (
   sensor_consistency * 0.3 +
