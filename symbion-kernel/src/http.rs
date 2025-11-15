@@ -289,13 +289,19 @@ pub fn build_router(app_state: AppState) -> Router {
         // NOTE: Rate limiting tower_governor désactivé (incompatibilité localhost)
         // .layer(GovernorLayer::new(api_rate_limit_config));
 
+    // Routes WebSocket (auth via query parameter, pas de middleware require_auth)
+    let websocket_routes = Router::new()
+        .route("/ws/notes/stream", get(crate::notes_ws::notes_stream_handler))
+        .with_state(app_state.clone());
+
     // Combine all v1 API routes
     let v1_api_routes = Router::new()
         .merge(login_route)
         .merge(protected_auth_routes)
         .merge(api_routes)
         .merge(csrf_protected_routes)
-        .merge(decision_csrf_routes);
+        .merge(decision_csrf_routes)
+        .merge(websocket_routes);
 
     // Router principal avec versioning
     Router::new()
