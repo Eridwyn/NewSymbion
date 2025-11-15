@@ -288,7 +288,7 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 
 ## 🔌 Plugin Communication Topics
 
-### `symbion/notes/request@v1`
+### `symbion/notes/command@v1`
 
 **Direction** : Kernel → Plugin Notes
 **QoS** : 1 (At least once)
@@ -476,7 +476,22 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 
 ## 📊 Dashboard Updates Topics
 
-### `symbion/dashboard/update@v1`
+> ⚠️ **MIGRATION NOTE (November 2025)**: Les topics `dashboard/update@v1` et `dashboard/notification@v1` documentés ci-dessous sont **OBSOLÈTES**. L'implémentation réelle utilise 6 topics spécifiques:
+>
+> **Topics Actuels (Implémentés):**
+> - `symbion/dashboard/context@v1` - Context/mode changes (Kernel → PWA, retain: true)
+> - `symbion/dashboard/agents@v1` - Agent state updates (Kernel → PWA)
+> - `symbion/dashboard/health@v1` - System health metrics (Kernel → PWA)
+> - `symbion/dashboard/notes@v1` - Note events (Kernel → PWA)
+> - `symbion/dashboard/stats@v1` - Contextual statistics (Kernel → PWA)
+> - `symbion/dashboard/pattern@v1` - Pattern detection events (Kernel → PWA)
+>
+> **Source**: `symbion-kernel/src/dashboard_events.rs:46-82`
+> **Status**: Documentation complète de ces topics à venir dans PR séparée
+>
+> ---
+
+### `symbion/dashboard/update@v1` ⚠️ DEPRECATED
 
 **Direction** : Kernel → PWA
 **QoS** : 1 (At least once)
@@ -526,7 +541,7 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 
 ---
 
-### `symbion/dashboard/notification@v1`
+### `symbion/dashboard/notification@v1` ⚠️ DEPRECATED
 
 **Direction** : Kernel → PWA
 **QoS** : 1 (At least once)
@@ -600,7 +615,7 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 
 ---
 
-### `symbion/system/health@v1`
+### `symbion/kernel/health@v1`
 
 **Direction** : Kernel → Tous
 **QoS** : 1 (At least once)
@@ -650,14 +665,14 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 | `symbion/agents/response@v1` | Agents → Kernel | 1 | À la demande |
 | `symbion/agents/command@v1` | Kernel → Agents | 1 | À la demande |
 | `symbion/agents/wake@v1` | Kernel → Broadcast | 1 | À la demande |
-| `symbion/notes/request@v1` | Kernel → Plugin | 1 | À la demande |
+| `symbion/notes/command@v1` | Kernel → Plugin | 1 | À la demande |
 | `symbion/notes/response@v1` | Plugin → Kernel | 1 | À la demande |
 | `symbion/ports/{plugin}/request@v1` | Kernel → Plugin | 1 | À la demande |
 | `symbion/ports/{plugin}/response@v1` | Plugin → Kernel | 1 | À la demande |
 | `symbion/dashboard/update@v1` | Kernel → PWA | 1 | Temps réel |
 | `symbion/dashboard/notification@v1` | Kernel → PWA | 1 | Événements |
 | `symbion/system/event@v1` | Multicast | 1 | Événements |
-| `symbion/system/health@v1` | Kernel → Tous | 1 | 5 min |
+| `symbion/kernel/health@v1` | Kernel → Tous | 1 | 5 min |
 
 ---
 

@@ -1,6 +1,16 @@
 # Référence Complète des Endpoints HTTP
 
-> 📍 Documentation exhaustive des 90+ endpoints de l'API Symbion Kernel
+> 📍 Documentation exhaustive des 85+ endpoints de l'API Symbion Kernel
+>
+> ⚠️ **NOTE DE MIGRATION (Novembre 2025)**: 31 endpoints additionnels existent dans `http.rs` mais ne sont pas encore documentés ici:
+> - **Context Engine**: `/context/history`, `/context/stats`, `/context/patterns`, `/context/productivity`
+> - **Decision Engine**: `/decision/metrics`, `/decision/config`, `/decision/stats`, `/decision/audit/trail`, `/decision/audit/stats`, `/decision/validation/stats`, `/decision/trust/scores`, `/decision/context/latest`
+> - **Agent Management**: `/agents/{id}/processes`, `/agents/{id}/command`, `/agents/{id}/reboot`, `/agents/{id}/kill/{pid}`, `/agents/discovery/scan`, `/agents/discovery/status`, `/agents/{id}/network/scan`
+> - **Ports**: `/ports`, `/ports/{port}/open`, `/ports/{port}/close`
+> - **Auth**: `/auth/session`, `/auth/status`, `/auth/reload`, `/auth/discoverable`
+> - **Autres**: `/ws/notes/stream` (WebSocket), `/api/notes` (alias), `/system/reboot`, `/system/shutdown`, `/csrf/token`
+>
+> Ces endpoints sont fonctionnels et testés mais nécessitent une documentation complète. Voir `symbion-kernel/src/http.rs` pour détails d'implémentation.
 
 ## 🟢 Endpoints Publics (Sans Authentification)
 
