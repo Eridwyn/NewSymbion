@@ -25,7 +25,7 @@
 
 use axum::{extract::{Query, State}, routing::{get, post}, Json, Router};
 use axum::http::{StatusCode, Method};
-use tower_http::cors::{CorsLayer, Any};
+use tower_http::cors::CorsLayer;
 use tower_http::timeout::TimeoutLayer;
 use crate::models::{HostState, HostsMap};
 use crate::state::Shared;
@@ -39,7 +39,7 @@ use axum::response::{Response, IntoResponse};
 use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 use axum::extract::Path;
 use std::collections::HashMap;
-use sha2::Digest;
+// use sha2::Digest; // Unused - reserved for future hash verification
 use base64::Engine;
 
 
@@ -194,8 +194,6 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/v1/metrics/agents", get(get_metrics_agents))
         .route("/v1/metrics/system", get(get_metrics_system))
         .route("/ca-certificate", get(download_ca_certificate))
-        // PR5: Panic test endpoint (DEBUG ONLY - comment out in production!)
-        .route("/debug/panic-test", get(trigger_panic_test))
         .with_state(app_state.clone());
 
     // Route de login publique avec rate limiting strict (brute-force protection)
@@ -1152,7 +1150,7 @@ async fn agent_commands_post_endpoint(
     // Extract command from parameters for shell_command type
     if req.command_type == "shell_command" {
         if let Some(command) = req.parameters.get("command") {
-            if let Some(command_str) = command.as_str() {
+            if let Some(_command_str) = command.as_str() {
                 match app.agents.send_command(&id, "run_command", Some(req.parameters)).await {
                     Ok(command_id) => Ok(Json(serde_json::json!({
                         "success": true,
@@ -2034,7 +2032,7 @@ async fn webauthn_register_start(
     req: Request,
 ) -> Result<Json<webauthn_rs::prelude::CreationChallengeResponse>, (StatusCode, Json<serde_json::Value>)> {
     // Extraire headers et body
-    let (parts, body) = req.into_parts();
+    let (parts, _body) = req.into_parts();
 
     // Extraire le token JWT pour identifier l'utilisateur
     let token = parts
@@ -2247,8 +2245,8 @@ async fn webauthn_authenticate_finish(
     // Extraire headers et body
     let (parts, body) = req.into_parts();
 
-    // Extraire l'IP du client pour device trust
-    let client_ip = parts
+    // Extraire l'IP du client pour device trust (reserved for future device fingerprinting)
+    let _client_ip = parts
         .headers
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
@@ -2682,13 +2680,4 @@ async fn prometheus_metrics_endpoint(
     // Requires instrumentation with prometheus middleware
 
     Ok(output)
-}
-
-/// PR5: Test endpoint to trigger intentional panic (DEBUG ONLY)
-/// This endpoint deliberately panics to verify panic hook and systemd auto-restart
-/// WARNING: Only enable in development - comment out in production!
-async fn trigger_panic_test() -> &'static str {
-    eprintln!("[DEBUG] PR5: Panic test endpoint called - triggering intentional panic in 2 seconds...");
-    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-    panic!("PR5 Test: Intentional panic to verify recovery mechanism");
 }
