@@ -104,6 +104,70 @@ Vue d'ensemble de l'architecture IoT distribuée.
 
 ---
 
+## 📦 Structure des Modules
+
+### Kernel (Rust - `symbion-kernel/src/`)
+```
+symbion-kernel/src/
+├── main.rs              # Entry point, setup server
+├── http.rs              # API REST (85+ routes, TLS)
+├── auth.rs              # JWT, MFA, WebAuthn, sessions
+├── csrf.rs              # CSRF protection tokens
+├── mqtt.rs              # MQTT client, pub/sub handlers
+├── agents/
+│   ├── mod.rs           # Agent registry, discovery
+│   └── commands.rs      # Remote commands (shutdown, processes)
+├── context/
+│   ├── mod.rs           # Context detection engine
+│   ├── hysteresis.rs    # State stabilization
+│   └── patterns.rs      # Behavioral pattern learning
+├── decision/
+│   ├── engine.rs        # Decision evaluation core
+│   ├── trust.rs         # Trust score calculation (332 LOC)
+│   ├── guards.rs        # Pre-decision validation
+│   ├── idempotence.rs   # Command deduplication (264 LOC)
+│   ├── audit.rs         # Audit trail logging
+│   └── validation.rs    # User approval workflow
+├── contracts/           # MQTT schema validation
+├── dashboard_events.rs  # Real-time PWA updates
+├── webauthn_manager.rs  # Passkey biometric auth
+└── notes_ws.rs          # WebSocket notes streaming
+```
+
+### Agent (Rust - `symbion-agent-host/src/`)
+```
+symbion-agent-host/src/
+├── main.rs              # Entry point, MQTT connect
+├── telemetry.rs         # System metrics (CPU, RAM, disk, processes)
+├── commands.rs          # Command execution (shutdown, reboot, kill)
+├── presence.rs          # Activity detection (keyboard, mouse)
+└── discovery.rs         # Network scanning, auto-registration
+```
+
+### PWA (Lit Web Components - `pwa-dashboard/src/`)
+```
+pwa-dashboard/src/
+├── index.html           # Entry point, shell
+├── components/
+│   ├── app-shell.js     # Main layout, routing
+│   ├── control-page.js  # Agent controls, commands
+│   ├── system-page.js   # Health metrics, monitoring
+│   ├── data-page.js     # Notes, patterns, history
+│   └── widgets/
+│       ├── notes-widget.js        # Markdown notes manager
+│       ├── agents-network.js      # Agent visualization
+│       ├── organic-loader.js      # Bioluminescent loading (810 LOC)
+│       └── system-health-widget.js# Health gauges
+├── services/
+│   ├── mqtt-service.js  # MQTT WebSocket client
+│   ├── api-service.js   # HTTP API wrapper
+│   └── auth-service.js  # Login, JWT, MFA
+└── styles/
+    └── shared-styles.js # Design system tokens
+```
+
+---
+
 ## 🚀 Technologies IoT Intégrées
 
 ### 📡 Bus de Communication
@@ -130,6 +194,101 @@ Vue d'ensemble de l'architecture IoT distribuée.
 - **Device Authentication**: Certificats pour appareils de confiance
 - **Command Validation**: Whitelist actions autorisées par contexte
 - **Audit Trail**: Traçabilité complète automatisations domestiques
+
+### 🌐 Architecture Réseau
+
+**Ports Réseau** :
+- **8080** (HTTP) : Redirection automatique → 8443 (HTTPS)
+- **8443** (HTTPS) : API REST + WebSocket (TLS 1.3)
+- **1883** (TCP) : MQTT Broker (Mosquitto, local only)
+- **9001** (WSS) : MQTT WebSocket Secure (PWA → Broker)
+
+**Flux TLS** :
+```
+┌─────────────┐         ┌──────────────┐         ┌─────────────┐
+│ PWA/Agent   │  HTTPS  │   Kernel     │  MQTT   │  Mosquitto  │
+│ (Client)    ├────────►│  (Server)    ├────────►│   Broker    │
+│             │  :8443  │   TLS 1.3    │  :1883  │   (Local)   │
+└─────────────┘         └──────────────┘         └─────────────┘
+     │                                                   │
+     │                    MQTT WSS :9001                 │
+     └───────────────────────────────────────────────────┘
+```
+
+**Certificats TLS** :
+- **Production** : Let's Encrypt (auto-renewal)
+- **Développement** : mkcert (CA local)
+- **Stockage** : `symbion-kernel/certs/` (cert + key)
+- **Protocoles** : TLS 1.3 uniquement, HSTS headers activés
+
+**Configuration** :
+- Variables d'environnement :
+  - `SYMBION_TLS_CERT_PATH` : Chemin certificat
+  - `SYMBION_TLS_KEY_PATH` : Chemin clé privée
+  - `SYMBION_MQTT_BROKER` : Adresse broker (défaut `127.0.0.1:1883`)
+- Systemd service : `/etc/systemd/system/symbion-kernel.service`
+- Healthcheck : `GET https://localhost:8443/health`
+
+---
+
+## 🔍 Agent Discovery Workflow
+
+**Processus de Découverte Automatique** :
+
+```
+1. Agent Boot
+   ↓
+2. Network Scan (mDNS/ARP)
+   │  → Discover Kernel IP
+   ↓
+3. MQTT Connect
+   │  → broker: kernel_ip:1883
+   ↓
+4. Publish Registration
+   │  topic: symbion/agents/register@v1
+   │  payload: {
+   │    agent_id: "hostname-uuid",
+   │    capabilities: ["shutdown", "processes", "presence"],
+   │    os: "Linux",
+   │    version: "0.3.0"
+   │  }
+   ↓
+5. Kernel Updates Registry
+   │  → Add agent to online list
+   │  → Store capabilities
+   ↓
+6. Subscribe Agent Topics
+   │  → symbion/agents/{id}/command@v1
+   │  → symbion/agents/{id}/shutdown@v1
+   │  → symbion/agents/wake@v1
+   ↓
+7. Start Heartbeat Loop (30s)
+   │  topic: symbion/agents/heartbeat@v1
+   │  payload: {
+   │    agent_id,
+   │    metrics: { cpu, memory, disk },
+   │    uptime_seconds,
+   │    presence_detected: bool
+   │  }
+   ↓
+8. Kernel Monitors Health
+   │  → If no heartbeat > 90s: mark offline
+   │  → Publish dashboard/agents@v1 update
+   │  → Alert user if critical agent down
+```
+
+**Modes de Découverte** :
+
+- **Auto-Discovery** : Agent scanne réseau local (mDNS, ARP)
+- **Manual Config** : `SYMBION_KERNEL_HOST` environment variable
+- **Zero-Config** : Multicast DNS résolution `symbion-kernel.local`
+
+**Gestion Offline** :
+
+- **Heartbeat Timeout** : 90 secondes → Status "offline"
+- **Reconnexion** : Agent retry every 30s with exponential backoff
+- **State Persistence** : Kernel stocke last_seen timestamp
+- **Notifications** : Dashboard alerte si agent critique down > 5 min
 
 ---
 
