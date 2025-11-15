@@ -194,6 +194,8 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/v1/metrics/agents", get(get_metrics_agents))
         .route("/v1/metrics/system", get(get_metrics_system))
         .route("/ca-certificate", get(download_ca_certificate))
+        // PR5: Panic test endpoint (DEBUG ONLY - comment out in production!)
+        .route("/debug/panic-test", get(trigger_panic_test))
         .with_state(app_state.clone());
 
     // Route de login publique avec rate limiting strict (brute-force protection)
@@ -2680,4 +2682,13 @@ async fn prometheus_metrics_endpoint(
     // Requires instrumentation with prometheus middleware
 
     Ok(output)
+}
+
+/// PR5: Test endpoint to trigger intentional panic (DEBUG ONLY)
+/// This endpoint deliberately panics to verify panic hook and systemd auto-restart
+/// WARNING: Only enable in development - comment out in production!
+async fn trigger_panic_test() -> &'static str {
+    eprintln!("[DEBUG] PR5: Panic test endpoint called - triggering intentional panic in 2 seconds...");
+    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    panic!("PR5 Test: Intentional panic to verify recovery mechanism");
 }

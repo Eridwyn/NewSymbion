@@ -56,6 +56,38 @@ async fn main() {
     // Charger les variables d'environnement depuis .env (si présent)
     dotenvy::dotenv().ok(); // Ok si .env n'existe pas
 
+    // PR5: Panic hook pour logging avant crash (aide au debugging)
+    std::panic::set_hook(Box::new(|panic_info| {
+        use time::OffsetDateTime;
+        let timestamp = OffsetDateTime::now_utc();
+        let payload = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = panic_info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "Unknown panic payload".to_string()
+        };
+
+        let location = if let Some(loc) = panic_info.location() {
+            format!("{}:{}:{}", loc.file(), loc.line(), loc.column())
+        } else {
+            "Unknown location".to_string()
+        };
+
+        eprintln!("\n╔════════════════════════════════════════════════════════════════╗");
+        eprintln!("║ 🔴 KERNEL PANIC DETECTED - PR5                                  ║");
+        eprintln!("╠════════════════════════════════════════════════════════════════╣");
+        eprintln!("║ Timestamp: {}-{:02}-{:02} {:02}:{:02}:{:02} UTC                ║",
+            timestamp.year(), timestamp.month() as u8, timestamp.day(),
+            timestamp.hour(), timestamp.minute(), timestamp.second());
+        eprintln!("║ Location:  {:<54} ║", &location[..location.len().min(54)]);
+        eprintln!("║ Message:   {:<54} ║", &payload[..payload.len().min(54)]);
+        eprintln!("╠════════════════════════════════════════════════════════════════╣");
+        eprintln!("║ Systemd will auto-restart kernel in 5 seconds...               ║");
+        eprintln!("║ Check logs: journalctl -u symbion-kernel -n 100                ║");
+        eprintln!("╚════════════════════════════════════════════════════════════════╝\n");
+    }));
+
     // Initialiser le CryptoProvider pour Rustls (fix crash rustls 0.23)
     let _ = rustls::crypto::ring::default_provider().install_default();
 
