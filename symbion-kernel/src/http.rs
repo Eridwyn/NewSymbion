@@ -189,7 +189,10 @@ pub fn build_router(app_state: AppState) -> Router {
     let public_routes = Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/system/health", get(get_system_health))
+        // Metrics API (PR4 - public for monitoring tools)
         .route("/metrics", get(prometheus_metrics_endpoint))
+        .route("/v1/metrics/agents", get(get_metrics_agents))
+        .route("/v1/metrics/system", get(get_metrics_system))
         .route("/ca-certificate", get(download_ca_certificate))
         .with_state(app_state.clone());
 
@@ -2296,6 +2299,268 @@ async fn webauthn_authenticate_finish(
         "role": role,
         "expires_at": OffsetDateTime::now_utc().unix_timestamp() + 86400 // 24h
     })))
+}
+
+// ============================================================================
+// Metrics API Endpoints (PR4 - P1)
+// ============================================================================
+
+/// GET /v1/metrics/agents - Per-agent metrics in JSON format
+/// Returns detailed telemetry for each agent: CPU, RAM, disk, network, processes
+#[derive(serde::Serialize)]
+struct AgentMetrics {
+    agent_id: String,
+    hostname: String,
+    status: String,
+    last_seen: i64, // Unix timestamp
+    uptime_seconds: u64,
+    cpu: AgentCpuMetrics,
+    memory: AgentMemoryMetrics,
+    disk: Vec<AgentDiskMetrics>,
+    network: Vec<AgentNetworkMetrics>,
+    processes: AgentProcessMetrics,
+}
+
+#[derive(serde::Serialize)]
+struct AgentCpuMetrics {
+    percent: f32,
+    load_avg: Vec<f32>,
+    core_count: u32,
+}
+
+#[derive(serde::Serialize)]
+struct AgentMemoryMetrics {
+    total_mb: u64,
+    used_mb: u64,
+    available_mb: u64,
+    percent_used: f32,
+}
+
+#[derive(serde::Serialize)]
+struct AgentDiskMetrics {
+    path: String,
+    total_gb: f64,
+    used_gb: f64,
+    free_gb: f64,
+    percent_used: f32,
+}
+
+#[derive(serde::Serialize)]
+struct AgentNetworkMetrics {
+    name: String,
+    bytes_sent: u64,
+    bytes_recv: u64,
+    is_up: bool,
+}
+
+#[derive(serde::Serialize)]
+struct AgentProcessMetrics {
+    total_count: u32,
+    running_count: u32,
+}
+
+async fn get_metrics_agents(
+    State(app): State<AppState>,
+) -> Json<Vec<AgentMetrics>> {
+    let agents_map = app.agents.list_agents().await;
+
+    let mut metrics = Vec::new();
+    for (agent_id, agent) in agents_map.iter() {
+        let agent_metric = AgentMetrics {
+            agent_id: agent_id.clone(),
+            hostname: agent.hostname.clone(),
+            status: agent.status.status.clone(),
+            last_seen: agent.last_seen.unix_timestamp(),
+            uptime_seconds: agent.status.system.as_ref()
+                .map(|s| s.uptime_seconds)
+                .unwrap_or(0),
+            cpu: AgentCpuMetrics {
+                percent: agent.status.system.as_ref()
+                    .map(|s| s.cpu.percent)
+                    .unwrap_or(0.0),
+                load_avg: agent.status.system.as_ref()
+                    .and_then(|s| s.cpu.load_avg.map(|arr| arr.to_vec()))
+                    .unwrap_or_default(),
+                core_count: agent.status.system.as_ref()
+                    .and_then(|s| s.cpu.core_count)
+                    .unwrap_or(0),
+            },
+            memory: AgentMemoryMetrics {
+                total_mb: agent.status.system.as_ref()
+                    .map(|s| s.memory.total_mb)
+                    .unwrap_or(0),
+                used_mb: agent.status.system.as_ref()
+                    .map(|s| s.memory.used_mb)
+                    .unwrap_or(0),
+                available_mb: agent.status.system.as_ref()
+                    .and_then(|s| s.memory.available_mb)
+                    .unwrap_or(0),
+                percent_used: agent.status.system.as_ref()
+                    .map(|s| s.memory.percent_used)
+                    .unwrap_or(0.0),
+            },
+            disk: agent.status.system.as_ref()
+                .and_then(|s| s.disk.as_ref())
+                .map(|disks| disks.iter().map(|d| AgentDiskMetrics {
+                    path: d.path.clone(),
+                    total_gb: d.total_gb,
+                    used_gb: d.used_gb,
+                    free_gb: d.free_gb.unwrap_or(0.0),
+                    percent_used: d.percent_used,
+                }).collect())
+                .unwrap_or_default(),
+            network: agent.status.system.as_ref()
+                .and_then(|s| s.network.as_ref())
+                .map(|n| n.interfaces.iter().map(|i| AgentNetworkMetrics {
+                    name: i.name.clone(),
+                    bytes_sent: i.bytes_sent.unwrap_or(0),
+                    bytes_recv: i.bytes_recv.unwrap_or(0),
+                    is_up: i.is_up,
+                }).collect())
+                .unwrap_or_default(),
+            processes: AgentProcessMetrics {
+                total_count: agent.status.processes.as_ref()
+                    .map(|p| p.total_count)
+                    .unwrap_or(0),
+                running_count: agent.status.processes.as_ref()
+                    .map(|p| p.running_count)
+                    .unwrap_or(0),
+            },
+        };
+        metrics.push(agent_metric);
+    }
+
+    Json(metrics)
+}
+
+/// GET /v1/metrics/system - Kernel performance metrics in JSON format
+/// Returns kernel runtime stats: uptime, memory, MQTT, plugins, context
+#[derive(serde::Serialize)]
+struct SystemMetrics {
+    kernel: KernelRuntimeMetrics,
+    mqtt: MqttMetrics,
+    agents: AgentsSummaryMetrics,
+    plugins: PluginsMetrics,
+    context: ContextMetrics,
+    decision_engine: DecisionEngineMetrics,
+}
+
+#[derive(serde::Serialize)]
+struct KernelRuntimeMetrics {
+    uptime_seconds: u64,
+    memory_usage_mb: f32,
+    contracts_loaded: u32,
+}
+
+#[derive(serde::Serialize)]
+struct MqttMetrics {
+    status: String, // "connected", "disconnected", "reconnecting"
+    reconnects_total: u32,
+    messages_per_minute: f32,
+    messages_total: u64,
+}
+
+#[derive(serde::Serialize)]
+struct AgentsSummaryMetrics {
+    total: usize,
+    online: usize,
+    offline: usize,
+}
+
+#[derive(serde::Serialize)]
+struct PluginsMetrics {
+    total: u32,
+    running: u32,
+    failed: u32,
+}
+
+#[derive(serde::Serialize)]
+struct ContextMetrics {
+    current_mode: String, // "neutre", "cravate", "intime"
+    confidence: f32,
+}
+
+#[derive(serde::Serialize)]
+struct DecisionEngineMetrics {
+    decisions_total: u64,
+    decisions_approved: u64,
+    decisions_blocked: u64,
+    validations_pending: usize,
+    overrides_active: usize,
+}
+
+async fn get_metrics_system(
+    State(app): State<AppState>,
+) -> Json<SystemMetrics> {
+    // Get kernel health
+    let kernel_health = app.health_tracker.get_health(&app.contracts, &app.agents, &app.plugins);
+
+    // Get agent summary
+    let agents_map = app.agents.list_agents().await;
+    let total_agents = agents_map.len();
+    let online_agents = agents_map.values()
+        .filter(|a| a.status.status == "online")
+        .count();
+
+    // Get context state
+    let context_state = app.context_engine.get_state();
+    let (mode_name, mode_confidence) = if let Some(state) = context_state {
+        use crate::context::Mode;
+        let name = match state.mode {
+            Mode::Neutre => "neutre",
+            Mode::Cravate => "cravate",
+            Mode::Intime => "intime",
+        };
+        (name.to_string(), state.confidence)
+    } else {
+        ("unknown".to_string(), 0.0)
+    };
+
+    // Get decision engine stats
+    let validation_stats = app.decision_validation_manager.stats();
+    let override_stats = app.decision_override_manager.stats();
+
+    // Decision metrics counters
+    let decisions_total = app.decision_metrics.get_decisions_total();
+    let decisions_approved = app.decision_metrics.get_decisions_approved();
+    let decisions_blocked = app.decision_metrics.get_decisions_blocked();
+
+    let metrics = SystemMetrics {
+        kernel: KernelRuntimeMetrics {
+            uptime_seconds: kernel_health.uptime_seconds,
+            memory_usage_mb: kernel_health.memory_usage_mb,
+            contracts_loaded: kernel_health.contracts_loaded,
+        },
+        mqtt: MqttMetrics {
+            status: kernel_health.mqtt_status,
+            reconnects_total: kernel_health.mqtt_reconnects,
+            messages_per_minute: kernel_health.mqtt_messages_per_minute,
+            messages_total: kernel_health.mqtt_messages_total,
+        },
+        agents: AgentsSummaryMetrics {
+            total: total_agents,
+            online: online_agents,
+            offline: total_agents - online_agents,
+        },
+        plugins: PluginsMetrics {
+            total: kernel_health.plugins_total,
+            running: kernel_health.plugins_active,
+            failed: kernel_health.plugins_failed,
+        },
+        context: ContextMetrics {
+            current_mode: mode_name,
+            confidence: mode_confidence,
+        },
+        decision_engine: DecisionEngineMetrics {
+            decisions_total,
+            decisions_approved,
+            decisions_blocked,
+            validations_pending: validation_stats.pending,
+            overrides_active: override_stats.active,
+        },
+    };
+
+    Json(metrics)
 }
 
 // ============================================================================

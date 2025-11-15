@@ -119,6 +119,19 @@ impl DecisionMetrics {
         self.validations_expired.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Getters pour accès lecture seule (PR4 P1 - JSON metrics API)
+    pub fn get_decisions_total(&self) -> u64 {
+        self.decisions_total.load(Ordering::Relaxed)
+    }
+
+    pub fn get_decisions_approved(&self) -> u64 {
+        self.decisions_approved.load(Ordering::Relaxed)
+    }
+
+    pub fn get_decisions_blocked(&self) -> u64 {
+        self.decisions_blocked.load(Ordering::Relaxed)
+    }
+
     /// Exporter métriques au format Prometheus
     pub fn export_prometheus(
         &self,
