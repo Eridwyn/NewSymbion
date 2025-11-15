@@ -57,9 +57,15 @@ class OrganicLoader extends LitElement {
       width: 90px;
       height: 90px;
       margin: -45px 0 0 -45px;
-      border: 2px solid rgba(0, 212, 170, 0.6);
-      border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
-      animation: ripple-propagate 4s ease-out infinite;
+      background: radial-gradient(
+        circle,
+        rgba(0, 255, 213, 0.4) 0%,
+        rgba(0, 212, 170, 0.2) 30%,
+        rgba(0, 168, 138, 0.1) 60%,
+        transparent 100%
+      );
+      border-radius: 50%;
+      animation: light-propagate 4s ease-out infinite;
       z-index: 1;
     }
 
@@ -161,16 +167,16 @@ class OrganicLoader extends LitElement {
       }
     }
 
-    @keyframes ripple-propagate {
+    @keyframes light-propagate {
       0% {
-        transform: scale(0.8);
+        transform: scale(0.5);
+        opacity: 0;
+      }
+      20% {
         opacity: 0.8;
       }
-      50% {
-        opacity: 0.4;
-      }
       100% {
-        transform: scale(2.5);
+        transform: scale(3);
         opacity: 0;
       }
     }
