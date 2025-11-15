@@ -1137,6 +1137,205 @@ GET /users?is_admin=true
 
 ---
 
+## 📈 Metrics & Observability (PR4)
+
+**Public Endpoints** (pas d'authentification requise - pour outils monitoring)
+
+### GET /metrics
+
+**Description** : Endpoint de scraping Prometheus (exposition format)
+
+**Format** : `text/plain` (Prometheus exposition format)
+
+**Total métriques** : 36
+
+**Catégories** :
+- **Decision Engine** (20 metrics) : decisions_total, decisions_approved, decisions_blocked, guards_passed/blocked, validations_created/pending/approved, overrides_active, audit_records, agents_total/online/active/degraded/offline
+- **MQTT** (4 metrics) : mqtt_connected (1=connected, 0=disconnected), mqtt_reconnects_total, mqtt_messages_per_minute, mqtt_messages_total
+- **Agents** (3 metrics) : kernel_agents_total, kernel_agents_online, kernel_agents_offline
+- **Context Engine** (2 metrics) : context_mode (0=neutre, 1=cravate, 2=intime), context_confidence (0.0-1.0)
+- **Plugins** (3 metrics) : plugins_total, plugins_running, plugins_failed
+- **Kernel** (4 metrics) : kernel_uptime_seconds, kernel_memory_usage_mb, contracts_loaded
+
+**Exemple réponse** :
+```
+# HELP symbion_decision_total Total number of decisions made
+# TYPE symbion_decision_total counter
+symbion_decision_total 42
+# HELP symbion_mqtt_connected MQTT broker connection status
+# TYPE symbion_mqtt_connected gauge
+symbion_mqtt_connected 1
+# HELP symbion_kernel_agents_online Number of agents currently online
+# TYPE symbion_kernel_agents_online gauge
+symbion_kernel_agents_online 3
+```
+
+**Fichier source** : `symbion-kernel/src/http.rs:2579-2708`
+
+---
+
+### GET /v1/metrics/agents
+
+**Description** : Métriques détaillées par agent (format JSON)
+
+**Format** : `application/json` (array)
+
+**Authentification** : ❌ Public
+
+**Réponse** : Array d'objets `AgentMetrics`
+
+**Champs** :
+- `agent_id` (string) - Identifiant unique agent (MAC sans colons)
+- `hostname` (string) - Nom d'hôte
+- `status` (string) - Statut ("online", "offline")
+- `last_seen` (integer) - Timestamp Unix dernière activité
+- `uptime_seconds` (integer) - Temps de fonctionnement
+- `cpu` (object) :
+  - `percent` (float) - Utilisation CPU %
+  - `load_avg` (array[float]) - Charge moyenne [1min, 5min, 15min]
+  - `core_count` (integer) - Nombre de cœurs
+- `memory` (object) :
+  - `total_mb` (integer) - RAM totale
+  - `used_mb` (integer) - RAM utilisée
+  - `available_mb` (integer) - RAM disponible
+  - `percent_used` (float) - % utilisation
+- `disk` (array[object]) :
+  - `path` (string) - Point de montage
+  - `total_gb` (float) - Espace total
+  - `used_gb` (float) - Espace utilisé
+  - `free_gb` (float) - Espace libre
+  - `percent_used` (float) - % utilisation
+- `network` (array[object]) :
+  - `name` (string) - Nom interface
+  - `bytes_sent` (integer) - Octets envoyés
+  - `bytes_recv` (integer) - Octets reçus
+  - `is_up` (boolean) - Interface active
+- `processes` (object) :
+  - `total_count` (integer) - Nombre total processus
+  - `running_count` (integer) - Processus en cours
+
+**Exemple réponse** :
+```json
+[
+  {
+    "agent_id": "7070fc0481d8",
+    "hostname": "eridwyn-Salon",
+    "status": "online",
+    "last_seen": 1763207035,
+    "uptime_seconds": 75900,
+    "cpu": {
+      "percent": 10.17,
+      "load_avg": [1.18, 0.85, 0.72],
+      "core_count": 16
+    },
+    "memory": {
+      "total_mb": 27803,
+      "used_mb": 2460,
+      "available_mb": 25342,
+      "percent_used": 8.85
+    },
+    "disk": [
+      {
+        "path": "/",
+        "total_gb": 937.0,
+        "used_gb": 60.0,
+        "free_gb": 830.0,
+        "percent_used": 7.0
+      }
+    ],
+    "network": [],
+    "processes": {
+      "total_count": 946,
+      "running_count": 17
+    }
+  }
+]
+```
+
+**Fichier source** : `symbion-kernel/src/http.rs:2308-2442`
+
+---
+
+### GET /v1/metrics/system
+
+**Description** : Vue d'ensemble métriques kernel (format JSON)
+
+**Format** : `application/json` (object)
+
+**Authentification** : ❌ Public
+
+**Réponse** : Objet `SystemMetrics`
+
+**Champs** :
+- `kernel` (object) :
+  - `uptime_seconds` (integer) - Temps de fonctionnement
+  - `memory_usage_mb` (float) - Utilisation mémoire kernel
+  - `contracts_loaded` (integer) - Contrats MQTT chargés
+- `mqtt` (object) :
+  - `status` (string) - "connected", "disconnected", "reconnecting"
+  - `reconnects_total` (integer) - Nombre de reconnexions
+  - `messages_per_minute` (float) - Débit messages
+  - `messages_total` (integer) - Total messages reçus
+- `agents` (object) :
+  - `total` (integer) - Nombre total agents
+  - `online` (integer) - Agents en ligne
+  - `offline` (integer) - Agents hors ligne
+- `plugins` (object) :
+  - `total` (integer) - Nombre total plugins
+  - `running` (integer) - Plugins actifs
+  - `failed` (integer) - Plugins en erreur
+- `context` (object) :
+  - `current_mode` (string) - "neutre", "cravate", "intime"
+  - `confidence` (float) - Confiance détection (0.0-1.0)
+- `decision_engine` (object) :
+  - `decisions_total` (integer) - Décisions totales
+  - `decisions_approved` (integer) - Décisions approuvées
+  - `decisions_blocked` (integer) - Décisions bloquées
+  - `validations_pending` (integer) - Validations en attente
+  - `overrides_active` (integer) - Overrides actifs
+
+**Exemple réponse** :
+```json
+{
+  "kernel": {
+    "uptime_seconds": 92,
+    "memory_usage_mb": 13.54,
+    "contracts_loaded": 0
+  },
+  "mqtt": {
+    "status": "connected",
+    "reconnects_total": 0,
+    "messages_per_minute": 4.0,
+    "messages_total": 6
+  },
+  "agents": {
+    "total": 3,
+    "online": 2,
+    "offline": 1
+  },
+  "plugins": {
+    "total": 1,
+    "running": 1,
+    "failed": 0
+  },
+  "context": {
+    "current_mode": "intime",
+    "confidence": 0.9
+  },
+  "decision_engine": {
+    "decisions_total": 0,
+    "decisions_approved": 0,
+    "decisions_blocked": 0,
+    "validations_pending": 0,
+    "overrides_active": 0
+  }
+}
+```
+
+**Fichier source** : `symbion-kernel/src/http.rs:2444-2573`
+
+---
+
 ## 📊 Codes de Statut HTTP
 
 | Code | Signification | Exemple |
@@ -1155,6 +1354,6 @@ GET /users?is_admin=true
 
 ---
 
-**Dernière mise à jour** : 2025-11-12
-**Fichier source** : `symbion-kernel/src/http.rs` (2273 lignes)
-**Total endpoints documentés** : 90+
+**Dernière mise à jour** : 2025-11-15
+**Fichier source** : `symbion-kernel/src/http.rs` (2709 lignes)
+**Total endpoints documentés** : 93 (90 + 3 metrics)
