@@ -11,6 +11,16 @@
 > - **Autres**: `/ws/notes/stream` (WebSocket), `/api/notes` (alias), `/system/reboot`, `/system/shutdown`, `/csrf/token`
 >
 > Ces endpoints sont fonctionnels et testés mais nécessitent une documentation complète. Voir `symbion-kernel/src/http.rs` pour détails d'implémentation.
+>
+> ⚠️ **PHANTOM ENDPOINTS (Non implémentés)**: Les endpoints ci-dessous sont documentés mais n'existent PAS dans le code actuel:
+> - **Auth**: `/csrf-token` (utiliser `/auth/csrf/nonce`), `/jwt/verify` (utiliser `/auth/verify`), `/sessions`, `/sessions/{id}` (DELETE), `/refresh`
+> - **Users**: `/users/{id}` (PUT), `/users/{id}/password` (PUT) - Note: `/users` existe comme `/v1/users`
+> - **Agents**: `/agents/{id}` (DELETE), `/agents/{id}/logs`, `/agents/{id}/restart`, `/agents/{id}/capabilities`
+> - **Plugins**: `/plugins/{name}/health`
+> - **Decision**: `/decision/consents`, `/decision/consents/{id}` (DELETE), `/decision/trust-score` (utiliser `/decision/agent-health`)
+> - **Config**: `/config` (GET/PUT) - Note: utiliser `/decision/config` pour configuration Decision Engine
+>
+> Ces endpoints devraient être retirés de la documentation ou implémentés selon les besoins futurs.
 
 ## 🟢 Endpoints Publics (Sans Authentification)
 
@@ -58,7 +68,18 @@
 
 ## 🔐 Authentification & Sessions
 
-### `POST /login`
+> ⚠️ **NOTE DE MIGRATION (Novembre 2025)**: Tous les endpoints d'authentification utilisent maintenant le préfixe `/auth/*`:
+> - `/login` → `/auth/login`
+> - `/logout` → `/auth/logout`
+> - `/mfa/*` → `/auth/mfa/*`
+> - `/webauthn/*` → `/auth/webauthn/*`
+> - `/csrf/nonce` → `/auth/csrf/nonce`
+>
+> Les endpoints ci-dessous sont documentés AVEC le préfixe `/auth/` pour refléter l'implémentation actuelle.
+>
+> **Source**: `symbion-kernel/src/http.rs:203-235`
+
+### `POST /auth/login`
 **Description** : Connexion utilisateur (JWT + MFA)
 **Auth** : Non requis
 **Request** :
@@ -86,7 +107,7 @@
 }
 ```
 
-### `POST /login/mfa`
+### `POST /auth/mfa/verify`
 **Description** : Complétion login avec code TOTP
 **Auth** : MFA Token (temporaire)
 **Request** :
@@ -124,7 +145,7 @@
 }
 ```
 
-### `POST /logout`
+### `POST /auth/logout`
 **Description** : Déconnexion (révocation JWT)
 **Auth** : JWT
 **CSRF** : Requis
@@ -192,7 +213,7 @@
 
 ## 🔑 Multi-Factor Authentication (MFA)
 
-### `POST /mfa/setup`
+### `POST /auth/mfa/setup`
 **Description** : Activation MFA (génère QR code TOTP)
 **Auth** : JWT
 **CSRF** : Requis
@@ -209,7 +230,7 @@
 }
 ```
 
-### `POST /mfa/verify-setup`
+### `POST /auth/mfa/verify`
 **Description** : Validation activation MFA avec premier code
 **Auth** : JWT
 **CSRF** : Requis
@@ -228,7 +249,7 @@
 }
 ```
 
-### `POST /mfa/disable`
+### `POST /auth/mfa/disable`
 **Description** : Désactivation MFA
 **Auth** : JWT
 **CSRF** : Requis
@@ -250,7 +271,7 @@
 
 ## 🗝️ WebAuthn (Passkeys Biométriques)
 
-### `POST /webauthn/register/start`
+### `POST /auth/webauthn/register-start`
 **Description** : Démarrage enregistrement passkey
 **Auth** : JWT
 **CSRF** : Requis
@@ -281,7 +302,7 @@
 }
 ```
 
-### `POST /webauthn/register/finish`
+### `POST /auth/webauthn/register-finish`
 **Description** : Finalisation enregistrement passkey
 **Auth** : JWT
 **CSRF** : Requis
@@ -306,7 +327,7 @@
 }
 ```
 
-### `POST /webauthn/auth/start`
+### `POST /auth/webauthn/authenticate-start`
 **Description** : Démarrage authentification passkey
 **Auth** : Non requis
 **Request** :
@@ -330,7 +351,7 @@
 }
 ```
 
-### `POST /webauthn/auth/finish`
+### `POST /auth/webauthn/authenticate-finish`
 **Description** : Finalisation authentification passkey
 **Auth** : Non requis
 **Request** :
@@ -354,7 +375,7 @@
 }
 ```
 
-### `GET /webauthn/credentials`
+### `GET /auth/webauthn/passkeys`
 **Description** : Liste passkeys enregistrées
 **Auth** : JWT
 **Response** :
@@ -368,18 +389,6 @@
       "last_used": 1699887200
     }
   ]
-}
-```
-
-### `DELETE /webauthn/credentials/{id}`
-**Description** : Suppression passkey
-**Auth** : JWT
-**CSRF** : Requis
-**Response** :
-```json
-{
-  "success": true,
-  "message": "Passkey deleted"
 }
 ```
 
