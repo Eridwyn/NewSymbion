@@ -67,6 +67,11 @@ match topic.as_str() {
 }
 ```
 
+**Voir Aussi** :
+- [`symbion/agents/heartbeat@v1`](#symbionagentsheartbeatv1) - Heartbeat périodique agent
+- [`symbion/agents/command@v1`](#symbionagentscommandv1) - Commandes envoyées aux agents
+- [Contracts](./contracts.md#agentregistration) - Schéma validation registration
+
 ---
 
 ### `symbion/agents/heartbeat@v1`
@@ -143,6 +148,12 @@ match topic.as_str() {
 }
 ```
 
+**Voir Aussi** :
+- [`symbion/agents/registration@v1`](#symbionagentsregistrationv1) - Enregistrement initial agent
+- [`symbion/dashboard/agents@v1`](./flows.md#dashboard-updates) - Updates dashboard temps réel
+- [Agent Discovery Workflow](../architecture/SYSTEM_OVERVIEW.md#agent-discovery-workflow) - Process complet
+- [Message Size Limits](./README.md#message-size-limits) - Limites payload métriques
+
 ---
 
 ### `symbion/agents/response@v1`
@@ -197,6 +208,11 @@ match topic.as_str() {
 }
 ```
 
+**Voir Aussi** :
+- [`symbion/agents/command@v1`](#symbionagentscommandv1) - Commande initiale envoyée
+- [API Remote Commands](../api/endpoints.md#post-agentsagent_idcommand) - Endpoint HTTP trigger
+- [Contracts](./contracts.md#commandresponse) - Schéma validation response
+
 ---
 
 ## 🎛️ Agent Control Topics
@@ -247,6 +263,11 @@ fn validate_command(cmd: &str) -> bool {
     ALLOWED_COMMANDS.contains(&first_word)
 }
 ```
+
+**Voir Aussi** :
+- [`symbion/agents/response@v1`](#symbionagentsresponsev1) - Réponse agent à la commande
+- [API Remote Commands](../api/endpoints.md#post-agentsagent_idcommand) - Endpoint HTTP pour envoyer commandes
+- [Security](../api/security.md) - Command validation & whitelisting
 
 ---
 
@@ -348,6 +369,11 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 - **Publisher** : `symbion-kernel/src/http.rs:588-625`
 - **Subscriber** : `symbion-plugin-notes/src/main.rs`
 
+**Voir Aussi** :
+- [`symbion/notes/response@v1`](#symbionnotesresponsev1) - Réponse plugin à la requête
+- [API Notes](../api/endpoints.md#notes) - Endpoints HTTP CRUD
+- [Message Size Limits](./README.md#message-size-limits) - Streaming pagination pour large datasets
+
 ---
 
 ### `symbion/notes/response@v1`
@@ -425,6 +451,11 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 **Fichier source** :
 - **Publisher** : `symbion-plugin-notes/src/main.rs:106-118,320-399`
 - **Subscriber** : `symbion-kernel/src/notes_bridge.rs:122-151`
+
+**Voir Aussi** :
+- [`symbion/notes/command@v1`](#symbionnotescommandv1) - Requête initiale du kernel
+- [Message Size Limits](./README.md#message-size-limits) - Détails streaming pagination
+- [Communication Flows](./flows.md#plugin-communication) - Workflow complet plugin notes
 
 ---
 
@@ -676,7 +707,34 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 
 ---
 
-**Dernière mise à jour** : 2025-11-12
+## 📚 Documentation Connexe
+
+### MQTT Architecture
+- **[README.md](./README.md)** - Vue d'ensemble MQTT (broker, QoS, versioning, monitoring)
+  - [Message Size Limits](./README.md#message-size-limits) - Pagination/streaming patterns
+  - [QoS Strategy](./README.md#qos-quality-of-service) - At least once explained
+  - [Monitoring](./README.md#monitoring-mqtt) - Broker metrics & dashboard
+
+### Communication Patterns
+- **[contracts.md](./contracts.md)** - Schémas JSON validation & versioning
+- **[flows.md](./flows.md)** - Workflows complets (agent lifecycle, plugin comm, dashboard)
+
+### Architecture & API
+- **[SYSTEM_OVERVIEW.md](../architecture/SYSTEM_OVERVIEW.md)** - Architecture globale
+  - [Agent Discovery Workflow](../architecture/SYSTEM_OVERVIEW.md#agent-discovery-workflow) - Process complet
+  - [Network Architecture](../architecture/SYSTEM_OVERVIEW.md#network-architecture) - Ports & TLS
+- **[endpoints.md](../api/endpoints.md)** - API HTTP (trigger MQTT commands)
+  - [Remote Commands](../api/endpoints.md#post-agentsagent_idcommand) - POST /agents/:id/command
+  - [Notes CRUD](../api/endpoints.md#notes) - Notes endpoints
+- **[security.md](../api/security.md)** - Command validation & whitelisting
+
+### Guides Pratiques
+- **[TROUBLESHOOTING.md](../TROUBLESHOOTING.md)** - Diagnostic MQTT connection issues
+- **[DEPLOYMENT.md](../DEPLOYMENT.md)** - Mosquitto setup production
+
+---
+
+**Dernière mise à jour** : 15 Novembre 2025
 **Fichiers sources** :
 - `symbion-kernel/src/mqtt.rs` (subscriptions Kernel)
 - `symbion-agent-host/src/main.rs` (publishers Agents)
