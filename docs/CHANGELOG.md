@@ -8,6 +8,18 @@ Historique des améliorations et changements majeurs du projet.
 
 **Status**: 🟢 100% complété (5/5 tâches)
 
+### Améliorations Post-Phase 2 (15 Novembre 2025)
+
+#### Fix: Organic Loader Animation Synchronization
+- **Problème** : Incohérence visuelle entre instances du loader (border vs radial gradient)
+- **Solution** : Synchronisation animation ripples avec propagation lumineuse
+- **Changements** :
+  - Remplacement `border: 2px solid` par `radial-gradient` bioluminescent
+  - Animation `ripple-propagate` → `light-propagate` (scale 0.5→3)
+  - Cohérence visuelle complète sur tous les loaders
+- **Fichier modifié** : `pwa-dashboard/src/components/organic-loader.js:53-69,170-182`
+- **Commit** : `cc91a40`
+
 ### Améliorations Post-Phase 2 (14 Novembre 2025 - soir)
 
 #### Fix: MQTT Streaming Pagination pour Notes
