@@ -19,6 +19,7 @@ mod health;
 mod ports;
 mod plugins;
 mod notes_bridge;
+mod notes_ws;
 mod agents;
 mod auth;
 mod context;

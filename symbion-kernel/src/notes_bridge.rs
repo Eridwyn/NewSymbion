@@ -105,9 +105,9 @@ pub enum NoteResponse {
 /// Gestionnaire des requêtes en attente de réponse
 pub struct NotesBridge {
     /// Client MQTT pour communication avec le plugin
-    mqtt_client: AsyncClient,
+    pub mqtt_client: AsyncClient,
     /// Map des requêtes en attente : request_id -> sender pour réponses streamées
-    pending_requests: Arc<Mutex<HashMap<String, mpsc::Sender<NoteResponse>>>>,
+    pub pending_requests: Arc<Mutex<HashMap<String, mpsc::Sender<NoteResponse>>>>,
 }
 
 impl NotesBridge {

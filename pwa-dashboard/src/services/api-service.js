@@ -82,6 +82,11 @@ class ApiService extends LitElement {
     // Inclure le token JWT si l'utilisateur est authentifié
     const authHeader = authService.getAuthHeader()
 
+    // Support timeout (30s par défaut pour notes, sinon pas de timeout)
+    const timeout = options.timeout || null
+    const controller = timeout ? new AbortController() : null
+    const timeoutId = timeout ? setTimeout(() => controller.abort(), timeout) : null
+
     const config = {
       headers: {
         'Content-Type': 'application/json',
@@ -89,16 +94,23 @@ class ApiService extends LitElement {
         ...authHeader,  // Ajoute Authorization: Bearer {token} si présent
         ...options.headers
       },
+      signal: controller?.signal,
       ...options
     }
 
-    console.log(`[api-service] request: ${options.method || 'GET'} ${url}`)
+    // Remove timeout from config to avoid passing it to fetch
+    delete config.timeout
+
+    console.log(`[api-service] request: ${options.method || 'GET'} ${url}${timeout ? ` (timeout: ${timeout}ms)` : ''}`)
     console.log(`[api-service] baseUrl: ${this.baseUrl}`)
     console.log(`[api-service] auth header:`, authHeader)
     console.log(`[api-service] config:`, config)
 
     try {
       const response = await fetch(url, config)
+
+      // Clear timeout on success
+      if (timeoutId) clearTimeout(timeoutId)
       console.log(`[api-service] response status: ${response.status} ${response.statusText}`)
       
       if (!response.ok) {
@@ -131,12 +143,21 @@ class ApiService extends LitElement {
       return await response.text()
       
     } catch (error) {
+      // Clear timeout on error
+      if (timeoutId) clearTimeout(timeoutId)
+
+      // Handle abort/timeout
+      if (error.name === 'AbortError') {
+        console.error(`⏱️ Request timeout [${endpoint}]`)
+        throw new Error(`Request timeout after ${timeout}ms`)
+      }
+
       // Network errors (fetch failed completely)
       if (error.name === 'TypeError' || error.message.includes('Failed to fetch')) {
         console.error(`❌ Network error [${endpoint}]:`, error)
         this.updateStatus('offline')
       }
-      
+
       throw error
     }
   }
@@ -221,9 +242,10 @@ class ApiService extends LitElement {
         params.append(key, value)
       }
     })
-    
+
     const query = params.toString() ? `?${params.toString()}` : ''
-    return await this.request(`/ports/memo${query}`)
+    // Timeout de 30s pour les grandes collections de notes
+    return await this.request(`/ports/memo${query}`, { timeout: 30000 })
   }
   
   async createNote(note) {

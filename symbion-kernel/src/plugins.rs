@@ -205,8 +205,23 @@ impl PluginInstance {
         
         // Préparation environnement
         let mut cmd = Command::new(&self.manifest.binary);
-        cmd.stdout(Stdio::piped())
-           .stderr(Stdio::piped());
+
+        // Créer fichier de log pour debug plugin (temporaire)
+        let log_path = format!("/tmp/plugin-{}.log", self.manifest.name);
+        let log_file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)
+            .map_err(|e| PluginError::StartFailed(format!("Can't create log file: {}", e)))?;
+        let log_file_clone = log_file.try_clone()
+            .map_err(|e| PluginError::StartFailed(format!("Can't clone log file: {}", e)))?;
+
+        cmd.stdout(Stdio::from(log_file))
+           .stderr(Stdio::from(log_file_clone));
+
+        // Définit le répertoire de travail à la racine du projet
+        // pour que le plugin puisse accéder aux fichiers relatifs (ex: ./notes.json)
+        cmd.current_dir(".");
 
         // Variables globales du kernel
         for (k, v) in global_env {

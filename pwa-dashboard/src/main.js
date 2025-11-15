@@ -92,6 +92,19 @@ const startApp = () => {
     container.appendChild(agentsService)
     container.appendChild(app)
     console.log('[app] Boot terminal mounted with services')
+
+    // Cacher le loader de page après un court délai pour l'animation
+    setTimeout(() => {
+      const pageLoader = document.getElementById('page-loader')
+      if (pageLoader) {
+        pageLoader.classList.add('hidden')
+        console.log('[app] Page loader hidden')
+        // Retirer complètement du DOM après la transition
+        setTimeout(() => {
+          pageLoader.remove()
+        }, 600) // Correspond à la durée de transition CSS (0.6s)
+      }
+    }, 500) // Petit délai pour voir le loader
   }
 }
 
