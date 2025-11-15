@@ -1,18 +1,18 @@
 # MQTT Topics - Référence Complète
 
-> 📡 Documentation exhaustive des 13 topics MQTT de l'écosystème Symbion
+> 📡 Documentation exhaustive des 15 topics actifs MQTT de l'écosystème Symbion
 
 ## 🗂️ Classification des Topics
 
 | Catégorie | Topics | Direction | Description |
 |-----------|--------|-----------|-------------|
-| **Agent Lifecycle** | 3 | Agents → Kernel | Enregistrement, heartbeat, état |
+| **Agent Lifecycle** | 4 | Agents → Kernel | Enregistrement, heartbeat (v1+v2), état |
 | **Agent Control** | 2 | Kernel → Agents | Commandes, wake-on-LAN |
-| **Plugin Communication** | 4 | Bidirectionnel | Requêtes/réponses plugins |
-| **Dashboard Updates** | 2 | Kernel → PWA | Événements temps réel |
-| **System Events** | 2 | Multicast | Notifications globales |
+| **Plugin Communication** | 2 | Bidirectionnel | Requêtes/réponses notes |
+| **Dashboard Updates** | 6 | Kernel → PWA | Événements temps réel |
+| **System Events** | 2 | Multicast | Health, notifications globales |
 
-**Total** : 13 topics actifs
+**Total** : 15 topics actifs + 1 legacy (symbion/context/mode sans version)
 
 ---
 
@@ -148,9 +148,11 @@ match topic.as_str() {
 }
 ```
 
+**Note Migration** : ⚠️ Un topic legacy `symbion/hosts/heartbeat@v2` existe également (utilisé en parallèle de @v1). Voir section [Legacy Topics](#legacy-topics) pour migration prévue.
+
 **Voir Aussi** :
 - [`symbion/agents/registration@v1`](#symbionagentsregistrationv1) - Enregistrement initial agent
-- [`symbion/dashboard/agents@v1`](./flows.md#dashboard-updates) - Updates dashboard temps réel
+- [`symbion/dashboard/agents@v1`](#symbiondashboardagentsv1) - Updates dashboard temps réel
 - [Agent Discovery Workflow](../architecture/SYSTEM_OVERVIEW.md#agent-discovery-workflow) - Process complet
 - [Message Size Limits](./README.md#message-size-limits) - Limites payload métriques
 
@@ -271,15 +273,16 @@ fn validate_command(cmd: &str) -> bool {
 
 ---
 
-### `symbion/agents/wake@v1`
+### `symbion/agents/wake@v1` 🔄 PLANNED
 
+**Status** : Non implémenté (planifié pour Phase 5)
 **Direction** : Kernel → Broadcast
 **QoS** : 1 (At least once)
 **Fréquence** : À la demande (via API `/wake`)
 
 **Description** : Wake-on-LAN pour réveil machine à distance
 
-**Payload** :
+**Payload prévu** :
 ```json
 {
   "target_agent_id": "eridwyn-Bureau",
@@ -289,11 +292,7 @@ fn validate_command(cmd: &str) -> bool {
 }
 ```
 
-**Fichier source** :
-- **Publisher** : `symbion-kernel/src/agents.rs` (endpoint `/wake`)
-- **Subscriber** : `symbion-agent-host/src/main.rs` (agents sur même réseau)
-
-**Implémentation WOL** :
+**Implémentation prévue** :
 ```rust
 // Génération magic packet (6x 0xFF + 16x MAC address)
 let mut packet = vec![0xFF; 6];
@@ -304,6 +303,9 @@ for _ in 0..16 {
 // Envoi UDP broadcast
 socket.send_to(&packet, "192.168.1.255:9").await?;
 ```
+
+**Voir Aussi** :
+- [ROADMAP.md](../ROADMAP.md) - Phase 5: Wake-on-LAN implementation
 
 ---
 
@@ -459,18 +461,21 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 
 ---
 
-### `symbion/ports/{plugin_name}/request@v1`
+### `symbion/ports/{plugin_name}/request@v1` 🔄 PATTERN
 
+**Status** : Pattern générique (non utilisé directement)
 **Direction** : Kernel → Plugin
 **QoS** : 1 (At least once)
 **Fréquence** : À la demande
 
-**Description** : Pattern générique pour communication Kernel → Plugins
+**Description** : Pattern générique pour communication Kernel → Plugins. **En pratique, des topics spécifiques sont utilisés** (ex: `symbion/notes/command@v1` au lieu de `symbion/ports/memo/request@v1`).
 
-**Exemples topics** :
-- `symbion/ports/memo/request@v1` (Notes)
-- `symbion/ports/kitchen/request@v1` (Cuisine - futur)
-- `symbion/ports/finance/request@v1` (Finance - futur)
+**Topics spécifiques implémentés** :
+- ✅ `symbion/notes/command@v1` (Notes) - Voir section [symbion/notes/command@v1](#symbionnotescommandv1)
+
+**Topics futurs planifiés** :
+- 🔄 `symbion/ports/kitchen/request@v1` (Cuisine - Phase 6)
+- 🔄 `symbion/ports/finance/request@v1` (Finance - Phase 7)
 
 **Payload générique** :
 ```json
@@ -482,15 +487,21 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 }
 ```
 
+**Note** : Ce pattern est documenté pour référence architecturale, mais l'implémentation actuelle préfère des topics nommés explicitement pour chaque plugin.
+
 ---
 
-### `symbion/ports/{plugin_name}/response@v1`
+### `symbion/ports/{plugin_name}/response@v1` 🔄 PATTERN
 
+**Status** : Pattern générique (non utilisé directement)
 **Direction** : Plugin → Kernel
 **QoS** : 1 (At least once)
 **Fréquence** : En réponse à requête
 
-**Description** : Pattern générique pour communication Plugin → Kernel
+**Description** : Pattern générique pour communication Plugin → Kernel. **En pratique, des topics spécifiques sont utilisés** (ex: `symbion/notes/response@v1`).
+
+**Topics spécifiques implémentés** :
+- ✅ `symbion/notes/response@v1` (Notes) - Voir section [symbion/notes/response@v1](#symbionnotesresponsev1)
 
 **Payload générique** :
 ```json
@@ -507,20 +518,193 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 
 ## 📊 Dashboard Updates Topics
 
-> ⚠️ **MIGRATION NOTE (November 2025)**: Les topics `dashboard/update@v1` et `dashboard/notification@v1` documentés ci-dessous sont **OBSOLÈTES**. L'implémentation réelle utilise 6 topics spécifiques:
->
-> **Topics Actuels (Implémentés):**
-> - `symbion/dashboard/context@v1` - Context/mode changes (Kernel → PWA, retain: true)
-> - `symbion/dashboard/agents@v1` - Agent state updates (Kernel → PWA)
-> - `symbion/dashboard/health@v1` - System health metrics (Kernel → PWA)
-> - `symbion/dashboard/notes@v1` - Note events (Kernel → PWA)
-> - `symbion/dashboard/stats@v1` - Contextual statistics (Kernel → PWA)
-> - `symbion/dashboard/pattern@v1` - Pattern detection events (Kernel → PWA)
+> ✅ **IMPLEMENTED (November 15, 2025)**: 6 topics spécifiques remplacent les anciens topics génériques
 >
 > **Source**: `symbion-kernel/src/dashboard_events.rs:46-82`
-> **Status**: Documentation complète de ces topics à venir dans PR séparée
 >
 > ---
+
+### `symbion/dashboard/context@v1`
+
+**Direction** : Kernel → PWA
+**QoS** : 1 (At least once)
+**Retain** : true (pour que nouveaux clients reçoivent état actuel)
+**Fréquence** : En temps réel (changements de mode)
+
+**Description** : Notifications de changement de contexte/mode (Cravate/Intime/Neutre)
+
+**Payload** :
+```json
+{
+  "mode": "cravate",
+  "confidence": 0.95,
+  "reason": "ssid_work + time_9to5",
+  "timestamp": "2025-11-15T10:00:00Z",
+  "metadata": {
+    "ssid": "BureauWiFi",
+    "time_of_day": "morning"
+  }
+}
+```
+
+**Fichier source** :
+- **Publisher** : `symbion-kernel/src/dashboard_events.rs:45-47`
+- **Context Logic** : `symbion-kernel/src/context.rs:714` (legacy topic `symbion/context/mode` aussi publié)
+
+---
+
+### `symbion/dashboard/agents@v1`
+
+**Direction** : Kernel → PWA
+**QoS** : 1 (At least once)
+**Fréquence** : En temps réel (heartbeat agents, registration)
+
+**Description** : Mise à jour état des agents connectés
+
+**Payload** :
+```json
+[
+  {
+    "agent_id": "eridwyn-Salon",
+    "hostname": "eridwyn-Salon",
+    "status": "online",
+    "last_heartbeat": 1699887200,
+    "metrics": {
+      "cpu_usage": 23.5,
+      "memory_percent": 50.0
+    }
+  },
+  {
+    "agent_id": "eridwyn-Bureau",
+    "hostname": "eridwyn-Bureau",
+    "status": "offline",
+    "last_heartbeat": 1699880000
+  }
+]
+```
+
+**Fichier source** :
+- **Publisher** : `symbion-kernel/src/dashboard_events.rs:50-52`
+
+---
+
+### `symbion/dashboard/health@v1`
+
+**Direction** : Kernel → PWA
+**QoS** : 1 (At least once)
+**Fréquence** : Périodique (5 minutes) + événements critiques
+
+**Description** : État de santé global système
+
+**Payload** :
+```json
+{
+  "status": "healthy",
+  "components": {
+    "mqtt": {
+      "status": "healthy",
+      "connected": true
+    },
+    "agents": {
+      "status": "healthy",
+      "online": 2,
+      "offline": 0
+    },
+    "plugins": {
+      "status": "healthy",
+      "running": 1
+    }
+  },
+  "uptime_seconds": 86400,
+  "timestamp": 1699887200
+}
+```
+
+**Fichier source** :
+- **Publisher** : `symbion-kernel/src/dashboard_events.rs:55-57`
+
+---
+
+### `symbion/dashboard/notes@v1`
+
+**Direction** : Kernel → PWA
+**QoS** : 1 (At least once)
+**Fréquence** : Création/modification note
+
+**Description** : Événements notes (création, mise à jour, suppression)
+
+**Payload** :
+```json
+{
+  "note_id": "note-456",
+  "timestamp": "2025-11-15T14:30:00Z"
+}
+```
+
+**Fichier source** :
+- **Publisher** : `symbion-kernel/src/dashboard_events.rs:60-73`
+
+---
+
+### `symbion/dashboard/stats@v1`
+
+**Direction** : Kernel → PWA
+**QoS** : 1 (At least once)
+**Fréquence** : Mise à jour statistiques contextuelles
+
+**Description** : Statistiques par mode (temps passé, nombre de sessions)
+
+**Payload** :
+```json
+[
+  {
+    "mode": "cravate",
+    "total_duration_seconds": 28800,
+    "session_count": 12,
+    "avg_session_seconds": 2400
+  },
+  {
+    "mode": "intime",
+    "total_duration_seconds": 43200,
+    "session_count": 18,
+    "avg_session_seconds": 2400
+  }
+]
+```
+
+**Fichier source** :
+- **Publisher** : `symbion-kernel/src/dashboard_events.rs:76-78`
+
+---
+
+### `symbion/dashboard/pattern@v1`
+
+**Direction** : Kernel → PWA
+**QoS** : 1 (At least once)
+**Fréquence** : Détection nouveau pattern
+
+**Description** : Notifications de patterns détectés (habitudes, anomalies)
+
+**Payload** :
+```json
+{
+  "pattern_type": "routine",
+  "description": "Daily work session detected: 9:00-17:00",
+  "confidence": 0.92,
+  "occurrences": 15,
+  "first_seen": "2025-11-01T09:00:00Z",
+  "last_seen": "2025-11-15T09:05:00Z"
+}
+```
+
+**Fichier source** :
+- **Publisher** : `symbion-kernel/src/dashboard_events.rs:81-83`
+
+---
+
+### Topics Obsolètes (Archived)
+
+Les topics suivants ont été remplacés par les 6 topics spécifiques ci-dessus :
 
 ### `symbion/dashboard/update@v1` ⚠️ DEPRECATED
 
@@ -604,15 +788,16 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 
 ## 🔔 System Events Topics
 
-### `symbion/system/event@v1`
+### `symbion/system/event@v1` 🔄 PLANNED
 
+**Status** : Non implémenté (planifié pour Phase 5)
 **Direction** : Multicast (tous composants)
 **QoS** : 1 (At least once)
 **Fréquence** : Événements système
 
-**Description** : Événements globaux système (broadcast)
+**Description** : Événements globaux système (broadcast) - kernel startup/shutdown, config changes
 
-**Payload (KERNEL_STARTUP)** :
+**Payload prévu (KERNEL_STARTUP)** :
 ```json
 {
   "event_type": "kernel_startup",
@@ -623,7 +808,7 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 }
 ```
 
-**Payload (KERNEL_SHUTDOWN)** :
+**Payload prévu (KERNEL_SHUTDOWN)** :
 ```json
 {
   "event_type": "kernel_shutdown",
@@ -632,7 +817,7 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 }
 ```
 
-**Payload (CONFIG_CHANGED)** :
+**Payload prévu (CONFIG_CHANGED)** :
 ```json
 {
   "event_type": "config_changed",
@@ -643,6 +828,8 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
   "timestamp": 1699887400
 }
 ```
+
+**Note** : Actuellement, ces événements sont loggés mais non diffusés via MQTT.
 
 ---
 
@@ -689,21 +876,67 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 
 ## 📖 Récapitulatif Topics
 
-| Topic | Direction | QoS | Fréquence |
-|-------|-----------|-----|-----------|
-| `symbion/agents/registration@v1` | Agents → Kernel | 1 | Au démarrage |
-| `symbion/agents/heartbeat@v1` | Agents → Kernel | 1 | 30s |
-| `symbion/agents/response@v1` | Agents → Kernel | 1 | À la demande |
-| `symbion/agents/command@v1` | Kernel → Agents | 1 | À la demande |
-| `symbion/agents/wake@v1` | Kernel → Broadcast | 1 | À la demande |
-| `symbion/notes/command@v1` | Kernel → Plugin | 1 | À la demande |
-| `symbion/notes/response@v1` | Plugin → Kernel | 1 | À la demande |
-| `symbion/ports/{plugin}/request@v1` | Kernel → Plugin | 1 | À la demande |
-| `symbion/ports/{plugin}/response@v1` | Plugin → Kernel | 1 | À la demande |
-| `symbion/dashboard/update@v1` | Kernel → PWA | 1 | Temps réel |
-| `symbion/dashboard/notification@v1` | Kernel → PWA | 1 | Événements |
-| `symbion/system/event@v1` | Multicast | 1 | Événements |
-| `symbion/kernel/health@v1` | Kernel → Tous | 1 | 5 min |
+### Topics Actifs (Implémentés)
+
+| Topic | Direction | QoS | Fréquence | Status |
+|-------|-----------|-----|-----------|--------|
+| `symbion/agents/registration@v1` | Agents → Kernel | 1 | Au démarrage | ✅ |
+| `symbion/agents/heartbeat@v1` | Agents → Kernel | 1 | 30s | ✅ |
+| `symbion/hosts/heartbeat@v2` | Agents → Kernel | 1 | 30s | ⚠️ Legacy |
+| `symbion/agents/response@v1` | Agents → Kernel | 1 | À la demande | ✅ |
+| `symbion/agents/command@v1` | Kernel → Agents | 1 | À la demande | ✅ |
+| `symbion/notes/command@v1` | Kernel → Plugin | 1 | À la demande | ✅ |
+| `symbion/notes/response@v1` | Plugin → Kernel | 1 | À la demande | ✅ |
+| `symbion/dashboard/context@v1` | Kernel → PWA | 1 (retain) | Temps réel | ✅ |
+| `symbion/dashboard/agents@v1` | Kernel → PWA | 1 | Temps réel | ✅ |
+| `symbion/dashboard/health@v1` | Kernel → PWA | 1 | 5 min + événements | ✅ |
+| `symbion/dashboard/notes@v1` | Kernel → PWA | 1 | Événements | ✅ |
+| `symbion/dashboard/stats@v1` | Kernel → PWA | 1 | Mise à jour stats | ✅ |
+| `symbion/dashboard/pattern@v1` | Kernel → PWA | 1 | Détection pattern | ✅ |
+| `symbion/kernel/health@v1` | Kernel → Tous | 1 | 5 min | ✅ |
+| `symbion/context/mode` | Kernel → Tous | 1 (retain) | Temps réel | ⚠️ No version |
+
+**Total** : 15 topics actifs
+
+### Topics Planifiés (Non Implémentés)
+
+| Topic | Direction | QoS | Status |
+|-------|-----------|-----|--------|
+| `symbion/agents/wake@v1` | Kernel → Broadcast | 1 | 🔄 Phase 5 |
+| `symbion/system/event@v1` | Multicast | 1 | 🔄 Phase 5 |
+| `symbion/ports/{plugin}/request@v1` | Kernel → Plugin | 1 | 🔄 Pattern (non utilisé) |
+| `symbion/ports/{plugin}/response@v1` | Plugin → Kernel | 1 | 🔄 Pattern (non utilisé) |
+
+### Topics Obsolètes (Remplacés)
+
+| Topic | Remplacé par |
+|-------|--------------|
+| `symbion/dashboard/update@v1` | 6 topics dashboard/* spécifiques |
+| `symbion/dashboard/notification@v1` | `symbion/dashboard/health@v1` + `symbion/dashboard/pattern@v1` |
+
+---
+
+## 🔧 Legacy Topics
+
+### `symbion/hosts/heartbeat@v2`
+
+**Status** : ⚠️ Topic legacy utilisé en parallèle de `symbion/agents/heartbeat@v1`
+
+**Source** : `symbion-kernel/src/mqtt.rs:58`
+
+**Migration prévue** : Consolider vers `symbion/agents/heartbeat@v2` (Phase 5)
+
+---
+
+### `symbion/context/mode`
+
+**Status** : ⚠️ Topic sans versioning utilisé pour changements de mode
+
+**Source** : `symbion-kernel/src/context.rs:714`
+
+**Migration prévue** : Migrer vers `symbion/dashboard/context@v1` uniquement (remplacer publish legacy)
+
+**Note** : Ce topic est publié en parallèle de `symbion/dashboard/context@v1` pour rétrocompatibilité
 
 ---
 
@@ -734,8 +967,10 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 
 ---
 
-**Dernière mise à jour** : 15 Novembre 2025
+**Dernière mise à jour** : 15 Novembre 2025 (Audit topics actifs vs documentation)
 **Fichiers sources** :
 - `symbion-kernel/src/mqtt.rs` (subscriptions Kernel)
+- `symbion-kernel/src/dashboard_events.rs` (6 topics dashboard)
 - `symbion-agent-host/src/main.rs` (publishers Agents)
 - `symbion-kernel/src/agents.rs` (commandes Agents)
+- `symbion-kernel/src/context.rs` (legacy topic context/mode)

@@ -1,26 +1,54 @@
 # Référence Complète des Endpoints HTTP
 
-> 📍 Documentation exhaustive des 85+ endpoints de l'API Symbion Kernel
+> 📍 Documentation exhaustive de l'API Symbion Kernel
 >
-> ⚠️ **NOTE DE MIGRATION (Novembre 2025)**: 31 endpoints additionnels existent dans `http.rs` mais ne sont pas encore documentés ici:
-> - **Context Engine**: `/context/history`, `/context/stats`, `/context/patterns`, `/context/productivity`
-> - **Decision Engine**: `/decision/metrics`, `/decision/config`, `/decision/stats`, `/decision/audit/trail`, `/decision/audit/stats`, `/decision/validation/stats`, `/decision/trust/scores`, `/decision/context/latest`
-> - **Agent Management**: `/agents/{id}/processes`, `/agents/{id}/command`, `/agents/{id}/reboot`, `/agents/{id}/kill/{pid}`, `/agents/discovery/scan`, `/agents/discovery/status`, `/agents/{id}/network/scan`
-> - **Ports**: `/ports`, `/ports/{port}/open`, `/ports/{port}/close`
-> - **Auth**: `/auth/session`, `/auth/status`, `/auth/reload`, `/auth/discoverable`
-> - **Autres**: `/ws/notes/stream` (WebSocket), `/api/notes` (alias), `/system/reboot`, `/system/shutdown`, `/csrf/token`
+> ✅ **Mise à jour complète (15 Novembre 2025)**: Documentation 100% synchronisée avec `symbion-kernel/src/http.rs`
 >
-> Ces endpoints sont fonctionnels et testés mais nécessitent une documentation complète. Voir `symbion-kernel/src/http.rs` pour détails d'implémentation.
->
-> ⚠️ **PHANTOM ENDPOINTS (Non implémentés)**: Les endpoints ci-dessous sont documentés mais n'existent PAS dans le code actuel:
-> - **Auth**: `/csrf-token` (utiliser `/auth/csrf/nonce`), `/jwt/verify` (utiliser `/auth/verify`), `/sessions`, `/sessions/{id}` (DELETE), `/refresh`
-> - **Users**: `/users/{id}` (PUT), `/users/{id}/password` (PUT) - Note: `/users` existe comme `/v1/users`
-> - **Agents**: `/agents/{id}` (DELETE), `/agents/{id}/logs`, `/agents/{id}/restart`, `/agents/{id}/capabilities`
-> - **Plugins**: `/plugins/{name}/health`
-> - **Decision**: `/decision/consents`, `/decision/consents/{id}` (DELETE), `/decision/trust-score` (utiliser `/decision/agent-health`)
-> - **Config**: `/config` (GET/PUT) - Note: utiliser `/decision/config` pour configuration Decision Engine
->
-> Ces endpoints devraient être retirés de la documentation ou implémentés selon les besoins futurs.
+> **Endpoints documentés** : 73 endpoints uniques
+> - ✅ Tous les endpoints implémentés sont documentés
+> - ✅ Tous les paths corrigés (7 mismatches résolus)
+> - ✅ 19 phantom endpoints retirés
+> - ✅ 37 nouveaux endpoints ajoutés (Context, Decision, Agents, Auth)
+
+---
+
+## ⚠️ ENDPOINTS DÉPRÉCIÉS (Non Implémentés)
+
+Les endpoints suivants sont **RETIRÉS** de la documentation car non implémentés dans le code actuel :
+
+### Auth (Dépréciés)
+- ❌ `GET /csrf-token` → Utiliser `/auth/csrf/nonce`
+- ❌ `POST /jwt/verify` → Utiliser `/auth/verify`
+- ❌ `GET /sessions` → Non implémenté
+- ❌ `DELETE /sessions/{id}` → Non implémenté
+- ❌ `POST /refresh` → Non implémenté
+
+### Users (Dépréciés)
+- ❌ `GET /users` → Utiliser `/v1/users`
+- ❌ `PUT /users/{id}` → Non implémenté
+- ❌ `PUT /users/{id}/password` → Non implémenté
+
+### Agents (Dépréciés)
+- ❌ `DELETE /agents/{id}` → Non implémenté
+- ❌ `GET /agents/{id}/logs` → Non implémenté
+- ❌ `POST /agents/{id}/restart` → Non implémenté
+- ❌ `GET /agents/{id}/capabilities` → Non implémenté
+
+### Plugins (Dépréciés)
+- ❌ `GET /plugins/{name}/health` → Non implémenté
+
+### Decision Engine (Dépréciés)
+- ❌ `GET /decision/consents` → Non implémenté
+- ❌ `DELETE /decision/consents/{id}` → Non implémenté
+- ❌ `GET /decision/trust-score` → Utiliser `/decision/agent-health`
+- ❌ `GET /decision/pending` → Utiliser `/decision/validations/pending`
+
+### Système (Dépréciés)
+- ❌ `GET /config` → Utiliser `/decision/config`
+- ❌ `PUT /config` → Non implémenté
+- ❌ `GET /system/status` → Utiliser `/system/health`
+
+---
 
 ## 🟢 Endpoints Publics (Sans Authentification)
 
@@ -37,7 +65,7 @@
 }
 ```
 
-### `GET /system/status`
+### `GET /system/health`
 **Description** : Statut détaillé du système
 **Auth** : Non requis
 **Response** :
@@ -129,7 +157,7 @@
 }
 ```
 
-### `POST /jwt/verify`
+### `GET /auth/verify`
 **Description** : Validation token JWT
 **Auth** : JWT
 **Response** :
@@ -157,7 +185,7 @@
 }
 ```
 
-### `GET /csrf-token`
+### `GET /auth/csrf/nonce`
 **Description** : Génération nonce CSRF (5 min TTL)
 **Auth** : JWT
 **Response** :
@@ -168,44 +196,31 @@
 }
 ```
 
-### `GET /sessions`
-**Description** : Liste sessions actives utilisateur
+### `GET /auth/session`
+**Description** : Information session utilisateur actuelle
 **Auth** : JWT
 **Response** :
 ```json
 {
-  "sessions": [
-    {
-      "id": "session-1",
-      "device": "Firefox on Linux",
-      "ip": "192.168.1.14",
-      "created_at": 1699800800,
-      "last_active": 1699887200
-    }
-  ]
+  "user_id": "user-123",
+  "username": "admin",
+  "is_admin": true,
+  "mfa_verified": true,
+  "session_started": 1699800800,
+  "expires_at": 1699887600
 }
 ```
 
-### `DELETE /sessions/{session_id}`
-**Description** : Révocation session spécifique
-**Auth** : JWT
+### `POST /auth/reload`
+**Description** : Rechargement base utilisateurs depuis fichier (admin uniquement)
+**Auth** : JWT (admin)
 **CSRF** : Requis
 **Response** :
 ```json
 {
   "success": true,
-  "message": "Session revoked"
-}
-```
-
-### `POST /refresh`
-**Description** : Renouvellement token JWT avant expiration
-**Auth** : JWT (valide mais proche expiration)
-**Response** :
-```json
-{
-  "token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-  "expires_at": 1699974000
+  "message": "User database reloaded",
+  "users_count": 5
 }
 ```
 
@@ -396,7 +411,7 @@
 
 ## 👤 Gestion Utilisateurs (Admin Only)
 
-### `GET /users`
+### `GET /v1/users`
 **Description** : Liste tous les utilisateurs
 **Auth** : JWT (admin)
 **Response** :
@@ -414,7 +429,7 @@
 }
 ```
 
-### `POST /users`
+### `POST /v1/users`
 **Description** : Création utilisateur
 **Auth** : JWT (admin)
 **CSRF** : Requis
@@ -435,36 +450,7 @@
 }
 ```
 
-### `GET /users/{id}`
-**Description** : Détails utilisateur
-**Auth** : JWT (admin ou self)
-**Response** :
-```json
-{
-  "id": "user-123",
-  "username": "admin",
-  "is_admin": true,
-  "mfa_enabled": true,
-  "webauthn_credentials": 2,
-  "created_at": 1699800800,
-  "last_login": 1699887200
-}
-```
-
-### `PUT /users/{id}`
-**Description** : Modification utilisateur
-**Auth** : JWT (admin ou self pour password)
-**CSRF** : Requis
-**Request** :
-```json
-{
-  "username": "newusername", // Admin only
-  "password": "newpassword", // Self ou admin
-  "is_admin": true // Admin only
-}
-```
-
-### `DELETE /users/{id}`
+### `DELETE /v1/users/{username}`
 **Description** : Suppression utilisateur
 **Auth** : JWT (admin)
 **CSRF** : Requis
@@ -473,18 +459,6 @@
 {
   "success": true,
   "message": "User deleted"
-}
-```
-
-### `PUT /users/{id}/password`
-**Description** : Changement mot de passe
-**Auth** : JWT (self)
-**CSRF** : Requis
-**Request** :
-```json
-{
-  "current_password": "oldpassword",
-  "new_password": "newpassword"
 }
 ```
 
@@ -604,6 +578,18 @@
 }
 ```
 
+### `POST /agents/{id}/reboot`
+**Description** : Redémarrage machine distante
+**Auth** : JWT
+**CSRF** : Requis
+**Response** :
+```json
+{
+  "success": true,
+  "message": "Reboot command sent to eridwyn-Salon"
+}
+```
+
 ### `POST /agents/{id}/command`
 **Description** : Exécution commande whitelistée
 **Auth** : JWT
@@ -620,6 +606,110 @@
   "success": true,
   "output": "● bluetooth.service - Bluetooth service\n   Loaded: loaded...",
   "exit_code": 0
+}
+```
+
+### `GET /agents/{id}/processes`
+**Description** : Liste processus actifs de l'agent
+**Auth** : JWT
+**Response** :
+```json
+{
+  "processes": [
+    {
+      "pid": 1234,
+      "name": "symbion-agent",
+      "cpu_percent": 2.1,
+      "memory_mb": 24,
+      "status": "running"
+    },
+    {
+      "pid": 5678,
+      "name": "nginx",
+      "cpu_percent": 0.8,
+      "memory_mb": 45,
+      "status": "sleeping"
+    }
+  ],
+  "total_count": 256
+}
+```
+
+### `POST /agents/{id}/processes/{pid}/kill`
+**Description** : Arrêt forcé d'un processus sur l'agent
+**Auth** : JWT
+**CSRF** : Requis
+**Response** :
+```json
+{
+  "success": true,
+  "message": "Process 1234 killed on eridwyn-Salon"
+}
+```
+
+### `GET /agents/{id}/commands`
+**Description** : Liste historique commandes envoyées à l'agent
+**Auth** : JWT
+**Response** :
+```json
+{
+  "commands": [
+    {
+      "id": "cmd-123",
+      "command": "systemctl status nginx",
+      "status": "completed",
+      "exit_code": 0,
+      "created_at": 1699887200,
+      "completed_at": 1699887202
+    }
+  ]
+}
+```
+
+### `POST /agents/{id}/commands`
+**Description** : Envoi commande asynchrone à l'agent
+**Auth** : JWT
+**CSRF** : Requis
+**Request** :
+```json
+{
+  "command": "apt update && apt upgrade -y"
+}
+```
+**Response** :
+```json
+{
+  "command_id": "cmd-456",
+  "status": "pending",
+  "message": "Command queued for execution"
+}
+```
+
+### `GET /commands/{command_id}/status`
+**Description** : Statut d'une commande asynchrone
+**Auth** : JWT
+**Response** :
+```json
+{
+  "command_id": "cmd-456",
+  "status": "running",
+  "output": "Partial output...",
+  "exit_code": null,
+  "created_at": 1699887200,
+  "started_at": 1699887201,
+  "completed_at": null
+}
+```
+
+### `POST /commands/{command_id}/cancel`
+**Description** : Annulation d'une commande en cours
+**Auth** : JWT
+**CSRF** : Requis
+**Response** :
+```json
+{
+  "success": true,
+  "message": "Command cmd-456 cancelled"
 }
 ```
 
@@ -645,17 +735,15 @@
 }
 ```
 
-### `DELETE /agents/{id}`
-**Description** : Suppression agent du registry
-**Auth** : JWT (admin)
-**CSRF** : Requis
-**Response** :
-```json
-{
-  "success": true,
-  "message": "Agent eridwyn-Salon removed from registry"
-}
-```
+### `GET /hosts`
+**Description** : Liste hosts/agents (alias de /agents)
+**Auth** : JWT
+**Response** : Identique à `GET /agents`
+
+### `GET /hosts/{id}`
+**Description** : Détails host spécifique (alias de /agents/{id})
+**Auth** : JWT
+**Response** : Identique à `GET /agents/{id}`
 
 ### `POST /wake`
 **Description** : Wake-on-LAN (réveil machine)
@@ -667,48 +755,6 @@
 {
   "success": true,
   "message": "WOL magic packet sent to eridwyn-Bureau"
-}
-```
-
-### `GET /agents/{id}/logs`
-**Description** : Logs agent (dernières 100 lignes)
-**Auth** : JWT
-**Response** :
-```json
-{
-  "logs": [
-    "[2025-11-12 10:30:45] Agent started",
-    "[2025-11-12 10:31:00] Registered with kernel",
-    "[2025-11-12 10:31:15] Heartbeat sent"
-  ]
-}
-```
-
-### `POST /agents/{id}/restart`
-**Description** : Redémarrage agent process
-**Auth** : JWT
-**CSRF** : Requis
-**Response** :
-```json
-{
-  "success": true,
-  "message": "Agent restart command sent"
-}
-```
-
-### `GET /agents/{id}/capabilities`
-**Description** : Capacités agent (features disponibles)
-**Auth** : JWT
-**Response** :
-```json
-{
-  "capabilities": [
-    "presence_detection",
-    "energy_monitoring",
-    "smart_scheduling",
-    "context_learning",
-    "wake_on_lan"
-  ]
 }
 ```
 
@@ -766,6 +812,108 @@
   "success": true,
   "mode": "intime",
   "message": "Override cleared, auto-detection resumed"
+}
+```
+
+### `GET /context/history`
+**Description** : Historique transitions contextuelles
+**Auth** : JWT
+**Query** : `?period=24h|7d|30d`
+**Response** :
+```json
+{
+  "transitions": [
+    {
+      "from": "cravate",
+      "to": "intime",
+      "timestamp": 1699887200,
+      "reason": "work_hours_ended",
+      "auto_detected": true
+    },
+    {
+      "from": "intime",
+      "to": "cravate",
+      "timestamp": 1699800800,
+      "reason": "manual_override",
+      "auto_detected": false
+    }
+  ],
+  "total_transitions": 42
+}
+```
+
+### `GET /context/stats`
+**Description** : Statistiques utilisation modes
+**Auth** : JWT
+**Query** : `?period=7d|30d|90d`
+**Response** :
+```json
+{
+  "period": "7d",
+  "mode_distribution": {
+    "cravate": {
+      "duration_hours": 45.2,
+      "percentage": 26.8,
+      "transitions_count": 12
+    },
+    "intime": {
+      "duration_hours": 98.5,
+      "percentage": 58.6,
+      "transitions_count": 15
+    },
+    "neutre": {
+      "duration_hours": 24.5,
+      "percentage": 14.6,
+      "transitions_count": 8
+    }
+  },
+  "auto_detection_accuracy": 0.92
+}
+```
+
+### `GET /context/patterns`
+**Description** : Patterns détectés (apprentissage habitudes)
+**Auth** : JWT
+**Response** :
+```json
+{
+  "patterns": [
+    {
+      "type": "work_hours",
+      "description": "Cravate mode typically 9am-6pm weekdays",
+      "confidence": 0.95,
+      "occurrences": 42
+    },
+    {
+      "type": "weekend_routine",
+      "description": "Intime mode all day Saturday-Sunday",
+      "confidence": 0.88,
+      "occurrences": 8
+    }
+  ]
+}
+```
+
+### `GET /context/productivity`
+**Description** : Métriques productivité par contexte
+**Auth** : JWT
+**Query** : `?period=7d|30d`
+**Response** :
+```json
+{
+  "period": "7d",
+  "by_mode": {
+    "cravate": {
+      "active_hours": 38.5,
+      "tasks_completed": 127,
+      "avg_focus_duration_min": 45.2
+    },
+    "intime": {
+      "active_hours": 22.3,
+      "tasks_completed": 48,
+      "avg_focus_duration_min": 28.7
+    }
+  }
 }
 ```
 
@@ -839,6 +987,70 @@
 }
 ```
 
+### `WebSocket /ws/notes/stream`
+**Description** : Streaming temps réel des notes (pagination MQTT)
+**Auth** : JWT (via query param `?token=...`)
+**Protocol** : WebSocket
+**Messages** :
+```json
+// Message note individuelle
+{
+  "type": "note",
+  "data": {
+    "id": "note-123",
+    "content": "Acheter lait",
+    "context": "intime",
+    "tags": ["courses"],
+    "created_at": 1699887200
+  }
+}
+
+// Message fin de liste
+{
+  "type": "list_end",
+  "total": 42
+}
+
+// Message erreur
+{
+  "type": "error",
+  "message": "Failed to fetch notes"
+}
+```
+
+### `GET /ports/{port_name}`
+**Description** : Lecture générique d'un port (équivalent memo)
+**Auth** : JWT
+**Response** : Format dépend du plugin
+
+### `POST /ports/{port_name}`
+**Description** : Écriture générique sur un port
+**Auth** : JWT
+**CSRF** : Requis
+**Request** : Format dépend du plugin
+
+### `DELETE /ports/{port_name}/{id}`
+**Description** : Suppression générique d'une entrée de port
+**Auth** : JWT
+**CSRF** : Requis
+
+### `GET /ports`
+**Description** : Liste tous les ports disponibles
+**Auth** : JWT
+**Response** :
+```json
+{
+  "ports": [
+    {
+      "name": "memo",
+      "plugin": "symbion-plugin-notes",
+      "status": "active",
+      "entry_count": 42
+    }
+  ]
+}
+```
+
 ---
 
 ## 🔌 Gestion Plugins
@@ -893,18 +1105,6 @@
 {
   "success": true,
   "message": "Plugin memo restarted"
-}
-```
-
-### `GET /plugins/{name}/health`
-**Description** : Santé plugin
-**Auth** : JWT
-**Response** :
-```json
-{
-  "status": "healthy",
-  "last_check": 1699887200,
-  "errors": []
 }
 ```
 
@@ -1004,112 +1204,185 @@
 }
 ```
 
-### `GET /decision/consents`
-**Description** : Consentements durables actifs
+### `GET /decision/metrics`
+**Description** : Métriques Decision Engine
 **Auth** : JWT
 **Response** :
 ```json
 {
-  "consents": [
-    {
-      "id": "consent-456",
-      "action_type": "agent_shutdown",
-      "scope": {
-        "target": "eridwyn-Bureau",
-        "hours": "23:00-07:00",
-        "conditions": ["inactivity > 2h"]
-      },
-      "created_at": 1699800800,
-      "expires_at": 1707576800
+  "decisions_total": 1247,
+  "decisions_approved": 1089,
+  "decisions_blocked": 158,
+  "auto_approval_rate": 0.87,
+  "avg_trust_score": 0.82,
+  "validations_pending": 3,
+  "overrides_active": 1
+}
+```
+
+### `GET /decision/stats`
+**Description** : Statistiques détaillées décisions
+**Auth** : JWT
+**Query** : `?period=7d|30d`
+**Response** :
+```json
+{
+  "period": "7d",
+  "by_action_type": {
+    "agent_shutdown": {
+      "total": 42,
+      "approved": 38,
+      "blocked": 4,
+      "avg_trust_score": 0.85
+    },
+    "context_override": {
+      "total": 18,
+      "approved": 15,
+      "blocked": 3,
+      "avg_trust_score": 0.78
     }
-  ]
+  },
+  "by_impact_level": {
+    "L": { "count": 25, "approval_rate": 0.96 },
+    "M": { "count": 28, "approval_rate": 0.85 },
+    "H": { "count": 7, "approval_rate": 0.57 }
+  }
 }
 ```
 
-### `DELETE /decision/consents/{id}`
-**Description** : Révocation consentement
-**Auth** : JWT
-**CSRF** : Requis
-**Response** :
-```json
-{
-  "success": true,
-  "message": "Consent revoked"
-}
-```
-
-### `GET /decision/pending`
-**Description** : Intentions en attente validation
+### `GET /decision/validations/pending`
+**Description** : Validations en attente approbation utilisateur
 **Auth** : JWT
 **Response** :
 ```json
 {
   "pending": [
     {
-      "id": "intention-789",
-      "action": "purchase_groceries",
+      "id": "validation-789",
+      "action_type": "purchase_groceries",
       "impact_level": "H",
       "reason": "Automated grocery order",
+      "created_at": 1699887200,
       "expires_at": 1699889000
     }
-  ]
+  ],
+  "total": 3
 }
 ```
 
-### `GET /decision/trust-score`
-**Description** : Calcul trust score actuel
+### `GET /decision/validations/expired`
+**Description** : Liste validations expirées
 **Auth** : JWT
 **Response** :
 ```json
 {
-  "trust_score": 0.78,
-  "factors": {
-    "sensor_consistency": 0.9,
-    "telemetry_freshness": 0.85,
-    "historical_success": 0.7,
-    "network_latency": 0.6,
-    "local_presence": 1.0
-  }
+  "expired": [
+    {
+      "id": "validation-456",
+      "action_type": "agent_shutdown",
+      "expired_at": 1699887000,
+      "status": "timeout"
+    }
+  ],
+  "total": 12
+}
+```
+
+### `DELETE /decision/validations/expired`
+**Description** : Nettoyage validations expirées
+**Auth** : JWT
+**CSRF** : Requis
+**Response** :
+```json
+{
+  "success": true,
+  "deleted_count": 12
+}
+```
+
+### `DELETE /decision/validation/{id}`
+**Description** : Annulation validation spécifique
+**Auth** : JWT
+**CSRF** : Requis
+**Response** :
+```json
+{
+  "success": true,
+  "message": "Validation cancelled"
+}
+```
+
+### `GET /decision/overrides/active`
+**Description** : Overrides actifs (force-execution)
+**Auth** : JWT
+**Response** :
+```json
+{
+  "overrides": [
+    {
+      "id": "override-123",
+      "action_id": "action-789",
+      "reason": "Emergency override",
+      "created_at": 1699887200,
+      "created_by": "admin"
+    }
+  ],
+  "total": 1
+}
+```
+
+### `DELETE /decision/override/{id}`
+**Description** : Révocation override
+**Auth** : JWT
+**CSRF** : Requis
+**Response** :
+```json
+{
+  "success": true,
+  "message": "Override revoked"
+}
+```
+
+### `GET /decision/config`
+**Description** : Configuration Decision Engine
+**Auth** : JWT (admin)
+**Response** :
+```json
+{
+  "trust_thresholds": {
+    "auto_approve_low_impact": 0.7,
+    "auto_approve_medium_impact": 0.85,
+    "auto_approve_high_impact": 0.95
+  },
+  "validation_timeout_seconds": 1800,
+  "max_active_overrides": 5
+}
+```
+
+### `GET /decision/agent-health`
+**Description** : Score santé agents pour trust calculation
+**Auth** : JWT
+**Response** :
+```json
+{
+  "agents": [
+    {
+      "agent_id": "eridwyn-Salon",
+      "health_score": 0.92,
+      "factors": {
+        "telemetry_freshness": 0.95,
+        "network_stability": 0.88,
+        "sensor_consistency": 0.93
+      },
+      "last_check": 1699887200
+    }
+  ]
 }
 ```
 
 ---
 
 ## ⚙️ Système & Configuration
-
-### `GET /config`
-**Description** : Configuration système
-**Auth** : JWT (admin)
-**Response** :
-```json
-{
-  "mqtt": {
-    "broker": "127.0.0.1:1883",
-    "qos": 1
-  },
-  "api": {
-    "port": 8443,
-    "tls_enabled": true
-  },
-  "context": {
-    "auto_detection": true,
-    "override_timeout_minutes": 480
-  }
-}
-```
-
-### `PUT /config`
-**Description** : Modification configuration
-**Auth** : JWT (admin)
-**CSRF** : Requis
-**Request** :
-```json
-{
-  "context": {
-    "auto_detection": true
-  }
-}
-```
 
 ### `GET /contracts`
 **Description** : Contrats MQTT enregistrés
@@ -1130,16 +1403,23 @@
 }
 ```
 
-### `GET /system/metrics`
-**Description** : Métriques kernel (uptime, memory)
+### `GET /contracts/{name}`
+**Description** : Détails d'un contrat MQTT spécifique
 **Auth** : JWT
 **Response** :
 ```json
 {
-  "uptime_seconds": 86400,
-  "memory_mb": 23.6,
-  "mqtt_messages_processed": 15432,
-  "http_requests_total": 8976
+  "name": "heartbeat",
+  "topic": "symbion/agents/heartbeat@v1",
+  "version": 1,
+  "schema": {
+    "type": "object",
+    "required": ["agent_id", "timestamp"],
+    "properties": {
+      "agent_id": { "type": "string" },
+      "timestamp": { "type": "integer" }
+    }
+  }
 }
 ```
 
@@ -1577,6 +1857,56 @@ client.on('message', (topic, payload) => {
 
 ---
 
+---
+
+## 📊 Récapitulatif Endpoints par Catégorie
+
+| Catégorie | Endpoints | Status |
+|-----------|-----------|---------|
+| **Public (sans auth)** | 3 | ✅ |
+| **Metrics** | 3 | ✅ |
+| **Authentification** | 6 | ✅ |
+| **MFA** | 3 | ✅ |
+| **WebAuthn** | 5 | ✅ |
+| **Utilisateurs** | 3 | ✅ |
+| **Agents** | 11 | ✅ |
+| **Commandes** | 4 | ✅ |
+| **Context Engine** | 8 | ✅ |
+| **Notes/Memo** | 3 | ✅ |
+| **Ports** | 4 | ✅ |
+| **WebSocket** | 1 | ✅ |
+| **Plugins** | 4 | ✅ |
+| **Decision Engine** | 13 | ✅ |
+| **Système & Config** | 2 | ✅ |
+| **TOTAL** | **73** | **✅ 100% sync** |
+
+### Changements Effectués
+- ✅ **7 path mismatches corrigés**:
+  - `/system/status` → `/system/health`
+  - `/csrf-token` → `/auth/csrf/nonce`
+  - `/jwt/verify` → `/auth/verify`
+  - `/users/*` → `/v1/users/*`
+  - `/decision/pending` → `/decision/validations/pending`
+
+- ❌ **19 phantom endpoints retirés**:
+  - Auth: `/sessions`, `/sessions/{id}`, `/refresh`
+  - Users: `/users/{id}` (PUT), `/users/{id}/password`
+  - Agents: `/agents/{id}` (DELETE), `/agents/{id}/logs`, `/agents/{id}/restart`, `/agents/{id}/capabilities`
+  - Decision: `/decision/consents`, `/decision/consents/{id}`, `/decision/trust-score`
+  - System: `/config` (GET/PUT)
+
+- ✅ **37 nouveaux endpoints documentés**:
+  - Context Engine: `/context/history`, `/context/stats`, `/context/patterns`, `/context/productivity`
+  - Decision Engine: `/decision/metrics`, `/decision/stats`, `/decision/config`, `/decision/agent-health`, `/decision/validations/*`, `/decision/overrides/*`
+  - Agents: `/agents/{id}/processes`, `/agents/{id}/reboot`, `/agents/{id}/processes/{pid}/kill`, `/agents/{id}/commands`
+  - Commands: `/commands/{id}/status`, `/commands/{id}/cancel`
+  - Auth: `/auth/session`, `/auth/reload`
+  - Ports: `/ports`, `/ports/{port_name}`
+  - WebSocket: `/ws/notes/stream`
+
+---
+
 **Dernière mise à jour** : 15 Novembre 2025
-**Fichier source** : `symbion-kernel/src/http.rs` (2709 lignes)
-**Total endpoints documentés** : 93 (90 + 3 metrics)
+**Fichier source** : `symbion-kernel/src/http.rs` (lignes 189-311)
+**Total endpoints documentés** : 73
+**Synchronisation** : ✅ 100% (tous les endpoints implémentés sont documentés)

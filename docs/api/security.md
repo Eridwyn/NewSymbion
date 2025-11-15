@@ -594,12 +594,14 @@ Content-Security-Policy:
   style-src 'self' 'unsafe-inline';                      ← Styles + inline (for <style> tag)
   img-src 'self' data:;                                  ← Images + data URIs
   font-src 'self';                                       ← Fonts from same origin
-  connect-src 'self' ws://localhost:* wss://localhost:*; ← API + WebSocket MQTT
+  connect-src 'self' http: https: ws: wss:;              ← API + WebSocket + LAN mobile access
   manifest-src 'self';                                   ← PWA manifest
   base-uri 'self';                                       ← Prevent <base> tag injection
   form-action 'self';                                    ← Forms submit to same origin
   frame-ancestors 'none'                                 ← No framing (clickjacking prevention)
 ```
+
+**Note sur l'accès LAN** : La directive `connect-src` est volontairement permissive (`http: https: ws: wss:`) pour permettre l'accès depuis des appareils mobiles sur le réseau local (IP 192.168.x.x). Pour un déploiement production sur internet public, cette directive devrait être restreinte à des origines spécifiques.
 
 ### Directives Expliquées
 
@@ -610,7 +612,7 @@ Content-Security-Policy:
 | `style-src` | `'self' 'unsafe-inline'` | Styles locaux + inline requis pour `<style>` tag dans index.html |
 | `img-src` | `'self' data:` | Images locales + data URIs (pour base64 images) |
 | `font-src` | `'self'` | Fonts système (Monaco, Menlo, Consolas) |
-| `connect-src` | `'self' ws://localhost:* wss://localhost:*` | API HTTPS + WebSocket MQTT (ws://localhost:9001) |
+| `connect-src` | `'self' http: https: ws: wss:` | API + WebSocket + LAN mobile access (192.168.x.x) |
 | `manifest-src` | `'self'` | PWA manifest.json depuis même origine |
 | `base-uri` | `'self'` | Prévient injection de `<base>` tag pour redirection malveillante |
 | `form-action` | `'self'` | Forms ne peuvent soumettre que vers même origine |
@@ -650,7 +652,7 @@ async fn add_csp_header(
                       style-src 'self' 'unsafe-inline'; \
                       img-src 'self' data:; \
                       font-src 'self'; \
-                      connect-src 'self' ws://localhost:* wss://localhost:*; \
+                      connect-src 'self' http: https: ws: wss:; \
                       manifest-src 'self'; \
                       base-uri 'self'; \
                       form-action 'self'; \
@@ -692,7 +694,7 @@ curl -k -I https://localhost:8443/health | grep -i content-security-policy
 
 ✅ **Pas de `'unsafe-inline'` pour scripts** : Aucun inline script dans la PWA, tous les scripts sont externes (`/config.js`, `/src/main.js`) → Sécurité maximale contre XSS.
 
-✅ **`ws://localhost:*` safe** : WebSocket MQTT uniquement localhost, pas de connexion externe autorisée.
+⚠️ **`connect-src` permissif pour LAN** : La directive `http: https: ws: wss:` permet les connexions depuis n'importe quelle IP du réseau local (192.168.x.x) pour l'accès mobile/tablette. **Compromis domotique** : Trade-off entre sécurité et accessibilité pour un système home automation. En production internet public, restreindre à des origines spécifiques (ex: `https://symbion.yourdomain.com wss://symbion.yourdomain.com`).
 
 ### Évolution Future
 

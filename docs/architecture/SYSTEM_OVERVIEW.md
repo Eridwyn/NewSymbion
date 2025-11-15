@@ -22,7 +22,7 @@ Vue d'ensemble de l'architecture IoT distribuée.
 - ✅ **Plugin Orchestration** - Modules de vie (cuisine, santé, finance)
 - ✅ **Context Engine** - Apprentissage habitudes et détection situations
 - ✅ **Decision Engine** - Évaluation intelligente et garde-fous sécurité (trust scoring, validation multi-niveaux, audit trail)
-- ✅ **API REST** - Interface pour contrôles et automatisations (85+ endpoints)
+- ✅ **API REST** - Interface pour contrôles et automatisations (~100 endpoints)
 - ✅ **Health Monitoring** - Surveillance automatique + alertes proactives
 
 ### 🤖 symbion-agent-host - Assistants Domestiques
@@ -107,31 +107,49 @@ Vue d'ensemble de l'architecture IoT distribuée.
 ## 📦 Structure des Modules
 
 ### Kernel (Rust - `symbion-kernel/src/`)
+
+**Note** : Le kernel contient 36 fichiers Rust au total (21 modules racine + 14 dans decision/ + 1 dans ports/).
+
 ```
 symbion-kernel/src/
 ├── main.rs              # Entry point, setup server
-├── http.rs              # API REST (85+ routes, TLS)
+├── http.rs              # API REST (~100 routes, TLS)
 ├── auth.rs              # JWT, MFA, WebAuthn, sessions
 ├── csrf.rs              # CSRF protection tokens
 ├── mqtt.rs              # MQTT client, pub/sub handlers
-├── agents/
-│   ├── mod.rs           # Agent registry, discovery
-│   └── commands.rs      # Remote commands (shutdown, processes)
-├── context/
-│   ├── mod.rs           # Context detection engine
-│   ├── hysteresis.rs    # State stabilization
-│   └── patterns.rs      # Behavioral pattern learning
-├── decision/
+├── agents.rs            # Agent registry, discovery (single file)
+├── context.rs           # Context detection engine (single file)
+├── contracts.rs         # MQTT schema validation (single file)
+├── state.rs             # Shared application state
+├── config.rs            # Configuration management
+├── models.rs            # Data models
+├── health.rs            # Health check endpoint
+├── mfa.rs               # Multi-factor authentication
+├── webauthn.rs          # Passkey biometric auth
+├── device_trust.rs      # Trusted device management
+├── notes_bridge.rs      # Notes plugin bridge
+├── notes_ws.rs          # WebSocket notes streaming
+├── plugins.rs           # Plugin orchestration
+├── wol.rs               # Wake-on-LAN functionality
+├── dashboard_events.rs  # Real-time PWA updates
+├── decision_http.rs     # Decision engine HTTP endpoints
+├── decision/            # Decision Engine (14 modules)
+│   ├── mod.rs           # Module exports
 │   ├── engine.rs        # Decision evaluation core
 │   ├── trust.rs         # Trust score calculation (332 LOC)
 │   ├── guards.rs        # Pre-decision validation
-│   ├── idempotence.rs   # Command deduplication (264 LOC)
+│   ├── idempotence.rs   # Command deduplication (231 LOC)
+│   ├── validation.rs    # User approval workflow
 │   ├── audit.rs         # Audit trail logging
-│   └── validation.rs    # User approval workflow
-├── contracts/           # MQTT schema validation
-├── dashboard_events.rs  # Real-time PWA updates
-├── webauthn_manager.rs  # Passkey biometric auth
-└── notes_ws.rs          # WebSocket notes streaming
+│   ├── metrics.rs       # Decision metrics tracking
+│   ├── config.rs        # Decision config management
+│   ├── agent_status.rs  # Agent health monitoring
+│   ├── override.rs      # Manual override handling
+│   ├── persistence.rs   # State persistence
+│   ├── clock.rs         # Time management & testing
+│   └── types.rs         # Type definitions
+└── ports/
+    └── mod.rs           # Plugin port management
 ```
 
 ### Agent (Rust - `symbion-agent-host/src/`)
@@ -147,23 +165,40 @@ symbion-agent-host/src/
 ### PWA (Lit Web Components - `pwa-dashboard/src/`)
 ```
 pwa-dashboard/src/
-├── index.html           # Entry point, shell
+├── index.html            # Entry point, shell
+├── main.js               # Application bootstrap
 ├── components/
-│   ├── app-shell.js     # Main layout, routing
-│   ├── control-page.js  # Agent controls, commands
-│   ├── system-page.js   # Health metrics, monitoring
-│   ├── data-page.js     # Notes, patterns, history
-│   └── widgets/
-│       ├── notes-widget.js        # Markdown notes manager
-│       ├── agents-network.js      # Agent visualization
-│       ├── organic-loader.js      # Bioluminescent loading (810 LOC)
-│       └── system-health-widget.js# Health gauges
+│   ├── dashboard-app.js  # Main layout, routing
+│   ├── notes-page.js     # Notes interface & filters
+│   ├── boot-terminal.js  # Animated boot sequence
+│   ├── passkey-manager.js# WebAuthn passkey management
+│   ├── user-settings-page.js # User preferences
+│   └── organic-loader.js # Bioluminescent loading (243 LOC)
+├── widgets/
+│   ├── notes-widget.js          # Markdown notes manager
+│   ├── agents-network-widget.js # Agent visualization
+│   ├── agent-control-widget.js  # Individual agent controls
+│   ├── system-health-widget.js  # Health gauges
+│   ├── hosts-widget.js          # Host/device management
+│   ├── plugins-widget.js        # Plugin status
+│   ├── context-widget.js        # Context mode display
+│   ├── context-stats-widget.js  # Context statistics
+│   ├── context-settings-widget.js # Context configuration
+│   └── widget-registry.js       # Widget registration
 ├── services/
-│   ├── mqtt-service.js  # MQTT WebSocket client
-│   ├── api-service.js   # HTTP API wrapper
-│   └── auth-service.js  # Login, JWT, MFA
+│   ├── mqtt-service.js         # MQTT WebSocket client
+│   ├── api-service.js          # HTTP API wrapper
+│   ├── auth-service.js         # Login, JWT, MFA
+│   ├── agents-service.js       # Agent management
+│   ├── context-service.js      # Context engine client
+│   ├── csrf-service.js         # CSRF token handling
+│   ├── decision-service.js     # Decision engine client
+│   └── notes-stream-service.js # Notes WebSocket streaming
+├── utils/
+│   ├── notes-filters.js  # Note filtering logic
+│   └── notes-scoring.js  # Relevance scoring
 └── styles/
-    └── shared-styles.js # Design system tokens
+    └── shared-styles.js  # Design system tokens
 ```
 
 ---
@@ -208,8 +243,8 @@ pwa-dashboard/src/
 
 ### 📡 Bus de Communication
 
-- **MQTT**: Événements temps réel entre appareils (actif)
-- **REST API**: Contrôles synchrones et intégrations externes (90+ endpoints)
+- **MQTT**: Événements temps réel entre appareils (19 topics actifs: 13 documentés + 6 nouveaux dashboard/*)
+- **REST API**: Contrôles synchrones et intégrations externes (~100 endpoints)
 - **WebSocket PWA**: Interface temps réel responsive
 - **Contracts Registry**: Validation et versioning événements IoT
 
