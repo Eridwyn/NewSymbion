@@ -6,7 +6,7 @@ use crate::decision::{
     Clock, ImpactLevel,
 };
 use std::sync::Arc;
-use time::OffsetDateTime;
+// use time::OffsetDateTime; // Unused - time handling via Clock trait
 
 /// Resultat d'evaluation d'un guard
 #[derive(Debug, Clone, PartialEq, Eq)]
