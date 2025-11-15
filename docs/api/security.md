@@ -1,6 +1,6 @@
 # Sécurité API - Symbion Kernel
 
-> 🛡️ 5 couches de protection : CSRF, Rate Limiting, CORS, Input Validation, TLS
+> 🛡️ 7 couches de protection : TLS, CORS, CSP, Rate Limiting, Auth, CSRF, Input Validation
 
 ## 🎯 Architecture Sécurité Globale
 
@@ -12,13 +12,15 @@ Symbion implémente une **défense en profondeur** (defense-in-depth) :
 ├─────────────────────────────────────────────────┤
 │  2. CORS (Origin Validation)                    │ ← Browser protection
 ├─────────────────────────────────────────────────┤
-│  3. Rate Limiting (Brute-force Protection)      │ ← DoS mitigation
+│  3. CSP (Content Security Policy)               │ ← XSS prevention
 ├─────────────────────────────────────────────────┤
-│  4. Authentication (JWT/MFA/WebAuthn)           │ ← Identity verification
+│  4. Rate Limiting (Brute-force Protection)      │ ← DoS mitigation
 ├─────────────────────────────────────────────────┤
-│  5. CSRF (State-changing Operations)            │ ← CSRF attack prevention
+│  5. Authentication (JWT/MFA/WebAuthn)           │ ← Identity verification
 ├─────────────────────────────────────────────────┤
-│  6. Input Validation (Injection Protection)     │ ← Data sanitization
+│  6. CSRF (State-changing Operations)            │ ← CSRF attack prevention
+├─────────────────────────────────────────────────┤
+│  7. Input Validation (Injection Protection)     │ ← Data sanitization
 └─────────────────────────────────────────────────┘
 ```
 
@@ -573,6 +575,142 @@ println!("[security] Rate limit exceeded: ip={}, endpoint={}, limit={}",
 
 ---
 
+## 🛡️ 7. CSP (Content Security Policy)
+
+### Principe
+
+**Content Security Policy (CSP)** est un header de sécurité HTTP qui permet de **contrôler les sources de contenu** autorisées à être chargées par le navigateur. C'est une **défense en profondeur contre les attaques XSS** (Cross-Site Scripting).
+
+**Mécanisme** : Le serveur envoie un header `Content-Security-Policy` listant les directives de sources autorisées. Le navigateur **bloque automatiquement** tout contenu ne respectant pas la politique.
+
+### Politique Symbion
+
+Symbion implémente une **politique CSP stricte** basée sur le principe du **moindre privilège** (default deny) :
+
+```
+Content-Security-Policy:
+  default-src 'none';                                    ← Deny all by default
+  script-src 'self';                                     ← Scripts from same origin only
+  style-src 'self' 'unsafe-inline';                      ← Styles + inline (for <style> tag)
+  img-src 'self' data:;                                  ← Images + data URIs
+  font-src 'self';                                       ← Fonts from same origin
+  connect-src 'self' ws://localhost:* wss://localhost:*; ← API + WebSocket MQTT
+  manifest-src 'self';                                   ← PWA manifest
+  base-uri 'self';                                       ← Prevent <base> tag injection
+  form-action 'self';                                    ← Forms submit to same origin
+  frame-ancestors 'none'                                 ← No framing (clickjacking prevention)
+```
+
+### Directives Expliquées
+
+| Directive | Valeur | Justification |
+|-----------|--------|---------------|
+| `default-src` | `'none'` | Deny all by default - principe du moindre privilège |
+| `script-src` | `'self'` | Scripts uniquement depuis même origine (localhost:3000 PWA) |
+| `style-src` | `'self' 'unsafe-inline'` | Styles locaux + inline requis pour `<style>` tag dans index.html |
+| `img-src` | `'self' data:` | Images locales + data URIs (pour base64 images) |
+| `font-src` | `'self'` | Fonts système (Monaco, Menlo, Consolas) |
+| `connect-src` | `'self' ws://localhost:* wss://localhost:*` | API HTTPS + WebSocket MQTT (ws://localhost:9001) |
+| `manifest-src` | `'self'` | PWA manifest.json depuis même origine |
+| `base-uri` | `'self'` | Prévient injection de `<base>` tag pour redirection malveillante |
+| `form-action` | `'self'` | Forms ne peuvent soumettre que vers même origine |
+| `frame-ancestors` | `'none'` | Interdiction totale de framing (prévient clickjacking) |
+
+### Attaques Prévenues
+
+**XSS (Cross-Site Scripting)** :
+- ❌ Injection de `<script>` malveillant → Bloqué par `script-src 'self'`
+- ❌ Chargement de scripts externes (CDN compromis) → Bloqué
+- ❌ Inline event handlers (`onclick="evil()"`) → Bloqué (pas de `'unsafe-inline'` pour scripts)
+
+**Clickjacking** :
+- ❌ Framing dans `<iframe>` malveillant → Bloqué par `frame-ancestors 'none'`
+
+**Data Exfiltration** :
+- ❌ Fetch vers domaine externe → Bloqué par `connect-src` restreint
+
+**Base Tag Injection** :
+- ❌ Injection `<base href="https://evil.com">` → Bloqué par `base-uri 'self'`
+
+### Implémentation
+
+**Middleware Axum** : `symbion-kernel/src/http.rs:362-397`
+
+```rust
+/// Middleware pour ajouter le header CSP (Content Security Policy)
+/// Prévient les attaques XSS en restreignant les sources de contenu autorisées
+async fn add_csp_header(
+    req: Request,
+    next: Next,
+) -> Response {
+    let mut response = next.run(req).await;
+
+    let csp_policy = "default-src 'none'; \
+                      script-src 'self'; \
+                      style-src 'self' 'unsafe-inline'; \
+                      img-src 'self' data:; \
+                      font-src 'self'; \
+                      connect-src 'self' ws://localhost:* wss://localhost:*; \
+                      manifest-src 'self'; \
+                      base-uri 'self'; \
+                      form-action 'self'; \
+                      frame-ancestors 'none'";
+
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_SECURITY_POLICY,
+        csp_policy.parse().unwrap()
+    );
+    response
+}
+```
+
+**Application** : Middleware global appliqué à **toutes les réponses HTTP** du kernel (ligne 345).
+
+### Testing & Validation
+
+**1. Vérifier header présent** :
+```bash
+curl -k -I https://localhost:8443/health | grep -i content-security-policy
+# Output:
+# content-security-policy: default-src 'none'; script-src 'self'; ...
+```
+
+**2. Browser DevTools** :
+- Ouvrir Console (F12)
+- Charger PWA dashboard
+- Vérifier **aucune violation CSP** (warnings en rouge)
+- Si violations : ajuster politique ou corriger code PWA
+
+**3. CSP Evaluator** :
+- Outil Google : https://csp-evaluator.withgoogle.com/
+- Coller politique Symbion
+- Vérifier score sécurité (doit être "High")
+
+### Notes de Sécurité
+
+⚠️ **`'unsafe-inline'` pour styles** : Actuellement requis car `<style>` tag inline dans `pwa-dashboard/index.html`. **Amélioration future** : extraire styles dans fichier CSS externe pour supprimer `'unsafe-inline'`.
+
+✅ **Pas de `'unsafe-inline'` pour scripts** : Aucun inline script dans la PWA, tous les scripts sont externes (`/config.js`, `/src/main.js`) → Sécurité maximale contre XSS.
+
+✅ **`ws://localhost:*` safe** : WebSocket MQTT uniquement localhost, pas de connexion externe autorisée.
+
+### Évolution Future
+
+**v1.3.0+ (Production)** :
+- Extraction styles inline vers CSS externe
+- Suppression `'unsafe-inline'` pour `style-src`
+- CSP Report-Only mode pour monitoring violations :
+  ```
+  Content-Security-Policy-Report-Only: ...
+  report-uri /csp-violation-report
+  ```
+
+**v2.0.0+ (Multi-tenant)** :
+- CSP dynamique par tenant
+- Support `'nonce-'` pour inline scripts (si besoin)
+
+---
+
 ## 🛡️ Checklist Sécurité
 
 Avant déploiement production :
@@ -621,7 +759,7 @@ Avant déploiement production :
 
 ---
 
-**Dernière mise à jour** : 2025-11-12
+**Dernière mise à jour** : 2025-11-15 (PR6 - CSP headers)
 **Fichiers sources** :
-- `symbion-kernel/src/http.rs` (CSRF, CORS, rate limiting)
+- `symbion-kernel/src/http.rs` (CSRF, CORS, CSP, HSTS, rate limiting)
 - `symbion-agent-host/src/main.rs` (command whitelisting, sanitization)
