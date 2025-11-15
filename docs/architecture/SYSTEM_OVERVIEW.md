@@ -21,7 +21,8 @@ Vue d'ensemble de l'architecture IoT distribuée.
 - ✅ **Agent Registry** - Découverte et gestion appareils connectés
 - ✅ **Plugin Orchestration** - Modules de vie (cuisine, santé, finance)
 - ✅ **Context Engine** - Apprentissage habitudes et détection situations
-- ✅ **API REST** - Interface pour contrôles et automatisations (90+ endpoints)
+- ✅ **Decision Engine** - Évaluation intelligente et garde-fous sécurité (trust scoring, validation multi-niveaux, audit trail)
+- ✅ **API REST** - Interface pour contrôles et automatisations (85+ endpoints)
 - ✅ **Health Monitoring** - Surveillance automatique + alertes proactives
 
 ### 🤖 symbion-agent-host - Assistants Domestiques
