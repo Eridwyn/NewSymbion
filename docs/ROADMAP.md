@@ -286,8 +286,9 @@ Implement intelligent decision-making for agent actions with trust scoring and i
   - Determines auto-approval vs manual validation
 
 #### Comprehensive Testing
-- [x] **109 unit tests** - Across 14 decision engine modules
-  - Coverage: Engine, trust, idempotence, guards, factors, impact
+- [x] **109 total kernel unit tests** - Decision engine (93) + other modules (16)
+  - Decision modules with tests: 12 files (agent_status, override, metrics, validation, audit, idempotence, config, guards, trust, persistence, engine, clock)
+  - Other kernel: csrf (7), context (5), mfa (3), contracts (1)
   - Status: All tests passing
 
 #### Module Structure
@@ -303,8 +304,9 @@ symbion-kernel/src/decision/
 │   ├── history.rs
 │   ├── network.rs
 │   └── presence.rs
-├── impact.rs         # Impact level classification
-└── tests/            # 109 unit tests
+└── impact.rs         # Impact level classification
+# Note: Unit tests inline with #[cfg(test)] - no separate tests/ directory
+# 93 decision engine tests + 16 other kernel tests = 109 total
 ```
 
 #### Frontend Complete ✅
@@ -341,7 +343,7 @@ symbion-kernel/src/decision/
 
 ### Testing
 
-- ✅ 109 unit tests passing
+- ✅ 109 kernel unit tests passing (93 decision engine + 16 other modules)
 - ✅ Trust score calculation validated with mock data
 - ✅ Idempotence prevents duplicate commands
 - ✅ Frontend approval UI tested manually (approve/reject workflow)
@@ -641,9 +643,9 @@ Final production deployment requirements.
 ## 📊 Metrics & Success Criteria
 
 ### Code Quality
-- ✅ 109+ unit tests (target: 200+)
+- ✅ 131 total unit tests: 109 kernel + 14 agent + 8 devkit (target: 200+)
 - ✅ Zero CRITICAL vulnerabilities (security audit)
-- ⚠️ Test coverage: Unknown (target: 80%+)
+- ⚠️ Test coverage: Unknown (target: 80%+ - requires cargo-llvm-cov setup)
 
 ### Performance
 - ✅ Kernel memory: 23.6 MB (target: <50 MB)
