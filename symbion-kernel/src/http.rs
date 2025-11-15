@@ -383,7 +383,7 @@ async fn add_csp_header(
                       style-src 'self' 'unsafe-inline'; \
                       img-src 'self' data:; \
                       font-src 'self'; \
-                      connect-src 'self' ws://localhost:* wss://localhost:*; \
+                      connect-src 'self' http: https: ws: wss:; \
                       manifest-src 'self'; \
                       base-uri 'self'; \
                       form-action 'self'; \
