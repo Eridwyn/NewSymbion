@@ -168,6 +168,42 @@ pwa-dashboard/src/
 
 ---
 
+## 💻 Tech Stack & Versions
+
+### Backend (Kernel + Agent)
+- **Rust**: 1.89.0 (2025)
+- **Cargo**: 1.89.0
+- **Frameworks**:
+  - `axum` 0.7.x - HTTP server + routing
+  - `tokio` 1.x - Async runtime
+  - `rumqttc` 0.24.x - MQTT client
+  - `tower` + `tower-http` - Middleware (CORS, rate limiting)
+  - `serde` + `serde_json` - Serialization
+  - `jsonwebtoken` 9.x - JWT authentication
+  - `bcrypt` 0.15.x - Password hashing (cost factor 12)
+  - `webauthn-rs` 0.5.x - Passkey biometric auth
+  - `time` 0.3.x - Timezone handling (IANA Europe/Zurich)
+
+### Frontend (PWA)
+- **Lit**: 3.3.1 - Web Components framework
+- **Vite**: 5.4.19 - Build tool + dev server
+- **MQTT.js**: 5.x - MQTT WebSocket client
+- **Marked.js**: 14.x - Markdown rendering (notes widget)
+
+### Infrastructure
+- **Mosquitto**: 2.0.18 - MQTT Broker
+- **Systemd**: Service management + auto-restart
+- **Let's Encrypt**: Production TLS certificates
+- **mkcert**: Development CA (local certificates)
+
+### Runtime Requirements
+- **Kernel**: Linux/Windows, Rust 1.75+, 20MB RAM idle
+- **Agent**: Linux/Windows/macOS, Rust 1.75+, 5MB RAM idle
+- **PWA**: Modern browser (Chrome 90+, Firefox 88+, Safari 15+)
+- **MQTT**: Mosquitto 2.0+, port 1883 (TCP) + 9001 (WSS)
+
+---
+
 ## 🚀 Technologies IoT Intégrées
 
 ### 📡 Bus de Communication
@@ -216,10 +252,21 @@ pwa-dashboard/src/
 ```
 
 **Certificats TLS** :
-- **Production** : Let's Encrypt (auto-renewal)
-- **Développement** : mkcert (CA local)
+- **Production** : Let's Encrypt (auto-renewal via certbot)
+- **Développement** : mkcert (CA local auto-signé)
 - **Stockage** : `symbion-kernel/certs/` (cert + key)
-- **Protocoles** : TLS 1.3 uniquement, HSTS headers activés
+- **Format** : PEM (Privacy Enhanced Mail)
+
+**Protocoles & Cipher Suites** :
+- **TLS Versions** : TLS 1.3 uniquement (TLS 1.2 et inférieur désactivés)
+- **Cipher Suites** (TLS 1.3):
+  - `TLS_AES_256_GCM_SHA384` (préféré)
+  - `TLS_AES_128_GCM_SHA256`
+  - `TLS_CHACHA20_POLY1305_SHA256`
+- **HSTS**: `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+- **HTTP → HTTPS**: Redirection automatique port 8080 → 8443 (status 301)
+- **Certificate Pinning**: Non implémenté (complexité vs bénéfice domestique)
+- **OCSP Stapling**: Activé via Let's Encrypt
 
 **Configuration** :
 - Variables d'environnement :
