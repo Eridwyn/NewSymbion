@@ -1383,6 +1383,200 @@ symbion_kernel_agents_online 3
 
 ---
 
-**Dernière mise à jour** : 2025-11-15
+## 📊 Performance & Latency
+
+Voir **[docs/PERFORMANCE.md](../PERFORMANCE.md)** pour métriques détaillées :
+
+**Latence Typique** (P50/P95/P99) :
+- `GET /health` : 2/5/8 ms
+- `GET /agents` : 12/25/40 ms
+- `POST /login` : 180/250/320 ms (bcrypt cost 12)
+- `GET /notes` : 45/90/150 ms (MQTT plugin roundtrip)
+- `POST /agents/:id/command` : 25/60/100 ms
+
+**Throughput** :
+- Rate limit : 5 req/sec per IP (burst 10)
+- Max sustainable : ~850 req/sec (4-core CPU limit)
+- Beyond limit : HTTP 429 + `Retry-After` header
+
+**Response Sizes** :
+- Compression : gzip level 6 (auto > 1KB)
+- Typical : 50B (/health) to 50KB (/notes large list)
+- Headers : ~200-300 bytes overhead
+
+---
+
+## 🔗 Documentation Connexe
+
+### API Security & Authentication
+- **[authentication.md](authentication.md)** - JWT, MFA, WebAuthn passkeys
+- **[security.md](security.md)** - CSRF, Rate Limiting, TLS 1.3
+
+### Communication Patterns
+- **[../mqtt/topics.md](../mqtt/topics.md)** - MQTT topics triggered by API
+  - `POST /agents/:id/command` → `symbion/agents/command@v1`
+  - `POST /notes` → `symbion/notes/command@v1`
+- **[../mqtt/flows.md](../mqtt/flows.md)** - End-to-end workflows
+
+### Architecture & Infrastructure
+- **[../architecture/SYSTEM_OVERVIEW.md](../architecture/SYSTEM_OVERVIEW.md)** - System overview
+- **[../DEPLOYMENT.md](../DEPLOYMENT.md)** - Production deployment guide
+- **[../TROUBLESHOOTING.md](../TROUBLESHOOTING.md)** - API error resolution
+- **[../PERFORMANCE.md](../PERFORMANCE.md)** - Benchmarks & profiling
+
+### Development
+- **[../CODE_STANDARDS.md](../CODE_STANDARDS.md)** - Coding conventions
+- **[../QUICK_REFERENCE.md](../QUICK_REFERENCE.md)** - Cheat sheet
+
+---
+
+## 💡 Best Practices
+
+### Error Handling Patterns
+
+**Always check status code** :
+```javascript
+const response = await fetch('/agents', {
+  headers: { 'Authorization': `Bearer ${token}` }
+});
+
+if (!response.ok) {
+  const error = await response.json();
+  console.error(`API Error ${response.status}:`, error.message);
+
+  // Handle specific errors
+  switch (response.status) {
+    case 401: // Redirect to login
+      window.location.href = '/login';
+      break;
+    case 429: // Rate limited, retry after delay
+      const retryAfter = response.headers.get('Retry-After');
+      setTimeout(() => fetchAgents(), (retryAfter || 60) * 1000);
+      break;
+    case 500: // Server error, alert user
+      alert('Server error, please try again later');
+      break;
+  }
+  return;
+}
+
+const data = await response.json();
+```
+
+**Error Response Format** (standard) :
+```json
+{
+  "error": "Unauthorized",
+  "message": "JWT token expired",
+  "timestamp": 1699887200,
+  "path": "/agents",
+  "request_id": "req-abc123"
+}
+```
+
+### Authentication Flow
+
+```javascript
+// 1. Login
+const loginRes = await fetch('/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username: 'admin', password: 'pass' })
+});
+const { token } = await loginRes.json();
+
+// 2. Store token (secure)
+localStorage.setItem('jwt_token', token);  // Or sessionStorage
+
+// 3. Use token for authenticated requests
+const agentsRes = await fetch('/agents', {
+  headers: { 'Authorization': `Bearer ${token}` }
+});
+
+// 4. Handle token expiration (auto-refresh or re-login)
+if (agentsRes.status === 401) {
+  localStorage.removeItem('jwt_token');
+  window.location.href = '/login';
+}
+```
+
+### Rate Limiting Handling
+
+```javascript
+async function fetchWithRetry(url, options = {}, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    const res = await fetch(url, options);
+
+    if (res.status !== 429) return res;
+
+    // Rate limited, wait and retry
+    const retryAfter = parseInt(res.headers.get('Retry-After') || '60');
+    console.warn(`Rate limited, retrying after ${retryAfter}s...`);
+    await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+  }
+
+  throw new Error('Max retries exceeded');
+}
+```
+
+### Pagination Best Practices
+
+```javascript
+// For large datasets (notes, agents with many items)
+async function fetchAllNotes() {
+  let offset = 0;
+  const limit = 50;  // Reasonable chunk size
+  let allNotes = [];
+
+  while (true) {
+    const res = await fetch(`/notes?offset=${offset}&limit=${limit}`);
+    const notes = await res.json();
+
+    if (notes.length === 0) break;  // No more data
+
+    allNotes = allNotes.concat(notes);
+    offset += limit;
+
+    // Optional: Progress feedback
+    console.log(`Loaded ${allNotes.length} notes...`);
+  }
+
+  return allNotes;
+}
+```
+
+### WebSocket for Real-Time Updates
+
+```javascript
+// Alternative to polling: Use MQTT WebSocket for live updates
+import mqtt from 'mqtt';
+
+const client = mqtt.connect('wss://symbion.local:9001');
+
+client.on('connect', () => {
+  // Subscribe to dashboard updates
+  client.subscribe('symbion/dashboard/agents@v1');
+  client.subscribe('symbion/dashboard/health@v1');
+});
+
+client.on('message', (topic, payload) => {
+  const data = JSON.parse(payload);
+
+  switch (topic) {
+    case 'symbion/dashboard/agents@v1':
+      updateAgentsUI(data);  // Real-time agent status
+      break;
+    case 'symbion/dashboard/health@v1':
+      updateHealthUI(data);  // Real-time system metrics
+      break;
+  }
+});
+
+// Much more efficient than polling /agents every second
+```
+
+---
+
+**Dernière mise à jour** : 15 Novembre 2025
 **Fichier source** : `symbion-kernel/src/http.rs` (2709 lignes)
 **Total endpoints documentés** : 93 (90 + 3 metrics)
