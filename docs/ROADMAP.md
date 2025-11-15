@@ -183,6 +183,81 @@ Remediate 4 CRITICAL vulnerabilities from security audit (2025-11-12).
 
 ---
 
+## ✨ Post-Phase 2 Improvements (November 14-15, 2025)
+
+**Context**: Critical UX/scalability enhancements implemented immediately after Security Hardening completion.
+
+### 🎨 Organic Bioluminescent Loader
+
+**Status**: 🟢 Complete (November 15, 2025)
+
+- **Objective**: Replace mechanical SVG animations with organic CSS blob morphing for cohesive bio-aesthetic
+- **Implementation**:
+  - OrganicLoader Web Component (`organic-loader.js` - 243 lines)
+  - Standalone CSS with 5 keyframe animations (`organic-loader.css` - 154 lines)
+  - Radial gradient light propagation with blob morphing
+  - Integration: Page load, Notes widget, Agents network widget
+  - WebSocket streaming service for progressive note loading (`notes-stream-service.js` - 231 lines)
+
+- **Backend WebSocket Support**:
+  - New `notes_ws.rs` module (182 lines)
+  - Real-time note streaming over WebSocket
+  - Fallback to HTTP polling for compatibility
+
+- **Files Added**:
+  - `pwa-dashboard/src/components/organic-loader.js`
+  - `pwa-dashboard/src/styles/organic-loader.css`
+  - `pwa-dashboard/src/services/notes-stream-service.js`
+  - `symbion-kernel/src/notes_ws.rs`
+
+- **Commits**: `d5f50cb`, `cc91a40`, `1f45730`
+
+### 📡 MQTT Streaming Pagination for Notes
+
+**Status**: 🟢 Complete (November 14-15, 2025)
+
+- **Problem**: HTTP 504 timeout on `/ports/memo` with >5 notes (MQTT 10KB limit exceeded)
+- **Solution**: Stream notes one-by-one with `ListEnd` marker protocol
+- **Impact**: Scales to 100+ notes with no payload size limitations
+
+- **Implementation**:
+  - Plugin emits 1 note/message + final `ListEnd` marker
+  - Kernel aggregates stream into complete list
+  - MQTT client buffer increased (10 → 200 messages)
+  - MQTT packet size limit raised to 1MB
+
+- **Files Modified**:
+  - `symbion-plugin-notes/src/main.rs:329-368` (streaming emitter)
+  - `symbion-kernel/src/notes_bridge.rs:154-241` (aggregation receiver)
+  - `symbion-kernel/src/mqtt.rs:56` (buffer config)
+
+- **Commits**: `6f4deb5`, `cea078e`, `9aa4f4f`
+
+### 💾 AgentRegistry Debounced Persistence
+
+**Status**: 🟢 Complete (November 14, 2025)
+
+- **Problem**: Agent heartbeats not persisted, causing total data loss on kernel restart
+- **Solution**: Dirty flag pattern with periodic save (every 5 minutes)
+- **Impact**: Maximum 5 min data loss vs 100% loss before
+
+- **Implementation**:
+  - `AtomicBool` dirty flag (thread-safe)
+  - Debounced I/O: marks dirty on update, saves periodically
+  - No disk write on every heartbeat (performance gain)
+
+- **Files Modified**:
+  - `symbion-kernel/src/agents.rs:258-605`
+
+- **Commit**: `cee08f9`
+
+### Documentation
+
+- ✅ `docs/CHANGELOG.md` updated with all 3 improvements
+- ⏳ ROADMAP.md updated (this section)
+
+---
+
 ## 🤖 PR3 - Decision Engine (v0.2.0-beta.1)
 
 **Status**: 🟢 **100% Complete** - Production-ready (backend + frontend)
