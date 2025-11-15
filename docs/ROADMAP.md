@@ -1,7 +1,7 @@
 # Symbion Roadmap - Development Plan
 
 **Last Updated**: 15 November 2025
-**Current Version**: v0.3.0-alpha.2 (PR5 P0 complete)
+**Current Version**: v0.3.0-alpha.3 (CSP headers deployed)
 **Target Stable**: v1.0.0 (Q2 2026)
 
 ---
@@ -15,9 +15,9 @@
 | **PR3** - Decision Engine | 🟢 Production Ready | 100% | ✅ Done |
 | **PR4** - Metrics & Observability | 🟢 Production Ready | 100% | ✅ Done |
 | **PR5** - Kernel Reliability | 🟢 Production Ready | 100% | ✅ Done |
-| **PR6** - Production Readiness | ⚪ Not Started | 5% | Feb 2026 |
+| **PR6** - Production Readiness | 🟡 CSP Only | 10% | Q1 2026 |
 
-**Overall Progress**: 85% (510/600 estimated tasks)
+**Overall Progress**: 86% (516/600 estimated tasks)
 
 ---
 
@@ -543,61 +543,90 @@ Ensure kernel stability with panic recovery, graceful shutdown, and automatic re
 
 ## 🚀 PR6 - Production Readiness (v0.2.3)
 
-**Status**: ⚪ **0% Complete** - Not started
+**Status**: 🟡 **10% Complete** - CSP headers only (deployment tasks deferred to Q1 2026)
 
 ### Objectives
 
-Final production deployment requirements.
+Final production deployment requirements. **Note: Most tasks (Docker, PostgreSQL, CI/CD) sont reportés à Q1 2026 car trop avancés pour l'état actuel du projet.**
 
-### Planned Tasks 📋
+### Completed Tasks ✅
 
-#### TLS Certificates
+#### Security Headers (P0 - Completed Nov 15, 2025)
+
+- [x] **HSTS headers** - Force HTTPS, prevent downgrade attacks
+  - Header: `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+  - ✅ Completed in PR2 (14 November 2025)
+  - File: `symbion-kernel/src/http.rs:336-348`
+
+- [x] **CSP headers** - Content Security Policy (P0 - VULN-008 remediation)
+  - ✅ Completed: 15 November 2025
+  - File: `symbion-kernel/src/http.rs:362-397`
+  - Middleware: Applied globally (line 345)
+  - Policy: Strict default-deny with controlled exceptions
+    - `default-src 'none'` - Deny all by default
+    - `script-src 'self'` - Scripts from same origin only
+    - `style-src 'self' 'unsafe-inline'` - Inline styles allowed (PWA requirement)
+    - `connect-src 'self' http: https: ws: wss:` - API + WebSocket + LAN access
+    - `frame-ancestors 'none'` - Prevent clickjacking
+  - Documentation: `docs/api/security.md` (+140 lines, 7 security layers)
+  - Commits:
+    - 8600754 - Initial CSP implementation
+    - acae63c - Relaxed connect-src for LAN mobile access
+  - Status: ✅ Production-ready, tested with mobile devices
+
+### Deferred Tasks (Q1 2026) 📋
+
+> ⚠️ **Ces tâches sont REPORTÉES car elles nécessitent une infrastructure production qui n'est pas encore nécessaire. Le projet fonctionne parfaitement en mode développement avec mkcert.**
+
+#### TLS Certificates (Deferred)
 - [ ] **Let's Encrypt integration** - Automatic certificate renewal
   - Tool: certbot
   - Domain: symbion.yourdomain.com
   - Renewal: Automatic via cron (every 2 months)
+  - Priority: P2 (mkcert certificates suffisants pour développement)
+  - Target: Q1 2026 (avant déploiement public)
 
-- [x] **HSTS headers** - Force HTTPS, prevent downgrade attacks
-  - Header: `Strict-Transport-Security: max-age=31536000; includeSubDomains`
-  - ✅ Completed in PR2 (14 November 2025) - See PR2 section above
-
-- [ ] **CSP headers** - Content Security Policy
-  - Prevent XSS attacks
-  - Priority: P0 (VULN-008)
-
-#### Database Migration
+#### Database Migration (Deferred)
 - [ ] **SQLite → PostgreSQL** - Production-grade database
   - Reason: Better concurrency, ACID guarantees
   - Migration script: Convert users.json + notes to PostgreSQL
-  - Priority: P1
+  - Priority: P2 (JSON files suffisants pour développement)
+  - Target: Q1 2026 (avant scaling multi-utilisateurs)
 
 - [ ] **Database backups** - Automated daily backups
   - Tool: pg_dump
   - Retention: 30 days
   - Storage: Offsite (S3 or similar)
+  - Priority: P2 (dépend de migration PostgreSQL)
 
-#### Deployment
+#### Deployment (Deferred)
 - [ ] **Docker containerization** - Kernel + Agents in containers
   - Dockerfile: Multi-stage build (Rust → Alpine)
   - Compose: Kernel + Mosquitto + PostgreSQL + Grafana
-  - Priority: P1
+  - Priority: P2 (déploiement bare-metal fonctionne)
+  - Target: Q1 2026 (faciliter déploiement multi-environnement)
 
 - [ ] **CI/CD pipeline** - Automated testing and deployment
   - Platform: GitHub Actions
   - Tests: cargo test, integration tests, security scan
   - Deploy: On tag (v0.x.x)
+  - Priority: P2 (tests manuels suffisants pour développement)
 
-#### Documentation
+#### Documentation (Deferred)
 - [ ] **Installation guide** - Step-by-step setup
+  - Priority: P2 (ROADMAP actuel suffisant)
 - [ ] **Architecture diagrams** - System overview
+  - Priority: P3 (documentation texte existante)
 - [ ] **API reference** - OpenAPI/Swagger specification
+  - Priority: P2 (docs/api/endpoints.md existe)
 - [ ] **Troubleshooting guide** - Common issues and fixes
+  - Priority: P2 (docs/TROUBLESHOOTING.md existe déjà ✅)
 
 ### Estimated Timeline
 
-- Start: January 2026
-- Target completion: February 2026
-- Launch: v1.0.0 stable
+- CSP Headers (P0): ✅ **Completed** - 15 November 2025
+- Deployment tasks (P2): **Deferred** to Q1 2026
+- Target v1.0.0 stable: **Q2 2026** (après deployment infrastructure)
 
 ---
 
@@ -618,27 +647,32 @@ Final production deployment requirements.
 
 ## 🎯 Next Actions (Priority Order)
 
-> ⚠️ **Note**: PR1-PR5 sont 100% complètes. Les actions ci-dessous concernent PR6 et améliorations post-production.
+> ✅ **État Actuel**: PR1-PR5 sont **100% complètes** et production-ready. CSP headers déployés (P0 de PR6).
+>
+> 🔄 **Prochaines étapes**: Pas de phase core en cours. Choix entre:
+> - Améliorations fonctionnelles (nouveaux plugins, features PWA)
+> - Optimisations P2 (monitoring avancé, performance tuning)
+> - Deployment infrastructure (Docker, PostgreSQL) - **Reporté à Q1 2026**
 
-### Immediate (P0) - Documentation
-1. **Audit P1**: Document 31 undocumented endpoints (Context, Decision, Agent, Ports, Auth)
-2. **Audit P1**: Fix path mismatches in API documentation (3 endpoints)
-3. **Audit P1**: Remove phantom endpoints from docs (13 non-implemented)
+### Immediate (P1) - Documentation Improvements
+1. ~~**Audit P0**: CSP headers implementation~~ ✅ **Completed** (15 Nov 2025)
+2. **Audit P1**: Document 31 undocumented endpoints (Context, Decision, Agent, Ports, Auth)
+3. **Audit P1**: Fix path mismatches in API documentation (3 endpoints)
+4. **Audit P1**: Remove phantom endpoints from docs (13 non-implemented)
 
-### Short Term (P1) - PR6 Preparation
-4. **PR6**: Configure Prometheus alerting rules for production monitoring
-5. **PR6**: Implement backup/restore system for JSON data stores
-6. **PR6**: Design PostgreSQL schema migration strategy
+### Optional Features (P2) - User Experience
+5. **Frontend**: Implement mobile approval interface for high-risk decisions (PR3 enhancement)
+6. **Plugin**: Create symbion-plugin-calendar (événements contextuels)
+7. **PWA**: Add offline mode avec service worker
+8. **Frontend**: Implement real-time notifications (toast alerts)
 
-### Medium Term (P2) - Production Features
-7. **PR3**: Implement mobile approval interface for high-risk decisions
-8. **PR6**: Let's Encrypt automatic certificate renewal
-9. **PR6**: Docker containerization with multi-stage builds
-
-### Long Term (Q1 2026) - Scaling
-10. **PR6**: PostgreSQL migration (replace JSON files)
-11. **PR6**: Kubernetes deployment manifests
-12. **PR6**: Distributed agent registry (multi-kernel support)
+### Deferred to Q1 2026 (P2) - Infrastructure
+9. **PR6**: Configure Prometheus alerting rules for production monitoring
+10. **PR6**: Let's Encrypt automatic certificate renewal
+11. **PR6**: Docker containerization with multi-stage builds
+12. **PR6**: PostgreSQL migration (replace JSON files)
+13. **PR6**: CI/CD pipeline (GitHub Actions)
+14. **PR6**: Kubernetes deployment manifests
 
 ---
 
