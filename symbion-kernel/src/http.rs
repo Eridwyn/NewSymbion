@@ -25,9 +25,8 @@
 
 use axum::{extract::{Query, State}, routing::{get, post}, Json, Router};
 use axum::http::{StatusCode, Method};
-use tower_http::cors::{CorsLayer, Any};
+use tower_http::cors::CorsLayer;
 use tower_http::timeout::TimeoutLayer;
-use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use crate::models::{HostState, HostsMap};
 use crate::state::Shared;
 use crate::config::HostsConfig;
@@ -40,7 +39,7 @@ use axum::response::{Response, IntoResponse};
 use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 use axum::extract::Path;
 use std::collections::HashMap;
-use sha2::Digest;
+// use sha2::Digest; // Unused - reserved for future hash verification
 use base64::Engine;
 
 
@@ -186,29 +185,14 @@ pub struct AppState {
 struct WakeParams { host_id: String }
 
 pub fn build_router(app_state: AppState) -> Router {
-    // Rate limiting configurations
-    // Auth routes: 10 req/min per IP (brute-force protection)
-    let auth_rate_limit_config = std::sync::Arc::new(
-        GovernorConfigBuilder::default()
-            .per_second(1)
-            .burst_size(10)
-            .finish()
-            .expect("Failed to build auth rate limit config")
-    );
-
-    // API routes: 5 req/sec per IP (DoS protection)
-    let api_rate_limit_config = std::sync::Arc::new(
-        GovernorConfigBuilder::default()
-            .per_second(5)
-            .burst_size(10)
-            .finish()
-            .expect("Failed to build API rate limit config")
-    );
-
     // Routes publiques (sans version, sans auth, sans rate limit strict)
     let public_routes = Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/system/health", get(get_system_health))
+        // Metrics API (PR4 - public for monitoring tools)
+        .route("/metrics", get(prometheus_metrics_endpoint))
+        .route("/v1/metrics/agents", get(get_metrics_agents))
+        .route("/v1/metrics/system", get(get_metrics_system))
         .route("/ca-certificate", get(download_ca_certificate))
         .with_state(app_state.clone());
 
@@ -222,7 +206,6 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/auth/webauthn/authenticate-discoverable-start", post(webauthn_authenticate_discoverable_start))
         .route("/auth/webauthn/authenticate-finish", post(webauthn_authenticate_finish))
         .with_state(app_state.clone());
-        // .layer(GovernorLayer::new(auth_rate_limit_config.clone()));
 
     // Routes d'authentification protégées (nécessitent JWT valide)
     let protected_auth_routes = Router::new()
@@ -240,8 +223,6 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/auth/webauthn/passkeys", get(webauthn_list_passkeys))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
-        // NOTE: Rate limiting tower_governor désactivé (incompatibilité localhost)
-        // .layer(GovernorLayer::new(auth_rate_limit_config));
 
     // Routes destructrices nécessitant protection CSRF (POST/DELETE)
     let csrf_protected_routes = Router::new()
@@ -312,13 +293,19 @@ pub fn build_router(app_state: AppState) -> Router {
         // NOTE: Rate limiting tower_governor désactivé (incompatibilité localhost)
         // .layer(GovernorLayer::new(api_rate_limit_config));
 
+    // Routes WebSocket (auth via query parameter, pas de middleware require_auth)
+    let websocket_routes = Router::new()
+        .route("/ws/notes/stream", get(crate::notes_ws::notes_stream_handler))
+        .with_state(app_state.clone());
+
     // Combine all v1 API routes
     let v1_api_routes = Router::new()
         .merge(login_route)
         .merge(protected_auth_routes)
         .merge(api_routes)
         .merge(csrf_protected_routes)
-        .merge(decision_csrf_routes);
+        .merge(decision_csrf_routes)
+        .merge(websocket_routes);
 
     // Router principal avec versioning
     Router::new()
@@ -352,8 +339,50 @@ pub fn build_router(app_state: AppState) -> Router {
         )
         // Timeout de 30s pour toutes requêtes - Prévient blocages deadlock
         .layer(TimeoutLayer::new(std::time::Duration::from_secs(30)))
+        // HSTS header - Force HTTPS, max-age 1 year
+        .layer(middleware::from_fn(add_hsts_header))
 }
 
+/// Middleware pour ajouter le header HSTS (HTTP Strict Transport Security)
+/// Force les navigateurs à toujours utiliser HTTPS pour ce domaine pendant 1 an
+async fn add_hsts_header(
+    req: Request,
+    next: Next,
+) -> Response {
+    let mut response = next.run(req).await;
+    response.headers_mut().insert(
+        axum::http::header::STRICT_TRANSPORT_SECURITY,
+        "max-age=31536000; includeSubDomains".parse().unwrap()
+    );
+    response
+}
+
+/// Router HTTP simple qui redirige toutes les requêtes vers HTTPS
+/// Utilisé sur port 8080 pour rediriger vers port 8443 (HTTPS)
+pub fn build_redirect_router(https_port: u16) -> Router {
+    Router::new()
+        .fallback(move |req: Request| async move {
+            let host = req.headers()
+                .get(axum::http::header::HOST)
+                .and_then(|h| h.to_str().ok())
+                .unwrap_or("localhost");
+
+            // Retirer le port HTTP s'il est présent dans le host header
+            let host_without_port = host.split(':').next().unwrap_or(host);
+
+            let uri = req.uri();
+            let path_and_query = uri.path_and_query()
+                .map(|pq| pq.as_str())
+                .unwrap_or("/");
+
+            let https_url = format!("https://{}:{}{}", host_without_port, https_port, path_and_query);
+
+            (
+                StatusCode::MOVED_PERMANENTLY,
+                [(axum::http::header::LOCATION, https_url)]
+            )
+        })
+}
 
 // GET /hosts (liste)
 async fn get_hosts(State(app): State<AppState>) -> Json<Vec<HostView>> {
@@ -1121,7 +1150,7 @@ async fn agent_commands_post_endpoint(
     // Extract command from parameters for shell_command type
     if req.command_type == "shell_command" {
         if let Some(command) = req.parameters.get("command") {
-            if let Some(command_str) = command.as_str() {
+            if let Some(_command_str) = command.as_str() {
                 match app.agents.send_command(&id, "run_command", Some(req.parameters)).await {
                     Ok(command_id) => Ok(Json(serde_json::json!({
                         "success": true,
@@ -2003,7 +2032,7 @@ async fn webauthn_register_start(
     req: Request,
 ) -> Result<Json<webauthn_rs::prelude::CreationChallengeResponse>, (StatusCode, Json<serde_json::Value>)> {
     // Extraire headers et body
-    let (parts, body) = req.into_parts();
+    let (parts, _body) = req.into_parts();
 
     // Extraire le token JWT pour identifier l'utilisateur
     let token = parts
@@ -2216,8 +2245,8 @@ async fn webauthn_authenticate_finish(
     // Extraire headers et body
     let (parts, body) = req.into_parts();
 
-    // Extraire l'IP du client pour device trust
-    let client_ip = parts
+    // Extraire l'IP du client pour device trust (reserved for future device fingerprinting)
+    let _client_ip = parts
         .headers
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
@@ -2270,4 +2299,385 @@ async fn webauthn_authenticate_finish(
         "role": role,
         "expires_at": OffsetDateTime::now_utc().unix_timestamp() + 86400 // 24h
     })))
+}
+
+// ============================================================================
+// Metrics API Endpoints (PR4 - P1)
+// ============================================================================
+
+/// GET /v1/metrics/agents - Per-agent metrics in JSON format
+/// Returns detailed telemetry for each agent: CPU, RAM, disk, network, processes
+#[derive(serde::Serialize)]
+struct AgentMetrics {
+    agent_id: String,
+    hostname: String,
+    status: String,
+    last_seen: i64, // Unix timestamp
+    uptime_seconds: u64,
+    cpu: AgentCpuMetrics,
+    memory: AgentMemoryMetrics,
+    disk: Vec<AgentDiskMetrics>,
+    network: Vec<AgentNetworkMetrics>,
+    processes: AgentProcessMetrics,
+}
+
+#[derive(serde::Serialize)]
+struct AgentCpuMetrics {
+    percent: f32,
+    load_avg: Vec<f32>,
+    core_count: u32,
+}
+
+#[derive(serde::Serialize)]
+struct AgentMemoryMetrics {
+    total_mb: u64,
+    used_mb: u64,
+    available_mb: u64,
+    percent_used: f32,
+}
+
+#[derive(serde::Serialize)]
+struct AgentDiskMetrics {
+    path: String,
+    total_gb: f64,
+    used_gb: f64,
+    free_gb: f64,
+    percent_used: f32,
+}
+
+#[derive(serde::Serialize)]
+struct AgentNetworkMetrics {
+    name: String,
+    bytes_sent: u64,
+    bytes_recv: u64,
+    is_up: bool,
+}
+
+#[derive(serde::Serialize)]
+struct AgentProcessMetrics {
+    total_count: u32,
+    running_count: u32,
+}
+
+async fn get_metrics_agents(
+    State(app): State<AppState>,
+) -> Json<Vec<AgentMetrics>> {
+    let agents_map = app.agents.list_agents().await;
+
+    let mut metrics = Vec::new();
+    for (agent_id, agent) in agents_map.iter() {
+        let agent_metric = AgentMetrics {
+            agent_id: agent_id.clone(),
+            hostname: agent.hostname.clone(),
+            status: agent.status.status.clone(),
+            last_seen: agent.last_seen.unix_timestamp(),
+            uptime_seconds: agent.status.system.as_ref()
+                .map(|s| s.uptime_seconds)
+                .unwrap_or(0),
+            cpu: AgentCpuMetrics {
+                percent: agent.status.system.as_ref()
+                    .map(|s| s.cpu.percent)
+                    .unwrap_or(0.0),
+                load_avg: agent.status.system.as_ref()
+                    .and_then(|s| s.cpu.load_avg.map(|arr| arr.to_vec()))
+                    .unwrap_or_default(),
+                core_count: agent.status.system.as_ref()
+                    .and_then(|s| s.cpu.core_count)
+                    .unwrap_or(0),
+            },
+            memory: AgentMemoryMetrics {
+                total_mb: agent.status.system.as_ref()
+                    .map(|s| s.memory.total_mb)
+                    .unwrap_or(0),
+                used_mb: agent.status.system.as_ref()
+                    .map(|s| s.memory.used_mb)
+                    .unwrap_or(0),
+                available_mb: agent.status.system.as_ref()
+                    .and_then(|s| s.memory.available_mb)
+                    .unwrap_or(0),
+                percent_used: agent.status.system.as_ref()
+                    .map(|s| s.memory.percent_used)
+                    .unwrap_or(0.0),
+            },
+            disk: agent.status.system.as_ref()
+                .and_then(|s| s.disk.as_ref())
+                .map(|disks| disks.iter().map(|d| AgentDiskMetrics {
+                    path: d.path.clone(),
+                    total_gb: d.total_gb,
+                    used_gb: d.used_gb,
+                    free_gb: d.free_gb.unwrap_or(0.0),
+                    percent_used: d.percent_used,
+                }).collect())
+                .unwrap_or_default(),
+            network: agent.status.system.as_ref()
+                .and_then(|s| s.network.as_ref())
+                .map(|n| n.interfaces.iter().map(|i| AgentNetworkMetrics {
+                    name: i.name.clone(),
+                    bytes_sent: i.bytes_sent.unwrap_or(0),
+                    bytes_recv: i.bytes_recv.unwrap_or(0),
+                    is_up: i.is_up,
+                }).collect())
+                .unwrap_or_default(),
+            processes: AgentProcessMetrics {
+                total_count: agent.status.processes.as_ref()
+                    .map(|p| p.total_count)
+                    .unwrap_or(0),
+                running_count: agent.status.processes.as_ref()
+                    .map(|p| p.running_count)
+                    .unwrap_or(0),
+            },
+        };
+        metrics.push(agent_metric);
+    }
+
+    Json(metrics)
+}
+
+/// GET /v1/metrics/system - Kernel performance metrics in JSON format
+/// Returns kernel runtime stats: uptime, memory, MQTT, plugins, context
+#[derive(serde::Serialize)]
+struct SystemMetrics {
+    kernel: KernelRuntimeMetrics,
+    mqtt: MqttMetrics,
+    agents: AgentsSummaryMetrics,
+    plugins: PluginsMetrics,
+    context: ContextMetrics,
+    decision_engine: DecisionEngineMetrics,
+}
+
+#[derive(serde::Serialize)]
+struct KernelRuntimeMetrics {
+    uptime_seconds: u64,
+    memory_usage_mb: f32,
+    contracts_loaded: u32,
+}
+
+#[derive(serde::Serialize)]
+struct MqttMetrics {
+    status: String, // "connected", "disconnected", "reconnecting"
+    reconnects_total: u32,
+    messages_per_minute: f32,
+    messages_total: u64,
+}
+
+#[derive(serde::Serialize)]
+struct AgentsSummaryMetrics {
+    total: usize,
+    online: usize,
+    offline: usize,
+}
+
+#[derive(serde::Serialize)]
+struct PluginsMetrics {
+    total: u32,
+    running: u32,
+    failed: u32,
+}
+
+#[derive(serde::Serialize)]
+struct ContextMetrics {
+    current_mode: String, // "neutre", "cravate", "intime"
+    confidence: f32,
+}
+
+#[derive(serde::Serialize)]
+struct DecisionEngineMetrics {
+    decisions_total: u64,
+    decisions_approved: u64,
+    decisions_blocked: u64,
+    validations_pending: usize,
+    overrides_active: usize,
+}
+
+async fn get_metrics_system(
+    State(app): State<AppState>,
+) -> Json<SystemMetrics> {
+    // Get kernel health
+    let kernel_health = app.health_tracker.get_health(&app.contracts, &app.agents, &app.plugins);
+
+    // Get agent summary
+    let agents_map = app.agents.list_agents().await;
+    let total_agents = agents_map.len();
+    let online_agents = agents_map.values()
+        .filter(|a| a.status.status == "online")
+        .count();
+
+    // Get context state
+    let context_state = app.context_engine.get_state();
+    let (mode_name, mode_confidence) = if let Some(state) = context_state {
+        use crate::context::Mode;
+        let name = match state.mode {
+            Mode::Neutre => "neutre",
+            Mode::Cravate => "cravate",
+            Mode::Intime => "intime",
+        };
+        (name.to_string(), state.confidence)
+    } else {
+        ("unknown".to_string(), 0.0)
+    };
+
+    // Get decision engine stats
+    let validation_stats = app.decision_validation_manager.stats();
+    let override_stats = app.decision_override_manager.stats();
+
+    // Decision metrics counters
+    let decisions_total = app.decision_metrics.get_decisions_total();
+    let decisions_approved = app.decision_metrics.get_decisions_approved();
+    let decisions_blocked = app.decision_metrics.get_decisions_blocked();
+
+    let metrics = SystemMetrics {
+        kernel: KernelRuntimeMetrics {
+            uptime_seconds: kernel_health.uptime_seconds,
+            memory_usage_mb: kernel_health.memory_usage_mb,
+            contracts_loaded: kernel_health.contracts_loaded,
+        },
+        mqtt: MqttMetrics {
+            status: kernel_health.mqtt_status,
+            reconnects_total: kernel_health.mqtt_reconnects,
+            messages_per_minute: kernel_health.mqtt_messages_per_minute,
+            messages_total: kernel_health.mqtt_messages_total,
+        },
+        agents: AgentsSummaryMetrics {
+            total: total_agents,
+            online: online_agents,
+            offline: total_agents - online_agents,
+        },
+        plugins: PluginsMetrics {
+            total: kernel_health.plugins_total,
+            running: kernel_health.plugins_active,
+            failed: kernel_health.plugins_failed,
+        },
+        context: ContextMetrics {
+            current_mode: mode_name,
+            confidence: mode_confidence,
+        },
+        decision_engine: DecisionEngineMetrics {
+            decisions_total,
+            decisions_approved,
+            decisions_blocked,
+            validations_pending: validation_stats.pending,
+            overrides_active: override_stats.active,
+        },
+    };
+
+    Json(metrics)
+}
+
+// ============================================================================
+// Prometheus Metrics Endpoint (PR4 - P0)
+// ============================================================================
+
+/// GET /metrics - Prometheus scraping endpoint (public, no auth required)
+/// Exports all kernel metrics in Prometheus exposition format:
+/// - Decision Engine metrics (decisions, guards, validations)
+/// - Agent telemetry (count, online/offline status)
+/// - System metrics (MQTT status, uptime)
+/// - HTTP metrics (placeholder for future request counters)
+async fn prometheus_metrics_endpoint(
+    State(app): State<AppState>,
+) -> Result<String, StatusCode> {
+    let mut output = String::new();
+
+    // ========== Decision Engine Metrics ==========
+    let audit_stats = app.decision_audit_manager.stats();
+    let validation_stats = app.decision_validation_manager.stats();
+    let override_stats = app.decision_override_manager.stats();
+    let agent_health_stats = app.decision_agent_health_manager.stats();
+
+    output.push_str(&app.decision_metrics.export_prometheus(
+        &audit_stats,
+        &validation_stats,
+        &override_stats,
+        &agent_health_stats,
+    ));
+
+    // ========== System Metrics ==========
+    // Get kernel health for MQTT status
+    let kernel_health = app.health_tracker.get_health(&app.contracts, &app.agents, &app.plugins);
+
+    // MQTT Connection Status
+    let mqtt_connected = if kernel_health.mqtt_status == "connected" { 1 } else { 0 };
+    output.push_str("# HELP symbion_mqtt_connected MQTT broker connection status (1=connected, 0=disconnected)\n");
+    output.push_str("# TYPE symbion_mqtt_connected gauge\n");
+    output.push_str(&format!("symbion_mqtt_connected {}\n", mqtt_connected));
+
+    output.push_str("# HELP symbion_mqtt_reconnects_total Total number of MQTT reconnections since startup\n");
+    output.push_str("# TYPE symbion_mqtt_reconnects_total counter\n");
+    output.push_str(&format!("symbion_mqtt_reconnects_total {}\n", kernel_health.mqtt_reconnects));
+
+    output.push_str("# HELP symbion_mqtt_messages_per_minute MQTT messages received per minute\n");
+    output.push_str("# TYPE symbion_mqtt_messages_per_minute gauge\n");
+    output.push_str(&format!("symbion_mqtt_messages_per_minute {:.2}\n", kernel_health.mqtt_messages_per_minute));
+
+    output.push_str("# HELP symbion_mqtt_messages_total Total MQTT messages since startup\n");
+    output.push_str("# TYPE symbion_mqtt_messages_total counter\n");
+    output.push_str(&format!("symbion_mqtt_messages_total {}\n", kernel_health.mqtt_messages_total));
+
+    // Agent Metrics
+    let agents_map = app.agents.list_agents().await;
+    let total_agents = agents_map.len();
+    let online_agents = agents_map.values()
+        .filter(|a| a.status.status == "online")
+        .count();
+    let offline_agents = total_agents - online_agents;
+
+    output.push_str("# HELP symbion_kernel_agents_total Total number of registered agents\n");
+    output.push_str("# TYPE symbion_kernel_agents_total gauge\n");
+    output.push_str(&format!("symbion_kernel_agents_total {}\n", total_agents));
+
+    output.push_str("# HELP symbion_kernel_agents_online Number of agents currently online\n");
+    output.push_str("# TYPE symbion_kernel_agents_online gauge\n");
+    output.push_str(&format!("symbion_kernel_agents_online {}\n", online_agents));
+
+    output.push_str("# HELP symbion_kernel_agents_offline Number of agents currently offline\n");
+    output.push_str("# TYPE symbion_kernel_agents_offline gauge\n");
+    output.push_str(&format!("symbion_kernel_agents_offline {}\n", offline_agents));
+
+    // Context Engine Metrics
+    if let Some(context_state) = app.context_engine.get_state() {
+        use crate::context::Mode;
+        let mode_value = match context_state.mode {
+            Mode::Neutre => 0,
+            Mode::Cravate => 1,
+            Mode::Intime => 2,
+        };
+        output.push_str("# HELP symbion_context_mode Current context mode (0=neutre, 1=cravate, 2=intime)\n");
+        output.push_str("# TYPE symbion_context_mode gauge\n");
+        output.push_str(&format!("symbion_context_mode {}\n", mode_value));
+
+        output.push_str("# HELP symbion_context_confidence Context detection confidence (0.0-1.0)\n");
+        output.push_str("# TYPE symbion_context_confidence gauge\n");
+        output.push_str(&format!("symbion_context_confidence {:.2}\n", context_state.confidence));
+    }
+
+    // Plugin Metrics (already computed in kernel_health)
+    output.push_str("# HELP symbion_plugins_total Total number of registered plugins\n");
+    output.push_str("# TYPE symbion_plugins_total gauge\n");
+    output.push_str(&format!("symbion_plugins_total {}\n", kernel_health.plugins_total));
+
+    output.push_str("# HELP symbion_plugins_running Number of plugins currently running\n");
+    output.push_str("# TYPE symbion_plugins_running gauge\n");
+    output.push_str(&format!("symbion_plugins_running {}\n", kernel_health.plugins_active));
+
+    output.push_str("# HELP symbion_plugins_failed Number of plugins in failed state\n");
+    output.push_str("# TYPE symbion_plugins_failed gauge\n");
+    output.push_str(&format!("symbion_plugins_failed {}\n", kernel_health.plugins_failed));
+
+    // Kernel Runtime Metrics
+    output.push_str("# HELP symbion_kernel_uptime_seconds Kernel uptime in seconds since startup\n");
+    output.push_str("# TYPE symbion_kernel_uptime_seconds gauge\n");
+    output.push_str(&format!("symbion_kernel_uptime_seconds {}\n", kernel_health.uptime_seconds));
+
+    output.push_str("# HELP symbion_kernel_memory_usage_mb Kernel memory usage in megabytes\n");
+    output.push_str("# TYPE symbion_kernel_memory_usage_mb gauge\n");
+    output.push_str(&format!("symbion_kernel_memory_usage_mb {:.2}\n", kernel_health.memory_usage_mb));
+
+    output.push_str("# HELP symbion_contracts_loaded Number of MQTT contracts loaded\n");
+    output.push_str("# TYPE symbion_contracts_loaded gauge\n");
+    output.push_str(&format!("symbion_contracts_loaded {}\n", kernel_health.contracts_loaded));
+
+    // TODO: Add HTTP request metrics (counter, latency histogram)
+    // Requires instrumentation with prometheus middleware
+
+    Ok(output)
 }

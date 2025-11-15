@@ -23,7 +23,7 @@ Symbion implémente **4 modes d'authentification** avec sécurité progressive :
 
 **Caractéristiques** :
 - Algorithme : **HS256** (HMAC-SHA256)
-- Durée de vie : **24 heures**
+- Durée de vie : **8 heures** (configurable via `SYMBION_TOKEN_EXPIRY_HOURS`)
 - Secret : Variable d'environnement `SYMBION_JWT_SECRET` (64+ caractères)
 - Claims : `sub` (user_id), `username`, `exp`, `mfa_verified`
 

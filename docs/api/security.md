@@ -141,72 +141,95 @@ Json(CsrfResponse {
 
 ### Principe
 
-Limiter nombre de requêtes par IP pour **prévenir brute-force** et **abus API**.
+Limiter nombre de requêtes pour **prévenir brute-force** et **abus API**.
 
-**Implémentation** : **tower_governor** middleware
+**Implémentation Actuelle** : **auth.rs username-based rate limiting**
 
-### Configuration
+### ⚠️ Architecture Rate Limiting (Mise à jour 14 Nov 2025)
 
-**Fichier** : `symbion-kernel/src/http.rs:189-206`
+**CHANGEMENT**: tower_governor middleware **RETIRÉ** suite à incompatibilité critique.
 
+**Raison**:
+- `PeerIpKeyExtractor` et `SmartIpKeyExtractor` causaient HTTP 500 "Unable To Extract Key!"
+- Échec sur localhost ET connexions VPN
+- Bloquait toute authentification (vulnérabilité critique VULN-009)
+
+**Solution**: Retour à rate limiting application-level dans `auth.rs`
+
+### Configuration Active
+
+**Fichier** : `symbion-kernel/src/auth.rs:145-171`
+
+**Protection Auth Login**:
 ```rust
-use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+// Rate limiting basé sur USERNAME (pas IP)
+const MAX_LOGIN_ATTEMPTS: usize = 5;
+const RATE_LIMIT_WINDOW_SECS: i64 = 900;  // 15 minutes
 
-// Configuration rate limiter
-let governor_conf = Box::new(
-    GovernorConfigBuilder::default()
-        .per_second(5)          // 5 requêtes/seconde
-        .burst_size(10)         // Burst max 10 requêtes
-        .finish()
-        .unwrap(),
-);
+fn check_rate_limit(&self, username: &str) -> Result<()> {
+    let mut attempts = self.login_attempts.write();
+    let now = OffsetDateTime::now_utc().unix_timestamp();
 
-let app = Router::new()
-    .route("/login", post(login))
-    .layer(GovernorLayer { config: governor_conf });
+    let user_attempts = attempts.entry(username.to_string()).or_insert_with(Vec::new);
+
+    // Supprimer tentatives expirées (> 15 min)
+    user_attempts.retain(|&timestamp| now - timestamp < RATE_LIMIT_WINDOW_SECS);
+
+    // Bloquer si limite atteinte
+    if user_attempts.len() >= MAX_LOGIN_ATTEMPTS {
+        let wait_minutes = /* calcul temps restant */;
+        anyhow::bail!("Too many login attempts. Please wait {} minute(s)", wait_minutes);
+    }
+
+    Ok(())
+}
 ```
+
+**Caractéristiques**:
+- ✅ Basé sur **username** (fonctionne localhost, VPN, production)
+- ✅ Protection brute-force efficace (5 tentatives / 15 min)
+- ✅ Stockage in-memory (reset au redémarrage kernel)
+- ✅ Message d'erreur avec temps d'attente restant
+- ⚠️ Pas de rate limiting global par IP (attaquant peut tester différents usernames)
 
 ### Limites par Type d'Endpoint
 
-| Endpoint | Limite | Burst | Raison |
-|----------|--------|-------|--------|
-| `/login` | 5 req/s | 10 | Anti brute-force passwords |
-| `/mfa/verify` | 3 req/s | 5 | Anti brute-force TOTP |
-| `/webauthn/*` | 10 req/s | 20 | Challenges multiples acceptables |
-| **Endpoints API généraux** | 50 req/s | 100 | Usage normal |
+| Endpoint | Limite | Window | Scope | Status |
+|----------|--------|--------|-------|--------|
+| `/auth/login` | 5 attempts | 15 min | per username | ✅ Active |
+| `/v1/auth/mfa/verify` | 5 attempts | 15 min | per username | ✅ Active |
+| **Autres endpoints API** | Aucune | - | - | ⚠️ Non limité |
 
 ### Réponse en Cas de Dépassement
 
-**Status Code** : `429 Too Many Requests`
-
-**Headers** :
-```
-X-RateLimit-Limit: 5
-X-RateLimit-Remaining: 0
-X-RateLimit-Reset: 1699887360
-Retry-After: 60
-```
+**Status Code** : `401 Unauthorized` (rate limit login)
 
 **Body** :
 ```json
 {
-  "error": "Too many requests",
-  "retry_after": 60
+  "error": "Too many login attempts. Please wait 12 minute(s) before trying again."
 }
 ```
 
-### Contournement (Whitelist)
+**Note**: Pas de headers `X-RateLimit-*` (implémentation application-level, pas middleware HTTP)
 
-Certaines IPs peuvent être **whitelistées** :
+### Avantages vs Inconvénients
 
-```rust
-// Exemples : localhost, réseau local, monitoring tools
-const WHITELISTED_IPS: &[&str] = &[
-    "127.0.0.1",
-    "::1",
-    "192.168.1.0/24",  // Réseau domestique
-];
-```
+**✅ Avantages auth.rs rate limiting**:
+- Fonctionne sur tous environnements (dev, VPN, production)
+- Pas de dépendance sur extraction IP complexe
+- Granularité par utilisateur (meilleure protection comptes individuels)
+- Pas de dépendance externe (tower_governor retiré)
+
+**⚠️ Inconvénients**:
+- Pas de protection DoS global par IP
+- Attaquant peut distribuer attaque sur plusieurs usernames
+- Reset complet au redémarrage kernel (pas de persistence)
+
+**Mitigation recommandée (P1)**:
+- Monitoring Prometheus pour détection pattern anomalies
+- Alertes email si > 50 tentatives login/heure (tous usernames)
+- Considérer nginx rate limiting en production (upstream du kernel)
 
 ---
 

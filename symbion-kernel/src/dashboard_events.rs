@@ -24,21 +24,26 @@ impl DashboardEventPublisher {
 
     /// Publie un événement générique sur MQTT
     async fn publish<T: Serialize>(&self, topic: &str, payload: &T) -> Result<(), String> {
+        self.publish_with_retain(topic, payload, false).await
+    }
+
+    /// Publie un événement sur MQTT avec option retain
+    async fn publish_with_retain<T: Serialize>(&self, topic: &str, payload: &T, retain: bool) -> Result<(), String> {
         let json = serde_json::to_string(payload)
             .map_err(|e| format!("Failed to serialize payload: {}", e))?;
 
         self.mqtt_client
-            .publish(topic, QoS::AtLeastOnce, false, json.as_bytes())
+            .publish(topic, QoS::AtLeastOnce, retain, json.as_bytes())
             .await
             .map_err(|e| format!("Failed to publish to MQTT: {}", e))?;
 
-        println!("[dashboard-events] Published to {}", topic);
+        println!("[dashboard-events] Published to {} (retain={})", topic, retain);
         Ok(())
     }
 
-    /// Événement: Changement de contexte
+    /// Événement: Changement de contexte (avec retain=true pour que les nouveaux clients reçoivent l'état actuel)
     pub async fn publish_context_change(&self, context: &crate::context::ContextState) -> Result<(), String> {
-        self.publish("symbion/dashboard/context@v1", context).await
+        self.publish_with_retain("symbion/dashboard/context@v1", context, true).await
     }
 
     /// Événement: Changement état agents

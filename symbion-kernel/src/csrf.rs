@@ -3,7 +3,7 @@
 //! Implémente une protection CSRF basée sur des nonces (tokens à usage unique)
 //! Les nonces ont une durée de vie limitée (5 minutes) et sont liés à l'utilisateur
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

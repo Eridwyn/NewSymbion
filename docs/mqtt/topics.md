@@ -67,6 +67,11 @@ match topic.as_str() {
 }
 ```
 
+**Voir Aussi** :
+- [`symbion/agents/heartbeat@v1`](#symbionagentsheartbeatv1) - Heartbeat périodique agent
+- [`symbion/agents/command@v1`](#symbionagentscommandv1) - Commandes envoyées aux agents
+- [Contracts](./contracts.md#agentregistration) - Schéma validation registration
+
 ---
 
 ### `symbion/agents/heartbeat@v1`
@@ -143,6 +148,12 @@ match topic.as_str() {
 }
 ```
 
+**Voir Aussi** :
+- [`symbion/agents/registration@v1`](#symbionagentsregistrationv1) - Enregistrement initial agent
+- [`symbion/dashboard/agents@v1`](./flows.md#dashboard-updates) - Updates dashboard temps réel
+- [Agent Discovery Workflow](../architecture/SYSTEM_OVERVIEW.md#agent-discovery-workflow) - Process complet
+- [Message Size Limits](./README.md#message-size-limits) - Limites payload métriques
+
 ---
 
 ### `symbion/agents/response@v1`
@@ -197,6 +208,11 @@ match topic.as_str() {
 }
 ```
 
+**Voir Aussi** :
+- [`symbion/agents/command@v1`](#symbionagentscommandv1) - Commande initiale envoyée
+- [API Remote Commands](../api/endpoints.md#post-agentsagent_idcommand) - Endpoint HTTP trigger
+- [Contracts](./contracts.md#commandresponse) - Schéma validation response
+
 ---
 
 ## 🎛️ Agent Control Topics
@@ -248,6 +264,11 @@ fn validate_command(cmd: &str) -> bool {
 }
 ```
 
+**Voir Aussi** :
+- [`symbion/agents/response@v1`](#symbionagentsresponsev1) - Réponse agent à la commande
+- [API Remote Commands](../api/endpoints.md#post-agentsagent_idcommand) - Endpoint HTTP pour envoyer commandes
+- [Security](../api/security.md) - Command validation & whitelisting
+
 ---
 
 ### `symbion/agents/wake@v1`
@@ -288,7 +309,7 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 
 ## 🔌 Plugin Communication Topics
 
-### `symbion/notes/request@v1`
+### `symbion/notes/command@v1`
 
 **Direction** : Kernel → Plugin Notes
 **QoS** : 1 (At least once)
@@ -348,6 +369,11 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 - **Publisher** : `symbion-kernel/src/http.rs:588-625`
 - **Subscriber** : `symbion-plugin-notes/src/main.rs`
 
+**Voir Aussi** :
+- [`symbion/notes/response@v1`](#symbionnotesresponsev1) - Réponse plugin à la requête
+- [API Notes](../api/endpoints.md#notes) - Endpoints HTTP CRUD
+- [Message Size Limits](./README.md#message-size-limits) - Streaming pagination pour large datasets
+
 ---
 
 ### `symbion/notes/response@v1`
@@ -356,35 +382,80 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 **QoS** : 1 (At least once)
 **Fréquence** : En réponse à requête
 
-**Description** : Résultat opération CRUD
+**Description** : Résultat opération CRUD avec streaming pour `list` (pagination MQTT)
 
-**Payload (SUCCESS)** :
+**Types de Réponse** :
+
+#### **SUCCESS** (create/update/delete)
 ```json
 {
+  "type": "success",
   "request_id": "req-123",
-  "success": true,
+  "action": "create",
   "data": {
     "id": "note-456",
-    "content": "Acheter lait + pain",
-    "context": "intime",
-    "tags": ["courses"],
-    "created_at": 1699887200
+    "timestamp": "2025-11-14T20:00:00Z",
+    "data": {
+      "content": "Acheter lait + pain",
+      "context": "intime",
+      "tags": ["courses"],
+      "urgent": false
+    }
   }
 }
 ```
 
-**Payload (ERROR)** :
+#### **NOTE_ITEM** (list streaming - 1 note par message)
 ```json
 {
-  "request_id": "req-789",
-  "success": false,
-  "error": "Note not found: note-999"
+  "type": "note_item",
+  "request_id": "req-123",
+  "note": {
+    "id": "note-456",
+    "timestamp": "2025-11-14T20:00:00Z",
+    "data": {
+      "content": "Note example",
+      "context": "intime",
+      "tags": ["example"]
+    },
+    "metadata": {}
+  }
 }
 ```
 
+#### **LIST_END** (fin du stream list)
+```json
+{
+  "type": "list_end",
+  "request_id": "req-123",
+  "total_count": 5
+}
+```
+
+#### **ERROR**
+```json
+{
+  "type": "error",
+  "request_id": "req-789",
+  "action": "delete",
+  "error": "Note not found"
+}
+```
+
+**Protocole Streaming** :
+- Pour `list` : Plugin envoie N messages `note_item` + 1 message `list_end`
+- Kernel bridge agrège tous les `note_item` jusqu'à `list_end`
+- Contourne limite taille paquet MQTT (10KB par défaut)
+- Scalable pour nombre arbitraire de notes
+
 **Fichier source** :
-- **Publisher** : `symbion-plugin-notes/src/main.rs`
-- **Subscriber** : `symbion-kernel/src/mqtt.rs:63`
+- **Publisher** : `symbion-plugin-notes/src/main.rs:106-118,320-399`
+- **Subscriber** : `symbion-kernel/src/notes_bridge.rs:122-151`
+
+**Voir Aussi** :
+- [`symbion/notes/command@v1`](#symbionnotescommandv1) - Requête initiale du kernel
+- [Message Size Limits](./README.md#message-size-limits) - Détails streaming pagination
+- [Communication Flows](./flows.md#plugin-communication) - Workflow complet plugin notes
 
 ---
 
@@ -436,7 +507,22 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 
 ## 📊 Dashboard Updates Topics
 
-### `symbion/dashboard/update@v1`
+> ⚠️ **MIGRATION NOTE (November 2025)**: Les topics `dashboard/update@v1` et `dashboard/notification@v1` documentés ci-dessous sont **OBSOLÈTES**. L'implémentation réelle utilise 6 topics spécifiques:
+>
+> **Topics Actuels (Implémentés):**
+> - `symbion/dashboard/context@v1` - Context/mode changes (Kernel → PWA, retain: true)
+> - `symbion/dashboard/agents@v1` - Agent state updates (Kernel → PWA)
+> - `symbion/dashboard/health@v1` - System health metrics (Kernel → PWA)
+> - `symbion/dashboard/notes@v1` - Note events (Kernel → PWA)
+> - `symbion/dashboard/stats@v1` - Contextual statistics (Kernel → PWA)
+> - `symbion/dashboard/pattern@v1` - Pattern detection events (Kernel → PWA)
+>
+> **Source**: `symbion-kernel/src/dashboard_events.rs:46-82`
+> **Status**: Documentation complète de ces topics à venir dans PR séparée
+>
+> ---
+
+### `symbion/dashboard/update@v1` ⚠️ DEPRECATED
 
 **Direction** : Kernel → PWA
 **QoS** : 1 (At least once)
@@ -486,7 +572,7 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 
 ---
 
-### `symbion/dashboard/notification@v1`
+### `symbion/dashboard/notification@v1` ⚠️ DEPRECATED
 
 **Direction** : Kernel → PWA
 **QoS** : 1 (At least once)
@@ -560,7 +646,7 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 
 ---
 
-### `symbion/system/health@v1`
+### `symbion/kernel/health@v1`
 
 **Direction** : Kernel → Tous
 **QoS** : 1 (At least once)
@@ -610,18 +696,45 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 | `symbion/agents/response@v1` | Agents → Kernel | 1 | À la demande |
 | `symbion/agents/command@v1` | Kernel → Agents | 1 | À la demande |
 | `symbion/agents/wake@v1` | Kernel → Broadcast | 1 | À la demande |
-| `symbion/notes/request@v1` | Kernel → Plugin | 1 | À la demande |
+| `symbion/notes/command@v1` | Kernel → Plugin | 1 | À la demande |
 | `symbion/notes/response@v1` | Plugin → Kernel | 1 | À la demande |
 | `symbion/ports/{plugin}/request@v1` | Kernel → Plugin | 1 | À la demande |
 | `symbion/ports/{plugin}/response@v1` | Plugin → Kernel | 1 | À la demande |
 | `symbion/dashboard/update@v1` | Kernel → PWA | 1 | Temps réel |
 | `symbion/dashboard/notification@v1` | Kernel → PWA | 1 | Événements |
 | `symbion/system/event@v1` | Multicast | 1 | Événements |
-| `symbion/system/health@v1` | Kernel → Tous | 1 | 5 min |
+| `symbion/kernel/health@v1` | Kernel → Tous | 1 | 5 min |
 
 ---
 
-**Dernière mise à jour** : 2025-11-12
+## 📚 Documentation Connexe
+
+### MQTT Architecture
+- **[README.md](./README.md)** - Vue d'ensemble MQTT (broker, QoS, versioning, monitoring)
+  - [Message Size Limits](./README.md#message-size-limits) - Pagination/streaming patterns
+  - [QoS Strategy](./README.md#qos-quality-of-service) - At least once explained
+  - [Monitoring](./README.md#monitoring-mqtt) - Broker metrics & dashboard
+
+### Communication Patterns
+- **[contracts.md](./contracts.md)** - Schémas JSON validation & versioning
+- **[flows.md](./flows.md)** - Workflows complets (agent lifecycle, plugin comm, dashboard)
+
+### Architecture & API
+- **[SYSTEM_OVERVIEW.md](../architecture/SYSTEM_OVERVIEW.md)** - Architecture globale
+  - [Agent Discovery Workflow](../architecture/SYSTEM_OVERVIEW.md#agent-discovery-workflow) - Process complet
+  - [Network Architecture](../architecture/SYSTEM_OVERVIEW.md#network-architecture) - Ports & TLS
+- **[endpoints.md](../api/endpoints.md)** - API HTTP (trigger MQTT commands)
+  - [Remote Commands](../api/endpoints.md#post-agentsagent_idcommand) - POST /agents/:id/command
+  - [Notes CRUD](../api/endpoints.md#notes) - Notes endpoints
+- **[security.md](../api/security.md)** - Command validation & whitelisting
+
+### Guides Pratiques
+- **[TROUBLESHOOTING.md](../TROUBLESHOOTING.md)** - Diagnostic MQTT connection issues
+- **[DEPLOYMENT.md](../DEPLOYMENT.md)** - Mosquitto setup production
+
+---
+
+**Dernière mise à jour** : 15 Novembre 2025
 **Fichiers sources** :
 - `symbion-kernel/src/mqtt.rs` (subscriptions Kernel)
 - `symbion-agent-host/src/main.rs` (publishers Agents)

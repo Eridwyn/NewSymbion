@@ -5,10 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Symbion Dashboard</title>
     <meta name="description" content="Interface de monitoring et contrôle Symbion">
-    <link rel="icon" type="image/svg+xml" href="/symbion-icon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#1a1a1a">
-    
+
     <style>
         * {
             margin: 0;
@@ -26,9 +28,177 @@
         #app {
             min-height: 100vh;
         }
+
+        /* Loader initial de page */
+        #page-loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 1;
+            transition: opacity 0.6s ease-out;
+        }
+
+        #page-loader.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .organic-loader__container {
+            position: relative;
+            width: 140px;
+            height: 140px;
+            animation: slow-spin 30s linear infinite;
+        }
+
+        .organic-loader__blob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 90px;
+            height: 90px;
+            margin: -45px 0 0 -45px;
+            background: radial-gradient(
+                circle,
+                rgba(0, 255, 213, 0.7) 0%,
+                rgba(0, 212, 170, 0.5) 50%,
+                rgba(0, 168, 138, 0.3) 100%
+            );
+            animation: blob-morph 6s ease-in-out infinite,
+                       bio-glow 3s ease-in-out infinite;
+            backdrop-filter: blur(8px);
+            z-index: 2;
+        }
+
+        .organic-loader__ripple {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 90px;
+            height: 90px;
+            margin: -45px 0 0 -45px;
+            background: radial-gradient(
+                circle,
+                rgba(0, 255, 213, 0.4) 0%,
+                rgba(0, 212, 170, 0.2) 30%,
+                rgba(0, 168, 138, 0.1) 60%,
+                transparent 100%
+            );
+            border-radius: 50%;
+            animation: light-propagate 4s ease-out infinite;
+            z-index: 1;
+        }
+
+        .organic-loader__ripple:nth-child(2) {
+            animation-delay: 1s;
+        }
+
+        .organic-loader__ripple:nth-child(3) {
+            animation-delay: 2s;
+        }
+
+        .organic-loader__ripple:nth-child(4) {
+            animation-delay: 3s;
+        }
+
+        .organic-loader__text {
+            text-align: center;
+            color: #00d4aa;
+            font-size: 0.85em;
+            margin-top: 1rem;
+            opacity: 0.8;
+            animation: text-fade 2.5s ease-in-out infinite;
+        }
+
+        /* Animations */
+        @keyframes blob-morph {
+            0%, 100% {
+                border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+                transform: scale(1) rotate(0deg);
+            }
+            25% {
+                border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
+                transform: scale(1.08) rotate(5deg);
+            }
+            50% {
+                border-radius: 50% 50% 20% 80% / 25% 60% 60% 80%;
+                transform: scale(0.92) rotate(-3deg);
+            }
+            75% {
+                border-radius: 70% 30% 50% 50% / 30% 30% 70% 70%;
+                transform: scale(1.05) rotate(8deg);
+            }
+        }
+
+        @keyframes bio-glow {
+            0%, 100% {
+                box-shadow: 0 0 20px rgba(0, 212, 170, 0.4),
+                            0 0 40px rgba(0, 212, 170, 0.3),
+                            inset 0 0 30px rgba(0, 255, 213, 0.15);
+            }
+            50% {
+                box-shadow: 0 0 40px rgba(0, 212, 170, 0.7),
+                            0 0 80px rgba(0, 212, 170, 0.5),
+                            inset 0 0 50px rgba(0, 255, 213, 0.3);
+            }
+        }
+
+        @keyframes light-propagate {
+            0% {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+            20% {
+                opacity: 0.8;
+            }
+            100% {
+                transform: scale(3);
+                opacity: 0;
+            }
+        }
+
+        @keyframes slow-spin {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes text-fade {
+            0%, 100% {
+                opacity: 0.5;
+            }
+            50% {
+                opacity: 1;
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- Loader initial de page -->
+    <div id="page-loader">
+        <div class="organic-loader__container">
+            <!-- Propagations lumineuses graduelles -->
+            <div class="organic-loader__ripple"></div>
+            <div class="organic-loader__ripple"></div>
+            <div class="organic-loader__ripple"></div>
+            <div class="organic-loader__ripple"></div>
+
+            <!-- Blob central organique -->
+            <div class="organic-loader__blob"></div>
+        </div>
+        <div class="organic-loader__text">🧬 Initialisation Symbion...</div>
+    </div>
+
     <div id="app"></div>
     <!-- Configuration runtime chargée AVANT l'app -->
     <script src="/config.js"></script>

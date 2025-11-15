@@ -15,6 +15,8 @@
 import { LitElement, html, css } from 'lit'
 import { getTopPriorityNotes, isHighPriority } from '../utils/notes-scoring.js'
 import { applyAllFilters } from '../utils/notes-filters.js'
+import notesStreamService from '../services/notes-stream-service.js'
+import '../components/organic-loader.js'
 
 class NotesWidget extends LitElement {
   static styles = css`
@@ -176,6 +178,26 @@ class NotesWidget extends LitElement {
       font-size: 0.9em;
     }
 
+    /* Animation d'apparition progressive des notes */
+    @keyframes note-fade-in {
+      from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .note-card {
+      animation: note-fade-in 0.4s ease-out forwards;
+    }
+
+    .note-card:nth-child(1) { animation-delay: 0.1s; opacity: 0; }
+    .note-card:nth-child(2) { animation-delay: 0.2s; opacity: 0; }
+    .note-card:nth-child(3) { animation-delay: 0.3s; opacity: 0; }
+
     @media (max-width: 768px) {
       .note-card {
         padding: 0.6rem;
@@ -280,18 +302,23 @@ class NotesWidget extends LitElement {
   }
 
   async loadNotes() {
-    if (!this.apiService) {
-      console.warn('[notes-widget] ⚠️ apiService not available yet')
-      this.error = 'Service API non disponible'
-      return
-    }
-
     this.loading = true
     this.error = null
-    try {
-      console.log('[notes-widget] 📡 Loading notes from API...')
-      this.notes = await this.apiService.getNotes({})
-      console.log('[notes-widget] ✅ Notes loaded:', this.notes.length, 'notes')
+    this.notes = [] // Reset notes for progressive loading
+
+    console.log('[notes-widget] 📡 Loading notes via WebSocket...')
+
+    // Event handlers for WebSocket streaming
+    const onNoteReceived = (e) => {
+      // Ajouter la note progressivement
+      this.notes = [...this.notes, e.detail.note]
+      console.log(`[notes-widget] ➕ Note received (${this.notes.length})`)
+      this.requestUpdate() // Trigger re-render avec animation
+    }
+
+    const onNotesComplete = (e) => {
+      this.loading = false
+      console.log(`[notes-widget] ✅ Stream complete: ${e.detail.receivedCount}/${e.detail.totalCount} notes`)
       console.log('[notes-widget] Current context:', this.currentContext)
 
       if (!this.notes || this.notes.length === 0) {
@@ -306,12 +333,44 @@ class NotesWidget extends LitElement {
         console.log(`[notes-widget] ${this.notes.length} notes totales, ${filtered.length} pour contexte ${this.currentContext}`)
       }
 
+      // Cleanup listeners
+      notesStreamService.removeEventListener('note-received', onNoteReceived)
+      notesStreamService.removeEventListener('notes-complete', onNotesComplete)
+      notesStreamService.removeEventListener('notes-error', onNotesError)
+
       this.requestUpdate()
-    } catch (error) {
-      console.error('[notes-widget] ❌ Failed to load notes:', error)
-      this.error = `Erreur chargement: ${error.message || 'API inaccessible'}`
-    } finally {
+    }
+
+    const onNotesError = (e) => {
       this.loading = false
+      console.error('[notes-widget] ❌ WebSocket error:', e.detail.error)
+      this.error = `Erreur chargement: ${e.detail.error}`
+
+      // Cleanup listeners
+      notesStreamService.removeEventListener('note-received', onNoteReceived)
+      notesStreamService.removeEventListener('notes-complete', onNotesComplete)
+      notesStreamService.removeEventListener('notes-error', onNotesError)
+
+      this.requestUpdate()
+    }
+
+    // Register event listeners
+    notesStreamService.addEventListener('note-received', onNoteReceived)
+    notesStreamService.addEventListener('notes-complete', onNotesComplete)
+    notesStreamService.addEventListener('notes-error', onNotesError)
+
+    // Start WebSocket streaming
+    try {
+      await notesStreamService.loadNotes({}) // Empty filters = all notes
+    } catch (error) {
+      console.error('[notes-widget] ❌ Failed to start WebSocket:', error)
+      this.error = `Erreur connexion: ${error.message}`
+      this.loading = false
+
+      // Cleanup listeners
+      notesStreamService.removeEventListener('note-received', onNoteReceived)
+      notesStreamService.removeEventListener('notes-complete', onNotesComplete)
+      notesStreamService.removeEventListener('notes-error', onNotesError)
     }
   }
 
@@ -424,7 +483,7 @@ class NotesWidget extends LitElement {
           ⚠️ ${this.error}
         </div>
       ` : this.loading ? html`
-        <div class="placeholder">⏳ Chargement...</div>
+        <organic-loader text="🧬 Organisme en synapse..."></organic-loader>
       ` : topNotes.length === 0 ? html`
         <div class="placeholder">
           📝 Aucune note pour <strong>${this.currentContext}</strong>
