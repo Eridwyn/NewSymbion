@@ -1,6 +1,6 @@
 # Symbion Roadmap - Development Plan
 
-**Last Updated**: 14 November 2025
+**Last Updated**: 15 November 2025
 **Current Version**: v0.3.0-alpha.1
 **Target Stable**: v1.0.0 (Q2 2026)
 
