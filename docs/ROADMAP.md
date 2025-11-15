@@ -607,10 +607,10 @@ Final production deployment requirements.
 |-----------|-------------|--------|
 | PR1 Context Engine | ✅ October 2025 | Done |
 | PR2 Security (backend) | ✅ November 2025 | Done |
-| PR2 Security (frontend) | December 2025 | In Progress |
+| PR2 Security (frontend) | ✅ November 2025 | Done |
 | PR3 Decision Engine | ✅ November 2025 | Done |
-| PR4 Metrics endpoints | December 2025 | Pending |
-| PR5 Panic recovery | January 2026 | Pending |
+| PR4 Metrics endpoints | ✅ November 2025 | Done |
+| PR5 Panic recovery | ✅ November 2025 | Done |
 | PR6 Production deploy | February 2026 | Not Started |
 | **v1.0.0 Stable Release** | **March 2026** | **Target** |
 
@@ -618,25 +618,27 @@ Final production deployment requirements.
 
 ## 🎯 Next Actions (Priority Order)
 
-### Immediate (P0)
-1. **PR2**: Implement PWA login page + CSRF nonce management
-2. **PR4**: Add `GET /metrics` Prometheus endpoint
-3. **PR5**: Implement panic recovery middleware
+> ⚠️ **Note**: PR1-PR5 sont 100% complètes. Les actions ci-dessous concernent PR6 et améliorations post-production.
 
-### Short Term (P1)
-4. **PR2**: Build MFA setup wizard in PWA
-5. **PR4**: Configure Prometheus alerting rules
-6. **PR5**: Create systemd service file with auto-restart
+### Immediate (P0) - Documentation
+1. **Audit P1**: Document 31 undocumented endpoints (Context, Decision, Agent, Ports, Auth)
+2. **Audit P1**: Fix path mismatches in API documentation (3 endpoints)
+3. **Audit P1**: Remove phantom endpoints from docs (13 non-implemented)
 
-### Medium Term (P2)
-7. **PR1**: Add SSID-based context detection
-8. **PR3**: Implement mobile approval interface for decisions
-9. **PR5**: Implement backup/restore system
+### Short Term (P1) - PR6 Preparation
+4. **PR6**: Configure Prometheus alerting rules for production monitoring
+5. **PR6**: Implement backup/restore system for JSON data stores
+6. **PR6**: Design PostgreSQL schema migration strategy
 
-### Long Term (Q1 2026)
-10. **PR6**: Let's Encrypt integration
-11. **PR6**: PostgreSQL migration
-12. **PR6**: Docker containerization
+### Medium Term (P2) - Production Features
+7. **PR3**: Implement mobile approval interface for high-risk decisions
+8. **PR6**: Let's Encrypt automatic certificate renewal
+9. **PR6**: Docker containerization with multi-stage builds
+
+### Long Term (Q1 2026) - Scaling
+10. **PR6**: PostgreSQL migration (replace JSON files)
+11. **PR6**: Kubernetes deployment manifests
+12. **PR6**: Distributed agent registry (multi-kernel support)
 
 ---
 
