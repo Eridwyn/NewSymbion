@@ -1,0 +1,61 @@
+[Unit]
+Description=Symbion Kernel - IoT Hub & Decision Engine
+Documentation=https://github.com/Eridwyn/NewSymbion
+After=network.target mosquitto.service
+Wants=mosquitto.service
+
+[Service]
+Type=simple
+User=eridwyn
+Group=eridwyn
+WorkingDirectory=/home/eridwyn/RustroverProjects/NewSymbion
+
+# Environment variables (override with /etc/systemd/system/symbion-kernel.service.d/override.conf)
+Environment="SYMBION_API_KEY=s3cr3t-42"
+Environment="SYMBION_MQTT_BROKER=127.0.0.1:1883"
+Environment="SYMBION_JWT_SECRET=test-secret-1234567890123456789012345678901234567890123456789012345678901234"
+Environment="SYMBION_HTTPS_PORT=8443"
+Environment="SYMBION_HTTP_PORT=8080"
+Environment="SYMBION_TLS_CERT_PATH=/etc/mosquitto/certs/cert-mkcert.pem"
+Environment="SYMBION_TLS_KEY_PATH=/etc/mosquitto/certs/key-mkcert.pem"
+Environment="SYMBION_WEBAUTHN_RP_ID=symbion.local"
+Environment="SYMBION_WEBAUTHN_RP_ORIGIN=https://symbion.local:3000"
+Environment="RUST_LOG=info"
+
+# Cargo environment for Rust toolchain
+Environment="PATH=/home/eridwyn/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="RUSTUP_HOME=/home/eridwyn/.rustup"
+Environment="CARGO_HOME=/home/eridwyn/.cargo"
+
+# Run kernel binary (using release build)
+ExecStart=/home/eridwyn/.cargo/bin/cargo run --release --bin symbion-kernel
+
+# PR5: Auto-restart on failure
+Restart=always
+RestartSec=5s
+
+# PR5: Graceful shutdown (SIGTERM → cleanup → SIGKILL after 30s)
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30s
+
+# Security hardening (optional - uncomment for production)
+# ProtectSystem=strict
+# ProtectHome=read-only
+# PrivateTmp=yes
+# NoNewPrivileges=yes
+# ReadWritePaths=/home/eridwyn/RustroverProjects/NewSymbion/data
+# ReadWritePaths=/home/eridwyn/RustroverProjects/NewSymbion/plugins
+
+# Resource limits (adjust based on your system)
+LimitNOFILE=65536
+MemoryMax=512M
+CPUQuota=200%
+
+# Logging to journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=symbion-kernel
+
+[Install]
+WantedBy=multi-user.target
