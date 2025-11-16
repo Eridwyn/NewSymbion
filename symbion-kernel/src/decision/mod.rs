@@ -14,6 +14,7 @@ pub mod r#override;
 pub mod audit;
 pub mod agent_status;
 pub mod metrics;
+pub mod environment;  // F1: Environment monitoring rules
 
 // Re-exports principaux (public API - intentionally exposed for future use)
 #[allow(unused_imports)]
@@ -38,3 +39,4 @@ pub use audit::{AuditManager, AuditStats};
 #[allow(unused_imports)]
 pub use agent_status::{AgentHealthManager, AgentHealthStatus, AgentHealthStats};
 pub use metrics::DecisionMetrics;
+pub use environment::{EnvironmentRules, Intention};  // F1: Environment alerts
