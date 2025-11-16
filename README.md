@@ -1,249 +1,433 @@
-# 🌌 NewSymbion - Compagnon d'Automatisation Personnelle v1.1.0
+# NewSymbion
 
-**Une extension de ton système nerveux** - Architecture IoT/domotique pour te libérer de la charge mentale du quotidien.
+**Version**: v0.3.0-alpha.3
+**Status**: Production-Ready Core (PR1-PR5 Complete)
+**License**: MIT
 
-> 🧠 **Vision** : Symbion n'est pas une app, ni un gadget : c'est un **cortex digital** qui veille et agit pour toi, un compagnon intelligent qui te libère pour consacrer ton énergie à ce qui compte vraiment.
->
-> 🏡 **Domaines** : Maison, Finance, Santé, Pro, Famille - Une solution complète pour ton écosystème personnel
->
-> ⚡ **Modes adaptatifs** : Symbion Cravate 👔 (pro), Symbion Intime 🏡 (maison), Symbion Neutre 🌱 (toujours actif)
+Système d'automatisation personnelle et domotique intelligent avec architecture IoT distribuée.
 
 ---
 
-## 🌟 Exemple : Ta journée avec Symbion
+## Architecture
 
-### ☀️ Matin
-- **Réveil intelligent** : Symbion détecte que tu te lèves et propose un petit-déjeuner équilibré avec ce qu'il reste dans le frigo
-- **Préparation pro** : Planning du jour, notes client préparées automatiquement, rappels contextuels
+NewSymbion utilise une architecture hub-and-spoke en trois composants :
 
-### 🍽️ Midi  
-- **Adaptation mobile** : En déplacement, Symbion suggère des choix repas sains autour de toi selon tes préférences
-- **Assistance technique** : Problème client ? Symbion te glisse la commande adaptée ou le diagnostic probable
+- **symbion-kernel** : Hub central (Rust) - Event bus MQTT, API REST, gestion des plugins
+- **symbion-agent-host** : Agents système (Rust) - Monitoring et contrôle des machines
+- **pwa-dashboard** : Interface web (Lit + Vite) - Dashboard adaptatif temps réel
 
-### 🌙 Soir
-- **Retour maison** : La tablette cuisine propose un repas avec les restes, Symbion enregistre ton humeur
-- **Préparation nuit** : Sauvegarde silencieuse notes/journal/finances, demain est prêt avant ton réveil
+### Communication
 
----
-
-## 🏗️ Architecture IoT Distribuée
-
-### 🧬 Composants Intelligents
-- **symbion-kernel** : Cerveau central - Event Bus MQTT + IA contextuelle + Plugin orchestration
-- **symbion-agent-host** : Agents domestiques - Capteurs maison + contrôle appareils + télémétrie environnementale  
-- **symbion-plugin-notes** : Mémoire externe - Journal contextuel + rappels intelligents + apprentissage habitudes
-- **pwa-dashboard** : Interface adaptative - Widgets personnalisés + contrôle vocal + notifications proactives
-
-### 🤖 Capacités Domotiques Actuelles
-- **🏠 Contrôle Maison** : Extinction/réveil machines, monitoring consommation, détection présence
-- **📱 Interface Adaptative** : Dashboard PWA qui s'adapte au contexte (matin = planning, soir = détente)
+- **MQTT** : Bus d'événements temps réel (15 topics actifs, QoS 1)
+- **HTTP/REST** : API JSON (~107 routes, 80 handlers)
+- **WebSocket** : Streaming temps réel (notes, métriques)
 
 ---
 
-## 📚 Modules de Vie Intégrés (Roadmap)
+## Fonctionnalités Implémentées
 
-### 🏡 **Maison Intelligente** 
-- **Cuisine connectée** : Gestion frigo + suggestions repas avec restes + listes courses automatiques
-- **Ambiance adaptive** : Éclairage/température selon humeur + météo + présence
-- **Maintenance préventive** : Rappels entretien équipements + détection pannes
+### Kernel (Hub Central)
 
-### 💸 **Finance Personnelle**
-- **Budget intelligent** : Catégorisation automatique + alertes dépassement + optimisations
-- **Épargne contexuelle** : Virements automatiques selon revenus + objectifs personnalisés
-- **Analyses prédictives** : Tendances dépenses + conseil investissements
+#### Sécurité (7 Couches)
+- TLS 1.3 (port 8443, redirect automatique depuis 8080)
+- HSTS headers (max-age=31536000)
+- CSP headers (strict default-deny)
+- JWT authentication (HS256, 8h expiry)
+- MFA/TOTP (RFC 6238, QR code, 5 backup codes)
+- WebAuthn passkeys (biometric auth)
+- CSRF protection (single-use nonces, 5 min TTL)
+- Rate limiting (5 attempts / 15 min, auth endpoints)
+- Bcrypt cost 12 (~250ms/hash)
 
-### 💪 **Santé & Bien-être**
-- **Routine adaptive** : Exercices selon forme du jour + météo + planning
-- **Nutrition optimisée** : Menus selon objectifs santé + contraintes + goûts appris
-- **Sommeil intelligent** : Analyse cycles + optimisation environnement chambre
+#### Context Engine
+- 3 modes : Cravate (pro), Intime (maison), Neutre (surveillance)
+- IANA timezone support (Europe/Zurich + DST)
+- Hysteresis anti-flapping (120s threshold)
+- Détection automatique (week-end, nuit 23h-7h)
+- Override manuel avec expiration
+- History persistence (JSON)
 
-### 👔 **Assistant Professionnel**
-- **Gestion clients** : Historique interactions + rappels follow-up + templates personnalisés
-- **Productivité contexuelle** : Focus mode selon tâches + interruptions minimisées
-- **Veille technologique** : Curation contenu pertinent + apprentissage automatique
+#### Decision Engine
+- Trust scoring (5 facteurs pondérés : context 30%, telemetry 25%, history 25%, network 10%, presence 10%)
+- Impact levels (Low/Medium/High)
+- Idempotence (command_id deduplication)
+- Validation workflow (pending/approved/rejected)
+- Audit trail complet
+- 93 unit tests (all passing)
 
-### 🤝 **Harmonie Familiale**
-- **Coordination activités** : Planning partagé + négociation tâches + mood board
-- **Listes collaboratives** : Courses + tâches + projets avec notifications intelligentes
-- **Communication facilitée** : Suggestions cadeaux + rappels anniversaires + médiation conflits
+#### Metrics & Observability
+- 22 métriques Prometheus (GET /metrics)
+- JSON metrics endpoints (/v1/metrics/system, /v1/metrics/agents)
+- Health checks (/health, /system/health)
+- Structured logging ([category] message)
+
+#### Reliability
+- Graceful shutdown (SIGTERM)
+- MQTT auto-reconnect (exponential backoff, 5 retries)
+- Plugin isolation (panic recovery)
+- Panic hook with context logging
+- Systemd service (Restart=always, 5s RestartSec)
+- AgentRegistry persistence (5 min debounced I/O)
+
+#### Plugin System
+- symbion-plugin-notes : CRUD notes, tags auto, streaming MQTT (1-by-1 + ListEnd marker)
+- Architecture extensible pour nouveaux plugins
+
+### Agents (Monitoring & Contrôle)
+
+#### Commandes Supportées
+- `shutdown` : Extinction machine
+- `reboot` : Redémarrage
+- `hibernate` : Hibernation
+- `kill_process` : Kill par PID
+- `run_command` : Shell whitelist (safe commands only)
+- `get_metrics` : Collecte métriques
+- `list_processes` : Liste processus actifs
+
+#### Métriques Collectées
+- CPU : Usage %, load average (1/5/15 min), core count
+- Memory : Total/used/available MB, % used
+- Disk : Total/used/free GB par mount, % used
+- Network : Bytes sent/recv par interface, is_up status
+- Processes : Total count, running count, top CPU/memory
+- Services (Linux) : Critical services status (systemctl)
+
+#### Features
+- Auto-discovery (OS, hostname, network, MAC)
+- Heartbeat 30s (MQTT)
+- Local API server (port 9899)
+- System tray (Linux/Windows)
+- Auto-update check
+- GUI mode (Windows) / Terminal mode (Linux)
+- Multi-platform (Linux, Windows)
+
+### PWA Dashboard
+
+#### Components (6)
+- `boot-terminal.js` : Boot sequence multi-phase (login, MFA, WebAuthn)
+- `dashboard-app.js` : Application principale
+- `notes-page.js` : Interface CRUD notes complète
+- `organic-loader.js` : Loader bioluminescent (blob morphing CSS)
+- `passkey-manager.js` : Gestion passkeys WebAuthn
+- `user-settings-page.js` : Settings (password, MFA, decisions, security)
+
+#### Widgets (10)
+- Context widget : Mode actuel + confidence
+- Context stats : Temps par mode
+- Context settings : Override manuel
+- Agents network : Réseau agents (status, metrics)
+- Notes widget : Quick view avec loader
+- Plugins widget : Status plugins
+- System health : Uptime, memory, MQTT
+- Agent control : Contrôles shutdown/reboot
+- Hosts widget : Liste agents
+- Widget registry : Dynamic loading
+
+#### Services
+- MQTT service : Client WebSocket
+- Decision service : API client (CSRF protected)
+- CSRF service : Auto token management
+- Notes stream service : WebSocket streaming
 
 ---
 
-## 🚀 État Actuel - Foundation Solide
+## Installation
 
-### ✅ **Infrastructure IoT Opérationnelle**
-- **Event Bus MQTT** : Communication temps réel entre tous les composants domestiques
-- **Agents Multi-OS** : 2 agents actifs (Windows + Linux) avec découverte automatique réseau
-- **Plugin System** : Architecture modulaire pour extension fonctionnalités
-- **PWA Dashboard** : Interface responsive avec widgets adaptatifs temps réel
-- **Contract Registry** : Système de validation événements pour fiabilité IoT
+### Prérequis
 
-### 🔄 **Fonctions Domotiques Actives**
-- **Contrôle système à distance** : Extinction/redémarrage machines + monitoring consommation
-- **Télémétrie environnementale** : CPU, RAM, température, processus système en temps réel  
-- **Notes contextuelles** : Journal intelligent avec tags automatiques selon SSID/heure
-- **Découverte réseau** : Auto-détection appareils domestiques avec priorité Ethernet
+- Rust 1.70+ (`rustc --version`)
+- Node.js 18+ (`node --version`)
+- Mosquitto MQTT broker (`sudo apt install mosquitto`)
+- TLS certificates (mkcert pour développement)
+
+### 1. Kernel
+
+```bash
+cd symbion-kernel
+
+# Variables d'environnement
+export SYMBION_API_KEY="s3cr3t-42"
+export SYMBION_MQTT_BROKER="127.0.0.1:1883"
+export SYMBION_JWT_SECRET="<64 bytes hex>" # 128 chars
+
+# Lancement
+cargo run --release
+```
+
+Le kernel démarre sur :
+- HTTPS : `https://localhost:8443`
+- HTTP redirect : `http://localhost:8080` → 8443
+
+### 2. Agent
+
+```bash
+cd symbion-agent-host
+cargo run --release
+
+# Setup wizard interactif première fois
+# Configuration : ~/.config/symbion-agent/config.toml
+```
+
+### 3. PWA Dashboard
+
+```bash
+cd pwa-dashboard
+npm install
+npm run dev
+
+# Accès : http://localhost:3000
+```
 
 ---
 
-## 🎛️ Configuration Domotique
+## Configuration
 
-### 🏠 **Agent Maison Linux (PC-Salon)**
+### Kernel
+
+Fichier : `.env` à la racine de `symbion-kernel/`
+
+```bash
+SYMBION_API_KEY=s3cr3t-42
+SYMBION_MQTT_BROKER=127.0.0.1:1883
+SYMBION_JWT_SECRET=<128 hex chars>
+```
+
+### Agent
+
+Fichier : `~/.config/symbion-agent/config.toml`
+
 ```toml
-# ~/.config/symbion-agent/config.toml
-[iot]
-discovery_mode = "ethernet_priority"    # Réseau domestique stable
-presence_detection = true               # Détection présence via activité
-environmental_monitoring = true         # Température, humidité si capteurs
+[mqtt]
+broker_host = "localhost"
+broker_port = 1883
+client_id = "symbion-agent-<hostname>" # optionnel
 
-[automation]
-context_learning = true                 # Apprentissage habitudes
-smart_scheduling = true                 # Tâches selon contexte
-energy_optimization = true              # Économies automatiques
+[update]
+auto_update = false
 ```
 
-### 💻 **Agent Bureau Windows (DESKTOP)**  
-```toml
-[work_mode]
-productivity_focus = true               # Mode concentration
-meeting_detection = true                # Calendrier intégré
-notification_filtering = "work_hours"   # 9h-18h seulement
+### MQTT Broker (Mosquitto)
 
-[health_monitoring]
-break_reminders = true                  # Pauses régulières
-posture_alerts = true                   # Ergonomie travail
-screen_time_tracking = true             # Temps écran
+Fichier : `/etc/mosquitto/mosquitto.conf`
+
+```
+listener 1883 127.0.0.1
+allow_anonymous true
+
+# WSS (optionnel pour PWA)
+listener 9001
+protocol websockets
 ```
 
 ---
 
-## ⚡ Modes Contextuels Intelligents (ROADMAP)
+## État du Projet
 
-### 👔 **Symbion Cravate (Mode Pro)**
-- **Détection automatique** : SSID bureau + horaires 9h-18h + processus professionnels actifs
-- **Fonctions** : Gestion clients, rappels suivis, notes meetings, concentration focus
-- **Interface** : Widgets productivité, calendrier intégré, silencieux personnel
+### Progression Globale : 67% (41/61 tâches)
 
-### 🏡 **Symbion Intime (Mode Maison)**
-- **Détection** : SSID domicile + soirée + weekend + applications loisir  
-- **Fonctions** : Cuisine connectée, ambiance adaptive, entertainment, famille
-- **Interface** : Widgets confort, suggestions détente, contrôles domotique
+| Phase | Status | P1 Core | Total | Completion |
+|-------|--------|---------|-------|------------|
+| PR1 - Context Engine | 🟢 Done | 5/5 | 5/7 | 100% P1 |
+| PR2 - Security Hardening | 🟢 Done | 13/13 | 13/13 | 100% |
+| PR3 - Decision Engine | 🟢 Done | 7/7 | 7/9 | 100% P1 |
+| PR4 - Metrics & Observability | 🟢 Done | 7/7 | 7/10 | 100% P1 |
+| PR5 - Kernel Reliability | 🟢 Done | 7/7 | 7/11 | 100% P1 |
+| PR6 - Production Readiness | 🟡 In Progress | 2/2 | 2/11 | 18% (CSP only) |
 
-### 🌱 **Symbion Neutre (Mode Base)**
-- **Toujours actif** : Surveillance système, apprentissage patterns, maintenance
-- **Fonctions** : Santé machines, sauvegardes, mises à jour, métriques
-- **Interface** : Widgets système, monitoring, notifications critiques
+**P1 Core Features** : 100% Complete ✅
+**Production-Ready** : PR1-PR5 deployment-ready
+**Target v1.0.0** : Q2 2026
+
+### Prochaines Étapes (PR6 - Deferred Q1 2026)
+
+- Let's Encrypt integration (automatic cert renewal)
+- PostgreSQL migration (replace JSON files)
+- Docker containerization
+- CI/CD pipeline (GitHub Actions)
+
+### Métriques Qualité
+
+- **Tests** : 131 total (109 kernel + 14 agent + 8 devkit)
+- **Sécurité** : 0 vulnérabilités critiques (audit 12 Nov 2025)
+- **Code** : 36 modules Rust kernel, 11,297 lignes JS PWA
+- **Performance** : Kernel 23.6 MB RAM, heartbeat <100ms
 
 ---
 
-## 🛠️ Installation Écosystème Domestique
+## Documentation
 
-### 🧬 **1. Kernel Central (Cerveau de la maison)**
+- **[CLAUDE.md](CLAUDE.md)** : Vision système et workflow documentation
+- **[docs/ROADMAP.md](docs/ROADMAP.md)** : Feuille de route détaillée
+- **[docs/CHANGELOG.md](docs/CHANGELOG.md)** : Historique changements
+- **[docs/architecture/SYSTEM_OVERVIEW.md](docs/architecture/SYSTEM_OVERVIEW.md)** : Architecture complète
+- **[docs/api/endpoints.md](docs/api/endpoints.md)** : Référence API (107 routes)
+- **[docs/mqtt/topics.md](docs/mqtt/topics.md)** : Référence MQTT (15 topics)
+- **[docs/QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md)** : Cheat sheet commandes
+- **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** : Diagnostic problèmes
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** : Guide déploiement
+- **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)** : Benchmarks performance
+
+---
+
+## Technologies
+
+### Backend
+- **Rust** : Langage système (Kernel + Agents)
+- **Axum** : Framework HTTP async
+- **Tokio** : Runtime async
+- **rumqttc** : Client MQTT
+- **serde** : Sérialisation JSON
+- **bcrypt** : Password hashing
+- **jsonwebtoken** : JWT HS256
+- **totp-rs** : TOTP MFA
+
+### Frontend
+- **Lit** : Web Components
+- **Vite** : Build tool
+- **JavaScript** : Vanilla JS (no framework)
+
+### Infrastructure
+- **Mosquitto** : MQTT broker
+- **Systemd** : Service management
+- **mkcert** : TLS certificates (dev)
+- **Let's Encrypt** : TLS certificates (production, planned)
+
+---
+
+## API Quick Reference
+
+### Authentication
+- `POST /login` : JWT acquisition (username + password)
+- `POST /logout` : Session termination
+- `GET /ca-certificate` : Download CA cert
+
+### Context
+- `GET /context/mode` : Mode actuel
+- `POST /context/override` : Force mode
+- `GET /context/stats` : Statistiques modes
+
+### Decision
+- `GET /v1/decision/validations/pending` : Validations en attente
+- `POST /v1/decision/validation/:id/resolve` : Approve/reject
+- `GET /v1/decision/stats` : Statistiques décisions
+
+### Agents
+- `GET /agents` : Liste agents
+- `POST /agents/:id/command` : Envoyer commande
+- `GET /v1/metrics/agents` : Métriques agents
+
+### Metrics
+- `GET /metrics` : Prometheus format (22 metrics)
+- `GET /v1/metrics/system` : Kernel overview JSON
+- `GET /health` : Liveness check
+
+### Notes
+- `POST /ports/memo` : Create note
+- `GET /ports/memo` : List notes (streaming)
+- `PUT /ports/memo/:id` : Update note
+- `DELETE /ports/memo/:id` : Delete note
+
+---
+
+## MQTT Topics
+
+### Agent Lifecycle
+- `symbion/agents/registration@v1` : Agents → Kernel (startup)
+- `symbion/agents/heartbeat@v1` : Agents → Kernel (30s)
+- `symbion/agents/response@v1` : Agents → Kernel (command result)
+
+### Agent Control
+- `symbion/agents/command@v1` : Kernel → Agents (remote commands)
+
+### Plugin Communication
+- `symbion/notes/command@v1` : Kernel → Plugin (CRUD requests)
+- `symbion/notes/response@v1` : Plugin → Kernel (streaming response)
+
+### Dashboard Updates
+- `symbion/dashboard/context@v1` : Mode changes
+- `symbion/dashboard/agents@v1` : Agent status
+- `symbion/dashboard/health@v1` : System health
+- `symbion/dashboard/notes@v1` : Note events
+- `symbion/dashboard/stats@v1` : Statistics
+- `symbion/dashboard/pattern@v1` : Pattern detection
+
+### System Events
+- `symbion/kernel/health@v1` : Kernel health (5 min broadcast)
+
+---
+
+## Développement
+
+### Tests
+
 ```bash
-git clone https://github.com/Eridwyn/NewSymbion
-cd NewSymbion/symbion-kernel
+# Kernel tests
+cd symbion-kernel
+cargo test
 
-# Démarrage cerveau central
-SYMBION_API_KEY="your-secure-key" cargo run
+# Agent tests
+cd symbion-agent-host
+cargo test
 
-# ✅ Résultat : Hub domestique actif
-# [kernel] IoT Hub listening on :8080  
-# [agents] 0 domestic agents registered
-# [plugins] notes-manager active (mémoire externe)
+# PWA (no tests currently)
 ```
 
-### 🤖 **2. Agents Domestiques (Un par pièce/appareil)**
+### Build Release
+
 ```bash
-# Agent principal (salon/bureau)  
-cargo run --release -p symbion-agent-host
+# Kernel
+cargo build --release -p symbion-kernel
 
-# Configuration interactive première fois
-# 🏠 Domestic Agent Setup Wizard 🧙‍♂️
-# 📡 MQTT connection test: ✅ Connected to domestic hub
-# 🔍 Network discovery: Ethernet interface detected (stable)
-# 🏷️  Agent ID: 7070fc0481d8 (MAC-based, persistent)
-# 🏡 Location context: home_main_room
+# Agent
+cargo build --release -p symbion-agent-host
+
+# PWA
+cd pwa-dashboard && npm run build
 ```
 
-### 📱 **3. Interface Domestique (Tablette/Mobile)**
+### Slash Commands (Claude Code)
+
+- `/docs [terme]` : Recherche documentation
+- `/status` : Briefing état projet
+- `/audit` : Audit complet avec 6 agents parallèles + email
+- `/sync-roadmap` : Synchronise ROADMAP.md
+
+### Monitoring
+
 ```bash
-cd pwa-dashboard && npm run dev
+# Logs kernel
+tail -f /tmp/kernel.log
 
-# ✅ Dashboard domestique accessible :
-# http://192.168.1.X:3001 - PWA adaptatif
-# 🏠 domestic-control-widget : Contrôles maison
-# 🧠 context-awareness-widget : Apprentissage habitudes  
-# 📝 smart-notes-widget : Mémoire contextuelle
-# 📊 home-metrics-widget : Télémétrie environnementale
+# Logs systemd
+journalctl -u symbion-kernel -f
+
+# Monitoring automatique (cron 15 min)
+./scripts/monitor-symbion.sh
 ```
 
 ---
 
-## 🎯 Vision IoT/Domotique - (Roadmap)
+## Contribuer
 
-### ✅ **Phase A - Infrastructure Intelligente (TERMINÉE)**
-- ✅ Event Bus domotique MQTT pour communication inter-appareils
-- ✅ Agents domestiques auto-découverte avec priorisation réseau stable  
-- ✅ Plugin system pour modules de vie (cuisine, santé, finance, etc.)
-- ✅ Interface adaptative selon contexte domestique (matin/soir/présence)
+Le projet est actuellement en développement actif avec un seul développeur (bus factor = 1).
 
-### 🚀 **Phase B - Automatisation Contextuelle (TERMINÉE)**
-- ✅ Contrôle appareils domestiques (extinction/réveil machines)
-- ✅ Context Engine avec détection automatique (nuit/week-end/semaine)
-- ✅ Override manuel des modes avec expiration temporelle
-- ✅ Notes intelligentes avec tags + icônes contextuels automatiques
-- ✅ Interface mobile responsive avec tabs catégorisées
-- ✅ Theming global dynamique selon mode contextuel
-
-### 🏠 **Phase C - Maison Connectée (PROCHAINE)**
-- ⏳ **Capteurs environnementaux** : Température, humidité, luminosité, présence
-- ⏳ **Contrôle éclairage** : Philips Hue, variateurs, scénarios ambiance
-- ⏳ **Thermostat intelligent** : Apprentissage préférences + optimisation énergie
-- ⏳ **Sécurité domestique** : Caméras, détecteurs, notifications intrusion
-
-### 🍳 **Phase D - Cuisine Intelligente**
-- ⏳ **Frigo connecté** : Inventaire automatique + dates péremption + listes courses
-- ⏳ **Suggestions menus** : IA selon restes + préférences + objectifs santé
-- ⏳ **Électroménager smart** : Four, lave-vaisselle, machine à café programmables
-- ⏳ **Assistant culinaire** : Recettes adaptatives + timer multiples + conseils
-
-### 💰 **Phase E - Finance Personnelle Automatisée**
-- ⏳ **Banque connectée** : Synchronisation comptes + catégorisation automatique
-- ⏳ **Budget intelligent** : Alertes dépassement + optimisations dépenses
-- ⏳ **Épargne automatique** : Virements selon revenus + objectifs personnalisés
-- ⏳ **Investissements guidés** : Conseils IA + diversification + suivi performance
-
-### 💪 **Phase F - Santé & Bien-être Intégré**
-- ⏳ **Wearables connectés** : Fitness trackers + balance + tensiomètre
-- ⏳ **Coaching adaptatif** : Exercices selon forme + météo + planning  
-- ⏳ **Nutrition optimisée** : Menus selon objectifs + contraintes + goûts
-- ⏳ **Sommeil intelligent** : Analyse cycles + optimisation environnement
-
-### 🤝 **Phase G - Écosystème Familial**
-- ⏳ **Multi-utilisateurs** : Profils personnalisés + préférences individuelles
-- ⏳ **Coordination activités** : Planning partagé + répartition tâches + mood board
-- ⏳ **Communication facilitée** : Messages contextuels + rappels + médiation
+Pour contribuer :
+1. Fork le repo
+2. Créer une branche feature (`git checkout -b feature/ma-feature`)
+3. Commit avec conventional commits (`feat:`, `fix:`, `docs:`)
+4. Push et créer une Pull Request
 
 ---
 
-## 🔧 Technologies IoT Intégrées
+## Licence
 
-### 📡 **Protocoles Domotiques**
-- **MQTT** : Bus de communication principal entre appareils (déjà actif)
-- **Zigbee/Z-Wave** : Capteurs et actionneurs bas niveau (phase C)
-- **WiFi Smart** : Appareils connectés standards (Philips Hue, Sonos, etc.)
-- **REST API** : Intégration services tiers (météo, calendrier, banques)
-
-### 🧠 **Intelligence Contextuelle** 
-- **Apprentissage automatique** : TensorFlow Lite pour patterns comportementaux
-- **NLP basique** : Traitement langage naturel pour notes et commandes vocales  
-- **Computer Vision** : Reconnaissance objets pour inventaire automatique
-- **Géolocalisation** : Contexte lieu pour automatisations (maison/bureau/déplacements)
-
-### 🔐 **Sécurité IoT**
-- **Réseau isolé** : VLAN dédié appareils domestiques
-- **Chiffrement bout-en-bout** : Communications MQTT + API sécurisées
-- **Authentification forte** : Certificats appareils + rotation clés
-- **Audit logging** : Traçabilité toutes actions automatiques
+MIT License - Voir [LICENSE](LICENSE) pour détails.
 
 ---
+
+## Contact
+
+**Maintainer** : Mark
+**Email** : markchavatte@gmail.com
+**Version** : v0.3.0-alpha.3
+**Last Updated** : 16 Novembre 2025
