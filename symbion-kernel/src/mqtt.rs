@@ -13,6 +13,7 @@ use crate::state::Shared;
 use crate::config::HostsConfig;
 use crate::notes_bridge::{SharedNotesBridge, NoteResponse};
 use crate::agents::{SharedAgentRegistry, AgentRegistrationMessage, AgentHeartbeatMessage, AgentResponse};
+use crate::sensors::{SharedSensorRegistry, SensorRegistrationMessage, SensorEnvMessage};
 use rumqttc::{AsyncClient, Event, MqttOptions, QoS};
 use time::OffsetDateTime;
 use tokio::task;
@@ -42,7 +43,7 @@ pub fn create_mqtt_client(config: &HostsConfig) -> Result<AsyncClient, Box<dyn s
     Ok(client)
 }
 
-pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>, notes_bridge: Option<SharedNotesBridge>, agents: Option<SharedAgentRegistry>, health_tracker: Option<crate::health::HealthTracker>, dashboard_events: Option<crate::dashboard_events::DashboardEventPublisher>) {
+pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>, notes_bridge: Option<SharedNotesBridge>, agents: Option<SharedAgentRegistry>, sensors: Option<SharedSensorRegistry>, health_tracker: Option<crate::health::HealthTracker>, dashboard_events: Option<crate::dashboard_events::DashboardEventPublisher>) {
     task::spawn(async move {
         let cfg = config.lock().clone();
         let mqtt_cfg = cfg.mqtt.unwrap_or_else(|| crate::config::MqttConf { 
@@ -77,6 +78,16 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
             }
             if let Err(e) = client.subscribe("symbion/agents/response@v1", QoS::AtLeastOnce).await {
                 eprintln!("[kernel] subscribe agents response failed: {e:?}");
+            }
+        }
+
+        // F1: S'abonner aux événements sensors si registry disponible
+        if sensors.is_some() {
+            if let Err(e) = client.subscribe("symbion/sensors/registration@v1", QoS::AtLeastOnce).await {
+                eprintln!("[kernel] subscribe sensors registration failed: {e:?}");
+            }
+            if let Err(e) = client.subscribe("symbion/sensors/+/env@v1", QoS::AtLeastOnce).await {
+                eprintln!("[kernel] subscribe sensors env readings failed: {e:?}");
             }
         }
 
@@ -174,6 +185,39 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                                     }
                                 }
                                 Err(e) => eprintln!("[kernel] agent response JSON invalide: {txt}, error: {}", e),
+                            }
+                        }
+                    }
+                } else if p.topic == "symbion/sensors/registration@v1" {
+                    // F1: Sensor auto-registration
+                    if let Some(ref sensor_registry) = sensors {
+                        if let Ok(txt) = String::from_utf8(p.payload.to_vec()) {
+                            println!("[kernel] received sensor registration MQTT: {}", txt);
+                            match serde_json::from_str::<SensorRegistrationMessage>(&txt) {
+                                Ok(registration) => {
+                                    if let Err(e) = sensor_registry.handle_registration(registration) {
+                                        eprintln!("[kernel] failed to handle sensor registration: {}", e);
+                                    } else {
+                                        println!("[kernel] sensor registration handled successfully");
+                                    }
+                                }
+                                Err(e) => eprintln!("[kernel] sensor registration JSON invalide: {txt}, error: {}", e),
+                            }
+                        }
+                    }
+                } else if p.topic.starts_with("symbion/sensors/") && p.topic.ends_with("/env@v1") {
+                    // F1: Environment sensor readings (topic pattern: symbion/sensors/{sensor_id}/env@v1)
+                    if let Some(ref sensor_registry) = sensors {
+                        if let Ok(txt) = String::from_utf8(p.payload.to_vec()) {
+                            match serde_json::from_str::<SensorEnvMessage>(&txt) {
+                                Ok(msg) => {
+                                    println!("[kernel] received env reading from sensor {}: {}°C, {}%",
+                                        msg.sensor_id, msg.temperature_c, msg.humidity_pct);
+                                    if let Err(e) = sensor_registry.handle_env_reading(msg) {
+                                        eprintln!("[kernel] failed to handle env reading: {}", e);
+                                    }
+                                }
+                                Err(e) => eprintln!("[kernel] sensor env JSON invalide: {txt}, error: {}", e),
                             }
                         }
                     }

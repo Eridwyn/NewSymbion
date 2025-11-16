@@ -31,6 +31,8 @@ mod decision;
 mod decision_http;
 mod webauthn;
 mod environment;
+mod sensors;  // F1: Sensor registry for scalable IoT sensors
+mod environment_http;  // F1: API endpoints for environment monitoring
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -217,8 +219,16 @@ async fn main() {
     }
     let agents: SharedAgentRegistry = Arc::new(agent_registry);
 
-    // MQTT remplit les states + agents
-    mqtt::spawn_mqtt_listener(states.clone(), cfg.clone(), notes_bridge.clone(), Some(agents.clone()), Some(health_tracker.clone()), Some(dashboard_events.clone()));
+    // F1: Sensor Registry pour capteurs environnementaux distribués
+    let sensor_registry_instance = crate::sensors::SensorRegistry::new("./data/sensors.json");
+    if let Err(e) = sensor_registry_instance.load_from_disk() {
+        eprintln!("[kernel] warning: failed to load sensors from disk: {}", e);
+    }
+    let sensor_registry = Arc::new(sensor_registry_instance);
+    println!("[kernel] initialized Sensor Registry (F1 Environment)");
+
+    // MQTT remplit les states + agents + sensors (F1)
+    mqtt::spawn_mqtt_listener(states.clone(), cfg.clone(), notes_bridge.clone(), Some(agents.clone()), Some(sensor_registry.clone()), Some(health_tracker.clone()), Some(dashboard_events.clone()));
 
     // démarre le healthcheck périodique des plugins
     plugins::spawn_plugin_health_monitor(plugins.clone());
@@ -313,6 +323,7 @@ async fn main() {
         decision_audit_manager,
         decision_agent_health_manager,
         decision_metrics,
+        sensors: sensor_registry,
     };
 
     // HTTPS avec TLS
