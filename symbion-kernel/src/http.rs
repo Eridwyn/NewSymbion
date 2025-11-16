@@ -179,6 +179,8 @@ pub struct AppState {
     pub decision_audit_manager: std::sync::Arc<crate::decision::AuditManager>,
     pub decision_agent_health_manager: std::sync::Arc<crate::decision::AgentHealthManager>,
     pub decision_metrics: std::sync::Arc<crate::decision::DecisionMetrics>,
+    // F1: Environment Monitoring
+    pub sensors: crate::sensors::SharedSensorRegistry,
 }
 
 #[derive(Debug, Deserialize)]
@@ -298,6 +300,10 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/ws/notes/stream", get(crate::notes_ws::notes_stream_handler))
         .with_state(app_state.clone());
 
+    // F1: Environment monitoring routes (protected by auth)
+    let environment_routes = crate::environment_http::build_environment_routes(app_state.clone())
+        .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
+
     // Combine all v1 API routes
     let v1_api_routes = Router::new()
         .merge(login_route)
@@ -305,7 +311,8 @@ pub fn build_router(app_state: AppState) -> Router {
         .merge(api_routes)
         .merge(csrf_protected_routes)
         .merge(decision_csrf_routes)
-        .merge(websocket_routes);
+        .merge(websocket_routes)
+        .nest("/environment", environment_routes);
 
     // Router principal avec versioning
     Router::new()

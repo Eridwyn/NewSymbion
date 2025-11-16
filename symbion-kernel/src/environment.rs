@@ -42,7 +42,7 @@ pub enum EnvironmentStatus {
 }
 
 /// Room environment state with circular buffer history
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RoomEnvironmentState {
     /// Unique room identifier (e.g., "chambre", "salon")
     pub room_id: String,
