@@ -30,6 +30,7 @@ mod device_trust;
 mod decision;
 mod decision_http;
 mod webauthn;
+mod environment;
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
