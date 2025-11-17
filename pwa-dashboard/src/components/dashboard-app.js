@@ -72,6 +72,26 @@ class DashboardApp extends LitElement {
       animation: gradient-shift 3s ease infinite;
       letter-spacing: -0.5px;
       transition: all 0.5s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .header-logo {
+      width: 1.5em;
+      height: 1.5em;
+      object-fit: contain;
+      filter: drop-shadow(0 0 10px var(--context-primary, #00d4aa));
+      animation: logo-glow 3s ease infinite;
+    }
+
+    @keyframes logo-glow {
+      0%, 100% {
+        filter: drop-shadow(0 0 10px var(--context-primary, #00d4aa));
+      }
+      50% {
+        filter: drop-shadow(0 0 20px var(--context-primary, #00d4aa));
+      }
     }
 
     @keyframes gradient-shift {
@@ -666,7 +686,7 @@ class DashboardApp extends LitElement {
     return html`
       <div class="header">
         <div class="header-left">
-          <h1>🧬 Symbion Dashboard</h1>
+          <h1><img src="/favicon-transparent.png" alt="Symbion" class="header-logo"> Symbion Dashboard</h1>
           <div class="status-bar">
             <div class="status-indicator">
               <div class="status-dot ${this.apiStatus}"></div>

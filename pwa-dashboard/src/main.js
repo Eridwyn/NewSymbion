@@ -127,3 +127,62 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
       })
   })
 }
+
+// ============================================================================
+// Page Lifecycle Management - Empêcher le navigateur de décharger l'onglet
+// ============================================================================
+
+// Détection visibilité de la page
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    console.log('[lifecycle] 🌙 Page hidden - maintaining background connections')
+    // Page cachée mais on garde les connexions MQTT/WebSocket actives
+  } else {
+    console.log('[lifecycle] ☀️ Page visible - resuming activity')
+    // Page redevenue visible, on peut rafraîchir si besoin
+    // Mais on ne recharge PAS la page
+  }
+})
+
+// Page Lifecycle API - Empêcher freeze/discard
+document.addEventListener('freeze', (event) => {
+  console.log('[lifecycle] ❄️ Page about to freeze - preventing...')
+  // Le navigateur essaie de geler la page pour économiser RAM
+  // On ne peut pas vraiment empêcher ça mais on peut logger
+})
+
+document.addEventListener('resume', (event) => {
+  console.log('[lifecycle] ♻️ Page resumed from freeze')
+  // Page réactivée après freeze
+})
+
+// Empêcher le navigateur de décharger la page (experimental)
+// Utilise Wake Lock API pour garder l'onglet actif
+let wakeLock = null
+
+async function requestWakeLock() {
+  if ('wakeLock' in navigator) {
+    try {
+      wakeLock = await navigator.wakeLock.request('screen')
+      console.log('[lifecycle] 🔒 Wake Lock acquired - tab will stay active')
+
+      wakeLock.addEventListener('release', () => {
+        console.log('[lifecycle] 🔓 Wake Lock released')
+      })
+    } catch (err) {
+      console.log('[lifecycle] ⚠️ Wake Lock not available:', err.message)
+    }
+  }
+}
+
+// Demander le Wake Lock quand la page devient visible
+document.addEventListener('visibilitychange', async () => {
+  if (!document.hidden && wakeLock === null) {
+    await requestWakeLock()
+  }
+})
+
+// Demander dès le chargement
+if (document.visibilityState === 'visible') {
+  requestWakeLock()
+}
