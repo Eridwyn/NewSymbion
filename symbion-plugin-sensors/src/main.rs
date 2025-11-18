@@ -64,9 +64,8 @@ pub struct RoomEnvironmentState {
 #[serde(rename_all = "snake_case")]
 pub enum EnvironmentStatus {
     Normal,
-    WarningVentilate,  // humidity >65%
-    RiskMold,          // humidity >70%
-    TempLow,           // temp <16°C
+    MoldRisk,   // Humidité excessive / risque de moisissure
+    TempLow,    // temp <16°C
 }
 
 /// Sensor registration message from MQTT
@@ -144,8 +143,6 @@ impl SensorRegistry {
                 timestamp: OffsetDateTime::now_utc(),
             };
 
-            let status = Self::evaluate_status(&env_reading);
-
             let mut environments = self.environments.write();
             let room_env = environments
                 .entry(sensor.room_id.clone())
@@ -153,12 +150,14 @@ impl SensorRegistry {
                     room_id: sensor.room_id.clone(),
                     current: env_reading.clone(),
                     history: Vec::new(),
-                    status,
+                    status: EnvironmentStatus::Normal,
                 });
 
             room_env.current = env_reading.clone();
-            room_env.status = status;
             room_env.history.push(env_reading);
+
+            // Evaluate status based on humidity history duration
+            room_env.status = Self::evaluate_status_with_history(&room_env.history);
 
             // Retention policy: Keep 7 days of data
             // ESP32 sends ~5 sec → 12 readings/min → 17,280 readings/day → ~2,100 per week
@@ -181,16 +180,74 @@ impl SensorRegistry {
         Ok(())
     }
 
-    fn evaluate_status(reading: &EnvironmentReading) -> EnvironmentStatus {
-        if reading.humidity_pct > 70.0 {
-            EnvironmentStatus::RiskMold
-        } else if reading.humidity_pct > 65.0 {
-            EnvironmentStatus::WarningVentilate
-        } else if reading.temperature_c < 16.0 {
-            EnvironmentStatus::TempLow
-        } else {
-            EnvironmentStatus::Normal
+    /// Evaluate environment status based on humidity duration
+    ///
+    /// Alert "Humidité excessive / risque de moisissure" if ANY condition met:
+    /// - >50% pendant 12h
+    /// - >60% pendant 6h
+    /// - >70% pendant 2h
+    /// - >75% pendant 10 minutes
+    ///
+    /// Also checks: temp <16°C → TempLow
+    fn evaluate_status_with_history(history: &[EnvironmentReading]) -> EnvironmentStatus {
+        if history.is_empty() {
+            return EnvironmentStatus::Normal;
         }
+
+        let current = &history[history.len() - 1];
+
+        // Priority: Check low temperature first
+        if current.temperature_c < 16.0 {
+            return EnvironmentStatus::TempLow;
+        }
+
+        let now = OffsetDateTime::now_utc();
+
+        // Condition 4: >75% pendant 10 minutes
+        // ~12 readings/min * 10 min = 120 readings
+        // Require 80% = 96 readings
+        let ten_min_ago = now - Duration::from_secs(10 * 60);
+        let count_75 = history.iter()
+            .filter(|r| r.timestamp > ten_min_ago && r.humidity_pct > 75.0)
+            .count();
+        if count_75 >= 96 {
+            return EnvironmentStatus::MoldRisk;
+        }
+
+        // Condition 3: >70% pendant 2h
+        // ~12 readings/min * 60 min * 2h = 1440 readings
+        // Require 80% = 1152 readings
+        let two_hours_ago = now - Duration::from_secs(2 * 3600);
+        let count_70 = history.iter()
+            .filter(|r| r.timestamp > two_hours_ago && r.humidity_pct > 70.0)
+            .count();
+        if count_70 >= 1152 {
+            return EnvironmentStatus::MoldRisk;
+        }
+
+        // Condition 2: >60% pendant 6h
+        // ~12 readings/min * 60 min * 6h = 4320 readings
+        // Require 80% = 3456 readings
+        let six_hours_ago = now - Duration::from_secs(6 * 3600);
+        let count_60 = history.iter()
+            .filter(|r| r.timestamp > six_hours_ago && r.humidity_pct > 60.0)
+            .count();
+        if count_60 >= 3456 {
+            return EnvironmentStatus::MoldRisk;
+        }
+
+        // Condition 1: >50% pendant 12h
+        // ~12 readings/min * 60 min * 12h = 8640 readings
+        // Require 80% = 6912 readings
+        let twelve_hours_ago = now - Duration::from_secs(12 * 3600);
+        let count_50 = history.iter()
+            .filter(|r| r.timestamp > twelve_hours_ago && r.humidity_pct > 50.0)
+            .count();
+        if count_50 >= 6912 {
+            return EnvironmentStatus::MoldRisk;
+        }
+
+        EnvironmentStatus::Normal
     }
 
     fn list_sensors(&self) -> Vec<Sensor> {
