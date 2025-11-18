@@ -116,6 +116,56 @@ Historique des améliorations et changements majeurs du projet.
   - Notes sur aggregation multi-sensors et status calculation
 - **Conformité roadmap** : 100% roadmap F1 API implémenté (lignes 186-199)
 
+### F1 Mold Risk Alerts OR-based + Mobile Optimizations (18 Novembre 2025 - soir)
+
+#### Système d'Alertes Moisissure Amélioré
+- **Feature** : Logique OR-based pour détection risque moisissure
+- **Backend** (`symbion-plugin-sensors/src/main.rs:183-251`) :
+  - Simplification enum `EnvironmentStatus` : Normal, MoldRisk, TempLow
+  - Suppression anciens états : WarningVentilate, RiskMold
+  - 4 conditions OR pour déclencher `MoldRisk` :
+    - >75% humidité pendant 10 minutes (96/120 readings)
+    - >70% humidité pendant 2 heures (1152/1440 readings)
+    - >60% humidité pendant 6 heures (3456/4320 readings)
+    - >50% humidité pendant 12 heures (6912/8640 readings)
+  - Tolérance 80% pour gaps de données (sensor dropouts)
+  - Alerte température basse : <16°C → TempLow
+- **Frontend** (`pwa-dashboard/src/widgets/environment-widget.js`) :
+  - Mise à jour status enum : `mold_risk`, `temp_low`, `normal`
+  - Suppression anciens status : `humid`, `risk_mold`, `cold`
+  - Nouveaux labels : "Risque Moisissure", "Froid", "Normal"
+  - Nouveaux icons : 🚨 (mold_risk), ❄ (temp_low), ✓ (normal)
+  - CSS classes adaptées pour status-based coloring
+
+#### Optimisations Mobile Chart.js
+- **Responsive Modal** (@media max-width: 768px) :
+  - Fullscreen sur mobile (`height: 100vh`)
+  - Layout flexbox vertical : header sticky + body scrollable
+  - Padding adaptatif : 16px mobile (vs 24px desktop)
+  - Bottom padding 80px (espace navigation mobile)
+- **Chart dimensions** :
+  - Hauteur : 300px mobile (vs 400px desktop)
+  - Legend position : bottom mobile (vs top desktop)
+- **Typography adaptative** :
+  - Legend font : 11px mobile (vs 14px desktop)
+  - Tooltip font : 11-12px mobile (vs 13-14px desktop)
+  - Axes titles : 10px mobile (vs 12px desktop)
+  - Axes ticks : 9px mobile (vs 11px desktop)
+- **X-axis optimisé** :
+  - Rotation labels : 60° mobile (vs 45° desktop)
+  - Max labels : 8 mobile (vs 12 desktop)
+  - Auto-skip activé pour lisibilité
+- **Touch interactions** :
+  - Tooltip padding compact : 8px (vs 12px desktop)
+  - Legend box width : 12px (vs 15px desktop)
+
+#### Tests
+- ✅ Plugin rebuilé avec nouveau système d'alertes
+- ✅ Plugin redémarré : ESP32-CDE370 (21°C, 56.7%) → Status Normal
+- ✅ Modal responsive testée sur mobile : affichage correct
+- ✅ Chart adaptatif : fonts lisibles, labels non superposés
+- **Commit** : `0dd2e88`
+
 ---
 
 ## 🔐 Phase 2: Security Hardening (14 Novembre 2025)
