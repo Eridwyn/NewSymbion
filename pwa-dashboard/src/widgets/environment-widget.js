@@ -302,6 +302,12 @@ class EnvironmentWidget extends LitElement {
       })
 
       if (!sensorsResponse.ok) {
+        // Silently fail if unauthorized (user not logged in yet)
+        if (sensorsResponse.status === 401 || sensorsResponse.status === 403) {
+          console.log('[environment-widget] Not authorized yet, waiting for login')
+          this.loading = false
+          return
+        }
         throw new Error(`Failed to fetch sensors: ${sensorsResponse.status}`)
       }
 
