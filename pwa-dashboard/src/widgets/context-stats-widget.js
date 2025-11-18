@@ -5,6 +5,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import '../components/patterns-modal.js'
 
 class ContextStatsWidget extends LitElement {
   static styles = css`
@@ -139,32 +140,79 @@ class ContextStatsWidget extends LitElement {
 
     .pattern-item {
       padding: 0.75rem;
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      background: linear-gradient(135deg,
+        rgba(255, 255, 255, 0.06) 0%,
+        rgba(255, 255, 255, 0.03) 100%);
       border: 1px solid rgba(255, 255, 255, 0.1);
       display: flex;
       align-items: center;
       gap: 0.75rem;
+      max-width: 100%; /* Empêche débordement */
+      overflow: hidden;
+      transition: all var(--duration-base) var(--ease-out);
+      animation: patternItemSlideIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+    }
+
+    /* Stagger animation pour liste patterns */
+    .pattern-item:nth-child(1) { animation-delay: 0.1s; }
+    .pattern-item:nth-child(2) { animation-delay: 0.15s; }
+    .pattern-item:nth-child(3) { animation-delay: 0.2s; }
+    .pattern-item:nth-child(4) { animation-delay: 0.25s; }
+    .pattern-item:nth-child(5) { animation-delay: 0.3s; }
+    .pattern-item:nth-child(n+6) { animation-delay: 0.35s; }
+
+    @keyframes patternItemSlideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .pattern-item:hover {
+      background: linear-gradient(135deg,
+        rgba(255, 255, 255, 0.1) 0%,
+        rgba(255, 255, 255, 0.05) 100%);
+      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent),
+                  0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
     }
 
     .pattern-icon {
       font-size: 1.5rem;
+      transition: transform var(--duration-base) var(--ease-out);
+    }
+
+    .pattern-item:hover .pattern-icon {
+      transform: scale(1.1) rotate(-5deg);
     }
 
     .pattern-info {
       flex: 1;
+      min-width: 0; /* Permet truncation si nécessaire */
     }
 
     .pattern-description {
       font-size: 0.8rem;
       color: #e0e0e0;
       font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .pattern-meta {
       font-size: 0.7rem;
       color: #808080;
       margin-top: 0.25rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .pattern-confidence {
@@ -172,9 +220,32 @@ class ContextStatsWidget extends LitElement {
       border-radius: 12px;
       font-size: 0.7rem;
       font-weight: 600;
-      background: rgba(16, 185, 129, 0.15);
+      background: linear-gradient(135deg,
+        rgba(16, 185, 129, 0.2) 0%,
+        rgba(16, 185, 129, 0.1) 100%);
       color: #10b981;
-      border: 1px solid #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+      transition: all var(--duration-base) var(--ease-out);
+      animation: confidencePulse 3s ease-in-out infinite;
+      flex-shrink: 0; /* Ne rétrécit pas */
+    }
+
+    @keyframes confidencePulse {
+      0%, 100% {
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+      }
+      50% {
+        box-shadow: 0 0 15px rgba(16, 185, 129, 0.35);
+      }
+    }
+
+    .pattern-item:hover .pattern-confidence {
+      background: linear-gradient(135deg,
+        rgba(16, 185, 129, 0.3) 0%,
+        rgba(16, 185, 129, 0.15) 100%);
+      border-color: rgba(16, 185, 129, 0.6);
+      transform: scale(1.05);
     }
 
     .empty-state {
@@ -202,78 +273,67 @@ class ContextStatsWidget extends LitElement {
     }
 
     .see-all-btn {
+      position: relative;
       width: 100%;
-      padding: 0.75rem;
+      max-width: 100%; /* Empêche débordement */
+      padding: 0.75rem 1rem;
       margin-top: 0.75rem;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.05);
-      color: #e0e0e0;
+      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
+      border-radius: 12px;
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 8%, rgba(255, 255, 255, 0.05)) 0%,
+        rgba(255, 255, 255, 0.03) 100%);
+      color: var(--context-primary, #00d4aa);
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all var(--duration-base) var(--ease-out);
       font-size: 0.875rem;
-      font-weight: 500;
+      font-weight: 600;
+      overflow: hidden;
+      animation: seeAllPulse 4s ease-in-out infinite;
+    }
+
+    @keyframes seeAllPulse {
+      0%, 100% {
+        box-shadow: 0 2px 8px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+      }
+      50% {
+        box-shadow: 0 4px 12px color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent),
+                    0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
+      }
+    }
+
+    .see-all-btn::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      transform: translate(-50%, -50%);
+      transition: width 0.6s var(--ease-out), height 0.6s var(--ease-out);
+    }
+
+    .see-all-btn:hover::before {
+      width: 300px;
+      height: 300px;
     }
 
     .see-all-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
-      border-color: rgba(255, 255, 255, 0.3);
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 12%, rgba(255, 255, 255, 0.08)) 0%,
+        rgba(255, 255, 255, 0.05) 100%);
+      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent),
+                  0 0 25px color-mix(in srgb, var(--context-primary, #00d4aa) 12%, transparent);
+      animation: none; /* Stop pulse on hover */
     }
 
-    .modal-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(4px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-    }
-
-    .modal-content {
-      background: linear-gradient(135deg, rgba(30, 30, 30, 0.98) 0%, rgba(20, 20, 20, 0.98) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 16px;
-      padding: 2rem;
-      max-width: 800px;
-      max-height: 80vh;
-      overflow-y: auto;
-      width: 90%;
-    }
-
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.5rem;
-      padding-bottom: 1rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .modal-title {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: #e0e0e0;
-    }
-
-    .close-btn {
-      padding: 0.5rem 1rem;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.05);
-      color: #e0e0e0;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-size: 1rem;
-    }
-
-    .close-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
-      border-color: rgba(255, 255, 255, 0.3);
+    .see-all-btn:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 8px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
     }
   `
 
@@ -281,8 +341,7 @@ class ContextStatsWidget extends LitElement {
     stats: { type: Array },
     patterns: { type: Array },
     productivity: { type: Array },
-    status: { type: String },
-    showAllPatterns: { type: Boolean }
+    status: { type: String }
   }
 
   constructor() {
@@ -291,7 +350,7 @@ class ContextStatsWidget extends LitElement {
     this.patterns = []
     this.productivity = []
     this.status = 'loading'
-    this.showAllPatterns = false
+    this.modalElement = null
   }
 
   connectedCallback() {
@@ -306,6 +365,23 @@ class ContextStatsWidget extends LitElement {
     super.disconnectedCallback()
     if (this.intervalId) {
       clearInterval(this.intervalId)
+    }
+    this.closeModal()
+  }
+
+  openModal() {
+    // Créer la modale et l'ajouter au document
+    this.modalElement = document.createElement('patterns-modal')
+    this.modalElement.patterns = this.patterns
+    this.modalElement.addEventListener('close', () => this.closeModal())
+    document.body.appendChild(this.modalElement)
+  }
+
+  closeModal() {
+    // Retirer la modale du DOM
+    if (this.modalElement && this.modalElement.parentNode) {
+      this.modalElement.parentNode.removeChild(this.modalElement)
+      this.modalElement = null
     }
   }
 
@@ -477,43 +553,13 @@ class ContextStatsWidget extends LitElement {
               `)}
             </div>
             ${this.patterns.length > 1 ? html`
-              <button class="see-all-btn" @click="${() => this.showAllPatterns = true}">
+              <button class="see-all-btn" @click="${() => this.openModal()}">
                 📋 Voir tous les patterns (${this.patterns.length})
               </button>
             ` : ''}
           `}
         </div>
       </div>
-
-      <!-- Modal tous les patterns -->
-      ${this.showAllPatterns ? html`
-        <div class="modal-overlay" @click="${() => this.showAllPatterns = false}">
-          <div class="modal-content" @click="${(e) => e.stopPropagation()}">
-            <div class="modal-header">
-              <div class="modal-title">📋 Tous les Patterns (${this.patterns.length})</div>
-              <button class="close-btn" @click="${() => this.showAllPatterns = false}">✕ Fermer</button>
-            </div>
-            <div class="patterns-list">
-              ${this.patterns.map(pattern => html`
-                <div class="pattern-item">
-                  <div class="pattern-icon">${this.getModeIcon(pattern.mode)}</div>
-                  <div class="pattern-info">
-                    <div class="pattern-description">
-                      ${this.getModeName(pattern.mode)} - ${this.getDayName(pattern.day_of_week)} à ${pattern.hour}h
-                    </div>
-                    <div class="pattern-meta">
-                      ${pattern.occurrences} fois • Dernière: ${this.formatDate(pattern.last_seen)}
-                    </div>
-                  </div>
-                  <div class="pattern-confidence">
-                    ${Math.round(pattern.confidence * 100)}%
-                  </div>
-                </div>
-              `)}
-            </div>
-          </div>
-        </div>
-      ` : ''}
     `
   }
 }

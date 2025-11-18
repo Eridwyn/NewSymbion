@@ -37,6 +37,7 @@ class NotesPage extends LitElement {
       max-width: 1200px;
       margin: 2rem auto;
       padding: 2rem;
+      overflow-x: hidden; /* Empêche débordement horizontal */
       animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
@@ -52,12 +53,23 @@ class NotesPage extends LitElement {
     }
 
     .notes-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      position: relative;
       margin-bottom: 2rem;
       padding-bottom: 1rem;
+      padding-right: 120px; /* Espace pour bouton fermer */
       border-bottom: 2px solid var(--context-primary, #00d4aa);
+      animation: headerSlideIn 0.6s var(--ease-out);
+    }
+
+    @keyframes headerSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .notes-title {
@@ -67,9 +79,23 @@ class NotesPage extends LitElement {
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+      filter: drop-shadow(0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent));
+      animation: titlePulse 4s ease-in-out infinite;
+    }
+
+    @keyframes titlePulse {
+      0%, 100% {
+        filter: drop-shadow(0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent));
+      }
+      50% {
+        filter: drop-shadow(0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent));
+      }
     }
 
     .close-button {
+      position: absolute;
+      top: 0;
+      right: 0;
       background: rgba(255, 107, 107, 0.15);
       border: 1px solid rgba(255, 107, 107, 0.3);
       color: #ff6b6b;
@@ -98,6 +124,24 @@ class NotesPage extends LitElement {
       background: linear-gradient(135deg, rgba(26, 26, 26, 0.9) 0%, rgba(15, 15, 15, 0.85) 100%);
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 12px;
+      transition: all var(--duration-base) ease-out;
+      animation: toolbarSlideIn 0.5s ease-out 0.2s backwards; /* Delay 0.2s pour stagger */
+    }
+
+    @keyframes toolbarSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .toolbar:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     }
 
     .search-box {
@@ -107,6 +151,8 @@ class NotesPage extends LitElement {
 
     .search-input {
       width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 8px;
@@ -119,7 +165,14 @@ class NotesPage extends LitElement {
     .search-input:focus {
       outline: none;
       border-color: var(--context-primary, #00d4aa);
-      box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.1);
+      box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.1),
+                  0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
+      animation: inputGlow 0.6s ease-out;
+    }
+
+    .search-input:hover:not(:focus) {
+      border-color: rgba(255, 255, 255, 0.25);
+      transform: translateY(-1px);
     }
 
     .search-input::placeholder {
@@ -143,11 +196,31 @@ class NotesPage extends LitElement {
       cursor: pointer;
       transition: all 0.3s ease;
       white-space: nowrap;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .filter-btn::before {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      width: 0;
+      height: 2px;
+      background: var(--context-primary, #00d4aa);
+      transform: translateX(-50%);
+      transition: width 0.3s ease;
+      box-shadow: 0 0 8px var(--context-primary, #00d4aa);
     }
 
     .filter-btn:hover {
       background: rgba(255, 255, 255, 0.08);
       border-color: var(--context-primary, #00d4aa);
+      transform: translateY(-1px);
+    }
+
+    .filter-btn:hover::before {
+      width: 80%;
     }
 
     .filter-btn.active {
@@ -155,6 +228,14 @@ class NotesPage extends LitElement {
       border-color: var(--context-primary, #00d4aa);
       color: var(--context-primary, #00d4aa);
       box-shadow: 0 2px 10px rgba(0, 212, 170, 0.3);
+    }
+
+    .filter-btn.active::before {
+      width: 100%;
+    }
+
+    .filter-btn:active {
+      transform: translateY(0) scale(0.98);
     }
 
     .context-filter-toggle {
@@ -222,13 +303,49 @@ class NotesPage extends LitElement {
       transition: all 0.3s ease;
       box-shadow: 0 2px 8px rgba(0, 212, 170, 0.2);
       white-space: nowrap;
+      position: relative;
+      overflow: hidden;
+      animation: buttonPulse 3s ease-in-out infinite; /* Pulse subtil pour attirer attention */
+    }
+
+    @keyframes buttonPulse {
+      0%, 100% {
+        box-shadow: 0 2px 8px rgba(0, 212, 170, 0.2);
+      }
+      50% {
+        box-shadow: 0 2px 12px rgba(0, 212, 170, 0.35),
+                    0 0 20px rgba(0, 212, 170, 0.15);
+      }
+    }
+
+    .add-note-btn::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(0, 212, 170, 0.3);
+      transform: translate(-50%, -50%);
+      transition: width 0.6s ease, height 0.6s ease;
+    }
+
+    .add-note-btn:hover::before {
+      width: 300px;
+      height: 300px;
     }
 
     .add-note-btn:hover {
       background: linear-gradient(135deg, rgba(0, 212, 170, 0.35) 0%, rgba(34, 197, 94, 0.3) 100%);
       border-color: rgba(0, 212, 170, 0.6);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 16px rgba(0, 212, 170, 0.3);
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 4px 16px rgba(0, 212, 170, 0.4);
+      animation: none; /* Stop pulse sur hover */
+    }
+
+    .add-note-btn:active {
+      transform: translateY(0) scale(0.98);
     }
 
     .tags-bar {
@@ -277,6 +394,16 @@ class NotesPage extends LitElement {
       position: relative;
       overflow: hidden;
       cursor: pointer;
+      animation: cardBreathing 8s ease-in-out infinite; /* Respiration subtile */
+    }
+
+    @keyframes cardBreathing {
+      0%, 100% {
+        border-color: rgba(255, 255, 255, 0.1);
+      }
+      50% {
+        border-color: rgba(255, 255, 255, 0.14);
+      }
     }
 
     .note-card::before {
@@ -289,16 +416,23 @@ class NotesPage extends LitElement {
       background: linear-gradient(180deg, var(--context-primary, #00d4aa) 0%, rgba(0, 212, 170, 0.3) 100%);
       opacity: 0;
       transition: opacity 0.3s ease;
+      box-shadow: 0 0 10px var(--context-primary, #00d4aa);
     }
 
     .note-card:hover {
       border-color: rgba(0, 212, 170, 0.4);
-      transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(0, 212, 170, 0.15);
+      transform: translateY(-4px) scale(1.01); /* Légère élévation + zoom */
+      box-shadow: 0 12px 32px rgba(0, 212, 170, 0.2),
+                  0 0 40px color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
+      animation: none; /* Stop breathing sur hover */
     }
 
     .note-card:hover::before {
       opacity: 1;
+    }
+
+    .note-card:active {
+      transform: translateY(-2px) scale(0.99); /* Feedback tactile */
     }
 
     .note-card.urgent {
@@ -465,6 +599,7 @@ class NotesPage extends LitElement {
       max-width: 700px;
       max-height: 85vh;
       overflow-y: auto;
+      overflow-x: hidden; /* Empêche débordement horizontal */
       padding: 2rem;
       box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
       animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -482,21 +617,37 @@ class NotesPage extends LitElement {
     }
 
     .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      position: relative;
       margin-bottom: 1.5rem;
       padding-bottom: 1rem;
+      padding-right: 50px; /* Espace pour bouton close */
       border-bottom: 1px solid rgba(0, 212, 170, 0.15);
+      animation: modalHeaderSlideIn 0.5s ease-out 0.1s backwards;
+    }
+
+    @keyframes modalHeaderSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .modal-title {
       font-size: 1.4em;
       font-weight: 600;
       color: var(--context-primary, #00d4aa);
+      filter: drop-shadow(0 0 15px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent));
+      animation: titlePulse 4s ease-in-out infinite;
     }
 
     .modal-close-btn {
+      position: absolute;
+      top: 0;
+      right: 0;
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.1);
       color: #888;
@@ -517,6 +668,8 @@ class NotesPage extends LitElement {
 
     .form-field {
       margin-bottom: 1.2rem;
+      max-width: 100%; /* Force containment */
+      overflow: hidden; /* Empêche débordement */
     }
 
     .form-field label {
@@ -525,11 +678,26 @@ class NotesPage extends LitElement {
       font-size: 0.9em;
       color: #ccc;
       font-weight: 500;
+      animation: labelFadeIn 0.4s ease-out; /* Apparition douce */
+    }
+
+    @keyframes labelFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .form-field input,
     .form-field textarea {
       width: 100%;
+      max-width: 100%; /* CRITIQUE: Empêche débordement horizontal */
+      min-width: 0; /* Permet rétrécissement si nécessaire */
+      box-sizing: border-box; /* Padding inclus dans width */
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.2);
       border-radius: 8px;
@@ -551,7 +719,29 @@ class NotesPage extends LitElement {
     .form-field textarea:focus {
       outline: none;
       border-color: var(--context-primary, #00d4aa);
-      box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.1);
+      box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.1),
+                  0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
+      animation: inputGlow 0.6s ease-out; /* Pulse au focus */
+    }
+
+    @keyframes inputGlow {
+      0% {
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      }
+      50% {
+        box-shadow: 0 0 0 6px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
+                    0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+      }
+      100% {
+        box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.1),
+                    0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
+      }
+    }
+
+    .form-field input:hover:not(:focus),
+    .form-field textarea:hover:not(:focus) {
+      border-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px); /* Légère élévation */
     }
 
     .form-checkboxes {
@@ -590,6 +780,26 @@ class NotesPage extends LitElement {
       cursor: pointer;
       transition: all 0.3s ease;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .form-btn::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      transform: translate(-50%, -50%);
+      transition: width 0.6s ease, height 0.6s ease;
+    }
+
+    .form-btn:hover::before {
+      width: 300px;
+      height: 300px;
     }
 
     .form-btn.primary {
@@ -605,16 +815,28 @@ class NotesPage extends LitElement {
       box-shadow: 0 4px 12px rgba(0, 212, 170, 0.3);
     }
 
+    .form-btn.primary:active {
+      transform: translateY(0) scale(0.98); /* Feedback tactile */
+    }
+
     .form-btn.secondary {
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.15);
       color: #ccc;
     }
 
+    .form-btn.secondary::before {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
     .form-btn.secondary:hover {
       background: rgba(255, 255, 255, 0.08);
       border-color: rgba(255, 255, 255, 0.25);
       transform: translateY(-2px);
+    }
+
+    .form-btn.secondary:active {
+      transform: translateY(0) scale(0.98);
     }
 
     .note-content {
@@ -692,6 +914,22 @@ class NotesPage extends LitElement {
         padding: 1rem;
       }
 
+      .notes-header {
+        padding-right: 0; /* Reset padding-right sur mobile */
+        padding-bottom: var(--space-6); /* Plus d'espace pour le bouton */
+      }
+
+      .notes-title {
+        font-size: 1.5em;
+        max-width: calc(100% - 70px); /* Espace pour le bouton */
+      }
+
+      .close-button {
+        /* Reste en absolute top-right */
+        padding: 0.5rem 1rem;
+        font-size: 0.8em;
+      }
+
       .toolbar {
         flex-direction: column;
         align-items: stretch;
@@ -712,6 +950,20 @@ class NotesPage extends LitElement {
 
       .filter-btn {
         flex: 1;
+      }
+
+      .modal-content {
+        width: 95%;
+        padding: 1.5rem;
+      }
+
+      .modal-header {
+        padding-right: 0;
+      }
+
+      .modal-title {
+        font-size: 1.2em;
+        max-width: calc(100% - 50px);
       }
     }
   `
