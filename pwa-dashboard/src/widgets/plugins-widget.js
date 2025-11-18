@@ -237,15 +237,27 @@ class PluginsWidget extends LitElement {
     }
   }
   
+  // Normalize status (can be string "Running" or object {"Failed": "..."})
+  normalizeStatus(status) {
+    if (typeof status === 'string') {
+      return status
+    } else if (typeof status === 'object' && status.Failed) {
+      return 'failed'
+    }
+    return 'unknown'
+  }
+
   getStatusLabel(status) {
+    const normalized = this.normalizeStatus(status)
     const labels = {
       'running': 'En cours',
       'stopped': 'Arrêté',
       'starting': 'Démarrage',
       'stopping': 'Arrêt',
+      'failed': 'Échoué',
       'error': 'Erreur'
     }
-    return labels[status.toLowerCase()] || status
+    return labels[normalized.toLowerCase()] || normalized
   }
   
   render() {
@@ -260,7 +272,10 @@ class PluginsWidget extends LitElement {
       `
     }
     
-    const runningCount = this.plugins.filter(p => p.status.toLowerCase() === 'running').length
+    const runningCount = this.plugins.filter(p => {
+      const status = this.normalizeStatus(p.status)
+      return status.toLowerCase() === 'running'
+    }).length
     
     return html`
       <div class="widget-header">
@@ -282,7 +297,7 @@ class PluginsWidget extends LitElement {
                 <span class="plugin-name">${plugin.name}</span>
                 <span class="plugin-version">v${plugin.version || '0.1.0'}</span>
               </div>
-              <span class="plugin-status status-${plugin.status.toLowerCase()}">
+              <span class="plugin-status status-${this.normalizeStatus(plugin.status).toLowerCase()}">
                 ${this.getStatusLabel(plugin.status)}
               </span>
             </div>
@@ -294,7 +309,7 @@ class PluginsWidget extends LitElement {
             ` : ''}
             
             <div class="plugin-actions">
-              ${plugin.status.toLowerCase() === 'running' ? html`
+              ${this.normalizeStatus(plugin.status).toLowerCase() === 'running' ? html`
                 <button 
                   class="action-btn danger"
                   @click="${() => this.handlePluginAction(plugin.name, 'stop')}"
