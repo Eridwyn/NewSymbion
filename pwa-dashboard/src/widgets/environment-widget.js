@@ -17,6 +17,11 @@ import { Chart, registerables } from 'chart.js'
 Chart.register(...registerables)
 
 class EnvironmentWidget extends LitElement {
+  // Disable shadow DOM to allow modal to escape and overlay properly
+  createRenderRoot() {
+    return this
+  }
+
   static properties = {
     sensors: { type: Array },
     environments: { type: Object }, // Map: room_id -> environment data
@@ -495,10 +500,16 @@ class EnvironmentWidget extends LitElement {
   }
 
   async openRoomModal(roomId) {
+    console.log('[environment-widget] Opening modal for room:', roomId)
     this.selectedRoom = roomId
     this.modalOpen = true
     this.loadingChart = true
     this.chartData = []
+
+    console.log('[environment-widget] Modal state:', {
+      modalOpen: this.modalOpen,
+      selectedRoom: this.selectedRoom
+    })
 
     // Force render to show modal
     this.requestUpdate()
@@ -539,7 +550,7 @@ class EnvironmentWidget extends LitElement {
   }
 
   createChart() {
-    const canvas = this.shadowRoot.querySelector('#environmentChart')
+    const canvas = this.querySelector('#environmentChart')
     if (!canvas || !this.chartData || this.chartData.length === 0) {
       console.warn('Cannot create chart: missing canvas or data')
       return
@@ -664,8 +675,12 @@ class EnvironmentWidget extends LitElement {
   }
 
   render() {
+    // Inject styles in light DOM since we disabled shadow DOM
+    const styleTag = html`<style>${EnvironmentWidget.styles.cssText}</style>`
+
     if (this.loading) {
       return html`
+        ${styleTag}
         <div class="widget-header">
           <div class="widget-title">🌡️ Environnement</div>
         </div>
@@ -677,6 +692,7 @@ class EnvironmentWidget extends LitElement {
 
     if (this.error) {
       return html`
+        ${styleTag}
         <div class="widget-header">
           <div class="widget-title">🌡️ Environnement</div>
         </div>
@@ -690,6 +706,7 @@ class EnvironmentWidget extends LitElement {
 
     if (roomCount === 0) {
       return html`
+        ${styleTag}
         <div class="widget-header">
           <div class="widget-title">🌡️ Environnement</div>
           <span class="sensor-count">0 capteur</span>
@@ -705,6 +722,7 @@ class EnvironmentWidget extends LitElement {
     }
 
     return html`
+      ${styleTag}
       <div class="widget-header">
         <div class="widget-title">
           🌡️ Environnement
@@ -765,9 +783,14 @@ class EnvironmentWidget extends LitElement {
   }
 
   renderModal() {
+    console.log('[environment-widget] Rendering modal for:', this.selectedRoom)
     const env = this.environments[this.selectedRoom]
-    if (!env) return ''
+    if (!env) {
+      console.warn('[environment-widget] No environment data for:', this.selectedRoom)
+      return ''
+    }
 
+    console.log('[environment-widget] Modal will render with data:', env)
     return html`
       <div class="modal-overlay" @click="${() => this.closeModal()}">
         <div class="modal-content" @click="${(e) => e.stopPropagation()}">
