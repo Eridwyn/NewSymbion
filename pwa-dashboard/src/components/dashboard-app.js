@@ -29,142 +29,212 @@ class DashboardApp extends LitElement {
     :host {
       display: block;
       min-height: 100vh;
-      background: radial-gradient(ellipse at top, #1a1f35 0%, #0f0f0f 50%, #000000 100%);
-      color: #e0e0e0;
+      /* Background organique avec profondeur CONTEXTUEL */
+      background: radial-gradient(ellipse at top left, color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent) 0%, transparent 50%),
+                  radial-gradient(ellipse at bottom right, color-mix(in srgb, var(--context-primary, #00d4aa) 3%, transparent) 0%, transparent 50%),
+                  linear-gradient(to bottom, #0a0a0b 0%, #000000 100%);
+      color: var(--color-dark-text-primary, #f8f9fa);
+      font-family: var(--font-sans);
     }
 
+    /* Header bioluminescent avec glassmorphism CONTEXTUEL */
     .header {
       background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent) 100%);
+        color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent) 0%,
+        rgba(19, 20, 26, 0.85) 50%,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 6%, transparent) 100%);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
-      border-bottom: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
-      padding: 1.5rem 2rem;
+      border-bottom: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+      padding: var(--space-6) var(--space-8);
       position: -webkit-sticky;
       position: sticky;
       top: 0;
-      z-index: 100;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      z-index: var(--z-sticky);
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3),
+                  0 0 0 1px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
+                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      gap: 1rem;
-      transition: all 0.5s ease;
+      gap: var(--space-4);
+      transition: all var(--duration-base) var(--ease-out);
     }
 
     .header-left {
       flex: 1;
+      min-width: 0;
     }
 
+    /* Titre avec gradient bioluminescent CONTEXTUEL */
     .header h1 {
-      font-size: 2em;
-      font-weight: 600;
+      font-size: var(--text-3xl);
+      font-weight: var(--font-bold);
       margin: 0;
       background: linear-gradient(135deg,
         var(--context-primary, #00d4aa) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 70%, #007acc) 50%,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 80%, white) 50%,
         var(--context-primary, #00d4aa) 100%);
       background-size: 200% 200%;
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
-      animation: gradient-shift 3s ease infinite;
-      letter-spacing: -0.5px;
-      transition: all 0.5s ease;
+      animation: bio-gradient-shift 6s ease infinite;
+      letter-spacing: var(--tracking-tight);
+      transition: all var(--duration-base) var(--ease-out);
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: var(--space-3);
+      filter: drop-shadow(0 0 20px var(--context-primary, rgba(0, 212, 170, 0.3)));
     }
 
-    .header-logo {
-      width: 1.5em;
-      height: 1.5em;
-      object-fit: contain;
-      filter: drop-shadow(0 0 10px var(--context-primary, #00d4aa));
-      animation: logo-glow 3s ease infinite;
-    }
-
-    @keyframes logo-glow {
-      0%, 100% {
-        filter: drop-shadow(0 0 10px var(--context-primary, #00d4aa));
-      }
-      50% {
-        filter: drop-shadow(0 0 20px var(--context-primary, #00d4aa));
-      }
-    }
-
-    @keyframes gradient-shift {
+    @keyframes bio-gradient-shift {
       0%, 100% { background-position: 0% 50%; }
       50% { background-position: 100% 50%; }
     }
 
+    /* Logo bioluminescent avec colorisation CONTEXTUELLE - Variables CSS */
+    :host {
+      /* Mode Intime (Vert/Emeraude #00d4aa) - Défaut */
+      --logo-hue: 100deg;
+      --logo-saturation: 3;
+      --logo-brightness: 1.1;
+      --logo-glow-color: rgba(0, 212, 170, 0.6);
+      --logo-glow-color-light: rgba(0, 212, 170, 0.3);
+      --logo-glow-color-intense: rgba(0, 212, 170, 0.9);
+    }
+
+    :host([context-mode="Cravate"]) {
+      /* Mode Cravate (Bleu #3b82f6) */
+      --logo-hue: 160deg;
+      --logo-saturation: 3.5;
+      --logo-brightness: 1.0;
+      --logo-glow-color: rgba(59, 130, 246, 0.6);
+      --logo-glow-color-light: rgba(59, 130, 246, 0.3);
+      --logo-glow-color-intense: rgba(59, 130, 246, 0.9);
+    }
+
+    :host([context-mode="Neutre"]) {
+      /* Mode Neutre (Gris argenté) */
+      --logo-hue: 0deg;
+      --logo-saturation: 0;
+      --logo-brightness: 1.3;
+      --logo-glow-color: rgba(156, 163, 175, 0.6);
+      --logo-glow-color-light: rgba(156, 163, 175, 0.3);
+      --logo-glow-color-intense: rgba(156, 163, 175, 0.9);
+    }
+
+    .header-logo {
+      width: 2rem;
+      height: 2rem;
+      object-fit: contain;
+      transition: filter var(--duration-base) var(--ease-out);
+      animation: logo-bio-pulse 4s ease-in-out infinite;
+      /* Colorisation dynamique : invert pour rendre blanc, puis colorer */
+      filter: invert(1) sepia(1) saturate(var(--logo-saturation)) hue-rotate(var(--logo-hue)) brightness(var(--logo-brightness))
+              drop-shadow(0 0 12px var(--logo-glow-color))
+              drop-shadow(0 0 20px var(--logo-glow-color-light));
+    }
+
+    @keyframes logo-bio-pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.85;
+      }
+    }
+
+    .header-logo:hover {
+      animation: none;
+      opacity: 1 !important;
+      /* Hover intensifie le glow avec variables */
+      filter: invert(1) sepia(1) saturate(calc(var(--logo-saturation) + 1)) hue-rotate(var(--logo-hue)) brightness(calc(var(--logo-brightness) + 0.15))
+              drop-shadow(0 0 20px var(--logo-glow-color-intense))
+              drop-shadow(0 0 40px var(--logo-glow-color)) !important;
+    }
+
+    /* Status Bar - Modern Pills */
     .status-bar {
       display: flex;
-      gap: 1.5rem;
+      gap: var(--space-3);
       align-items: center;
-      margin-top: 0.75rem;
-      font-size: 0.9em;
-      font-weight: 500;
+      margin-top: var(--space-3);
+      font-size: var(--text-sm);
+      font-weight: var(--font-medium);
     }
 
     .status-indicator {
       display: flex;
       align-items: center;
-      gap: 0.6rem;
-      padding: 0.4rem 0.8rem;
-      background: rgba(255, 255, 255, 0.03);
-      border-radius: 20px;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      transition: all 0.3s ease;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      background: color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
+      border-radius: var(--radius-md);
+      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      transition: all var(--duration-base) var(--ease-out);
+      font-size: 0.7rem;
+      letter-spacing: 0.03em;
+      font-weight: var(--font-medium);
+      color: var(--context-primary, #00d4aa);
     }
 
     .status-indicator:hover {
-      background: rgba(255, 255, 255, 0.06);
-      border-color: rgba(255, 255, 255, 0.1);
+      background: color-mix(in srgb, var(--context-primary, #00d4aa) 12%, transparent);
+      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+      transform: translateY(-1px);
     }
 
+    /* Status Dots - Bioluminescent pulse */
     .status-dot {
       width: 10px;
       height: 10px;
-      border-radius: 50%;
-      transition: all 0.3s ease;
-      box-shadow: 0 0 10px currentColor;
+      border-radius: var(--radius-full);
+      transition: all var(--duration-base) var(--ease-out);
     }
 
     .status-dot.online,
     .status-dot.connected {
       background: var(--context-primary, #00d4aa);
-      box-shadow: 0 0 15px var(--context-primary, #00d4aa),
-                  0 0 25px color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
-      animation: pulse-glow 2s ease-in-out infinite;
-    }
-    .status-dot.offline {
-      background: #ff6b6b;
-      box-shadow: 0 0 10px rgba(255, 107, 107, 0.5);
-    }
-    .status-dot.polling {
-      background: #007acc;
-      box-shadow: 0 0 15px #007acc;
-      animation: pulse-glow 2s ease-in-out infinite;
-    }
-    .status-dot.loading {
-      background: #ffd93d;
-      animation: pulse-loading 1s infinite;
+      box-shadow: 0 0 15px color-mix(in srgb, var(--context-primary, #00d4aa) 70%, transparent),
+                  0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent),
+                  inset 0 0 10px color-mix(in srgb, var(--context-primary, #00d4aa) 30%, white);
+      animation: bio-pulse-glow 2.5s ease-in-out infinite;
     }
 
-    @keyframes pulse-glow {
+    .status-dot.offline {
+      background: #4b5563;
+      box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.3);
+      opacity: 0.6;
+    }
+
+    .status-dot.polling {
+      background: #3b82f6;
+      box-shadow: 0 0 15px rgba(59, 130, 246, 0.6),
+                  0 0 25px rgba(59, 130, 246, 0.3);
+      animation: bio-pulse-glow 2s ease-in-out infinite;
+    }
+
+    .status-dot.loading {
+      background: #ffd93d;
+      box-shadow: 0 0 12px rgba(255, 217, 61, 0.6);
+      animation: bio-pulse-loading 1.2s ease-in-out infinite;
+    }
+
+    @keyframes bio-pulse-glow {
       0%, 100% {
         transform: scale(1);
         opacity: 1;
       }
       50% {
-        transform: scale(1.1);
+        transform: scale(1.15);
         opacity: 0.8;
+        box-shadow: 0 0 20px currentColor,
+                    0 0 40px currentColor;
       }
     }
 
-    @keyframes pulse-loading {
+    @keyframes bio-pulse-loading {
       0%, 100% {
         opacity: 1;
         transform: scale(1);
@@ -175,30 +245,34 @@ class DashboardApp extends LitElement {
       }
     }
 
-    /* Clock Display */
+    /* Clock Display - Ultra-discrète, cachée sur mobile */
     .system-clock {
-      display: flex;
+      display: none; /* Cachée par défaut (mobile) */
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.6rem 1rem;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 10px;
-      font-family: 'Monaco', 'Consolas', monospace;
-      font-size: 0.85em;
-      font-weight: 500;
-      color: #e0e0e0;
-      letter-spacing: 0.5px;
-      transition: all 0.3s ease;
+      gap: 0.25rem;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: var(--font-normal);
+      color: var(--color-dark-text-tertiary);
+      letter-spacing: 0.03em;
+      opacity: 0.4;
+      transition: opacity var(--duration-base) var(--ease-out);
+    }
+
+    /* Visible seulement sur desktop */
+    @media (min-width: 769px) {
+      .system-clock {
+        display: flex;
+      }
     }
 
     .system-clock:hover {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: rgba(255, 255, 255, 0.12);
+      opacity: 0.7;
     }
 
     .system-clock .icon {
-      font-size: 1.1em;
+      font-size: 0.9em;
+      opacity: 0.6;
     }
 
     /* User Menu */
@@ -210,128 +284,205 @@ class DashboardApp extends LitElement {
       background: linear-gradient(135deg,
         color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 0%,
         color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent);
       color: var(--context-primary, #00d4aa);
-      padding: 0.6rem 1rem;
-      border-radius: 10px;
-      font-size: 0.85em;
-      font-weight: 500;
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-md);
+      font-size: var(--text-sm);
+      font-weight: var(--font-semibold);
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      gap: var(--space-2);
+      transition: all var(--duration-base) var(--ease-out);
+      box-shadow: 0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent),
+                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
     }
 
     .user-button:hover {
       background: linear-gradient(135deg,
         color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent) 100%);
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 50%, transparent);
+        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 100%);
+      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 60%, transparent);
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
+      box-shadow: 0 6px 20px color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent),
+                  0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent),
+                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
     }
 
+    /* User Dropdown - Bio-Organic Menu */
     .user-dropdown {
       position: absolute;
-      top: calc(100% + 0.5rem);
+      top: calc(100% + var(--space-3));
       right: 0;
-      background: linear-gradient(135deg, rgba(26, 26, 26, 0.98) 0%, rgba(15, 15, 15, 0.95) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
-      border-radius: 12px;
-      padding: 1rem;
-      min-width: 250px;
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 4%, rgba(19, 20, 26, 0.98)) 0%,
+        rgba(15, 15, 15, 0.96) 100%);
+      backdrop-filter: blur(var(--blur-xl));
+      -webkit-backdrop-filter: blur(var(--blur-xl));
+      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+      min-width: 260px;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6),
+                  0 0 0 1px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent),
+                  0 0 40px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
+                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
       z-index: 1000;
-      animation: dropdownSlide 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      animation: dropdownSlide var(--duration-slow) var(--ease-out);
     }
 
     @keyframes dropdownSlide {
       from {
         opacity: 0;
-        transform: translateY(-10px);
+        transform: translateY(-12px) scale(0.95);
       }
       to {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateY(0) scale(1);
       }
     }
 
     .user-info {
-      padding-bottom: 0.8rem;
-      border-bottom: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
-      margin-bottom: 0.8rem;
+      padding-bottom: var(--space-4);
+      border-bottom: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      margin-bottom: var(--space-4);
+      position: relative;
+    }
+
+    .user-info::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      width: 40%;
+      height: 1px;
+      background: linear-gradient(90deg,
+        var(--context-primary, #00d4aa) 0%,
+        transparent 100%);
+      opacity: 0.6;
     }
 
     .user-name {
       color: var(--context-primary, #00d4aa);
-      font-weight: 600;
-      font-size: 1em;
-      margin-bottom: 0.3rem;
+      font-weight: var(--font-semibold);
+      font-size: var(--text-base);
+      margin-bottom: var(--space-2);
+      text-shadow: 0 0 12px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
     }
 
     .user-role {
-      color: #888;
-      font-size: 0.75em;
+      color: var(--color-dark-text-secondary);
+      font-size: var(--text-xs);
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: var(--tracking-wider);
+      font-weight: var(--font-medium);
     }
 
     .user-session {
-      color: #666;
-      font-size: 0.7em;
-      margin-top: 0.3rem;
+      color: var(--color-dark-text-tertiary);
+      font-size: var(--text-xs);
+      margin-top: var(--space-2);
+      font-family: var(--font-mono);
+      opacity: 0.8;
     }
 
-    .logout-button {
+    /* Bouton Paramètres - Style contextuel */
+    .settings-button {
       width: 100%;
-      background: linear-gradient(135deg, rgba(255, 107, 107, 0.15) 0%, rgba(239, 68, 68, 0.1) 100%);
-      border: 1px solid rgba(255, 107, 107, 0.3);
-      color: #ff6b6b;
-      padding: 0.6rem 1rem;
-      border-radius: 8px;
-      font-size: 0.85em;
-      font-weight: 500;
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 12%, transparent) 0%,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent) 100%);
+      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+      color: var(--context-primary, #00d4aa);
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-md);
+      font-size: var(--text-sm);
+      font-weight: var(--font-semibold);
       cursor: pointer;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all var(--duration-base) var(--ease-out);
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 0.5rem;
+      gap: var(--space-2);
+      margin-bottom: var(--space-3);
+    }
+
+    .settings-button:hover {
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent) 0%,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 100%);
+      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 50%, transparent);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent),
+                  0 0 24px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+    }
+
+    /* Bouton Déconnexion - Style danger mais élégant */
+    .logout-button {
+      width: 100%;
+      background: linear-gradient(135deg,
+        rgba(239, 68, 68, 0.15) 0%,
+        rgba(239, 68, 68, 0.08) 100%);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #ff6b6b;
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-md);
+      font-size: var(--text-sm);
+      font-weight: var(--font-semibold);
+      cursor: pointer;
+      transition: all var(--duration-base) var(--ease-out);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
     }
 
     .logout-button:hover {
-      background: linear-gradient(135deg, rgba(255, 107, 107, 0.25) 0%, rgba(239, 68, 68, 0.2) 100%);
-      border-color: rgba(255, 107, 107, 0.5);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+      background: linear-gradient(135deg,
+        rgba(239, 68, 68, 0.25) 0%,
+        rgba(239, 68, 68, 0.15) 100%);
+      border-color: rgba(239, 68, 68, 0.55);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(239, 68, 68, 0.25),
+                  0 0 24px rgba(239, 68, 68, 0.2);
     }
 
+    /* Main Content - Spacious Layout */
     .main-content {
-      padding: 2.5rem;
+      padding: var(--space-10) var(--space-8);
       max-width: 1600px;
       margin: 0 auto;
     }
 
+    /* Widget Grid - Modern Cards */
     .widgets-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-      gap: 1.5rem;
-      margin-bottom: 2rem;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: var(--space-6);
+      margin-bottom: var(--space-8);
     }
 
+    /* Widget Container - Bio-Organic Card Design CONTEXTUEL */
     .widget-container {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
-      border-radius: 16px;
-      padding: 1.8rem;
-      backdrop-filter: blur(15px);
-      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      /* Gradient organique comme une membrane cellulaire */
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 3%, transparent) 0%,
+        rgba(19, 20, 26, 0.95) 20%,
+        rgba(28, 29, 36, 0.98) 100%);
+      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 12%, transparent);
+      border-radius: var(--radius-xl);
+      padding: var(--space-8);
+      backdrop-filter: blur(var(--blur-lg));
+      transition: all var(--duration-slow) var(--ease-out);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
+                  0 0 0 1px color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent),
+                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent);
       position: relative;
       overflow: hidden;
     }
 
+    /* Border bioluminescent qui pulse comme un influx nerveux */
     .widget-container::before {
       content: '';
       position: absolute;
@@ -339,20 +490,54 @@ class DashboardApp extends LitElement {
       left: 0;
       right: 0;
       height: 2px;
-      background: linear-gradient(90deg, transparent, var(--context-primary, #00d4aa), transparent);
+      background: linear-gradient(90deg,
+        transparent 0%,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 80%, transparent) 50%,
+        transparent 100%);
       opacity: 0;
-      transition: opacity 0.4s ease;
+      animation: neural-pulse 4s ease-in-out infinite;
+      transition: opacity var(--duration-base) var(--ease-out);
     }
 
+    @keyframes neural-pulse {
+      0%, 100% {
+        opacity: 0;
+        transform: translateX(-100%);
+      }
+      50% {
+        opacity: 1;
+        transform: translateX(0%);
+      }
+    }
+
+    /* Hover - Activation organique CONTEXTUEL */
     .widget-container:hover {
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent);
-      transform: translateY(-4px) scale(1.01);
+      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+      transform: translateY(-4px);
       box-shadow: 0 16px 48px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent),
-                  0 0 0 1px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
+                  0 0 0 1px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent),
+                  0 0 60px color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent),
+                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent) 0%,
+        rgba(19, 20, 26, 0.95) 20%,
+        rgba(28, 29, 36, 0.98) 100%);
     }
 
     .widget-container:hover::before {
       opacity: 1;
+      animation: neural-pulse-active 2s ease-in-out infinite;
+    }
+
+    @keyframes neural-pulse-active {
+      0%, 100% {
+        opacity: 0.6;
+        transform: translateX(0%);
+      }
+      50% {
+        opacity: 1;
+        transform: translateX(100%);
+      }
     }
 
     .error-message {
@@ -433,64 +618,92 @@ class DashboardApp extends LitElement {
       gap: 1.2rem;
     }
 
+    /* Mobile Responsive - Compact */
     @media (max-width: 768px) {
       .header {
-        padding: 0.8rem 0.8rem;
-        gap: 0.5rem;
+        padding: var(--space-3) var(--space-3);
+        gap: var(--space-2);
       }
+
       .header h1 {
-        font-size: 1.2em;
-        margin-bottom: 0.3rem;
+        font-size: var(--text-base); /* Plus petit sur mobile */
       }
+
+      .header-logo {
+        width: 1.25rem; /* Logo plus petit */
+        height: 1.25rem;
+      }
+
       .status-bar {
         flex-wrap: nowrap;
-        gap: 0.3rem;
-        margin-top: 0.3rem;
+        gap: var(--space-2);
+        margin-top: var(--space-2);
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none; /* Firefox */
       }
+
+      .status-bar::-webkit-scrollbar {
+        display: none; /* Chrome/Safari */
+      }
+
       .status-indicator {
-        padding: 0.2rem 0.4rem;
-        font-size: 0.65em;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.6rem;
         white-space: nowrap;
-        gap: 0.3rem;
+        flex-shrink: 0;
+        gap: 0.25rem;
+        letter-spacing: 0;
       }
+
       .status-dot {
         width: 6px;
         height: 6px;
       }
-      /* Masquer uptime sur mobile */
-      .uptime-indicator {
+
+      /* Hide uptime and clock on mobile */
+      .uptime-indicator,
+      .system-clock {
         display: none;
       }
-      .system-clock {
-        padding: 0.3rem 0.6rem;
-        font-size: 0.7em;
-        border-radius: 6px;
+
+      .user-button {
+        padding: 0.35rem 0.6rem;
+        font-size: 0.65rem;
         gap: 0.25rem;
       }
-      .system-clock .icon {
-        font-size: 0.9em;
-      }
-      .user-button {
-        padding: 0.3rem 0.6rem;
-        font-size: 0.7em;
-      }
+
       .main-content {
-        padding: 1.2rem;
+        padding: var(--space-5) var(--space-3);
       }
+
       .widgets-grid {
-        display: none; /* Cacher grille sur mobile */
+        display: none; /* Hide grid on mobile */
+        grid-template-columns: 1fr;
+        gap: var(--space-4);
       }
+
       .tabs-container {
-        display: block; /* Afficher tabs sur mobile */
+        display: block; /* Show tabs on mobile */
       }
+
       .widget-container {
-        padding: 1.4rem;
+        padding: var(--space-6);
+        border-radius: var(--radius-lg);
       }
     }
 
+    /* Tablet & Desktop */
     @media (min-width: 769px) {
       .widgets-grid {
-        grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      }
+    }
+
+    /* Large Desktop - 3 columns */
+    @media (min-width: 1400px) {
+      .widgets-grid {
+        grid-template-columns: repeat(3, 1fr);
       }
     }
   `
@@ -507,7 +720,8 @@ class DashboardApp extends LitElement {
     showNotesPage: { type: Boolean },
     currentUser: { type: Object },
     activeTab: { type: String },
-    currentTime: { type: String }
+    currentTime: { type: String },
+    contextMode: { type: String, reflect: true, attribute: 'context-mode' }
   }
   
   constructor() {
@@ -525,6 +739,7 @@ class DashboardApp extends LitElement {
     // Restaurer le dernier onglet actif depuis sessionStorage (persiste aux reloads, reset à la fermeture du navigateur)
     this.activeTab = sessionStorage.getItem('dashboardTab') || 'controle'
     this.currentTime = this.formatTime(new Date())
+    this.contextMode = 'Intime' // Mode par défaut (vert/emeraude)
 
     this.apiService = null
     this.mqttService = null
@@ -557,9 +772,25 @@ class DashboardApp extends LitElement {
     this.addEventListener('open-notes-page', this.handleOpenNotesPage.bind(this))
     this.addEventListener('create-note', this.handleCreateNote.bind(this))
 
+    // Écouter les changements de contexte pour adapter le logo
+    window.addEventListener('context-change', (e) => {
+      const mode = e.detail?.context?.mode || 'intime'
+      // Capitaliser première lettre pour matcher les sélecteurs CSS
+      this.contextMode = mode.charAt(0).toUpperCase() + mode.slice(1)
+      console.log(`[dashboard-app] Context changed: ${mode} → logo color updated`)
+    })
+
     try {
       // Initialiser les services
       await this.initializeServices()
+
+      // Initialiser le mode contextuel depuis le context-service
+      const contextService = document.querySelector('context-service')
+      if (contextService) {
+        const initialMode = contextService.getCurrentMode() || 'intime'
+        this.contextMode = initialMode.charAt(0).toUpperCase() + initialMode.slice(1)
+        console.log(`[dashboard-app] Initial context mode: ${initialMode}`)
+      }
 
       // Charger les données initiales
       await this.loadInitialData()
@@ -723,7 +954,7 @@ class DashboardApp extends LitElement {
                   <div class="user-role">${this.currentUser.role}</div>
                   <div class="user-session">${this.getSessionDuration()}</div>
                 </div>
-                <button class="logout-button" @click="${this.handleOpenSettings}" style="margin-bottom: 0.5rem; background: linear-gradient(135deg, color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 0%, color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent) 100%); border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent); color: var(--context-primary, #00d4aa);">
+                <button class="settings-button" @click="${this.handleOpenSettings}">
                   <span>⚙️</span>
                   <span>Paramètres</span>
                 </button>

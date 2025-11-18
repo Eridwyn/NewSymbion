@@ -14,6 +14,7 @@ import './passkey-manager.js'
 
 class UserSettingsPage extends LitElement {
   static styles = css`
+    /* Overlay bio-organique avec glassmorphism */
     :host {
       display: block;
       position: fixed;
@@ -21,12 +22,14 @@ class UserSettingsPage extends LitElement {
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
+      background: radial-gradient(ellipse at center,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 3%, rgba(0, 0, 0, 0.92)) 0%,
+        rgba(0, 0, 0, 0.95) 100%);
+      backdrop-filter: blur(var(--blur-xl));
+      -webkit-backdrop-filter: blur(var(--blur-xl));
       z-index: 9999;
       overflow-y: auto;
-      animation: fadeIn 0.3s ease;
+      animation: fadeIn var(--duration-slow) var(--ease-out);
     }
 
     @keyframes fadeIn {
@@ -35,16 +38,170 @@ class UserSettingsPage extends LitElement {
     }
 
     .settings-container {
-      max-width: 900px;
-      margin: 2rem auto;
-      padding: 2rem;
-      animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      max-width: 800px;
+      margin: var(--space-6) auto;
+      padding: var(--space-6);
+      overflow-x: hidden; /* Empêche scrollbar horizontal */
+      animation: slideUp var(--duration-slow) var(--ease-out);
     }
 
     @keyframes slideUp {
       from {
         opacity: 0;
-        transform: translateY(30px);
+        transform: translateY(40px) scale(0.97);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    /* Header bio-organique */
+    .settings-header {
+      position: relative;
+      margin-bottom: var(--space-6);
+      padding-bottom: var(--space-4);
+      padding-right: 120px; /* Espace pour le bouton fermer */
+      border-bottom: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
+    }
+
+    .settings-header::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      width: 30%;
+      height: 2px;
+      background: linear-gradient(90deg,
+        var(--context-primary, #00d4aa) 0%,
+        transparent 100%);
+      opacity: 0.8;
+    }
+
+    .settings-title {
+      font-size: var(--text-3xl);
+      font-weight: var(--font-bold);
+      background: linear-gradient(135deg,
+        var(--context-primary, #00d4aa) 0%,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 70%, white) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent));
+      animation: titlePulse 4s ease-in-out infinite, titleSlideIn 0.6s var(--ease-out);
+    }
+
+    @keyframes titlePulse {
+      0%, 100% {
+        filter: drop-shadow(0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent));
+      }
+      50% {
+        filter: drop-shadow(0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent));
+      }
+    }
+
+    @keyframes titleSlideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .close-button {
+      position: absolute;
+      top: 0;
+      right: 0;
+      background: linear-gradient(135deg,
+        rgba(239, 68, 68, 0.15) 0%,
+        rgba(239, 68, 68, 0.08) 100%);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #ff6b6b;
+      padding: var(--space-3) var(--space-5);
+      border-radius: var(--radius-md);
+      font-size: var(--text-sm);
+      font-weight: var(--font-semibold);
+      cursor: pointer;
+      transition: all var(--duration-base) var(--ease-out);
+    }
+
+    .close-button:hover {
+      background: linear-gradient(135deg,
+        rgba(239, 68, 68, 0.25) 0%,
+        rgba(239, 68, 68, 0.15) 100%);
+      border-color: rgba(239, 68, 68, 0.55);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);
+    }
+
+    .tabs {
+      display: flex;
+      gap: var(--space-2);
+      margin-bottom: var(--space-6);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .tab {
+      background: transparent;
+      border: none;
+      color: var(--color-dark-text-tertiary);
+      padding: var(--space-3) var(--space-4);
+      font-size: var(--text-sm);
+      font-weight: var(--font-medium);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all var(--duration-base) var(--ease-out);
+      position: relative;
+    }
+
+    .tab::before {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 50%;
+      width: 0;
+      height: 2px;
+      background: var(--context-primary, #00d4aa);
+      transform: translateX(-50%);
+      transition: width var(--duration-base) var(--ease-out);
+      box-shadow: 0 0 8px var(--context-primary, #00d4aa);
+    }
+
+    .tab:hover {
+      color: var(--color-dark-text-secondary);
+      transform: translateY(-1px);
+    }
+
+    .tab:hover::before {
+      width: 60%;
+    }
+
+    .tab.active {
+      color: var(--context-primary, #00d4aa);
+      border-bottom-color: transparent;
+    }
+
+    .tab.active::before {
+      width: 100%;
+      box-shadow: 0 0 12px var(--context-primary, #00d4aa);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+      animation: tabContentSlideIn 0.5s var(--ease-out);
+    }
+
+    @keyframes tabContentSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
       }
       to {
         opacity: 1;
@@ -52,103 +209,88 @@ class UserSettingsPage extends LitElement {
       }
     }
 
-    .settings-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 2rem;
-      padding-bottom: 1rem;
-      border-bottom: 2px solid var(--context-primary, #00d4aa);
+    /* Staggered animation pour les enfants de tab-content */
+    .tab-content.active > .section {
+      animation: sectionStagger 0.6s var(--ease-out) backwards;
     }
 
-    .settings-title {
-      font-size: 2em;
-      font-weight: 600;
-      background: linear-gradient(135deg, var(--context-primary, #00d4aa) 0%, #007acc 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+    .tab-content.active > .section:nth-child(1) {
+      animation-delay: 0.05s;
     }
 
-    .close-button {
-      background: rgba(255, 107, 107, 0.15);
-      border: 1px solid rgba(255, 107, 107, 0.3);
-      color: #ff6b6b;
-      padding: 0.6rem 1.2rem;
-      border-radius: 8px;
-      font-size: 0.9em;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.3s ease;
+    .tab-content.active > .section:nth-child(2) {
+      animation-delay: 0.1s;
     }
 
-    .close-button:hover {
-      background: rgba(255, 107, 107, 0.25);
-      border-color: rgba(255, 107, 107, 0.5);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+    .tab-content.active > .section:nth-child(3) {
+      animation-delay: 0.15s;
     }
 
-    .tabs {
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 2rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    .tab-content.active > .section:nth-child(4) {
+      animation-delay: 0.2s;
     }
 
-    .tab {
-      background: transparent;
-      border: none;
-      color: #888;
-      padding: 0.8rem 1.5rem;
-      font-size: 0.95em;
-      font-weight: 500;
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      transition: all 0.3s ease;
+    @keyframes sectionStagger {
+      from {
+        opacity: 0;
+        transform: translateY(15px) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
     }
 
-    .tab:hover {
-      color: #bbb;
-    }
-
-    .tab.active {
-      color: var(--context-primary, #00d4aa);
-      border-bottom-color: var(--context-primary, #00d4aa);
-    }
-
-    .tab-content {
-      display: none;
-      animation: fadeIn 0.3s ease;
-    }
-
-    .tab-content.active {
-      display: block;
-    }
-
+    /* Section bio-organique comme les widgets */
     .section {
-      background: linear-gradient(135deg, rgba(26, 26, 26, 0.9) 0%, rgba(15, 15, 15, 0.85) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
-      padding: 1.5rem;
-      margin-bottom: 1.5rem;
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 3%, rgba(19, 20, 26, 0.95)) 0%,
+        rgba(15, 15, 15, 0.9) 100%);
+      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 12%, transparent);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+      margin-bottom: var(--space-5);
+      backdrop-filter: blur(var(--blur-base));
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3),
+                  0 0 0 1px color-mix(in srgb, var(--context-primary, #00d4aa) 6%, transparent),
+                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 4%, transparent);
+      transition: all var(--duration-base) var(--ease-out);
+      overflow: hidden; /* Empêche le débordement */
+      animation: sectionPulse 8s ease-in-out infinite; /* Respiration subtile */
+    }
+
+    .section:hover {
+      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 18%, transparent);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4),
+                  0 0 0 1px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
+                  0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent),
+                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
+    }
+
+    @keyframes sectionPulse {
+      0%, 100% {
+        border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 12%, transparent);
+      }
+      50% {
+        border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 16%, transparent);
+      }
     }
 
     .section-title {
-      font-size: 1.2em;
-      font-weight: 600;
+      font-size: var(--text-lg);
+      font-weight: var(--font-semibold);
       color: var(--context-primary, #00d4aa);
-      margin-bottom: 1rem;
+      margin-bottom: var(--space-3);
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: var(--space-2);
     }
 
     .section-description {
-      color: #aaa;
-      font-size: 0.9em;
-      margin-bottom: 1.5rem;
-      line-height: 1.5;
+      color: var(--color-dark-text-secondary);
+      font-size: var(--text-sm);
+      margin-bottom: var(--space-4);
+      line-height: var(--leading-normal);
     }
 
     .info-row {
@@ -209,6 +351,26 @@ class UserSettingsPage extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .button::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      transform: translate(-50%, -50%);
+      transition: width 0.6s ease, height 0.6s ease;
+    }
+
+    .button:hover::before {
+      width: 300px;
+      height: 300px;
     }
 
     .button:hover {
@@ -220,10 +382,18 @@ class UserSettingsPage extends LitElement {
       box-shadow: 0 4px 12px color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
     }
 
+    .button:active {
+      transform: translateY(0) scale(0.98); /* Feedback tactile */
+    }
+
     .button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
       transform: none;
+    }
+
+    .button:disabled::before {
+      display: none;
     }
 
     .button.danger {
@@ -238,12 +408,31 @@ class UserSettingsPage extends LitElement {
       box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
     }
 
+    /* Container MFA setup - Style contextuel */
     .mfa-setup-container {
-      margin-top: 1.5rem;
-      padding: 1.5rem;
-      background: rgba(0, 212, 170, 0.05);
-      border: 1px dashed rgba(0, 212, 170, 0.3);
-      border-radius: 8px;
+      margin-top: var(--space-4);
+      padding: var(--space-4);
+      max-width: 100%; /* Empêche débordement */
+      overflow: hidden; /* Force wrapping du contenu */
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent) 0%,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 2%, transparent) 100%);
+      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      border-radius: var(--radius-md);
+      box-shadow: 0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent),
+                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
+      animation: containerGlow 6s ease-in-out infinite; /* Glow pulsant */
+    }
+
+    @keyframes containerGlow {
+      0%, 100% {
+        box-shadow: 0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent),
+                    inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
+      }
+      50% {
+        box-shadow: 0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
+                    inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 12%, transparent);
+      }
     }
 
     .qr-code-container {
@@ -274,31 +463,77 @@ class UserSettingsPage extends LitElement {
     }
 
     .input-group {
-      margin: 1.5rem 0;
+      margin: var(--space-4) 0;
+      max-width: 100%; /* Force containment */
+      overflow: hidden; /* Empêche débordement */
     }
 
     .input-label {
-      color: #aaa;
-      font-size: 0.9em;
-      margin-bottom: 0.5rem;
+      color: var(--color-dark-text-secondary);
+      font-size: var(--text-sm);
+      margin-bottom: var(--space-2);
       display: block;
+      font-weight: var(--font-medium);
+      animation: labelFadeIn 0.4s ease-out; /* Apparition douce */
     }
 
+    @keyframes labelFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Inputs avec focus bioluminescent */
     .input {
       width: 100%;
-      background: rgba(0, 0, 0, 0.3);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      color: #e0e0e0;
-      padding: 0.8rem 1rem;
-      border-radius: 8px;
-      font-size: 1em;
-      transition: all 0.3s ease;
+      max-width: 100%; /* CRITIQUE: Empêche débordement horizontal */
+      min-width: 0; /* Permet rétrécissement si nécessaire */
+      box-sizing: border-box; /* Padding inclus dans width */
+      background: linear-gradient(135deg,
+        rgba(0, 0, 0, 0.4) 0%,
+        rgba(0, 0, 0, 0.3) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--color-dark-text-primary);
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-md);
+      font-size: var(--text-base);
+      font-family: var(--font-sans);
+      transition: all var(--duration-base) var(--ease-out);
     }
 
     .input:focus {
       outline: none;
+      background: rgba(0, 0, 0, 0.5);
       border-color: var(--context-primary, #00d4aa);
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent),
+                  0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
+                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
+      animation: inputGlow 0.6s ease-out; /* Pulse au focus */
+    }
+
+    @keyframes inputGlow {
+      0% {
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      }
+      50% {
+        box-shadow: 0 0 0 6px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
+                    0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+      }
+      100% {
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent),
+                    0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
+                    inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
+      }
+    }
+
+    .input:hover:not(:focus) {
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px); /* Légère élévation */
     }
 
     .backup-codes {
@@ -381,22 +616,63 @@ class UserSettingsPage extends LitElement {
       to { transform: rotate(360deg); }
     }
 
+    /* Mobile responsive - Compact */
     @media (max-width: 768px) {
+      :host {
+        padding: var(--space-2);
+      }
+
       .settings-container {
-        padding: 1rem;
-        margin: 1rem;
+        padding: var(--space-3);
+        margin: var(--space-2);
+        max-width: 100%;
+      }
+
+      .settings-header {
+        padding-right: 0; /* Reset padding-right sur mobile */
+        padding-bottom: var(--space-6); /* Plus d'espace pour le bouton */
       }
 
       .settings-title {
-        font-size: 1.5em;
+        font-size: var(--text-xl);
+        max-width: calc(100% - 90px); /* Espace pour le bouton */
+      }
+
+      .close-button {
+        padding: var(--space-2) var(--space-3);
+        font-size: var(--text-xs);
+        /* Reste en absolute top-right */
       }
 
       .tabs {
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        margin-bottom: var(--space-4);
+      }
+
+      .tabs::-webkit-scrollbar {
+        display: none;
       }
 
       .tab {
         white-space: nowrap;
+        flex-shrink: 0;
+        padding: var(--space-2) var(--space-3);
+        font-size: var(--text-xs);
+      }
+
+      .section {
+        padding: var(--space-4);
+        margin-bottom: var(--space-4);
+      }
+
+      .mfa-setup-container {
+        padding: var(--space-3);
+      }
+
+      .input-group {
+        margin: var(--space-3) 0;
       }
     }
   `

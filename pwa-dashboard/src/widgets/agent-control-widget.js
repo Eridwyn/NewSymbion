@@ -34,14 +34,17 @@ class AgentControlWidget extends LitElement {
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(8px);
+      background: radial-gradient(ellipse at center,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 3%, rgba(0, 0, 0, 0.85)) 0%,
+        rgba(0, 0, 0, 0.9) 100%);
+      backdrop-filter: blur(var(--blur-xl));
+      -webkit-backdrop-filter: blur(var(--blur-xl));
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 1000;
+      z-index: 9999;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      animation: fadeIn 0.3s ease;
+      animation: fadeIn 0.3s ease-out;
     }
 
     @keyframes fadeIn {
@@ -58,8 +61,8 @@ class AgentControlWidget extends LitElement {
     }
 
     .modal {
-      background: linear-gradient(135deg, rgba(26, 26, 26, 0.98) 0%, rgba(15, 15, 15, 0.95) 100%);
-      border: 1px solid rgba(0, 212, 170, 0.2);
+      background: linear-gradient(135deg, rgba(30, 30, 30, 0.98) 0%, rgba(20, 20, 20, 0.98) 100%);
+      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
       border-radius: 20px;
       width: 90%;
       max-width: 900px;
@@ -67,7 +70,8 @@ class AgentControlWidget extends LitElement {
       max-height: 700px;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 212, 170, 0.15);
+      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6),
+                  0 0 40px color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
       color: var(--widget-color, #e5e5e5);
       overflow: hidden;
       animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -89,20 +93,35 @@ class AgentControlWidget extends LitElement {
       justify-content: space-between;
       align-items: center;
       padding: 24px 28px;
-      border-bottom: 1px solid rgba(0, 212, 170, 0.15);
+      border-bottom: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
       position: relative;
+      animation: modalHeaderSlideIn 0.5s ease-out 0.1s backwards;
+    }
+
+    @keyframes modalHeaderSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .modal-header::after {
       content: '';
       position: absolute;
-      bottom: 0;
+      bottom: -1px;
       left: 0;
-      right: 0;
+      width: 30%;
       height: 2px;
-      background: linear-gradient(90deg, transparent, rgba(0, 212, 170, 0.5), transparent);
-      opacity: 0.5;
+      background: linear-gradient(90deg,
+        var(--context-primary, #00d4aa) 0%,
+        transparent 100%);
+      opacity: 0.8;
+      box-shadow: 0 0 10px var(--context-primary, #00d4aa);
     }
 
     .modal-title {
@@ -173,9 +192,11 @@ class AgentControlWidget extends LitElement {
     }
 
     .close-btn {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: #888;
+      background: linear-gradient(135deg,
+        rgba(255, 107, 107, 0.15) 0%,
+        rgba(255, 107, 107, 0.08) 100%);
+      border: 1px solid rgba(255, 107, 107, 0.3);
+      color: #ff6b6b;
       font-size: 28px;
       cursor: pointer;
       padding: 8px 12px;
@@ -185,11 +206,13 @@ class AgentControlWidget extends LitElement {
     }
 
     .close-btn:hover {
-      background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.15) 100%);
-      border-color: rgba(239, 68, 68, 0.4);
-      color: #ff6b6b;
-      transform: rotate(90deg);
-      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+      background: linear-gradient(135deg,
+        rgba(255, 107, 107, 0.25) 0%,
+        rgba(255, 107, 107, 0.15) 100%);
+      border-color: rgba(255, 107, 107, 0.5);
+      color: #ffffff;
+      transform: rotate(90deg) translateY(-2px);
+      box-shadow: 0 6px 16px rgba(255, 107, 107, 0.3);
     }
 
     .modal-tabs {
