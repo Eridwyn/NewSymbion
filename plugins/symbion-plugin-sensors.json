@@ -1,0 +1,19 @@
+{
+  "name": "sensors-manager",
+  "description": "Environment sensors manager (F1) - ESP32 BME280 IoT",
+  "version": "0.1.0",
+  "binary": "./target/release/symbion-plugin-sensors",
+  "contracts": [
+    "sensors.registration@v1",
+    "sensors.env@v1",
+    "sensors.list@v1",
+    "sensors.response@v1"
+  ],
+  "auto_start": true,
+  "restart_on_failure": true,
+  "startup_timeout_seconds": 10,
+  "shutdown_timeout_seconds": 5,
+  "depends_on": [],
+  "start_priority": 25,
+  "env": {}
+}

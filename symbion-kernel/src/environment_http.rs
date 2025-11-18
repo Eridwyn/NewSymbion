@@ -53,9 +53,8 @@ fn default_hours() -> u32 {
 pub fn build_environment_routes(state: AppState) -> Router {
     Router::new()
         .route("/sensors", get(list_sensors))
-        .route("/sensors/:sensor_id", get(get_sensor))
-        .route("/sensors/:sensor_id", delete(unregister_sensor))
-        .route("/sensors/:sensor_id/history", get(get_sensor_history))
+        .route("/sensors/{sensor_id}", get(get_sensor).delete(unregister_sensor))
+        .route("/sensors/{sensor_id}/history", get(get_sensor_history))
         .with_state(state)
 }
 
