@@ -160,10 +160,17 @@ impl SensorRegistry {
             room_env.status = status;
             room_env.history.push(env_reading);
 
-            // Circular buffer: keep max 100 readings
-            if room_env.history.len() > 100 {
+            // Retention policy: Keep 7 days of data
+            // ESP32 sends ~5 sec → 12 readings/min → 17,280 readings/day → ~2,100 per week
+            // Keep max 2,100 readings (~7 days with 5sec interval)
+            const MAX_READINGS: usize = 2100;
+            if room_env.history.len() > MAX_READINGS {
                 room_env.history.remove(0);
             }
+
+            // Time-based cleanup: Remove readings older than 7 days
+            let seven_days_ago = OffsetDateTime::now_utc() - Duration::from_secs(7 * 24 * 3600);
+            room_env.history.retain(|r| r.timestamp > seven_days_ago);
 
             println!(
                 "[sensors-plugin] reading: {} = {:.1}°C, {:.1}% (status: {:?})",

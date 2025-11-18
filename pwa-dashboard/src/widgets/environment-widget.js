@@ -11,6 +11,10 @@
 
 import { LitElement, html, css } from 'lit'
 import '../components/organic-loader.js'
+import { Chart, registerables } from 'chart.js'
+
+// Register Chart.js components
+Chart.register(...registerables)
 
 class EnvironmentWidget extends LitElement {
   static properties = {
@@ -19,6 +23,10 @@ class EnvironmentWidget extends LitElement {
     loading: { type: Boolean },
     error: { type: String },
     viewMode: { type: String }, // 'grid' or 'list'
+    selectedRoom: { type: String }, // Room ID for modal
+    modalOpen: { type: Boolean },
+    chartData: { type: Array }, // Historical data for chart
+    loadingChart: { type: Boolean }
   }
 
   static styles = css`
@@ -263,6 +271,112 @@ class EnvironmentWidget extends LitElement {
       font-size: 14px;
       line-height: 1.6;
     }
+
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .modal-content {
+      background: linear-gradient(135deg, #1a1a1a 0%, #252525 100%);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 16px;
+      max-width: 900px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      animation: slideUp 0.3s ease;
+    }
+
+    @keyframes slideUp {
+      from {
+        transform: translateY(30px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .modal-title {
+      font-size: 24px;
+      font-weight: 600;
+      color: #ffffff;
+      text-transform: capitalize;
+    }
+
+    .modal-close {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .modal-close:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .modal-body {
+      padding: 24px;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 400px;
+      margin-top: 20px;
+    }
+
+    .chart-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 400px;
+      color: #888;
+    }
+
+    .room-card {
+      cursor: pointer;
+    }
+
+    .room-card:hover {
+      transform: translateY(-4px);
+    }
   `
 
   constructor() {
@@ -272,6 +386,11 @@ class EnvironmentWidget extends LitElement {
     this.loading = true
     this.error = null
     this.viewMode = 'grid'
+    this.selectedRoom = null
+    this.modalOpen = false
+    this.chartData = []
+    this.loadingChart = false
+    this.chart = null  // Chart.js instance
   }
 
   connectedCallback() {
@@ -375,6 +494,175 @@ class EnvironmentWidget extends LitElement {
     return '📶 Faible'
   }
 
+  async openRoomModal(roomId) {
+    this.selectedRoom = roomId
+    this.modalOpen = true
+    this.loadingChart = true
+    this.chartData = []
+
+    // Force render to show modal
+    this.requestUpdate()
+
+    try {
+      // Fetch 7 days of history (168 hours)
+      const apiBase = window.SYMBION_CONFIG?.API_BASE || 'https://localhost:8443'
+      const response = await fetch(`${apiBase}/v1/environment/${roomId}/history?hours=168`, {
+        headers: {
+          'X-API-Key': localStorage.getItem('symbion_api_key') || window.SYMBION_CONFIG?.API_KEY || 's3cr3t-42'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch history: ${response.status}`)
+      }
+
+      const historyData = await response.json()
+      this.chartData = historyData
+      this.loadingChart = false
+
+      // Wait for render then create chart
+      await this.updateComplete
+      this.createChart()
+    } catch (err) {
+      console.error('Failed to load chart data:', err)
+      this.loadingChart = false
+    }
+  }
+
+  closeModal() {
+    this.modalOpen = false
+    this.selectedRoom = null
+    if (this.chart) {
+      this.chart.destroy()
+      this.chart = null
+    }
+  }
+
+  createChart() {
+    const canvas = this.shadowRoot.querySelector('#environmentChart')
+    if (!canvas || !this.chartData || this.chartData.length === 0) {
+      console.warn('Cannot create chart: missing canvas or data')
+      return
+    }
+
+    // Destroy existing chart if any
+    if (this.chart) {
+      this.chart.destroy()
+    }
+
+    // Prepare data for Chart.js
+    const labels = this.chartData.map(r => {
+      const date = new Date(r.timestamp)
+      return date.toLocaleDateString('fr-FR', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    })
+
+    const temperatures = this.chartData.map(r => r.temperature_c)
+    const humidities = this.chartData.map(r => r.humidity_pct)
+
+    this.chart = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Température (°C)',
+            data: temperatures,
+            borderColor: 'rgb(59, 130, 246)',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            borderWidth: 2,
+            tension: 0.4,
+            fill: true,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Humidité (%)',
+            data: humidities,
+            borderColor: 'rgb(34, 197, 94)',
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            borderWidth: 2,
+            tension: 0.4,
+            fill: true,
+            yAxisID: 'y1'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        plugins: {
+          legend: {
+            labels: {
+              color: '#e0e0e0',
+              font: {
+                size: 14
+              }
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            titleColor: '#ffffff',
+            bodyColor: '#e0e0e0',
+            borderColor: 'rgba(59, 130, 246, 0.3)',
+            borderWidth: 1
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: '#888',
+              maxRotation: 45,
+              minRotation: 45
+            },
+            grid: {
+              color: 'rgba(255, 255, 255, 0.1)'
+            }
+          },
+          y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            title: {
+              display: true,
+              text: 'Température (°C)',
+              color: 'rgb(59, 130, 246)'
+            },
+            ticks: {
+              color: 'rgb(59, 130, 246)'
+            },
+            grid: {
+              color: 'rgba(255, 255, 255, 0.1)'
+            }
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            title: {
+              display: true,
+              text: 'Humidité (%)',
+              color: 'rgb(34, 197, 94)'
+            },
+            ticks: {
+              color: 'rgb(34, 197, 94)'
+            },
+            grid: {
+              drawOnChartArea: false,
+            }
+          }
+        }
+      }
+    })
+  }
+
   render() {
     if (this.loading) {
       return html`
@@ -440,7 +728,7 @@ class EnvironmentWidget extends LitElement {
     const statusLabel = this.getStatusLabel(status)
 
     return html`
-      <div class="room-card ${status}">
+      <div class="room-card ${status}" @click="${() => this.openRoomModal(roomId)}">
         <div class="room-header">
           <div class="room-name">${roomId}</div>
           <div class="status-badge ${status}">
@@ -470,6 +758,45 @@ class EnvironmentWidget extends LitElement {
             <span class="sensor-signal">${this.formatSignalStrength(sensor.signal_rssi)}</span>
           </div>
         ` : ''}
+      </div>
+
+      ${this.modalOpen && this.selectedRoom === roomId ? this.renderModal() : ''}
+    `
+  }
+
+  renderModal() {
+    const env = this.environments[this.selectedRoom]
+    if (!env) return ''
+
+    return html`
+      <div class="modal-overlay" @click="${() => this.closeModal()}">
+        <div class="modal-content" @click="${(e) => e.stopPropagation()}">
+          <div class="modal-header">
+            <div class="modal-title">
+              📊 Historique - ${this.selectedRoom}
+            </div>
+            <button class="modal-close" @click="${() => this.closeModal()}">
+              ✕
+            </button>
+          </div>
+
+          <div class="modal-body">
+            ${this.loadingChart ? html`
+              <div class="chart-loading">
+                <organic-loader></organic-loader>
+              </div>
+            ` : html`
+              <div>
+                <p style="color: #888; margin: 0 0 12px 0;">
+                  Derniers 7 jours (${this.chartData.length} lectures)
+                </p>
+                <div class="chart-container">
+                  <canvas id="environmentChart"></canvas>
+                </div>
+              </div>
+            `}
+          </div>
+        </div>
       </div>
     `
   }
