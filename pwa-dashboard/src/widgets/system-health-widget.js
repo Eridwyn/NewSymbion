@@ -90,7 +90,7 @@ class SystemHealthWidget extends LitElement {
     
     .metrics-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
       gap: 1rem;
     }
     
@@ -142,6 +142,67 @@ class SystemHealthWidget extends LitElement {
       filter: drop-shadow(0 2px 4px rgba(0, 212, 170, 0.3));
     }
 
+    /* Status Indicator Styles */
+    .status-indicator {
+      font-size: 2.5em !important;
+      line-height: 1;
+      background: none !important;
+      -webkit-background-clip: unset !important;
+      -webkit-text-fill-color: unset !important;
+      animation: none !important;
+      filter: none !important;
+    }
+
+    .status-indicator.connected {
+      color: #00d4aa;
+      text-shadow: 0 0 20px rgba(0, 212, 170, 0.8),
+                   0 0 40px rgba(0, 212, 170, 0.4);
+      animation: statusPulse 2s ease-in-out infinite !important;
+    }
+
+    .status-indicator.connecting {
+      color: #ffd93d;
+      text-shadow: 0 0 20px rgba(255, 217, 61, 0.6),
+                   0 0 40px rgba(255, 217, 61, 0.3);
+      animation: statusSpin 2s linear infinite !important;
+    }
+
+    .status-indicator.disconnected {
+      color: #ff6b6b;
+      text-shadow: 0 0 20px rgba(255, 107, 107, 0.6),
+                   0 0 40px rgba(255, 107, 107, 0.3);
+      animation: statusBlink 1.5s ease-in-out infinite !important;
+    }
+
+    @keyframes statusPulse {
+      0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+      }
+    }
+
+    @keyframes statusSpin {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes statusBlink {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.3;
+      }
+    }
+
     @keyframes gradient-shift {
       0%, 100% {
         background-position: 0% 50%;
@@ -190,7 +251,7 @@ class SystemHealthWidget extends LitElement {
     /* Responsive */
     @media (max-width: 768px) {
       .metrics-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, 1fr) !important;
         gap: 0.8rem;
       }
 
@@ -200,6 +261,10 @@ class SystemHealthWidget extends LitElement {
 
       .metric-value {
         font-size: 1.6em;
+      }
+
+      .status-indicator {
+        font-size: 2em !important;
       }
 
       .metric-label {
@@ -340,8 +405,8 @@ class SystemHealthWidget extends LitElement {
         </div>
         
         <div class="metric-card">
-          <div class="metric-value">
-            ${this.health.mqtt_status === 'connected' ? '✅' : (this.health.mqtt_status === 'connecting' ? '🔄' : '❌')}
+          <div class="metric-value status-indicator ${this.health.mqtt_status}">
+            ${this.health.mqtt_status === 'connected' ? '●' : (this.health.mqtt_status === 'connecting' ? '◐' : '○')}
           </div>
           <div class="metric-label">MQTT</div>
         </div>

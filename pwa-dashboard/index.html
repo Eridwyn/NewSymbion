@@ -11,6 +11,14 @@
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#1a1a1a">
 
+    <!-- Design System -->
+    <link rel="stylesheet" href="/src/styles/design-system.css">
+
+    <!-- Inter Font from Google Fonts (Professional Typography) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <style>
         * {
             margin: 0;
@@ -19,10 +27,12 @@
         }
 
         body {
-            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-            background: #000000;
-            color: #00d4aa;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            background: #0a0a0b;
+            color: #f8f9fa;
             line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         #app {

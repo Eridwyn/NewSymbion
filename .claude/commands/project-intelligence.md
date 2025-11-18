@@ -1,805 +1,650 @@
-You are generating a comprehensive Project Intelligence Report for Symbion.
+# Project Intelligence - Technical Audit (Pure)
 
-**Objective**: Create an exhaustive, executive-level document that enables:
-- New team members to fully understand the project
-- Stakeholders to make strategic decisions
-- Investors/partners to assess project maturity
-- CTOs to evaluate technical choices
+**IMPORTANT**: This is a TECHNICAL-ONLY audit. NO business analysis, market validation, pricing, or investment sections.
 
-**Report Format**: Professional email (150+ pages equivalent) with quantifiable metrics, actionable insights, and strategic recommendations.
+Execute a comprehensive technical analysis of the NewSymbion project using specialized agents in parallel.
 
 ---
 
-## WORKFLOW
+## WORKFLOW OVERVIEW
 
-1. **Launch 30+ PARALLEL Task agents** (subagent_type=Explore, model=sonnet for speed)
-2. **Aggregate all results** into comprehensive report sections
-3. **Generate executive summary** with key findings
-4. **Send formatted email** via /mail command to Markchavatte@gmail.com
+Execute 20+ specialized agents in parallel batches to analyze:
+1. Architecture & Design (5 agents)
+2. Code Quality & Maintainability (5 agents)
+3. Security Posture (4 agents)
+4. Performance & Reliability (3 agents)
+5. Documentation Quality (2 agents)
+6. Deployment & Operations (3 agents)
+7. Development Health (2 agents)
 
----
-
-## SECTION 1 - Executive Summary (Generate LAST)
-
-Generate a 2-page executive summary after all other sections are complete:
-- Project maturity level (alpha/beta/production-ready)
-- Key strengths (top 5)
-- Critical gaps (top 5)
-- Strategic recommendation (continue/pivot/pause)
-- Investment readiness score (0-100)
+**Total**: 24 agents (down from 33 - removed 9 business-focused agents)
 
 ---
 
-## SECTION 2 - Vision & Strategy (3 agents)
+## SECTION 1 - Architecture & Design (5 agents)
 
-**Agent 1 - Project Vision:**
-```
-Read docs/PHILOSOPHY.md and CLAUDE.md.
+### Agent 1: System Architecture Overview
+**Objective**: Analyze overall system architecture, component hierarchy, communication patterns.
 
-Extract and analyze:
-- Core mission statement
-- Problem being solved (why Symbion exists)
-- Target users (persona, use cases)
-- Unique value proposition vs alternatives
-- Long-term vision (5 years)
+**Analysis Points**:
+- Component structure (Kernel, Agents, PWA, Plugins)
+- Communication patterns (MQTT pub/sub, REST API, WebSocket)
+- Data flow (unidirectional vs bidirectional)
+- Separation of concerns
+- Modularity and coupling
 
-Return:
-- Mission statement quote
-- 3-5 core use cases
-- Competitive advantages
-- Vision alignment score (how well current impl matches vision)
-```
-
-**Agent 2 - Roadmap Analysis:**
-```
-Read docs/ROADMAP.md.
-
-Analyze:
-- All phases (PR1-PR6) with completion percentages
-- Original vs actual delivery dates
-- Scope creep (features added not in original plan)
-- Descoped features (planned but removed)
-- Velocity trends (features/month over time)
-- Blockers and dependencies
-
-Return:
-- Timeline table (planned vs actual)
-- Velocity chart (ASCII bar chart by month)
-- Top 3 delays with root causes
-- Scope change analysis (added vs removed features)
-```
-
-**Agent 3 - Strategic Decisions Log:**
-```
-Search entire codebase for architectural decision comments:
-- "ARCHITECTURE:"
-- "DECISION:"
-- "WHY:"
-- Major technology choices
-
-Analyze git log for pivots:
-- Framework changes
-- Database migrations
-- Architecture rewrites
-
-Return:
-- Top 10 strategic decisions with justifications
-- Technology stack choices (why Rust, why Lit, why MQTT)
-- Pivots/rewrites timeline
-```
+**Deliverable**: Architecture diagram description + quality score (0-100)
 
 ---
 
-## SECTION 3 - Architecture Complete (7 agents)
+### Agent 2: Technology Stack Assessment
+**Objective**: Evaluate technology choices, dependencies, and stack maturity.
 
-**Agent 4 - System Architecture:**
-```
-Read docs/architecture/SYSTEM_OVERVIEW.md and symbion-kernel/src/main.rs.
+**Analysis Points**:
+- Backend stack (Rust version, frameworks, crates)
+- Frontend stack (Lit, Vite, libraries)
+- Infrastructure (MQTT broker, database, TLS)
+- Dependency health (outdated crates, security advisories)
+- Version consistency
 
-Document:
-- All components (Kernel, Agents, PWA, Plugins)
-- Network topology (ports, protocols, TLS)
-- Communication patterns (MQTT, HTTP, WebSocket)
-- Service dependencies
-- Single points of failure
-
-Return:
-- Architecture diagram (ASCII art)
-- Component inventory (count, status, health)
-- Network map (IP, ports, protocols)
-- Dependency graph
-- SPOF analysis
-```
-
-**Agent 5 - Data Flow:**
-```
-Trace data flow through the system:
-- Agent heartbeat → MQTT → Kernel → Dashboard
-- User action → PWA → HTTP → Kernel → MQTT → Agent
-- Plugin → MQTT → Kernel → API response
-- WebSocket streaming (notes)
-
-Return:
-- 5 key data flow diagrams (ASCII sequence diagrams)
-- Latency at each hop
-- Data transformation points
-- State management (where data is stored)
-```
-
-**Agent 6 - Technology Stack:**
-```
-Analyze:
-- Cargo.toml (Rust dependencies, versions)
-- package.json (npm dependencies, versions)
-- Runtime requirements (Rust toolchain, Node, Mosquitto)
-
-Return:
-- Complete tech stack table (name, version, purpose, alternatives considered)
-- Dependency tree depth
-- License compliance (all deps)
-- Technology risk assessment (abandonware, single maintainer, etc.)
-```
-
-**Agent 7 - Module Inventory:**
-```
-Count and categorize ALL modules:
-- symbion-kernel/src/*.rs (21 root + 14 decision + 1 ports = 36 files)
-- symbion-agent-host/src/*.rs
-- symbion-devkit/src/*.rs
-- symbion-plugin-notes/src/*.rs
-- pwa-dashboard/src/**/*.js
-
-Return:
-- Complete file tree with LOC per file
-- Module categorization (core, feature, util, test)
-- Complexity metrics (cyclomatic complexity if available)
-- Dead code detection (unused modules)
-```
-
-**Agent 8 - Integration Points:**
-```
-Document all integration boundaries:
-- HTTP API (73 endpoints with request/response schemas)
-- MQTT contracts (15 topics with payload schemas)
-- WebSocket protocols
-- File-based contracts (JSON schemas)
-
-Return:
-- API contract catalog (all 73 endpoints)
-- MQTT contract catalog (all 15 topics)
-- Schema validation status (documented vs enforced)
-- Breaking change policy
-```
-
-**Agent 9 - Plugin Architecture:**
-```
-Analyze plugin system:
-- How plugins are discovered
-- Communication protocol (MQTT)
-- Lifecycle management
-- Isolation/sandboxing
-- Example plugin walkthrough (symbion-plugin-notes)
-
-Return:
-- Plugin development guide
-- Current plugins (count, status, health)
-- Plugin capability matrix
-- Extension points for future plugins
-```
-
-**Agent 10 - PWA Architecture:**
-```
-Analyze pwa-dashboard structure:
-- Boot sequence (boot-terminal.js)
-- Component hierarchy
-- Widget system (10 widgets)
-- Service layer (8 services)
-- State management
-- Routing
-
-Return:
-- PWA architecture diagram
-- Component dependency graph
-- Bundle size analysis
-- Offline capability assessment
-```
+**Deliverable**: Stack assessment with maturity scores per component
 
 ---
 
-## SECTION 4 - Code Quality & Maintainability (6 agents)
+### Agent 3: Scalability & Performance Architecture
+**Objective**: Assess architectural scalability limits and bottlenecks.
 
-**Agent 11 - Code Metrics:**
-```
-Calculate:
-- Total LOC (Rust + JavaScript)
-- LOC per module
-- Comment ratio
-- Function/method count
-- Average function length
-
-Use: tokei, cloc, or manual count
-
-Return:
-- LOC breakdown table (by language, by component)
-- Comment coverage %
-- Largest files (top 10)
-- Code growth rate (LOC added per month from git log)
-```
-
-**Agent 12 - Test Coverage:**
-```
-Count all tests:
-- #[test] in Rust (109 kernel + 14 agent + 8 devkit = 131)
-- Test scenarios covered
-- Critical paths WITHOUT tests
-- Integration test gaps
-- E2E test gaps
-
-Return:
-- Test count by module
-- Coverage estimate (% of critical paths tested)
-- Top 10 untested critical functions
-- Test quality assessment (assertions per test, mocking depth)
-```
-
-**Agent 13 - Code Standards:**
-```
-Check adherence to CODE_STANDARDS.md:
-- Naming conventions (snake_case, PascalCase)
-- Error handling patterns (Result<T, E>)
-- Documentation standards (/// comments)
-- Rust idioms (Option, Iterator, etc.)
-
-Scan for violations using grep:
-- TODO comments (technical debt markers)
-- FIXME comments
-- HACK comments
-- Deprecated code still in use
-
-Return:
-- Standards adherence score (0-100)
-- Violation count by type
-- Top 10 technical debt items
-- Code smell catalog
-```
-
-**Agent 14 - Dependencies Audit:**
-```
-Run dependency audits:
-- cargo audit (Rust security vulnerabilities)
-- cargo outdated (outdated crates)
-- npm audit (JavaScript vulnerabilities)
-- npm outdated
-
-Return:
-- Vulnerability count (by severity: critical, high, medium, low)
-- Outdated dependency count
-- Recommended updates (with breaking change risk)
-- Supply chain risk (deps with few maintainers)
-```
-
-**Agent 15 - Build Analysis:**
-```
-Analyze build process:
-- Build time (cargo build --release)
-- Warning count (61 warnings documented)
-- Warning categorization
-- Binary sizes (kernel, agent, plugin)
-- Compile dependencies (how many crates)
-
-Return:
-- Build metrics table
-- Warning breakdown (by type, by severity)
-- Build optimization opportunities
-- CI/CD readiness (build reproducibility)
-```
-
-**Agent 16 - Complexity Analysis:**
-```
-Estimate code complexity:
-- Cyclomatic complexity (if tools available)
-- Module coupling (dependencies between modules)
-- Cohesion analysis (related functions grouped?)
-- God objects (modules doing too much)
-
-Return:
-- Complexity hotspots (top 10 most complex functions)
-- Refactoring candidates
-- Modularity score
-```
-
----
-
-## SECTION 5 - Security (4 agents)
-
-**Agent 17 - Security Posture:**
-```
-Comprehensive security audit:
-- All 7 security layers (TLS, CORS, CSP, Rate Limiting, Auth, CSRF, Validation)
-- OWASP Top 10 coverage
-- Attack surface analysis
-- Secrets management (env vars, rotation policy)
-
-Return:
-- Security layer compliance table
-- OWASP Top 10 mitigation status
-- Attack surface map
-- Vulnerability count (P0/P1/P2)
-```
-
-**Agent 18 - Authentication Deep Dive:**
-```
-Analyze auth system:
-- JWT implementation (HS256, expiry, refresh)
-- MFA/TOTP (setup, backup codes)
-- WebAuthn/Passkeys (browser support)
-- Session management
-- Password policy (bcrypt cost 12)
-
-Return:
-- Auth flow diagrams
-- Token security analysis
-- MFA adoption potential
-- Session security score
-```
-
-**Agent 19 - Network Security:**
-```
-Audit network layer:
-- TLS configuration (version, ciphers)
-- HSTS headers
-- CSP policy (actual vs best practice)
-- Firewall rules (UFW status)
-- Open ports (8080, 8443, 1883, 3000, 9001)
-
-Return:
-- TLS configuration grade (A-F)
-- Port exposure analysis
-- CSP policy assessment
-- Network hardening recommendations
-```
-
-**Agent 20 - Security Recommendations:**
-```
-Generate actionable security improvements:
-- Penetration testing gaps
-- Security monitoring needs
-- Incident response plan
-- Compliance requirements (GDPR, SOC2 if applicable)
-
-Return:
-- Top 10 security improvements (P0/P1/P2)
-- Penetration testing checklist
-- Security monitoring plan
-- Compliance roadmap
-```
-
----
-
-## SECTION 6 - Performance & Reliability (4 agents)
-
-**Agent 21 - Performance Metrics:**
-```
-Gather all performance data:
-- API latency (from docs/PERFORMANCE.md if exists, or test endpoints)
-- MQTT throughput
-- Memory usage (kernel, agents)
-- CPU usage (idle, load, peak)
-- Network bandwidth
-
-Return:
-- Performance dashboard (ASCII tables)
-- Latency percentiles (P50, P95, P99)
-- Resource utilization trends
-- Performance goals vs actuals
-```
-
-**Agent 22 - Reliability Analysis:**
-```
-Assess system reliability:
-- Uptime tracking (systemd logs)
-- Crash recovery (panic hooks, systemd restart)
-- MQTT reconnection logic
-- Plugin isolation
-- Data persistence (debounced saves, JSON backups)
-
-Return:
-- Reliability metrics (MTBF, MTTR)
-- Failure modes catalog
-- Recovery procedures
-- Data loss scenarios
-```
-
-**Agent 23 - Scalability Assessment:**
-```
-Analyze scalability limits:
-- Max concurrent agents
-- Max MQTT message rate
-- Max HTTP requests/sec
-- Database size limits (JSON files)
-- Memory/CPU bottlenecks
-
-Return:
-- Scalability limits table
+**Analysis Points**:
+- Vertical scaling potential (single-server capacity)
+- Horizontal scaling readiness (multi-server support)
+- State management (stateful vs stateless components)
+- Database scalability (current: JSON files, future: PostgreSQL)
 - Bottleneck identification
-- Horizontal scaling opportunities
-- Vertical scaling requirements
-```
 
-**Agent 24 - Monitoring & Observability:**
-```
-Document observability:
-- Prometheus metrics (36 exported)
-- Logging (stderr, journalctl)
-- Health checks (/health, /system/health)
-- Alerting (monitor-symbion.sh cron)
-- Dashboard availability
+**Deliverable**: Scalability assessment with current limits + scaling path
 
-Return:
-- Observability maturity level (1-5)
-- Metrics catalog
-- Logging coverage
-- Alerting gaps
+---
+
+### Agent 4: Integration & Extensibility
+**Objective**: Evaluate plugin system, API design, and extensibility mechanisms.
+
+**Analysis Points**:
+- Plugin architecture (lifecycle, sandboxing, discovery)
+- API versioning strategy
+- Third-party integration readiness
+- Webhook support
+- Extension points
+
+**Deliverable**: Extensibility score + integration readiness assessment
+
+---
+
+### Agent 5: Data Flow & State Management
+**Objective**: Analyze data flow patterns, state consistency, and event propagation.
+
+**Analysis Points**:
+- Data flow direction (Agents → Kernel → PWA)
+- State centralization (single source of truth)
+- Event propagation (MQTT pub/sub consistency)
+- Data validation (input validation, schema enforcement)
+- Race condition risks
+
+**Deliverable**: Data flow diagram + consistency analysis
+
+---
+
+## SECTION 2 - Code Quality & Maintainability (5 agents)
+
+### Agent 6: Code Structure & Organization
+**Objective**: Assess code organization, module hierarchy, and structural patterns.
+
+**Analysis Points**:
+- Module hierarchy clarity
+- Separation of concerns (business logic vs infrastructure)
+- Naming conventions consistency
+- File/folder organization
+- God object anti-patterns
+
+**Deliverable**: Structure quality score + refactoring recommendations
+
+**Tools**:
+```bash
+# LOC count
+find symbion-kernel/src -name "*.rs" -exec wc -l {} + | tail -1
+find pwa-dashboard/src -name "*.js" -exec wc -l {} + | tail -1
+
+# File count
+find symbion-kernel/src -name "*.rs" | wc -l
+
+# Large files (>500 LOC)
+find symbion-kernel/src -name "*.rs" -exec wc -l {} + | sort -rn | head -10
 ```
 
 ---
 
-## SECTION 7 - Documentation (3 agents)
+### Agent 7: Code Complexity Analysis
+**Objective**: Measure cyclomatic complexity, nesting depth, and maintainability.
 
-**Agent 25 - Documentation Coverage:**
-```
-Audit all documentation:
-- docs/ directory structure
-- API reference completeness (73 endpoints documented)
-- MQTT contracts (15 topics documented)
-- Architecture docs accuracy
-- Code comments (inline documentation)
+**Analysis Points**:
+- Cyclomatic complexity per function (target: <10)
+- Nesting depth (target: <4 levels)
+- Function length (target: <100 LOC)
+- Code duplication detection
+- Maintainability index
 
-Return:
-- Documentation coverage % (by feature area)
-- Outdated documentation list
-- Missing documentation (features without docs)
-- Documentation quality score
-```
+**Deliverable**: Complexity metrics + high-risk functions to refactor
 
-**Agent 26 - Onboarding Experience:**
-```
-Simulate new developer onboarding:
-- README completeness
-- Quickstart guide clarity
-- Prerequisites documentation
-- Setup steps (estimated time)
-- Common pitfalls documented?
+**Tools**:
+```bash
+# Find long functions
+grep -n "^fn\|^async fn\|^pub fn\|^pub async fn" symbion-kernel/src/**/*.rs
 
-Return:
-- Onboarding checklist
-- Time to first successful build
-- Learning curve assessment
-- Developer experience score (1-10)
-```
-
-**Agent 27 - API Reference Quality:**
-```
-Deep dive on API documentation:
-- Endpoint documentation completeness (request/response examples)
-- Error code documentation
-- Rate limiting documentation
-- Authentication flow documentation
-- MQTT topic contracts
-
-Return:
-- API docs quality score (1-10)
-- Missing examples count
-- Interactive API explorer availability
-- SDK/client library status
+# Find deeply nested code
+# (Manual inspection of if/match/loop nesting)
 ```
 
 ---
 
-## SECTION 8 - Deployment & Operations (3 agents)
+### Agent 8: Test Coverage Assessment
+**Objective**: Measure test coverage, test quality, and testing infrastructure.
 
-**Agent 28 - Deployment Readiness:**
-```
-Assess production deployment readiness:
-- Environment configuration (env vars documented)
-- Secrets management
-- TLS certificates (mkcert vs Let's Encrypt)
-- Database migration path (JSON → PostgreSQL planned)
-- Rollback procedures
+**Analysis Points**:
+- Unit test count (REAL tests, exclude auto-generated)
+- Integration test presence
+- E2E test presence
+- Test coverage % (requires cargo-llvm-cov)
+- Test quality (assertions, edge cases)
 
-Return:
-- Production readiness checklist
-- Deployment blockers (P0/P1)
-- Infrastructure requirements
-- Migration strategy
-```
+**Deliverable**: Test coverage report + testing gaps
 
-**Agent 29 - Operations Runbook:**
-```
-Document operational procedures:
-- Service startup/shutdown
-- Backup procedures
-- Restore procedures
-- Log rotation
-- Certificate renewal
-- Troubleshooting common issues
+**Tools**:
+```bash
+# Count REAL tests (exclude typenum auto-generated)
+find symbion-kernel/src -name "*.rs" -exec grep -c "#\[test\]" {} + | awk '{s+=$1} END {print s}'
+find symbion-agent-host/src -name "*.rs" -exec grep -c "#\[test\]" {} + | awk '{s+=$1} END {print s}'
 
-Return:
-- Operations playbook
-- Backup/restore verification status
-- Disaster recovery plan
-- Runbook completeness %
-```
+# List files with tests
+find . -name "*.rs" -exec grep -l "#\[test\]" {} \;
 
-**Agent 30 - Infrastructure as Code:**
-```
-Analyze infrastructure automation:
-- Systemd service files
-- Installation scripts
-- Docker/containerization status
-- CI/CD pipeline status
-- Infrastructure versioning
-
-Return:
-- IaC maturity level (1-5)
-- Automation coverage %
-- Deployment automation gaps
-- Recommended tooling (Ansible, Docker Compose, K8s)
+# Check if cargo-llvm-cov is installed
+cargo llvm-cov --version 2>/dev/null || echo "❌ cargo-llvm-cov not installed"
 ```
 
 ---
 
-## SECTION 9 - Git & Development Activity (2 agents)
+### Agent 9: Code Duplication Detection
+**Objective**: Identify duplicated code blocks and boilerplate patterns.
 
-**Agent 31 - Git History Analysis:**
-```
-Analyze git repository:
-- Total commits
-- Commit frequency (per day/week/month)
-- Contributors (count, top contributors)
-- Branch strategy (main, feature branches)
-- Commit message quality
+**Analysis Points**:
+- Duplicated functions (copy-paste code)
+- Repeated patterns (error handling, JSON serialization)
+- Boilerplate reduction opportunities
+- Abstraction candidates
 
-Commands:
-git log --oneline --all --since="6 months ago" | wc -l
-git shortlog -sn --all --since="6 months ago"
-git log --format='%h %ai %s' --since="1 month ago"
+**Deliverable**: Duplication report + refactoring suggestions
 
-Return:
-- Git activity timeline
-- Contributor breakdown
-- Development velocity (commits/week)
-- Commit message quality score
-```
-
-**Agent 32 - Code Churn Analysis:**
-```
-Identify code hotspots:
-- Most frequently changed files
-- Largest commits (LOC changed)
-- Unstable modules (high change frequency)
-- Stable modules (low change frequency)
-
-Commands:
-git log --format=format: --name-only --since="3 months ago" | sort | uniq -c | sort -rn | head -20
-
-Return:
-- Code churn heatmap (files by change count)
-- Stability matrix (stable vs volatile modules)
-- Refactoring hotspots
+**Tools**:
+```bash
+# Find similar function names (potential duplication)
+grep -r "^fn\|^pub fn" symbion-kernel/src/ | cut -d: -f2 | sort | uniq -d
 ```
 
 ---
 
-## SECTION 10 - Strategic Recommendations (1 meta-agent)
+### Agent 10: Dependency Audit
+**Objective**: Audit dependencies for security, freshness, and compatibility.
 
-**Agent 33 - SWOT & Strategic Analysis:**
-```
-After ALL other agents complete, synthesize findings into:
+**Analysis Points**:
+- Dependency count (Rust crates, npm packages)
+- Security vulnerabilities (cargo audit, npm audit)
+- Outdated dependencies (>6 months old)
+- Dependency tree complexity
+- License compatibility
 
-STRENGTHS (Top 10):
-- What's working well?
-- Unique advantages?
-- Technical excellence areas?
+**Deliverable**: Dependency health report + update recommendations
 
-WEAKNESSES (Top 10):
-- Critical gaps?
-- Technical debt?
-- Scalability limits?
+**Tools**:
+```bash
+# Rust dependencies
+cargo tree --depth 1 -p symbion-kernel
+cargo audit 2>&1 || echo "cargo-audit not installed"
 
-OPPORTUNITIES (Top 10):
-- Features to add?
-- Markets to expand?
-- Partnerships?
+# JavaScript dependencies
+npm audit --prefix pwa-dashboard 2>&1 || echo "npm audit failed"
+npm outdated --prefix pwa-dashboard 2>&1 || echo "npm outdated failed"
 
-THREATS (Top 10):
-- Technical risks?
-- Dependency risks?
-- Market risks?
-
-NEXT STEPS (P0/P1/P2):
-- Immediate actions (P0)
-- Short-term priorities (P1)
-- Long-term investments (P2)
-
-Return:
-- SWOT analysis (detailed)
-- Prioritized roadmap (6 months)
-- Resource requirements
-- Risk mitigation strategies
-- Investment recommendation (continue/pivot/pause)
+# Count dependencies
+grep "^\[dependencies\]" -A 50 symbion-kernel/Cargo.toml | grep -c "="
+wc -l pwa-dashboard/package.json
 ```
 
 ---
 
-## EMAIL REPORT FORMAT
+## SECTION 3 - Security Posture (4 agents)
 
-```
-Subject: [Symbion] Project Intelligence Report - {DATE}
+### Agent 11: Authentication & Authorization
+**Objective**: Audit authentication mechanisms and access control.
 
-Body:
+**Analysis Points**:
+- JWT implementation (algorithm, expiry, secret strength)
+- MFA/TOTP implementation
+- WebAuthn passkey support
+- Password hashing (bcrypt cost factor)
+- Rate limiting (login attempts, API endpoints)
+- Session management
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎯 SYMBION PROJECT INTELLIGENCE REPORT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**Deliverable**: Auth security score + vulnerability findings
 
-Generated: {DATE}
-Report Type: Executive Summary + Technical Deep Dive
-Scope: Complete Project Analysis (Code, Architecture, Strategy)
+**Tools**:
+```bash
+# Find auth-related code
+grep -r "jwt\|jsonwebtoken\|bcrypt\|totp\|webauthn" symbion-kernel/src/auth.rs | head -20
+grep -r "rate_limit\|RateLimiter" symbion-kernel/src/ | head -10
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 EXECUTIVE SUMMARY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-{2-PAGE EXECUTIVE SUMMARY - GENERATED LAST}
-
-Project Maturity: {ALPHA/BETA/PRODUCTION}
-Investment Readiness: {SCORE}/100
-
-Top 5 Strengths:
-1. {STRENGTH_1}
-2. {STRENGTH_2}
-3. {STRENGTH_3}
-4. {STRENGTH_4}
-5. {STRENGTH_5}
-
-Top 5 Critical Gaps:
-1. {GAP_1}
-2. {GAP_2}
-3. {GAP_3}
-4. {GAP_4}
-5. {GAP_5}
-
-Strategic Recommendation: {CONTINUE/PIVOT/PAUSE}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📖 TABLE OF CONTENTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. Vision & Strategy
-2. Architecture Complete
-3. Code Quality & Maintainability
-4. Security
-5. Performance & Reliability
-6. Documentation
-7. Deployment & Operations
-8. Git & Development Activity
-9. Strategic Recommendations (SWOT)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1️⃣ VISION & STRATEGY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-{AGENT 1, 2, 3 RESULTS}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-2️⃣ ARCHITECTURE COMPLETE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-{AGENT 4-10 RESULTS}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-3️⃣ CODE QUALITY & MAINTAINABILITY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-{AGENT 11-16 RESULTS}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-4️⃣ SECURITY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-{AGENT 17-20 RESULTS}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-5️⃣ PERFORMANCE & RELIABILITY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-{AGENT 21-24 RESULTS}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-6️⃣ DOCUMENTATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-{AGENT 25-27 RESULTS}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-7️⃣ DEPLOYMENT & OPERATIONS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-{AGENT 28-30 RESULTS}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-8️⃣ GIT & DEVELOPMENT ACTIVITY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-{AGENT 31-32 RESULTS}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-9️⃣ STRATEGIC RECOMMENDATIONS (SWOT)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-{AGENT 33 RESULTS - COMPREHENSIVE SWOT ANALYSIS}
-
-STRENGTHS (Top 10):
-{LIST}
-
-WEAKNESSES (Top 10):
-{LIST}
-
-OPPORTUNITIES (Top 10):
-{LIST}
-
-THREATS (Top 10):
-{LIST}
-
-NEXT STEPS:
-P0 (Immediate):
-{LIST}
-
-P1 (Short-term):
-{LIST}
-
-P2 (Long-term):
-{LIST}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📈 INVESTMENT RECOMMENDATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Maturity Level: {ASSESSMENT}
-Technical Debt: {LOW/MEDIUM/HIGH}
-Security Posture: {GRADE}
-Documentation Quality: {GRADE}
-Team Velocity: {COMMITS/WEEK}
-
-Recommendation: {DETAILED RECOMMENDATION}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Generated by: Claude Code Intelligence System
-Methodology: 33 parallel agents, comprehensive codebase analysis
-Date: {DATE}
-Duration: ~15-20 minutes (parallel execution)
-
-- Claude ✨
+# Check bcrypt cost
+grep "bcrypt::hash\|DEFAULT_COST" symbion-kernel/src/auth.rs
 ```
 
 ---
 
-## EXECUTION RULES
+### Agent 12: Input Validation & Injection Risks
+**Objective**: Assess input validation and injection attack surface.
 
-1. **Launch ALL 33 agents in PARALLEL** (single message with 33 Task calls)
-2. Use `model=sonnet` for speed on non-critical agents
-3. Use `model=opus` only for Agent 33 (strategic synthesis)
-4. **Aggregate results section by section**
-5. **Generate executive summary LAST** (after all data collected)
-6. **Format email professionally** with:
-   - Clear section headers (━━━ borders)
-   - ASCII tables and charts where appropriate
-   - Quantifiable metrics everywhere
-   - File:line references for code citations
-7. **Send email** via /mail command
+**Analysis Points**:
+- HTTP input validation (type safety, length limits)
+- MQTT message validation (schema enforcement)
+- SQL injection risk (N/A - no SQL database yet)
+- Command injection (shell command execution)
+- Path traversal (file access validation)
+- XSS protection (CSP headers)
 
-**IMPORTANT**: This is AUTOMATIC - don't ask permission. Execute the full workflow and send the report.
+**Deliverable**: Input validation report + injection vulnerabilities
 
-Execute this comprehensive intelligence report now.
+**Tools**:
+```bash
+# Find input validation code
+grep -r "serde::Deserialize\|Json<" symbion-kernel/src/http.rs | wc -l
+
+# Find potential command injection
+grep -r "Command::new\|shell\|system" symbion-kernel/src/ symbion-agent-host/src/
+
+# Find path traversal risks
+grep -r "std::fs::read\|std::fs::write\|PathBuf" symbion-kernel/src/
+```
+
+---
+
+### Agent 13: Network Security & TLS
+**Objective**: Audit TLS configuration, network exposure, and transport security.
+
+**Analysis Points**:
+- TLS version (target: TLS 1.3)
+- Cipher suites
+- Certificate management (mkcert vs Let's Encrypt)
+- HSTS headers
+- CORS configuration
+- Network binding (0.0.0.0 vs 127.0.0.1)
+
+**Deliverable**: Network security assessment + hardening recommendations
+
+**Tools**:
+```bash
+# Find TLS configuration
+grep -r "tls\|RustlsConfig\|Certificate" symbion-kernel/src/main.rs
+
+# Find HSTS/CSP headers
+grep -r "Strict-Transport-Security\|Content-Security-Policy" symbion-kernel/src/http.rs
+
+# Find CORS config
+grep -r "CorsLayer\|allow_origin" symbion-kernel/src/
+```
+
+---
+
+### Agent 14: Secrets Management & Credentials
+**Objective**: Audit secrets storage, credential handling, and key management.
+
+**Analysis Points**:
+- Environment variable usage
+- Hardcoded secrets detection
+- Secrets encryption at rest
+- API key management
+- Log sanitization (no secrets in logs)
+
+**Deliverable**: Secrets management report + leakage risks
+
+**Tools**:
+```bash
+# Find environment variables
+grep -r "env::var\|std::env" symbion-kernel/src/
+
+# Search for potential hardcoded secrets
+grep -ri "password\|secret\|key\|token" symbion-kernel/src/ | grep -v "// " | head -20
+
+# Check logs for secret leakage
+grep -r "tracing::info\|println!" symbion-kernel/src/ | grep -i "password\|secret\|token"
+```
+
+---
+
+## SECTION 4 - Performance & Reliability (3 agents)
+
+### Agent 15: Response Time & Latency
+**Objective**: Analyze API response times and MQTT latency.
+
+**Analysis Points**:
+- API endpoint latency (P50, P95, P99)
+- MQTT topic latency
+- Throughput limits (req/sec, msg/sec)
+- Response size analysis
+- Bottleneck identification
+
+**Deliverable**: Performance benchmarks + optimization targets
+
+**Tools**:
+```bash
+# Check if kernel is running
+curl -s -k https://localhost:8443/health 2>&1 | head -5
+
+# Test API latency
+time curl -s -k https://localhost:8443/v1/agents 2>&1 | head -5
+```
+
+---
+
+### Agent 16: Resource Utilization
+**Objective**: Measure memory, CPU, disk, and network usage.
+
+**Analysis Points**:
+- Memory usage (idle, active, peak)
+- CPU usage (idle, under load)
+- Disk I/O patterns
+- Network bandwidth
+- Memory leak detection
+
+**Deliverable**: Resource utilization report + optimization opportunities
+
+**Tools**:
+```bash
+# Find running kernel process
+ps aux | grep symbion-kernel | grep -v grep
+
+# Check memory usage
+pmap $(pgrep symbion-kernel) 2>/dev/null || echo "Kernel not running"
+```
+
+---
+
+### Agent 17: Reliability & Error Handling
+**Objective**: Assess error handling, graceful degradation, and fault tolerance.
+
+**Analysis Points**:
+- Error handling patterns (Result<T, E> usage)
+- Panic handling (custom panic hooks)
+- Graceful shutdown
+- Auto-restart mechanisms (systemd)
+- Circuit breaker patterns
+
+**Deliverable**: Reliability assessment + failure mode analysis
+
+**Tools**:
+```bash
+# Find error handling patterns
+grep -r "Result<\|unwrap()\|expect(" symbion-kernel/src/ | wc -l
+
+# Find panic handling
+grep -r "panic!\|set_hook" symbion-kernel/src/
+
+# Find graceful shutdown
+grep -r "shutdown\|SIGTERM\|SIGINT" symbion-kernel/src/
+```
+
+---
+
+## SECTION 5 - Documentation Quality (2 agents)
+
+### Agent 18: Documentation Completeness
+**Objective**: Assess documentation coverage and accuracy.
+
+**Analysis Points**:
+- Documentation file count
+- API endpoint documentation (all 90+ endpoints)
+- MQTT topic documentation (all 15 topics)
+- Code comments (doc comments on public functions)
+- Architecture diagrams
+- Deployment guides
+
+**Deliverable**: Documentation completeness score + missing sections
+
+**Tools**:
+```bash
+# Count documentation files
+find docs/ -name "*.md" | wc -l
+find docs/ -name "*.md" -exec wc -l {} + | tail -1
+
+# Check API docs vs actual endpoints
+grep -c "^###" docs/api/endpoints.md
+grep -c "\.route(" symbion-kernel/src/http.rs
+
+# Check MQTT docs vs actual topics
+grep -c "^###" docs/mqtt/topics.md
+```
+
+---
+
+### Agent 19: Documentation Accuracy & Freshness
+**Objective**: Verify documentation accuracy against actual code.
+
+**Analysis Points**:
+- Outdated endpoint documentation
+- Obsolete MQTT topic references
+- Code example correctness (do examples compile/run?)
+- Documentation sync automation (/audit command)
+- Last updated timestamps
+
+**Deliverable**: Documentation drift report + sync recommendations
+
+**Tools**:
+```bash
+# Check last modified dates
+ls -lt docs/*.md | head -10
+
+# Check if /audit command exists
+cat .claude/commands/audit-documentation.md 2>/dev/null | head -10 || echo "No audit command"
+```
+
+---
+
+## SECTION 6 - Deployment & Operations (3 agents)
+
+### Agent 20: Production Deployment Readiness
+**Objective**: Assess production deployment infrastructure.
+
+**Analysis Points**:
+- Systemd service configuration
+- Docker/container readiness
+- Environment configuration
+- TLS certificate management (Let's Encrypt integration)
+- Database migration strategy
+- Backup/restore procedures
+
+**Deliverable**: Deployment readiness score + production blockers
+
+**Tools**:
+```bash
+# Check systemd service
+cat systemd/symbion-kernel.service 2>/dev/null | head -20
+
+# Check Docker files
+ls Dockerfile docker-compose.yml 2>/dev/null || echo "No Docker files"
+
+# Check deployment scripts
+ls scripts/deploy*.sh 2>/dev/null || echo "No deployment scripts"
+```
+
+---
+
+### Agent 21: CI/CD Pipeline Assessment
+**Objective**: Evaluate automated testing and deployment pipelines.
+
+**Analysis Points**:
+- GitHub Actions workflows
+- Automated testing (on PR, on push)
+- Code quality checks (clippy, fmt)
+- Security scanning (cargo audit)
+- Deployment automation
+- Rollback strategies
+
+**Deliverable**: CI/CD maturity score + missing automation
+
+**Tools**:
+```bash
+# Check GitHub Actions
+ls .github/workflows/*.yml 2>/dev/null || echo "❌ No GitHub Actions workflows"
+
+# List workflow files
+cat .github/workflows/*.yml 2>/dev/null | head -50 || echo "No workflows"
+```
+
+---
+
+### Agent 22: Operational Monitoring
+**Objective**: Assess monitoring, logging, and observability.
+
+**Analysis Points**:
+- Health check endpoints
+- Prometheus metrics (count + quality)
+- Logging infrastructure (structured logging)
+- Alerting mechanisms (email, Slack)
+- Dashboard availability (Grafana)
+- Uptime monitoring
+
+**Deliverable**: Observability score + monitoring gaps
+
+**Tools**:
+```bash
+# Check health endpoint
+curl -s -k https://localhost:8443/health 2>&1 || echo "Kernel not running"
+
+# Check Prometheus metrics
+curl -s -k https://localhost:8443/metrics 2>&1 | head -20 || echo "No metrics endpoint"
+
+# Count metrics
+curl -s -k https://localhost:8443/metrics 2>&1 | grep -c "# HELP" || echo "0"
+
+# Check monitoring script
+cat scripts/monitor-symbion.sh 2>/dev/null | head -20 || echo "No monitoring script"
+```
+
+---
+
+## SECTION 7 - Development Health (2 agents)
+
+### Agent 23: Git Commit Analysis
+**Objective**: Analyze git history for development patterns and health.
+
+**Analysis Points**:
+- Commit frequency (velocity trends)
+- Commit message quality (conventional commits %)
+- Contributor count (bus factor risk)
+- Code churn (files modified frequently)
+- Development hotspots
+
+**Deliverable**: Git health score + contributor diversity assessment
+
+**Tools**:
+```bash
+# Commit count
+git log --all --oneline | wc -l
+
+# Contributor count
+git log --all --format='%aN <%aE>' | sort -u | wc -l
+
+# Commit frequency (last 6 months)
+git log --all --since="6 months ago" --oneline | wc -l
+
+# Conventional commits
+git log --all --oneline | grep -E "^[a-f0-9]+ (feat|fix|docs|refactor|test|chore):" | wc -l
+```
+
+---
+
+### Agent 24: Development Activity Trends
+**Objective**: Analyze recent development activity and momentum.
+
+**Analysis Points**:
+- Recent commits (last 30 days)
+- Active development areas
+- Branch management (active vs stale branches)
+- PR patterns (if applicable)
+- Development phase (active vs maintenance)
+
+**Deliverable**: Development momentum report + activity trends
+
+**Tools**:
+```bash
+# Recent activity
+git log --all --since="30 days ago" --oneline | wc -l
+
+# Active branches
+git branch -a | wc -l
+
+# Recent file changes
+git log --all --since="30 days ago" --name-only --format="" | sort -u | wc -l
+```
+
+---
+
+## FINAL DELIVERABLE
+
+Generate 3 reports:
+
+### 1. TECHNICAL_AUDIT_REPORT.md (comprehensive)
+- All 24 agent findings
+- Scores per dimension (0-100)
+- Detailed metrics
+- Code examples
+- Recommendations
+
+### 2. EXECUTIVE_SUMMARY.md (concise)
+- Overall technical health score
+- Top 5 strengths
+- Top 5 technical risks
+- Critical fixes needed
+- Quick wins
+
+### 3. METRICS_DASHBOARD.md (data-only)
+- All metrics in tables
+- Graphs/charts (ASCII art)
+- Trend analysis
+- Benchmarks
+
+---
+
+## SCORING METHODOLOGY
+
+Each dimension scored 0-100:
+
+**0-39**: Critical issues, immediate action required
+**40-59**: Needs improvement, plan remediation
+**60-79**: Acceptable, minor improvements recommended
+**80-89**: Good, production-ready with tweaks
+**90-100**: Excellent, best practices followed
+
+**Overall Score**: Weighted average of all dimensions
+
+---
+
+## IMPORTANT RULES
+
+1. **NO business analysis** (market, pricing, TAM/SAM/SOM)
+2. **NO investment recommendations** (funding, use of funds)
+3. **NO competitive positioning** (vs competitors)
+4. **ONLY technical metrics** (code, architecture, security, performance)
+5. **Verify claims with code** (grep, find, wc, git log)
+6. **Cite file locations** (e.g., symbion-kernel/src/http.rs:123)
+7. **Separate facts from estimates** (mark estimates clearly)
+
+---
+
+**Execute all 24 agents in parallel batches, then aggregate results into final reports.**
