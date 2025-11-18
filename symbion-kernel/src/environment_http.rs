@@ -55,6 +55,8 @@ pub fn build_environment_routes(state: AppState) -> Router {
         .route("/sensors", get(list_sensors))
         .route("/sensors/{sensor_id}", get(get_sensor).delete(unregister_sensor))
         .route("/sensors/{sensor_id}/history", get(get_sensor_history))
+        .route("/{room_id}", get(get_room_environment))
+        .route("/{room_id}/history", get(get_room_history))
         .with_state(state)
 }
 
@@ -123,4 +125,37 @@ async fn unregister_sensor(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// GET /v1/environment/:room_id
+/// Get current environment state for a specific room (e.g., "chambre", "salon")
+/// Returns the most recent reading from sensors in that room
+async fn get_room_environment(
+    State(app): State<AppState>,
+    Path(room_id): Path<String>,
+) -> Result<Json<RoomEnvironmentState>, StatusCode> {
+    let environment = app
+        .sensors
+        .get_environment_by_room(&room_id)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    Ok(Json(environment))
+}
+
+/// GET /v1/environment/:room_id/history?hours=24
+/// Get historical environment readings for a room, filtered by hours
+async fn get_room_history(
+    State(app): State<AppState>,
+    Path(room_id): Path<String>,
+    Query(params): Query<HistoryQuery>,
+) -> Result<Json<Vec<crate::environment::EnvReading>>, StatusCode> {
+    let environment = app
+        .sensors
+        .get_environment_by_room(&room_id)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Filter history by hours parameter
+    let filtered_history = environment.get_history(params.hours);
+
+    Ok(Json(filtered_history))
 }
