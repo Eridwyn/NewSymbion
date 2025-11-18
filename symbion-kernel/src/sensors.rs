@@ -158,6 +158,39 @@ impl SensorRegistry {
         self.environments.read().get(sensor_id).cloned()
     }
 
+    /// Get environment state by room_id (merges data from all sensors in that room)
+    /// Returns the most recent reading across all sensors for that room
+    pub fn get_environment_by_room(&self, room_id: &str) -> Option<RoomEnvironmentState> {
+        // Find all sensors for this room
+        let sensors_in_room: Vec<String> = self
+            .sensors
+            .read()
+            .values()
+            .filter(|s| s.room_id == room_id)
+            .map(|s| s.sensor_id.clone())
+            .collect();
+
+        if sensors_in_room.is_empty() {
+            return None;
+        }
+
+        // Get environment states for all sensors in room
+        let environments = self.environments.read();
+        let room_envs: Vec<RoomEnvironmentState> = sensors_in_room
+            .iter()
+            .filter_map(|sensor_id| environments.get(sensor_id).cloned())
+            .collect();
+
+        if room_envs.is_empty() {
+            return None;
+        }
+
+        // Return the most recent one (by current.timestamp)
+        room_envs
+            .into_iter()
+            .max_by_key(|env| env.current.timestamp)
+    }
+
     /// List all registered sensors
     pub fn list_sensors(&self) -> Vec<Sensor> {
         self.sensors.read().values().cloned().collect()
