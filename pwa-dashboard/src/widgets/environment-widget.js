@@ -120,17 +120,12 @@ class EnvironmentWidget extends LitElement {
       box-shadow: 0 0 15px rgba(34, 197, 94, 0.4);
     }
 
-    .room-card.humid::before {
-      background: linear-gradient(180deg, #eab308 0%, #ca8a04 100%);
-      box-shadow: 0 0 15px rgba(234, 179, 8, 0.4);
-    }
-
-    .room-card.risk_mold::before {
+    .room-card.mold_risk::before {
       background: linear-gradient(180deg, #f97316 0%, #ea580c 100%);
       box-shadow: 0 0 20px rgba(249, 115, 22, 0.5);
     }
 
-    .room-card.cold::before {
+    .room-card.temp_low::before {
       background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
       box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
     }
@@ -172,20 +167,14 @@ class EnvironmentWidget extends LitElement {
       border: 1px solid rgba(34, 197, 94, 0.3);
     }
 
-    .status-badge.humid {
-      background: rgba(234, 179, 8, 0.2);
-      color: #fde047;
-      border: 1px solid rgba(234, 179, 8, 0.3);
-    }
-
-    .status-badge.risk_mold {
+    .status-badge.mold_risk {
       background: rgba(249, 115, 22, 0.2);
       color: #fdba74;
       border: 1px solid rgba(249, 115, 22, 0.3);
       animation: pulse-warning 2s ease-in-out infinite;
     }
 
-    .status-badge.cold {
+    .status-badge.temp_low {
       background: rgba(59, 130, 246, 0.2);
       color: #93c5fd;
       border: 1px solid rgba(59, 130, 246, 0.3);
@@ -382,6 +371,54 @@ class EnvironmentWidget extends LitElement {
     .room-card:hover {
       transform: translateY(-4px);
     }
+
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      .modal-overlay {
+        padding: 0;
+        align-items: stretch;
+      }
+
+      .modal-content {
+        max-width: 100%;
+        max-height: 100vh;
+        height: 100vh;
+        border-radius: 0;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .modal-header {
+        padding: 16px;
+        position: sticky;
+        top: 0;
+        background: linear-gradient(135deg, #1a1a1a 0%, #252525 100%);
+        z-index: 10;
+        flex-shrink: 0;
+      }
+
+      .modal-title {
+        font-size: 18px;
+      }
+
+      .modal-body {
+        padding: 16px;
+        padding-bottom: 80px; /* Space for mobile nav */
+        flex: 1;
+        overflow-y: auto;
+      }
+
+      .chart-container {
+        height: 300px;
+        margin-top: 12px;
+      }
+
+      .chart-loading {
+        height: 300px;
+        font-size: 14px;
+      }
+    }
   `
 
   constructor() {
@@ -473,9 +510,8 @@ class EnvironmentWidget extends LitElement {
     const icons = {
       ok: '✓',
       normal: '✓',
-      humid: '⚠',
-      risk_mold: '🚨',
-      cold: '❄'
+      mold_risk: '🚨',
+      temp_low: '❄'
     }
     return icons[status] || '?'
   }
@@ -484,9 +520,8 @@ class EnvironmentWidget extends LitElement {
     const labels = {
       ok: 'Normal',
       normal: 'Normal',
-      humid: 'Humide',
-      risk_mold: 'Risque Moisissure',
-      cold: 'Froid'
+      mold_risk: 'Risque Moisissure',
+      temp_low: 'Froid'
     }
     return labels[status] || status
   }
@@ -718,11 +753,14 @@ class EnvironmentWidget extends LitElement {
         },
         plugins: {
           legend: {
+            position: window.innerWidth < 768 ? 'bottom' : 'top',
             labels: {
               color: '#e0e0e0',
               font: {
-                size: 14
-              }
+                size: window.innerWidth < 768 ? 11 : 14
+              },
+              padding: window.innerWidth < 768 ? 8 : 10,
+              boxWidth: window.innerWidth < 768 ? 12 : 15
             }
           },
           tooltip: {
@@ -730,17 +768,27 @@ class EnvironmentWidget extends LitElement {
             titleColor: '#ffffff',
             bodyColor: '#e0e0e0',
             borderColor: 'rgba(59, 130, 246, 0.3)',
-            borderWidth: 1
+            borderWidth: 1,
+            titleFont: {
+              size: window.innerWidth < 768 ? 12 : 14
+            },
+            bodyFont: {
+              size: window.innerWidth < 768 ? 11 : 13
+            },
+            padding: window.innerWidth < 768 ? 8 : 12
           }
         },
         scales: {
           x: {
             ticks: {
               color: '#888',
-              maxRotation: 45,
-              minRotation: 45,
-              maxTicksLimit: 12, // Limit to ~12 labels for readability
-              autoSkip: true
+              maxRotation: window.innerWidth < 768 ? 60 : 45,
+              minRotation: window.innerWidth < 768 ? 60 : 45,
+              maxTicksLimit: window.innerWidth < 768 ? 8 : 12,
+              autoSkip: true,
+              font: {
+                size: window.innerWidth < 768 ? 9 : 11
+              }
             },
             grid: {
               color: 'rgba(255, 255, 255, 0.1)'
@@ -753,10 +801,16 @@ class EnvironmentWidget extends LitElement {
             title: {
               display: true,
               text: 'Température (°C)',
-              color: 'rgb(34, 197, 94)' // Green
+              color: 'rgb(34, 197, 94)',
+              font: {
+                size: window.innerWidth < 768 ? 10 : 12
+              }
             },
             ticks: {
-              color: 'rgb(34, 197, 94)'
+              color: 'rgb(34, 197, 94)',
+              font: {
+                size: window.innerWidth < 768 ? 9 : 11
+              }
             },
             grid: {
               color: 'rgba(255, 255, 255, 0.1)'
@@ -769,10 +823,16 @@ class EnvironmentWidget extends LitElement {
             title: {
               display: true,
               text: 'Humidité (%)',
-              color: 'rgb(59, 130, 246)' // Blue
+              color: 'rgb(59, 130, 246)',
+              font: {
+                size: window.innerWidth < 768 ? 10 : 12
+              }
             },
             ticks: {
-              color: 'rgb(59, 130, 246)'
+              color: 'rgb(59, 130, 246)',
+              font: {
+                size: window.innerWidth < 768 ? 9 : 11
+              }
             },
             grid: {
               drawOnChartArea: false,
