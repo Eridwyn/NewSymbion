@@ -718,6 +718,8 @@ class EnvironmentWidget extends LitElement {
           return this.renderRoomCard(roomId, env, sensor)
         })}
       </div>
+
+      ${this.modalOpen ? this.renderModal() : ''}
     `
   }
 
@@ -759,8 +761,6 @@ class EnvironmentWidget extends LitElement {
           </div>
         ` : ''}
       </div>
-
-      ${this.modalOpen && this.selectedRoom === roomId ? this.renderModal() : ''}
     `
   }
 
