@@ -21,6 +21,7 @@ import '../widgets/agent-control-widget.js'
 import '../widgets/context-widget.js'
 import '../widgets/context-stats-widget.js'
 import '../widgets/context-settings-widget.js'
+import '../widgets/environment-widget.js'
 import './user-settings-page.js'
 import './notes-page.js'
 
@@ -1042,6 +1043,11 @@ class DashboardApp extends LitElement {
           <!-- Widget contexte -->
           <div class="widget-container">
             <context-widget></context-widget>
+          </div>
+
+          <!-- Widget environnement (F1) -->
+          <div class="widget-container">
+            <environment-widget></environment-widget>
           </div>
 
           <!-- Widget santé système -->
