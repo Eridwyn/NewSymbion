@@ -80,15 +80,22 @@ Historique des améliorations et changements majeurs du projet.
   - ✅ `GET /v1/environment/chambre/history?hours=24` → Array de readings filtrés
   - ✅ Axum route syntax corrigé (`:param` → `{param}`)
 
-#### PWA Environment Widget Scalable
-- **Feature** : Widget dashboard pour N sensors/rooms (principe évolutivité)
+#### PWA Environment Widget Scalable + Modal Historique
+- **Feature** : Widget dashboard pour N sensors/rooms avec graphiques historiques
 - **Architecture scalable** :
   - Fetch dynamique de TOUS les sensors via API
   - Extraction automatic unique room_ids (Set)
   - Rendu N room cards (pas de hard-coding)
   - Auto-refresh toutes les 30 secondes
-- **Fichiers créés** :
-  - `pwa-dashboard/src/widgets/environment-widget.js` (472 lignes)
+- **Modal Chart.js** (18 Nov après-midi) :
+  - Click sur room card → modal plein écran avec historique 7 jours
+  - Chart.js dual Y-axis (température + humidité)
+  - DOM portal pattern (render direct à `document.body`)
+  - 7-day data retention backend (2,100 readings max)
+  - Fixes: Shadow DOM disabled, portal overlay escapes widget container
+- **Fichiers créés/modifiés** :
+  - `pwa-dashboard/src/widgets/environment-widget.js` (850+ lignes)
+  - `symbion-plugin-sensors/src/main.rs:163-173` - 7-day retention policy
   - Intégration desktop: `dashboard-app.js:24,1048-1051`
   - Intégration mobile: `dashboard-app.js:1029-1031` (tab "Données")
 - **Design** :
