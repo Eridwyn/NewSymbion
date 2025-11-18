@@ -634,9 +634,39 @@ class EnvironmentWidget extends LitElement {
       this.chart.destroy()
     }
 
-    // Prepare data for Chart.js
-    const labels = this.chartData.map(r => {
+    // Downsample data for better performance and readability
+    // Keep 1 point every 30 minutes instead of every 5 seconds
+    const downsampleInterval = 6 // 30 min = 6 * 5 sec
+    const downsampledData = this.chartData.filter((_, index) => index % downsampleInterval === 0)
+
+    console.log(`[chart] Downsampled from ${this.chartData.length} to ${downsampledData.length} points`)
+
+    // Calculate stats for display
+    const temps = this.chartData.map(r => r.temperature_c)
+    const humids = this.chartData.map(r => r.humidity_pct)
+    const tempStats = {
+      min: Math.min(...temps).toFixed(1),
+      max: Math.max(...temps).toFixed(1),
+      avg: (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1)
+    }
+    const humidStats = {
+      min: Math.min(...humids).toFixed(1),
+      max: Math.max(...humids).toFixed(1),
+      avg: (humids.reduce((a, b) => a + b, 0) / humids.length).toFixed(1)
+    }
+
+    // Prepare data for Chart.js with adaptive date formatting
+    const labels = downsampledData.map(r => {
       const date = new Date(r.timestamp)
+      // If more than 2 days of data, show only day + hour
+      if (this.chartData.length > 576) { // 2 days at 5sec interval
+        return date.toLocaleDateString('fr-FR', {
+          day: 'numeric',
+          month: 'short',
+          hour: '2-digit'
+        })
+      }
+      // Otherwise show full date + time
       return date.toLocaleDateString('fr-FR', {
         month: 'short',
         day: 'numeric',
@@ -645,8 +675,8 @@ class EnvironmentWidget extends LitElement {
       })
     })
 
-    const temperatures = this.chartData.map(r => r.temperature_c)
-    const humidities = this.chartData.map(r => r.humidity_pct)
+    const temperatures = downsampledData.map(r => r.temperature_c)
+    const humidities = downsampledData.map(r => r.humidity_pct)
 
     this.chart = new Chart(canvas, {
       type: 'line',
@@ -654,24 +684,28 @@ class EnvironmentWidget extends LitElement {
         labels,
         datasets: [
           {
-            label: 'Température (°C)',
+            label: `Température (°C) - Min: ${tempStats.min}° | Moy: ${tempStats.avg}° | Max: ${tempStats.max}°`,
             data: temperatures,
-            borderColor: 'rgb(59, 130, 246)',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            borderColor: 'rgb(34, 197, 94)', // Green for temperature
+            backgroundColor: 'rgba(34, 197, 94, 0.15)',
             borderWidth: 2,
             tension: 0.4,
             fill: true,
-            yAxisID: 'y'
+            yAxisID: 'y',
+            pointRadius: 0, // Hide points for cleaner look
+            pointHoverRadius: 6 // Show on hover
           },
           {
-            label: 'Humidité (%)',
+            label: `Humidité (%) - Min: ${humidStats.min}% | Moy: ${humidStats.avg}% | Max: ${humidStats.max}%`,
             data: humidities,
-            borderColor: 'rgb(34, 197, 94)',
-            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            borderColor: 'rgb(59, 130, 246)', // Blue for humidity
+            backgroundColor: 'rgba(59, 130, 246, 0.15)',
             borderWidth: 2,
             tension: 0.4,
             fill: true,
-            yAxisID: 'y1'
+            yAxisID: 'y1',
+            pointRadius: 0,
+            pointHoverRadius: 6
           }
         ]
       },
@@ -704,7 +738,9 @@ class EnvironmentWidget extends LitElement {
             ticks: {
               color: '#888',
               maxRotation: 45,
-              minRotation: 45
+              minRotation: 45,
+              maxTicksLimit: 12, // Limit to ~12 labels for readability
+              autoSkip: true
             },
             grid: {
               color: 'rgba(255, 255, 255, 0.1)'
@@ -717,10 +753,10 @@ class EnvironmentWidget extends LitElement {
             title: {
               display: true,
               text: 'Température (°C)',
-              color: 'rgb(59, 130, 246)'
+              color: 'rgb(34, 197, 94)' // Green
             },
             ticks: {
-              color: 'rgb(59, 130, 246)'
+              color: 'rgb(34, 197, 94)'
             },
             grid: {
               color: 'rgba(255, 255, 255, 0.1)'
@@ -733,10 +769,10 @@ class EnvironmentWidget extends LitElement {
             title: {
               display: true,
               text: 'Humidité (%)',
-              color: 'rgb(34, 197, 94)'
+              color: 'rgb(59, 130, 246)' // Blue
             },
             ticks: {
-              color: 'rgb(34, 197, 94)'
+              color: 'rgb(59, 130, 246)'
             },
             grid: {
               drawOnChartArea: false,
