@@ -1027,6 +1027,9 @@ class DashboardApp extends LitElement {
           <!-- Contenu tab Données -->
           <div class="tab-content ${this.activeTab === 'donnees' ? 'active' : ''}">
             <div class="widget-container">
+              <environment-widget></environment-widget>
+            </div>
+            <div class="widget-container">
               <notes-widget
                 .apiService="${this.apiService}"
                 .connected="${this.connected}">

@@ -89,12 +89,17 @@ Historique des améliorations et changements majeurs du projet.
   - Auto-refresh toutes les 30 secondes
 - **Fichiers créés** :
   - `pwa-dashboard/src/widgets/environment-widget.js` (472 lignes)
-  - Intégration dans `dashboard-app.js:24,1048-1051`
+  - Intégration desktop: `dashboard-app.js:24,1048-1051`
+  - Intégration mobile: `dashboard-app.js:1029-1031` (tab "Données")
 - **Design** :
   - Cards avec status-based coloring (Normal vert, Humid jaune, RiskMold orange, Cold bleu)
   - Gradient border bioluminescent selon status
   - Lecture température + humidité + signal Wi-Fi
   - Empty state si 0 capteur
+- **Mobile Layout** :
+  - Widget placé en premier dans tab "📝 Données"
+  - Accessible sur téléphone via navigation tabs fixe
+  - Ordre: Environnement → Notes → Context Stats
 
 #### Documentation Complète
 - **Fichiers mis à jour** :
