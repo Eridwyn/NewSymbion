@@ -506,13 +506,13 @@ class EnvironmentWidget extends LitElement {
     this.loadingChart = true
     this.chartData = []
 
-    console.log('[environment-widget] Modal state:', {
-      modalOpen: this.modalOpen,
-      selectedRoom: this.selectedRoom
-    })
+    // Create modal container and append to document.body (portal pattern)
+    this.modalContainer = document.createElement('div')
+    this.modalContainer.id = 'environment-modal-portal'
+    document.body.appendChild(this.modalContainer)
 
-    // Force render to show modal
-    this.requestUpdate()
+    // Render loading state
+    this.renderModalToPortal()
 
     try {
       // Fetch 7 days of history (168 hours)
@@ -531,12 +531,15 @@ class EnvironmentWidget extends LitElement {
       this.chartData = historyData
       this.loadingChart = false
 
-      // Wait for render then create chart
-      await this.updateComplete
-      this.createChart()
+      // Re-render modal with chart data
+      this.renderModalToPortal()
+
+      // Wait a tick for DOM update then create chart
+      setTimeout(() => this.createChartInPortal(), 100)
     } catch (err) {
       console.error('Failed to load chart data:', err)
       this.loadingChart = false
+      this.renderModalToPortal()
     }
   }
 
@@ -547,10 +550,80 @@ class EnvironmentWidget extends LitElement {
       this.chart.destroy()
       this.chart = null
     }
+    // Remove modal from document.body
+    if (this.modalContainer && this.modalContainer.parentNode) {
+      this.modalContainer.parentNode.removeChild(this.modalContainer)
+      this.modalContainer = null
+    }
   }
 
-  createChart() {
-    const canvas = this.querySelector('#environmentChart')
+  renderModalToPortal() {
+    if (!this.modalContainer) return
+
+    const env = this.environments[this.selectedRoom]
+    if (!env) {
+      console.warn('[environment-widget] No environment data for:', this.selectedRoom)
+      return
+    }
+
+    // Build modal HTML string
+    const modalHTML = `
+      <style>
+        ${EnvironmentWidget.styles.cssText}
+      </style>
+      <div class="modal-overlay" id="modal-overlay">
+        <div class="modal-content" id="modal-content">
+          <div class="modal-header">
+            <div class="modal-title">
+              📊 Historique - ${this.selectedRoom}
+            </div>
+            <button class="modal-close" id="modal-close-btn">
+              ✕
+            </button>
+          </div>
+
+          <div class="modal-body">
+            ${this.loadingChart ? `
+              <div class="chart-loading">
+                <organic-loader></organic-loader>
+              </div>
+            ` : `
+              <div>
+                <p style="color: #888; margin: 0 0 12px 0;">
+                  Derniers 7 jours (${this.chartData.length} lectures)
+                </p>
+                <div class="chart-container">
+                  <canvas id="environmentChart"></canvas>
+                </div>
+              </div>
+            `}
+          </div>
+        </div>
+      </div>
+    `
+
+    this.modalContainer.innerHTML = modalHTML
+
+    // Attach event listeners
+    const overlay = this.modalContainer.querySelector('#modal-overlay')
+    const closeBtn = this.modalContainer.querySelector('#modal-close-btn')
+    const content = this.modalContainer.querySelector('#modal-content')
+
+    if (overlay) {
+      overlay.addEventListener('click', () => this.closeModal())
+    }
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => this.closeModal())
+    }
+    if (content) {
+      content.addEventListener('click', (e) => e.stopPropagation())
+    }
+  }
+
+  createChartInPortal() {
+    if (!this.modalContainer) return
+
+    const canvas = this.modalContainer.querySelector('#environmentChart')
     if (!canvas || !this.chartData || this.chartData.length === 0) {
       console.warn('Cannot create chart: missing canvas or data')
       return
@@ -736,8 +809,6 @@ class EnvironmentWidget extends LitElement {
           return this.renderRoomCard(roomId, env, sensor)
         })}
       </div>
-
-      ${this.modalOpen ? this.renderModal() : ''}
     `
   }
 
@@ -782,47 +853,6 @@ class EnvironmentWidget extends LitElement {
     `
   }
 
-  renderModal() {
-    console.log('[environment-widget] Rendering modal for:', this.selectedRoom)
-    const env = this.environments[this.selectedRoom]
-    if (!env) {
-      console.warn('[environment-widget] No environment data for:', this.selectedRoom)
-      return ''
-    }
-
-    console.log('[environment-widget] Modal will render with data:', env)
-    return html`
-      <div class="modal-overlay" @click="${() => this.closeModal()}">
-        <div class="modal-content" @click="${(e) => e.stopPropagation()}">
-          <div class="modal-header">
-            <div class="modal-title">
-              📊 Historique - ${this.selectedRoom}
-            </div>
-            <button class="modal-close" @click="${() => this.closeModal()}">
-              ✕
-            </button>
-          </div>
-
-          <div class="modal-body">
-            ${this.loadingChart ? html`
-              <div class="chart-loading">
-                <organic-loader></organic-loader>
-              </div>
-            ` : html`
-              <div>
-                <p style="color: #888; margin: 0 0 12px 0;">
-                  Derniers 7 jours (${this.chartData.length} lectures)
-                </p>
-                <div class="chart-container">
-                  <canvas id="environmentChart"></canvas>
-                </div>
-              </div>
-            `}
-          </div>
-        </div>
-      </div>
-    `
-  }
 }
 
 customElements.define('environment-widget', EnvironmentWidget)
