@@ -4,6 +4,61 @@ Historique des améliorations et changements majeurs du projet.
 
 ---
 
+## 🌡️ F1: Environment Sensors Plugin (18 Novembre 2025)
+
+**Status**: 🟢 100% complété
+
+### Plugin Sensors-Manager Implémenté
+
+#### Nouvelle fonctionnalité : Plugin ESP32 Environment Sensors
+- **Feature** : Plugin standalone pour monitoring environnement (température, humidité)
+- **Architecture** :
+  - Binary indépendant communiquant via MQTT
+  - Auto-registration des capteurs ESP32 BME280
+  - Stockage en mémoire thread-safe (RwLock)
+  - Circular buffer (max 100 readings par room)
+  - Status evaluation automatique (Normal, WarningVentilate >65%, RiskMold >70%, TempLow <16°C)
+- **MQTT Topics** :
+  - Subscribe: `symbion/sensors/registration@v1`, `symbion/sensors/+/env@v1`
+  - Publish: `symbion/plugin/sensors/response@v1`, `symbion/dashboard/environment@v1`
+- **Fichiers créés** :
+  - `symbion-plugin-sensors/src/main.rs` (275 lignes)
+  - `symbion-plugin-sensors/Cargo.toml`
+  - `plugins/symbion-plugin-sensors.json` (manifest complet)
+- **Documentation** : Guide complet de création de plugins ajouté
+  - `docs/PLUGIN_DEVELOPMENT_GUIDE.md` (450+ lignes)
+  - Checklist complète
+  - Debugging guide
+  - Pièges courants et solutions
+- **Capteur actif** :
+  - ESP32-CDE370 (chambre) : 22.9°C, 79.6% humidité
+  - Fréquence : 5 secondes
+  - Status : RiskMold détecté (>70%)
+
+#### Corrections et Apprentissages
+
+**Manifest du Plugin** - Tous les champs obligatoires :
+- `contracts` : Array des topics MQTT (obligatoire, peut être vide)
+- `restart_on_failure` : Boolean pour redémarrage automatique
+- `startup_timeout_seconds`, `shutdown_timeout_seconds` : Timeouts
+- `depends_on` : Array dépendances (obligatoire, peut être vide)
+- `start_priority` : Nombre 0-100 pour ordre démarrage
+- `env` : Object variables environnement (obligatoire, peut être vide)
+
+**Chemin Binary** :
+- ❌ `../target/release/...` (relatif depuis plugins/)
+- ✅ `./target/release/...` (relatif depuis racine projet)
+- Le kernel s'exécute depuis la racine, pas depuis `plugins/`
+
+**Permissions** :
+- Manifest JSON : `644 eridwyn:eridwyn` (readable par kernel)
+- Binary : `755 eridwyn:eridwyn` (exécutable)
+
+**Workspace** :
+- Ajouter nouveau plugin dans `Cargo.toml` racine `members = [...]`
+
+---
+
 ## 🔐 Phase 2: Security Hardening (14 Novembre 2025)
 
 **Status**: 🟢 100% complété (5/5 tâches)

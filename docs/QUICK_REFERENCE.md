@@ -190,6 +190,73 @@ http://localhost:3000
 
 ---
 
+## 🔌 Plugins Management
+
+### Lister Plugins Actifs
+```bash
+# Via API
+curl -k -H "X-API-Key: s3cr3t-42" \
+  https://localhost:8443/v1/plugins | jq '.'
+
+# Via processus
+pgrep -fa symbion-plugin
+
+# Via systemd logs
+sudo journalctl -u symbion-kernel | grep plugin
+```
+
+### Créer un Nouveau Plugin
+
+**Voir guide complet** : `docs/PLUGIN_DEVELOPMENT_GUIDE.md`
+
+```bash
+# 1. Créer structure
+mkdir symbion-plugin-<nom>
+cd symbion-plugin-<nom>
+cargo init
+
+# 2. Ajouter au workspace (Cargo.toml racine)
+members = ["symbion-plugin-<nom>"]
+
+# 3. Créer manifest (plugins/symbion-plugin-<nom>.json)
+{
+  "name": "<nom>-manager",
+  "binary": "./target/release/symbion-plugin-<nom>",
+  "contracts": ["<domaine>.command@v1"],
+  "auto_start": true,
+  "restart_on_failure": true,
+  "startup_timeout_seconds": 10,
+  "shutdown_timeout_seconds": 5,
+  "depends_on": [],
+  "start_priority": 20,
+  "env": {}
+}
+
+# 4. Compiler
+cargo build --release -p symbion-plugin-<nom>
+
+# 5. Vérifier permissions
+chmod +x target/release/symbion-plugin-<nom>
+chmod 644 plugins/symbion-plugin-<nom>.json
+
+# 6. Redémarrer kernel
+sudo systemctl restart symbion-kernel
+```
+
+### Debugging Plugins
+
+```bash
+# Voir logs découverte plugins
+sudo journalctl -u symbion-kernel --since "1m ago" | grep plugin
+
+# Erreurs communes :
+# "missing field 'contracts'" → Ajouter tous champs obligatoires
+# "binary not found ../target" → Utiliser ./target/release/...
+# "Permission denied" → chmod/chown manifest + binary
+```
+
+---
+
 ## 🧪 Développement Local
 
 ### Démarrer Kernel
