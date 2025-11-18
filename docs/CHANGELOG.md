@@ -57,6 +57,53 @@ Historique des améliorations et changements majeurs du projet.
 **Workspace** :
 - Ajouter nouveau plugin dans `Cargo.toml` racine `members = [...]`
 
+### F1 HTTP API Endpoints (18 Novembre 2025 - après-midi)
+
+#### API REST pour Environnement IoT
+- **Feature** : 5 nouveaux endpoints HTTP pour consultation données capteurs
+- **Endpoints ajoutés** :
+  - `GET /v1/environment/sensors` - Liste tous les capteurs
+  - `GET /v1/environment/sensors/{sensor_id}` - Détails capteur + état actuel
+  - `GET /v1/environment/sensors/{sensor_id}/history?hours=24` - Historique par capteur
+  - `DELETE /v1/environment/sensors/{sensor_id}` - Désinscrire capteur (manuel)
+  - `GET /v1/environment/{room_id}` - État actuel d'une pièce (aggregation multi-sensors)
+  - `GET /v1/environment/{room_id}/history?hours=24` - Historique filtré par pièce
+- **Architecture** :
+  - SensorRegistry avec méthodes thread-safe (`get_environment_by_room()`)
+  - Aggregation multi-sensors par room_id (sélection reading la plus récente)
+  - History filtering par paramètre `?hours=N`
+- **Fichiers modifiés** :
+  - `symbion-kernel/src/sensors.rs:161-192` - Nouvelle méthode `get_environment_by_room()`
+  - `symbion-kernel/src/environment_http.rs:58-161` - 2 nouveaux endpoints room-based
+- **Tests** :
+  - ✅ `GET /v1/environment/chambre` → 200 OK (22.9°C, 79.6%, RiskMold)
+  - ✅ `GET /v1/environment/chambre/history?hours=24` → Array de readings filtrés
+  - ✅ Axum route syntax corrigé (`:param` → `{param}`)
+
+#### PWA Environment Widget Scalable
+- **Feature** : Widget dashboard pour N sensors/rooms (principe évolutivité)
+- **Architecture scalable** :
+  - Fetch dynamique de TOUS les sensors via API
+  - Extraction automatic unique room_ids (Set)
+  - Rendu N room cards (pas de hard-coding)
+  - Auto-refresh toutes les 30 secondes
+- **Fichiers créés** :
+  - `pwa-dashboard/src/widgets/environment-widget.js` (472 lignes)
+  - Intégration dans `dashboard-app.js:24,1048-1051`
+- **Design** :
+  - Cards avec status-based coloring (Normal vert, Humid jaune, RiskMold orange, Cold bleu)
+  - Gradient border bioluminescent selon status
+  - Lecture température + humidité + signal Wi-Fi
+  - Empty state si 0 capteur
+
+#### Documentation Complète
+- **Fichiers mis à jour** :
+  - `docs/api/endpoints.md:922-1102` - Section "Environment & IoT Sensors" (181 lignes)
+  - Endpoint count : 73 → 78 (+5)
+  - Exemples JSON complets pour chaque endpoint
+  - Notes sur aggregation multi-sensors et status calculation
+- **Conformité roadmap** : 100% roadmap F1 API implémenté (lignes 186-199)
+
 ---
 
 ## 🔐 Phase 2: Security Hardening (14 Novembre 2025)

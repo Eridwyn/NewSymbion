@@ -2,9 +2,9 @@
 
 > 📍 Documentation exhaustive de l'API Symbion Kernel
 >
-> ✅ **Mise à jour complète (15 Novembre 2025)**: Documentation 100% synchronisée avec `symbion-kernel/src/http.rs`
+> ✅ **Mise à jour complète (18 Novembre 2025)**: Documentation 100% synchronisée avec `symbion-kernel/src/http.rs`
 >
-> **Endpoints documentés** : 73 endpoints uniques
+> **Endpoints documentés** : 78 endpoints uniques (F1 Environment API +5)
 > - ✅ Tous les endpoints implémentés sont documentés
 > - ✅ Tous les paths corrigés (7 mismatches résolus)
 > - ✅ 19 phantom endpoints retirés
@@ -916,6 +916,190 @@ Les endpoints suivants sont **RETIRÉS** de la documentation car non implément�
   }
 }
 ```
+
+---
+
+## 🌡️ Environment & IoT Sensors (F1)
+
+> 🆕 **Feature F1 - Environment Monitoring** (November 2025): API REST pour capteurs IoT (ESP32 + BME280)
+>
+> - Endpoints HTTP pour consultation données environnementales
+> - Support multi-room évolutif (chambre, salon, bureau...)
+> - Auto-registration via MQTT (symbion/sensors/registration@v1)
+> - History filtrage par période (hourly grouping)
+
+### `GET /v1/environment/sensors`
+**Description** : Liste tous les capteurs enregistrés
+**Auth** : X-API-Key
+**Response** :
+```json
+{
+  "sensors": [
+    {
+      "sensor_id": "ESP32-CDE370",
+      "room_id": "chambre",
+      "sensor_type": "BME280",
+      "location": "Bedroom ceiling",
+      "registered_at": "2025-11-18T14:32:00Z",
+      "last_seen": "2025-11-18T16:45:12Z",
+      "signal_rssi": -42,
+      "firmware_version": "1.0.0",
+      "status": "online"
+    }
+  ],
+  "count": 1,
+  "online_count": 1
+}
+```
+
+### `GET /v1/environment/sensors/{sensor_id}`
+**Description** : Détails d'un capteur avec état environnemental actuel
+**Auth** : X-API-Key
+**Params** : `sensor_id` - Identifiant du capteur (ex: ESP32-CDE370)
+**Response** :
+```json
+{
+  "sensor": {
+    "sensor_id": "ESP32-CDE370",
+    "room_id": "chambre",
+    "sensor_type": "BME280",
+    "location": "Bedroom ceiling",
+    "registered_at": "2025-11-18T14:32:00Z",
+    "last_seen": "2025-11-18T16:45:12Z",
+    "signal_rssi": -42,
+    "firmware_version": "1.0.0",
+    "status": "online"
+  },
+  "environment": {
+    "room_id": "chambre",
+    "current": {
+      "temperature_c": 22.9,
+      "humidity_pct": 79.6,
+      "timestamp": "2025-11-18T16:45:12Z"
+    },
+    "status": "risk_mold",
+    "alerts": [
+      "High humidity detected (>70%). Risk of mold growth."
+    ],
+    "history": [
+      {
+        "temperature_c": 22.9,
+        "humidity_pct": 79.6,
+        "timestamp": "2025-11-18T16:45:12Z"
+      }
+    ],
+    "avg_last_24h": {
+      "temperature_c": 22.5,
+      "humidity_pct": 75.2
+    }
+  }
+}
+```
+
+### `GET /v1/environment/sensors/{sensor_id}/history`
+**Description** : Historique des mesures d'un capteur
+**Auth** : X-API-Key
+**Params** : `sensor_id` - Identifiant du capteur
+**Query** : `?hours=24` - Période en heures (défaut: 24h)
+**Response** :
+```json
+{
+  "room_id": "chambre",
+  "current": {
+    "temperature_c": 22.9,
+    "humidity_pct": 79.6,
+    "timestamp": "2025-11-18T16:45:12Z"
+  },
+  "status": "risk_mold",
+  "alerts": [
+    "High humidity detected (>70%). Risk of mold growth."
+  ],
+  "history": [
+    {
+      "temperature_c": 22.8,
+      "humidity_pct": 78.9,
+      "timestamp": "2025-11-18T15:45:12Z"
+    },
+    {
+      "temperature_c": 22.7,
+      "humidity_pct": 77.5,
+      "timestamp": "2025-11-18T14:45:12Z"
+    }
+  ],
+  "avg_last_24h": {
+    "temperature_c": 22.5,
+    "humidity_pct": 75.2
+  }
+}
+```
+
+### `DELETE /v1/environment/sensors/{sensor_id}`
+**Description** : Désinscrire un capteur (suppression manuelle)
+**Auth** : X-API-Key + CSRF
+**Params** : `sensor_id` - Identifiant du capteur
+**Response** : `204 No Content`
+
+### `GET /v1/environment/{room_id}`
+**Description** : État environnemental actuel d'une pièce (aggregation multi-sensors)
+**Auth** : X-API-Key
+**Params** : `room_id` - Identifiant de la pièce (ex: chambre, salon, bureau)
+**Response** :
+```json
+{
+  "room_id": "chambre",
+  "current": {
+    "temperature_c": 22.9,
+    "humidity_pct": 79.6,
+    "timestamp": "2025-11-18T16:45:12Z"
+  },
+  "status": "risk_mold",
+  "alerts": [
+    "High humidity detected (>70%). Risk of mold growth."
+  ],
+  "history": [
+    {
+      "temperature_c": 22.9,
+      "humidity_pct": 79.6,
+      "timestamp": "2025-11-18T16:45:12Z"
+    }
+  ],
+  "avg_last_24h": {
+    "temperature_c": 22.5,
+    "humidity_pct": 75.2
+  }
+}
+```
+
+**Notes** :
+- Si plusieurs capteurs dans la même pièce → sélection de la lecture la plus récente
+- Statut calculé automatiquement par Decision Engine :
+  - `normal` : Température 18-24°C, Humidité 40-60%
+  - `humid` : Humidité 60-70%
+  - `risk_mold` : Humidité >70% (risque moisissure)
+  - `cold` : Température <18°C
+
+### `GET /v1/environment/{room_id}/history`
+**Description** : Historique des mesures pour une pièce (filtrées par période)
+**Auth** : X-API-Key
+**Params** : `room_id` - Identifiant de la pièce
+**Query** : `?hours=24` - Période en heures (défaut: 24h)
+**Response** :
+```json
+[
+  {
+    "temperature_c": 22.9,
+    "humidity_pct": 79.6,
+    "timestamp": "2025-11-18T16:45:12Z"
+  },
+  {
+    "temperature_c": 22.8,
+    "humidity_pct": 78.9,
+    "timestamp": "2025-11-18T15:45:12Z"
+  }
+]
+```
+
+**Endpoints count** : +5 endpoints (sensors list, sensor detail, sensor history, room environment, room history)
 
 ---
 
