@@ -31,6 +31,7 @@ mod decision;
 mod decision_http;
 mod webauthn;
 mod environment;
+mod dew_point_alerts;  // F1: Physics-based humidity alerts (Magnus dew point formula)
 mod sensors;  // F1: Sensor registry for scalable IoT sensors
 mod environment_http;  // F1: API endpoints for environment monitoring
 

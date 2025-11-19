@@ -1,16 +1,23 @@
 /**
- * SYMBION KERNEL - Environment Decision Rules Module (F1)
+ * SYMBION KERNEL - Environment Decision Rules Module (F1) - Dew Point Based
  *
- * RÔLE : Évaluation règles intelligentes humidité/température pour génération alertes
+ * RÔLE : Évaluation règles intelligentes humidité/température basées sur physique point de rosée
  *
- * RÈGLES IMPLÉMENTÉES :
- * - ALERT_HUMIDITY_CHAMBRE : Humidité >65% sustained 30 min (Medium impact)
- * - ALERT_HUMIDITY_CRITICAL : Humidité >75% sustained 10 min (High impact)
- * - ALERT_COLD_NIGHT : Température <16°C pendant nuit (Low impact)
+ * RÈGLES IMPLÉMENTÉES (5 niveaux progressifs) :
+ * - ALERT_WEAK      : RH > 55% sustained 6h (Low impact, tendance haute)
+ * - ALERT_MODERATE  : RH > 60% sustained 3h (Medium impact, excessive prolongée)
+ * - ALERT_STRONG    : RH > 65% for 1h OR deltaT < 3°C for 1h (Medium impact, risque condensation)
+ * - ALERT_CRITICAL  : RH > 70% for 20min OR deltaT < 2°C for 20min (High impact, condensation très probable)
+ * - ALERT_DANGER    : RH > 75% for 5min OR deltaT ≤ 0°C for 5min (High impact, condensation certaine)
+ *
+ * PHYSICS BASIS :
+ * - Magnus formula pour calcul point de rosée (±0.4°C accuracy)
+ * - Delta T = T_surface - T_dew (écart à la condensation)
+ * - Estimation T_surface si non disponible (offset configurable)
  *
  * ARCHITECTURE :
  * - Intention : Type simple pour alertes (intention_type, source, impact, context, timestamp)
- * - EnvironmentRules : Struct stateless avec méthodes d'évaluation
+ * - EnvironmentRules : Struct stateless avec DewPointCalculator interne
  * - Integration : Appelé par MQTT handler lors ingestion readings
  *
  * FUTURE :
@@ -20,8 +27,8 @@
  */
 
 use crate::decision::types::ImpactLevel;
+use crate::dew_point_alerts::{DewPointAlertLevel, DewPointCalculator};
 use crate::environment::RoomEnvironmentState;
-use chrono::{Timelike, Utc};  // Timelike for .hour() method
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -32,141 +39,128 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Intention {
     pub id: Uuid,
-    pub intention_type: String,      // e.g., "ALERT_HUMIDITY_CHAMBRE"
-    pub source: String,              // "environment"
+    pub intention_type: String, // e.g., "ALERT_WEAK", "ALERT_CRITICAL"
+    pub source: String,         // "environment"
     pub impact: ImpactLevel,
-    pub context: serde_json::Value,  // Room-specific data
-    pub created_at: String,          // ISO 8601 timestamp
+    pub context: serde_json::Value, // Room-specific data + physics diagnostics
+    pub created_at: String,         // ISO 8601 timestamp
 }
 
-/// Environment evaluation rules (stateless)
-pub struct EnvironmentRules;
+/// Environment evaluation rules (stateless) with dew point physics
+pub struct EnvironmentRules {
+    calculator: DewPointCalculator,
+}
+
+impl Default for EnvironmentRules {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl EnvironmentRules {
+    /// Create new environment rules evaluator with default dew point calculator
+    pub fn new() -> Self {
+        Self {
+            calculator: DewPointCalculator::new(),
+        }
+    }
+
     /// Evaluate all environment rules for a room
     ///
     /// Returns list of triggered intentions (empty if no alerts)
     pub fn evaluate_all(state: &RoomEnvironmentState) -> Vec<Intention> {
+        let rules = Self::new();
         let mut intentions = Vec::new();
 
-        // Rule 1: Humidity warning (Medium impact)
-        if let Some(intent) = Self::evaluate_humidity_alert(state) {
-            intentions.push(intent);
-        }
-
-        // Rule 2: Humidity critical (High impact)
-        if let Some(intent) = Self::evaluate_humidity_critical(state) {
-            intentions.push(intent);
-        }
-
-        // Rule 3: Cold night (Low impact)
-        if let Some(intent) = Self::evaluate_cold_night(state) {
+        // Evaluate dew point based alert
+        if let Some(intent) = rules.evaluate_dew_point_alert(state) {
             intentions.push(intent);
         }
 
         intentions
     }
 
-    /// Rule: ALERT_HUMIDITY_CHAMBRE
+    /// Main dew point based evaluation
     ///
-    /// Trigger: Humidity >65% sustained for 30 minutes
-    /// Impact: Medium (health preventive)
-    /// Action: Suggest ventilation
-    pub fn evaluate_humidity_alert(state: &RoomEnvironmentState) -> Option<Intention> {
-        const THRESHOLD: f32 = 65.0;
-        const DURATION_MINUTES: u32 = 30;
+    /// Uses DewPointCalculator to determine alert level and generate appropriate intention
+    fn evaluate_dew_point_alert(&self, state: &RoomEnvironmentState) -> Option<Intention> {
+        // Run physics-based evaluation
+        let evaluation = self.calculator.evaluate(state);
 
-        // Check sustained humidity
-        if !state.is_humidity_sustained(THRESHOLD, DURATION_MINUTES) {
+        // Skip if Safe level
+        if evaluation.level == DewPointAlertLevel::Safe {
             return None;
         }
 
-        Some(Intention {
-            id: Uuid::new_v4(),
-            intention_type: "ALERT_HUMIDITY_CHAMBRE".to_string(),
-            source: "environment".to_string(),
-            impact: ImpactLevel::Medium,
-            context: serde_json::json!({
-                "room_id": state.room_id,
-                "humidity_pct": state.current.humidity_pct,
-                "threshold_pct": THRESHOLD,
-                "duration_minutes": DURATION_MINUTES,
-                "temperature_c": state.current.temperature_c,
-                "suggestion": "Aérer la chambre pour réduire l'humidité",
-            }),
-            created_at: Utc::now().to_rfc3339(),
-        })
-    }
+        // Map DewPointAlertLevel to Intention with appropriate impact and context
+        let (intention_type, impact, message) = match evaluation.level {
+            DewPointAlertLevel::Safe => return None, // Already handled above
 
-    /// Rule: ALERT_HUMIDITY_CRITICAL
-    ///
-    /// Trigger: Humidity >75% sustained for 10 minutes
-    /// Impact: High (health critical, mold risk)
-    /// Action: Immediate ventilation required
-    pub fn evaluate_humidity_critical(state: &RoomEnvironmentState) -> Option<Intention> {
-        const THRESHOLD: f32 = 75.0;
-        const DURATION_MINUTES: u32 = 10;
+            DewPointAlertLevel::Weak => (
+                "ALERT_WEAK",
+                ImpactLevel::Low,
+                "Humidité en tendance haute (>55% depuis 6h) - Surveiller évolution",
+            ),
 
-        if !state.is_humidity_sustained(THRESHOLD, DURATION_MINUTES) {
-            return None;
-        }
+            DewPointAlertLevel::Moderate => (
+                "ALERT_MODERATE",
+                ImpactLevel::Medium,
+                "Humidité excessive prolongée (>60% depuis 3h) - Aérer recommandé",
+            ),
 
-        Some(Intention {
-            id: Uuid::new_v4(),
-            intention_type: "ALERT_HUMIDITY_CRITICAL".to_string(),
-            source: "environment".to_string(),
-            impact: ImpactLevel::High,
-            context: serde_json::json!({
-                "room_id": state.room_id,
-                "humidity_pct": state.current.humidity_pct,
-                "threshold_pct": THRESHOLD,
-                "duration_minutes": DURATION_MINUTES,
-                "status": "risk_mold",
-                "urgency": "immediate",
-                "suggestion": "Risque moisissure - Aérer immédiatement",
-            }),
-            created_at: Utc::now().to_rfc3339(),
-        })
-    }
+            DewPointAlertLevel::Strong => (
+                "ALERT_STRONG",
+                ImpactLevel::Medium,
+                "Risque de condensation détecté (RH >65% ou ΔT <3°C) - Aérer la pièce",
+            ),
 
-    /// Rule: ALERT_COLD_NIGHT
-    ///
-    /// Trigger: Temperature <16°C during night hours (22:00-07:00)
-    /// Impact: Low (comfort)
-    /// Action: Suggest increase heating
-    pub fn evaluate_cold_night(state: &RoomEnvironmentState) -> Option<Intention> {
-        const THRESHOLD_TEMP: f32 = 16.0;
+            DewPointAlertLevel::Critical => (
+                "ALERT_CRITICAL",
+                ImpactLevel::High,
+                "Condensation très probable (RH >70% ou ΔT <2°C) - Action urgente requise",
+            ),
 
-        // Check temperature threshold (return None if sensor offline or temp >= threshold)
-        let Some(temp) = state.current.temperature_c else {
-            return None; // Sensor offline
+            DewPointAlertLevel::Danger => (
+                "ALERT_DANGER",
+                ImpactLevel::High,
+                "Condensation certaine (RH >75% ou ΔT ≤0°C) - Danger moisissure immédiat",
+            ),
         };
-        if temp >= THRESHOLD_TEMP {
-            return None;
+
+        // Build comprehensive context with physics data
+        let mut context = serde_json::json!({
+            "room_id": state.room_id,
+            "alert_level": format!("{:?}", evaluation.level),
+            "humidity_pct": state.current.humidity_pct,
+            "temperature_c": state.current.temperature_c,
+            "suggestion": message,
+        });
+
+        // Add dew point physics diagnostics if available
+        if let Some(dew_point) = evaluation.dew_point_c {
+            context["dew_point_c"] = serde_json::json!(dew_point);
+        }
+        if let Some(delta_t) = evaluation.delta_t {
+            context["delta_t"] = serde_json::json!(delta_t);
+            context["surface_temp_c"] = serde_json::json!(
+                state.current.temperature_c.map(|t| t - self.calculator.config().surface_temp_offset)
+            );
         }
 
-        // Check if night hours (22:00-07:00)
-        let now = Utc::now();
-        let hour = now.hour();
-        let is_night = hour >= 22 || hour < 7;
-
-        if !is_night {
-            return None;
+        // Add detailed diagnostics from evaluation
+        if let serde_json::Value::Object(diag) = &evaluation.diagnostics {
+            for (key, value) in diag {
+                context[key] = value.clone();
+            }
         }
 
         Some(Intention {
             id: Uuid::new_v4(),
-            intention_type: "ALERT_COLD_NIGHT".to_string(),
+            intention_type: intention_type.to_string(),
             source: "environment".to_string(),
-            impact: ImpactLevel::Low,
-            context: serde_json::json!({
-                "room_id": state.room_id,
-                "temperature_c": temp,
-                "threshold_c": THRESHOLD_TEMP,
-                "time_hour": hour,
-                "suggestion": "Température basse la nuit - Augmenter chauffage",
-            }),
-            created_at: Utc::now().to_rfc3339(),
+            impact,
+            context,
+            created_at: chrono::Utc::now().to_rfc3339(),
         })
     }
 }
@@ -178,193 +172,224 @@ mod tests {
     use chrono::{Duration, Utc};
 
     #[test]
-    fn test_evaluate_humidity_alert_triggered() {
-        let mut state = RoomEnvironmentState::new("chambre".to_string());
-
-        // Add 7 readings with high humidity over 35 minutes (>30 min threshold)
-        for i in 0..7 {
-            let reading = EnvReading {
-                temperature_c: Some(22.0),
-                humidity_pct: Some(70.0), // Above 65% threshold
-                timestamp: Utc::now() - Duration::minutes(35 - i * 5),
-            };
-            state.update(reading);
-        }
-
-        let intention = EnvironmentRules::evaluate_humidity_alert(&state);
-        assert!(intention.is_some());
-
-        let intent = intention.unwrap();
-        assert_eq!(intent.intention_type, "ALERT_HUMIDITY_CHAMBRE");
-        assert_eq!(intent.impact, ImpactLevel::Medium);
-        assert_eq!(intent.source, "environment");
-    }
-
-    #[test]
-    fn test_evaluate_humidity_alert_not_sustained() {
-        let mut state = RoomEnvironmentState::new("chambre".to_string());
-
-        // Add 2 readings with high humidity, then drop below threshold
-        // This simulates humidity spike that doesn't sustain for 30 min
-        for i in 0..2 {
-            let reading = EnvReading {
-                temperature_c: Some(22.0),
-                humidity_pct: Some(70.0), // High
-                timestamp: Utc::now() - Duration::minutes(15 - i * 5),
-            };
-            state.update(reading);
-        }
-
-        // Current reading drops below threshold (not sustained)
-        let reading = EnvReading {
-            temperature_c: Some(22.0),
-            humidity_pct: Some(60.0), // Below 65% threshold
-            timestamp: Utc::now(),
-        };
-        state.update(reading);
-
-        let intention = EnvironmentRules::evaluate_humidity_alert(&state);
-        assert!(intention.is_none());
-    }
-
-    #[test]
-    fn test_evaluate_humidity_alert_below_threshold() {
-        let mut state = RoomEnvironmentState::new("chambre".to_string());
-
-        // Current reading below threshold
-        let reading = EnvReading {
-            temperature_c: Some(22.0),
-            humidity_pct: Some(60.0), // Below 65% threshold
-            timestamp: Utc::now(),
-        };
-        state.update(reading);
-
-        let intention = EnvironmentRules::evaluate_humidity_alert(&state);
-        assert!(intention.is_none());
-    }
-
-    #[test]
-    fn test_evaluate_humidity_critical_triggered() {
-        let mut state = RoomEnvironmentState::new("chambre".to_string());
-
-        // Add 3 readings with critical humidity over 15 minutes (>10 min threshold)
-        for i in 0..3 {
-            let reading = EnvReading {
-                temperature_c: Some(22.0),
-                humidity_pct: Some(78.0), // Above 75% critical threshold
-                timestamp: Utc::now() - Duration::minutes(15 - i * 5),
-            };
-            state.update(reading);
-        }
-
-        let intention = EnvironmentRules::evaluate_humidity_critical(&state);
-        assert!(intention.is_some());
-
-        let intent = intention.unwrap();
-        assert_eq!(intent.intention_type, "ALERT_HUMIDITY_CRITICAL");
-        assert_eq!(intent.impact, ImpactLevel::High);
-    }
-
-    #[test]
-    fn test_evaluate_cold_night_triggered() {
-        let mut state = RoomEnvironmentState::new("chambre".to_string());
-
-        // Cold temperature
-        let reading = EnvReading {
-            temperature_c: Some(14.0), // Below 16°C
-            humidity_pct: Some(50.0),
-            timestamp: Utc::now(),
-        };
-        state.update(reading);
-
-        // NOTE: This test may fail during daytime (hour 7-22)
-        // In production, rule only triggers at night
-        let intention = EnvironmentRules::evaluate_cold_night(&state);
-
-        // Check hour to determine expected result
-        let hour = Utc::now().hour();
-        let is_night = hour >= 22 || hour < 7;
-
-        if is_night {
-            assert!(intention.is_some());
-            let intent = intention.unwrap();
-            assert_eq!(intent.intention_type, "ALERT_COLD_NIGHT");
-            assert_eq!(intent.impact, ImpactLevel::Low);
-        } else {
-            assert!(intention.is_none());
-        }
-    }
-
-    #[test]
-    fn test_evaluate_cold_night_warm_temperature() {
-        let mut state = RoomEnvironmentState::new("chambre".to_string());
-
-        // Warm temperature
-        let reading = EnvReading {
-            temperature_c: Some(20.0), // Above 16°C threshold
-            humidity_pct: Some(50.0),
-            timestamp: Utc::now(),
-        };
-        state.update(reading);
-
-        let intention = EnvironmentRules::evaluate_cold_night(&state);
-        assert!(intention.is_none());
-    }
-
-    #[test]
-    fn test_evaluate_all_multiple_triggered() {
-        let mut state = RoomEnvironmentState::new("chambre".to_string());
-
-        // Add readings with critical humidity AND cold temp
-        for i in 0..3 {
-            let reading = EnvReading {
-                temperature_c: Some(14.0), // Cold
-                humidity_pct: Some(78.0),  // Critical humidity
-                timestamp: Utc::now() - Duration::minutes(15 - i * 5),
-            };
-            state.update(reading);
-        }
-
-        let intentions = EnvironmentRules::evaluate_all(&state);
-
-        // Should trigger BOTH humidity_critical and cold_night (if night hours)
-        assert!(intentions.len() >= 1); // At least humidity critical
-
-        // Verify humidity critical is present
-        let has_critical = intentions
-            .iter()
-            .any(|i| i.intention_type == "ALERT_HUMIDITY_CRITICAL");
-        assert!(has_critical);
-    }
-
-    #[test]
-    fn test_evaluate_all_none_triggered() {
+    fn test_evaluate_dew_point_alert_safe() {
         let state = RoomEnvironmentState::new("chambre".to_string());
 
-        // Default state (20°C, 50% humidity) - no alerts
+        // Default state (20°C, 50% humidity) - Safe
         let intentions = EnvironmentRules::evaluate_all(&state);
         assert_eq!(intentions.len(), 0);
+    }
+
+    #[test]
+    fn test_evaluate_dew_point_alert_weak() {
+        let mut state = RoomEnvironmentState::new("chambre".to_string());
+
+        // Add readings with RH > 55% for 6+ hours (weak threshold)
+        let hours = 7; // Exceed 6h threshold
+        let readings_per_hour = 2; // 30min interval
+
+        for i in 0..(hours * readings_per_hour) {
+            let reading = EnvReading {
+                temperature_c: Some(20.0),
+                humidity_pct: Some(58.0), // Above 55% threshold
+                timestamp: Utc::now() - Duration::minutes((hours * 60 - i * 30) as i64),
+            };
+            state.update(reading);
+        }
+
+        let intentions = EnvironmentRules::evaluate_all(&state);
+        assert_eq!(intentions.len(), 1);
+
+        let intent = &intentions[0];
+        assert_eq!(intent.intention_type, "ALERT_WEAK");
+        assert_eq!(intent.impact, ImpactLevel::Low);
+        assert_eq!(intent.source, "environment");
+        assert!(intent.context["suggestion"]
+            .as_str()
+            .unwrap()
+            .contains("tendance haute"));
+    }
+
+    #[test]
+    fn test_evaluate_dew_point_alert_moderate() {
+        let mut state = RoomEnvironmentState::new("chambre".to_string());
+
+        // Add readings with RH > 60% for 3+ hours
+        let hours = 4; // Exceed 3h threshold
+        for i in 0..(hours * 2) {
+            let reading = EnvReading {
+                temperature_c: Some(20.0),
+                humidity_pct: Some(62.0), // Above 60% threshold
+                timestamp: Utc::now() - Duration::minutes((hours * 60 - i * 30) as i64),
+            };
+            state.update(reading);
+        }
+
+        let intentions = EnvironmentRules::evaluate_all(&state);
+        assert_eq!(intentions.len(), 1);
+
+        let intent = &intentions[0];
+        assert_eq!(intent.intention_type, "ALERT_MODERATE");
+        assert_eq!(intent.impact, ImpactLevel::Medium);
+    }
+
+    #[test]
+    fn test_evaluate_dew_point_alert_critical() {
+        let mut state = RoomEnvironmentState::new("chambre".to_string());
+
+        // Add readings with RH > 70% for 20+ minutes (critical threshold)
+        for i in 0..5 {
+            // 5 readings × 5min = 25 minutes
+            let reading = EnvReading {
+                temperature_c: Some(20.0),
+                humidity_pct: Some(72.0), // Above 70% critical threshold
+                timestamp: Utc::now() - Duration::minutes((25 - i * 5) as i64),
+            };
+            state.update(reading);
+        }
+
+        let intentions = EnvironmentRules::evaluate_all(&state);
+        assert_eq!(intentions.len(), 1);
+
+        let intent = &intentions[0];
+        assert_eq!(intent.intention_type, "ALERT_CRITICAL");
+        assert_eq!(intent.impact, ImpactLevel::High);
+        assert!(intent.context["suggestion"]
+            .as_str()
+            .unwrap()
+            .contains("très probable"));
+    }
+
+    #[test]
+    fn test_evaluate_dew_point_alert_danger() {
+        let mut state = RoomEnvironmentState::new("chambre".to_string());
+
+        // Add readings with RH > 75% for 5+ minutes (danger threshold)
+        for i in 0..2 {
+            // 2 readings × 2.5min = 5+ minutes
+            let reading = EnvReading {
+                temperature_c: Some(20.0),
+                humidity_pct: Some(78.0), // Above 75% danger threshold
+                timestamp: Utc::now() - Duration::minutes((5 - i * 2) as i64),
+            };
+            state.update(reading);
+        }
+
+        let intentions = EnvironmentRules::evaluate_all(&state);
+        assert_eq!(intentions.len(), 1);
+
+        let intent = &intentions[0];
+        assert_eq!(intent.intention_type, "ALERT_DANGER");
+        assert_eq!(intent.impact, ImpactLevel::High);
+        assert!(intent.context["suggestion"]
+            .as_str()
+            .unwrap()
+            .contains("Condensation certaine"));
+    }
+
+    #[test]
+    fn test_intention_contains_dew_point_diagnostics() {
+        let mut state = RoomEnvironmentState::new("chambre".to_string());
+
+        // Critical humidity
+        for i in 0..5 {
+            let reading = EnvReading {
+                temperature_c: Some(18.0),
+                humidity_pct: Some(72.0),
+                timestamp: Utc::now() - Duration::minutes((25 - i * 5) as i64),
+            };
+            state.update(reading);
+        }
+
+        let intentions = EnvironmentRules::evaluate_all(&state);
+        assert_eq!(intentions.len(), 1);
+
+        let intent = &intentions[0];
+
+        // Should contain physics diagnostics
+        assert!(intent.context["dew_point_c"].is_number());
+        assert!(intent.context["delta_t"].is_number());
+        assert!(intent.context["surface_temp_c"].is_number());
+        assert!(intent.context["humidity_pct"].is_number());
+
+        // Verify dew point calculation is reasonable
+        let dew_point = intent.context["dew_point_c"].as_f64().unwrap();
+        assert!(dew_point > 10.0 && dew_point < 20.0); // Reasonable range for 18°C, 72% RH
     }
 
     #[test]
     fn test_intention_serialization() {
         let intention = Intention {
             id: Uuid::new_v4(),
-            intention_type: "ALERT_HUMIDITY_CHAMBRE".to_string(),
+            intention_type: "ALERT_WEAK".to_string(),
             source: "environment".to_string(),
-            impact: ImpactLevel::Medium,
-            context: serde_json::json!({"room_id": "chambre", "humidity_pct": 70.0}),
-            created_at: Utc::now().to_rfc3339(),
+            impact: ImpactLevel::Low,
+            context: serde_json::json!({"room_id": "chambre", "humidity_pct": 58.0}),
+            created_at: chrono::Utc::now().to_rfc3339(),
         };
 
         // Test JSON serialization
         let json = serde_json::to_string(&intention).unwrap();
-        assert!(json.contains("ALERT_HUMIDITY_CHAMBRE"));
+        assert!(json.contains("ALERT_WEAK"));
         assert!(json.contains("environment"));
 
         // Test deserialization
         let deserialized: Intention = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.intention_type, intention.intention_type);
         assert_eq!(deserialized.impact, intention.impact);
+    }
+
+    #[test]
+    fn test_no_alert_when_humidity_drops_quickly() {
+        let mut state = RoomEnvironmentState::new("chambre".to_string());
+
+        // High humidity for a while
+        for i in 0..3 {
+            let reading = EnvReading {
+                temperature_c: Some(20.0),
+                humidity_pct: Some(70.0),
+                timestamp: Utc::now() - Duration::minutes((15 - i * 5) as i64),
+            };
+            state.update(reading);
+        }
+
+        // Then drops below threshold (current reading is what counts)
+        let reading = EnvReading {
+            temperature_c: Some(20.0),
+            humidity_pct: Some(50.0), // Dropped to safe level
+            timestamp: Utc::now(),
+        };
+        state.update(reading);
+
+        let intentions = EnvironmentRules::evaluate_all(&state);
+        assert_eq!(
+            intentions.len(),
+            0,
+            "No alert should trigger when current humidity is safe"
+        );
+    }
+
+    #[test]
+    fn test_alert_levels_prioritization() {
+        // Test that higher alert levels take precedence
+
+        let mut state = RoomEnvironmentState::new("chambre".to_string());
+
+        // Create condition that could trigger multiple levels
+        // RH = 76% triggers Danger (highest)
+        for i in 0..2 {
+            let reading = EnvReading {
+                temperature_c: Some(20.0),
+                humidity_pct: Some(76.0), // Triggers all levels, but Danger is highest
+                timestamp: Utc::now() - Duration::minutes((5 - i * 2) as i64),
+            };
+            state.update(reading);
+        }
+
+        let intentions = EnvironmentRules::evaluate_all(&state);
+
+        // Should only return highest level alert (Danger)
+        assert_eq!(intentions.len(), 1);
+        assert_eq!(intentions[0].intention_type, "ALERT_DANGER");
     }
 }
