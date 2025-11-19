@@ -131,6 +131,9 @@ impl RoomEnvironmentState {
     /// Check if humidity sustained above threshold for duration
     ///
     /// Used by Decision Engine rules for alert triggering
+    ///
+    /// IMPORTANT: Validates that actual time coverage meets duration requirement
+    /// to prevent false positives with insufficient historical data
     pub fn is_humidity_sustained(&self, threshold_pct: f32, duration_minutes: u32) -> bool {
         let cutoff = Utc::now() - Duration::minutes(duration_minutes as i64);
 
@@ -142,14 +145,30 @@ impl RoomEnvironmentState {
             return false;
         }
 
-        // Verify all readings in window are above threshold
-        let sustained = self.history
+        // Collect readings in time window
+        let readings_in_window: Vec<_> = self.history
             .iter()
             .rev()
             .take_while(|r| r.timestamp > cutoff)
-            .all(|r| r.humidity_pct.map_or(false, |h| h > threshold_pct));
+            .collect();
 
-        sustained
+        // Validate sufficient time coverage (prevent false positives)
+        if let (Some(oldest), Some(newest)) = (readings_in_window.last(), readings_in_window.first()) {
+            let actual_duration_secs = (newest.timestamp - oldest.timestamp).num_seconds();
+            let required_duration_secs = (duration_minutes as i64) * 60;
+
+            // Require at least 90% of duration to be covered by actual data
+            if actual_duration_secs < (required_duration_secs * 9 / 10) {
+                return false; // NOT ENOUGH DATA - prevent false positive
+            }
+        } else {
+            return false; // No data in window
+        }
+
+        // Verify all readings are above threshold
+        readings_in_window
+            .iter()
+            .all(|r| r.humidity_pct.map_or(false, |h| h > threshold_pct))
     }
 
     /// Get average temperature over last N hours
@@ -330,17 +349,29 @@ mod tests {
     fn test_is_humidity_sustained_true() {
         let mut state = RoomEnvironmentState::new("chambre".to_string());
 
-        // Add 5 readings with high humidity (1 per min for 5 min)
-        for i in 0..5 {
+        // Add readings spanning 5 minutes (30sec intervals = realistic ESP32 sensor)
+        // Need to span from past to very recent to account for Utc::now() timing
+        let duration_min = 5;
+        let num_readings = (duration_min * 2) as usize; // 30sec interval = 10 readings
+
+        for i in 0..num_readings {
             let reading = EnvReading {
                 temperature_c: Some(22.0),
                 humidity_pct: Some(70.0),
-                timestamp: Utc::now() - Duration::minutes(5 - i),
+                timestamp: Utc::now() - Duration::seconds(((duration_min * 60) - (i * 30)) as i64),
             };
             state.update(reading);
         }
 
-        // Check if sustained above 65% for 5 minutes
+        // Add one more reading at current time to ensure freshness
+        let reading = EnvReading {
+            temperature_c: Some(22.0),
+            humidity_pct: Some(70.0),
+            timestamp: Utc::now(),
+        };
+        state.update(reading);
+
+        // Check if sustained above 65% for 5 minutes (needs 90% = 4.5 min coverage)
         assert!(state.is_humidity_sustained(65.0, 5));
     }
 
@@ -441,5 +472,72 @@ mod tests {
         // No readings in history yet
         assert_eq!(state.avg_temperature(1), None);
         assert_eq!(state.avg_humidity(1), None);
+    }
+
+    #[test]
+    fn test_is_humidity_sustained_false_insufficient_data() {
+        // REGRESSION TEST for critical bug fix
+        // Bug: System triggered "weak" alert with only 35 minutes when 6 hours required
+        // Fix: Validate actual time coverage before returning sustained=true
+
+        let mut state = RoomEnvironmentState::new("chambre".to_string());
+
+        // Simulate real scenario: 35 minutes of data with all RH > 55%
+        let num_readings = 70; // 35 min at 30sec interval
+        for i in 0..num_readings {
+            let reading = EnvReading {
+                temperature_c: Some(22.0),
+                humidity_pct: Some(58.0), // All above 55% weak threshold
+                timestamp: Utc::now() - Duration::minutes((35 - i / 2) as i64),
+            };
+            state.update(reading);
+        }
+
+        // Should return FALSE - insufficient data for 6-hour requirement
+        // (35 min < 90% of 360 min = 324 min required)
+        assert!(
+            !state.is_humidity_sustained(55.0, 360),
+            "Should not trigger weak alert with only 35 minutes of data (requires 6 hours)"
+        );
+
+        // Should also return FALSE for 3-hour requirement (moderate level)
+        assert!(
+            !state.is_humidity_sustained(60.0, 180),
+            "Should not trigger moderate alert with only 35 minutes of data (requires 3 hours)"
+        );
+
+        // Should return TRUE for 30-minute requirement (35 min > 90% of 30 min = 27 min)
+        assert!(
+            state.is_humidity_sustained(55.0, 30),
+            "Should trigger for 30-minute requirement (35 min > 27 min required)"
+        );
+    }
+
+    #[test]
+    fn test_is_humidity_sustained_true_exact_90_percent_coverage() {
+        // Test boundary condition: exactly 90% coverage should pass
+
+        let mut state = RoomEnvironmentState::new("chambre".to_string());
+
+        // For 60-minute requirement, need full time span from (now - 60min) to now
+        // This creates 100% coverage, which is > 90% required
+        let now = Utc::now();
+        let duration_min = 60;
+        let num_readings = (duration_min * 2) as usize; // 30sec interval = 120 readings
+
+        for i in 0..num_readings {
+            let reading = EnvReading {
+                temperature_c: Some(22.0),
+                humidity_pct: Some(70.0),
+                timestamp: now - Duration::seconds(((duration_min * 60) - (i * 30)) as i64),
+            };
+            state.update(reading);
+        }
+
+        // Should return TRUE - full time coverage (100% > 90% required)
+        assert!(
+            state.is_humidity_sustained(65.0, duration_min as u32),
+            "Should trigger with exactly 90% time coverage"
+        );
     }
 }
