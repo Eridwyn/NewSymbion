@@ -455,3 +455,376 @@ impl AuthManager {
         }).collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::Path;
+
+    // Helper to clean up test users file
+    fn cleanup_test_users() {
+        if Path::new(USERS_FILE).exists() {
+            let _ = fs::remove_file(USERS_FILE);
+        }
+    }
+
+    // Helper to create test AuthManager with fresh state
+    fn create_test_auth_manager() -> Result<AuthManager> {
+        cleanup_test_users();
+        std::env::set_var("SYMBION_JWT_SECRET", "test-secret-1234567890123456789012345678901234567890123456789012345678901234");
+        AuthManager::new()
+    }
+
+    #[test]
+    fn test_auth_manager_creation() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        // Should have default "Mark" user created
+        let users = auth.list_users();
+        assert_eq!(users.len(), 1);
+        assert_eq!(users[0]["username"], "Mark");
+        assert_eq!(users[0]["role"], "admin");
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_password_hashing_bcrypt_cost_12() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        // Create a test user and verify bcrypt cost is 12
+        auth.create_user("testuser", "TestPass123", "user")
+            .expect("Failed to create user");
+
+        let user = auth.get_user("testuser").expect("User not found");
+
+        // Bcrypt hashes start with "$2b$12$" where 12 is the cost
+        assert!(user.password_hash.starts_with("$2b$12$") || user.password_hash.starts_with("$2a$12$"),
+                "Password hash should use bcrypt cost 12, got: {}", user.password_hash);
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_authenticate_valid_credentials() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        // Test with default Mark user
+        let result = auth.authenticate("Mark", "Sourire951", None, false);
+        assert!(result.is_ok(), "Valid credentials should authenticate");
+
+        let response = result.unwrap();
+        assert_eq!(response.username, "Mark");
+        assert_eq!(response.role, "admin");
+        assert!(!response.token.is_empty());
+        assert!(!response.requires_mfa);
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_authenticate_invalid_password() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        let result = auth.authenticate("Mark", "WrongPassword", None, false);
+        assert!(result.is_err(), "Invalid password should fail");
+        assert!(result.unwrap_err().to_string().contains("Invalid username or password"));
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_authenticate_nonexistent_user() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        let result = auth.authenticate("NonExistentUser", "SomePassword", None, false);
+        assert!(result.is_err(), "Non-existent user should fail");
+        assert!(result.unwrap_err().to_string().contains("Invalid username or password"));
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_jwt_token_generation() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        let response = auth.authenticate("Mark", "Sourire951", None, false)
+            .expect("Authentication failed");
+
+        // Token should not be empty
+        assert!(!response.token.is_empty());
+
+        // Token should have 3 parts (header.payload.signature)
+        let parts: Vec<&str> = response.token.split('.').collect();
+        assert_eq!(parts.len(), 3, "JWT should have 3 parts");
+
+        // Expiry should be in the future (8 hours default)
+        let now = time::OffsetDateTime::now_utc().unix_timestamp();
+        assert!(response.expires_at > now, "Token should expire in the future");
+        assert!(response.expires_at <= now + (8 * 3600 + 10), "Token should expire within ~8 hours");
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_jwt_token_verification() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        let response = auth.authenticate("Mark", "Sourire951", None, false)
+            .expect("Authentication failed");
+
+        // Verify the token
+        let claims = auth.verify_token(&response.token)
+            .expect("Token verification failed");
+
+        assert_eq!(claims.sub, "Mark");
+        assert_eq!(claims.role, "admin");
+        assert!(claims.exp > claims.iat, "Expiry should be after issued time");
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_jwt_token_invalid_signature() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        // Create a token with different secret to simulate tampering
+        std::env::set_var("SYMBION_JWT_SECRET", "different-secret-key");
+        let auth2 = AuthManager::new().expect("Failed to create second AuthManager");
+
+        let token = auth2.create_token_for_user("Mark").expect("Failed to create token");
+
+        // Try to verify with original auth manager (different secret)
+        let result = auth.verify_token(&token);
+        assert!(result.is_err(), "Token with wrong signature should fail verification");
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_create_user() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        let result = auth.create_user("alice", "AlicePass123", "user");
+        assert!(result.is_ok(), "User creation should succeed");
+
+        let user = auth.get_user("alice").expect("User should exist");
+        assert_eq!(user.username, "alice");
+        assert_eq!(user.role, "user");
+        assert!(user.mfa_config.is_none());
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_create_duplicate_user() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        auth.create_user("bob", "BobPass123", "user")
+            .expect("First user creation should succeed");
+
+        let result = auth.create_user("bob", "AnotherPass", "admin");
+        assert!(result.is_err(), "Duplicate user creation should fail");
+        assert!(result.unwrap_err().to_string().contains("already exists"));
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_delete_user() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        auth.create_user("charlie", "CharliePass123", "user")
+            .expect("User creation should succeed");
+
+        assert!(auth.get_user("charlie").is_some(), "User should exist");
+
+        let result = auth.delete_user("charlie");
+        assert!(result.is_ok(), "User deletion should succeed");
+
+        assert!(auth.get_user("charlie").is_none(), "User should not exist after deletion");
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_rate_limiting() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        // Attempt login 5 times with wrong password (max attempts)
+        for i in 0..5 {
+            let result = auth.authenticate("Mark", "WrongPassword", None, false);
+            assert!(result.is_err(), "Attempt {} should fail with wrong password", i + 1);
+        }
+
+        // 6th attempt should be rate limited
+        let result = auth.authenticate("Mark", "WrongPassword", None, false);
+        assert!(result.is_err(), "6th attempt should fail");
+
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("Too many login attempts") || error_msg.contains("wait"),
+                "Error should mention rate limiting, got: {}", error_msg);
+
+        // Even correct password should be rate limited now
+        let result = auth.authenticate("Mark", "Sourire951", None, false);
+        assert!(result.is_err(), "Correct password should also be rate limited");
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_rate_limit_different_users() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        auth.create_user("alice", "AlicePass", "user")
+            .expect("Failed to create alice");
+        auth.create_user("bob", "BobPass", "user")
+            .expect("Failed to create bob");
+
+        // Rate limit alice
+        for _ in 0..5 {
+            let _ = auth.authenticate("alice", "WrongPassword", None, false);
+        }
+
+        // Alice should be rate limited
+        let result = auth.authenticate("alice", "AlicePass", None, false);
+        assert!(result.is_err(), "Alice should be rate limited");
+
+        // Bob should still be able to login
+        let result = auth.authenticate("bob", "BobPass", None, false);
+        assert!(result.is_ok(), "Bob should not be rate limited");
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_session_info() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        let response = auth.authenticate("Mark", "Sourire951", None, false)
+            .expect("Authentication failed");
+
+        let session = auth.get_session_info(&response.token)
+            .expect("Failed to get session info");
+
+        assert_eq!(session.username, "Mark");
+        assert_eq!(session.role, "admin");
+        assert_eq!(session.expires_at, response.expires_at);
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_create_token_for_user() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        let token = auth.create_token_for_user("Mark")
+            .expect("Failed to create token");
+
+        assert!(!token.is_empty());
+
+        // Verify the token is valid
+        let claims = auth.verify_token(&token)
+            .expect("Token verification failed");
+
+        assert_eq!(claims.sub, "Mark");
+        assert_eq!(claims.role, "admin");
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_create_token_for_nonexistent_user() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        let result = auth.create_token_for_user("NonExistentUser");
+        assert!(result.is_err(), "Creating token for non-existent user should fail");
+        assert!(result.unwrap_err().to_string().contains("User not found"));
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_list_users() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        auth.create_user("alice", "AlicePass", "user")
+            .expect("Failed to create alice");
+        auth.create_user("bob", "BobPass", "admin")
+            .expect("Failed to create bob");
+
+        let users = auth.list_users();
+        assert_eq!(users.len(), 3); // Mark + alice + bob
+
+        // Verify no password hashes are exposed
+        for user in users {
+            assert!(user.get("password_hash").is_none(), "Password hash should not be exposed");
+            assert!(user.get("username").is_some());
+            assert!(user.get("role").is_some());
+        }
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_update_user_mfa() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        let mfa_config = crate::mfa::MfaConfig {
+            enabled: true,
+            secret_base32: "TESTSECRET123".to_string(),
+            backup_codes: vec!["12345678".to_string()],
+            last_verified_at: time::OffsetDateTime::now_utc().unix_timestamp(),
+            recovery_email: Some("mark@example.com".to_string()),
+            setup_at: time::OffsetDateTime::now_utc().unix_timestamp(),
+        };
+
+        let result = auth.update_user_mfa("Mark", Some(mfa_config.clone()));
+        assert!(result.is_ok(), "MFA update should succeed");
+
+        let user = auth.get_user("Mark").expect("User should exist");
+        assert!(user.mfa_config.is_some());
+        assert_eq!(user.mfa_config.unwrap().enabled, true);
+
+        cleanup_test_users();
+    }
+
+    #[test]
+    fn test_reload_users() {
+        let auth = create_test_auth_manager().expect("Failed to create AuthManager");
+
+        // Create a user
+        auth.create_user("alice", "AlicePass", "user")
+            .expect("Failed to create alice");
+
+        // Modify users.json directly
+        let mut users = HashMap::new();
+        users.insert("Mark".to_string(), User {
+            username: "Mark".to_string(),
+            password_hash: hash("NewPassword", 12).expect("Failed to hash"),
+            role: "admin".to_string(),
+            created_at: time::OffsetDateTime::now_utc().unix_timestamp(),
+            mfa_config: None,
+        });
+        users.insert("charlie".to_string(), User {
+            username: "charlie".to_string(),
+            password_hash: hash("CharliePass", 12).expect("Failed to hash"),
+            role: "user".to_string(),
+            created_at: time::OffsetDateTime::now_utc().unix_timestamp(),
+            mfa_config: None,
+        });
+
+        let json = serde_json::to_string_pretty(&users).expect("Failed to serialize");
+        fs::write(USERS_FILE, json).expect("Failed to write users file");
+
+        // Reload users
+        auth.reload_users().expect("Failed to reload users");
+
+        // Alice should be gone, charlie should be present
+        assert!(auth.get_user("alice").is_none(), "Alice should not exist after reload");
+        assert!(auth.get_user("charlie").is_some(), "Charlie should exist after reload");
+
+        cleanup_test_users();
+    }
+}

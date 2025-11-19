@@ -234,8 +234,8 @@ mod tests {
         let state = RoomEnvironmentState::new("chambre".to_string());
 
         assert_eq!(state.room_id, "chambre");
-        assert_eq!(state.current.temperature_c, 20.0);
-        assert_eq!(state.current.humidity_pct, 50.0);
+        assert_eq!(state.current.temperature_c, Some(20.0));
+        assert_eq!(state.current.humidity_pct, Some(50.0));
         assert_eq!(state.status, EnvironmentStatus::Ok);
         assert_eq!(state.history.len(), 0);
     }
@@ -245,15 +245,15 @@ mod tests {
         let mut state = RoomEnvironmentState::new("salon".to_string());
 
         let reading = EnvReading {
-            temperature_c: 22.5,
-            humidity_pct: 55.0,
+            temperature_c: Some(22.5),
+            humidity_pct: Some(55.0),
             timestamp: Utc::now(),
         };
 
         state.update(reading.clone());
 
-        assert_eq!(state.current.temperature_c, 22.5);
-        assert_eq!(state.current.humidity_pct, 55.0);
+        assert_eq!(state.current.temperature_c, Some(22.5));
+        assert_eq!(state.current.humidity_pct, Some(55.0));
         assert_eq!(state.history.len(), 1);
         assert_eq!(state.status, EnvironmentStatus::Ok);
     }
@@ -265,8 +265,8 @@ mod tests {
         // Add 150 readings (exceeds max_history of 100)
         for i in 0..150 {
             let reading = EnvReading {
-                temperature_c: 20.0 + i as f32 * 0.1,
-                humidity_pct: 50.0,
+                temperature_c: Some(20.0 + i as f32 * 0.1),
+                humidity_pct: Some(50.0),
                 timestamp: Utc::now(),
             };
             state.update(reading);
@@ -277,7 +277,7 @@ mod tests {
 
         // Verify oldest reading is from iteration 50 (0-49 evicted)
         let oldest = state.history.front().unwrap();
-        assert!((oldest.temperature_c - 25.0).abs() < 0.01); // 20.0 + 50 * 0.1 = 25.0
+        assert!((oldest.temperature_c.unwrap() - 25.0).abs() < 0.01); // 20.0 + 50 * 0.1 = 25.0
     }
 
     #[test]
@@ -285,8 +285,8 @@ mod tests {
         let state = RoomEnvironmentState::new("chambre".to_string());
 
         let reading = EnvReading {
-            temperature_c: 22.0,
-            humidity_pct: 65.0, // Humid threshold (60-75%)
+            temperature_c: Some(22.0),
+            humidity_pct: Some(65.0), // Humid threshold (60-75%)
             timestamp: Utc::now(),
         };
 
@@ -299,8 +299,8 @@ mod tests {
         let state = RoomEnvironmentState::new("chambre".to_string());
 
         let reading = EnvReading {
-            temperature_c: 22.0,
-            humidity_pct: 78.0, // Risk mold threshold (>75%)
+            temperature_c: Some(22.0),
+            humidity_pct: Some(78.0), // Risk mold threshold (>75%)
             timestamp: Utc::now(),
         };
 
@@ -313,8 +313,8 @@ mod tests {
         let state = RoomEnvironmentState::new("chambre".to_string());
 
         let reading = EnvReading {
-            temperature_c: 14.0, // Cold threshold (<16°C)
-            humidity_pct: 50.0,
+            temperature_c: Some(14.0), // Cold threshold (<16°C)
+            humidity_pct: Some(50.0),
             timestamp: Utc::now(),
         };
 
@@ -328,16 +328,16 @@ mod tests {
 
         // Add reading from 3 hours ago
         let old_reading = EnvReading {
-            temperature_c: 18.0,
-            humidity_pct: 45.0,
+            temperature_c: Some(18.0),
+            humidity_pct: Some(45.0),
             timestamp: Utc::now() - Duration::hours(3),
         };
         state.update(old_reading);
 
         // Add recent reading (now)
         let recent_reading = EnvReading {
-            temperature_c: 22.0,
-            humidity_pct: 55.0,
+            temperature_c: Some(22.0),
+            humidity_pct: Some(55.0),
             timestamp: Utc::now(),
         };
         state.update(recent_reading);
@@ -345,7 +345,7 @@ mod tests {
         // Get last 2 hours (should exclude 3h old reading)
         let history_2h = state.get_history(2);
         assert_eq!(history_2h.len(), 1);
-        assert_eq!(history_2h[0].temperature_c, 22.0);
+        assert_eq!(history_2h[0].temperature_c, Some(22.0));
 
         // Get last 5 hours (should include both)
         let history_5h = state.get_history(5);
@@ -359,8 +359,8 @@ mod tests {
         // Add 5 readings with high humidity (1 per min for 5 min)
         for i in 0..5 {
             let reading = EnvReading {
-                temperature_c: 22.0,
-                humidity_pct: 70.0,
+                temperature_c: Some(22.0),
+                humidity_pct: Some(70.0),
                 timestamp: Utc::now() - Duration::minutes(5 - i),
             };
             state.update(reading);
@@ -377,8 +377,8 @@ mod tests {
         // Add 3 readings with high humidity
         for i in 0..3 {
             let reading = EnvReading {
-                temperature_c: 22.0,
-                humidity_pct: 70.0,
+                temperature_c: Some(22.0),
+                humidity_pct: Some(70.0),
                 timestamp: Utc::now() - Duration::minutes(3 - i),
             };
             state.update(reading);
@@ -386,8 +386,8 @@ mod tests {
 
         // Current reading drops below threshold
         let reading = EnvReading {
-            temperature_c: 22.0,
-            humidity_pct: 60.0, // Below threshold
+            temperature_c: Some(22.0),
+            humidity_pct: Some(60.0), // Below threshold
             timestamp: Utc::now(),
         };
         state.update(reading);
@@ -411,8 +411,8 @@ mod tests {
 
         for (humidity, minutes_ago) in readings {
             let reading = EnvReading {
-                temperature_c: 22.0,
-                humidity_pct: humidity,
+                temperature_c: Some(22.0),
+                humidity_pct: Some(humidity),
                 timestamp: Utc::now() - Duration::minutes(minutes_ago),
             };
             state.update(reading);
@@ -430,8 +430,8 @@ mod tests {
         let temps = vec![18.0, 20.0, 22.0];
         for temp in temps {
             let reading = EnvReading {
-                temperature_c: temp,
-                humidity_pct: 50.0,
+                temperature_c: Some(temp),
+                humidity_pct: Some(50.0),
                 timestamp: Utc::now(),
             };
             state.update(reading);
@@ -449,8 +449,8 @@ mod tests {
         let humidities = vec![50.0, 55.0, 60.0, 65.0];
         for humidity in humidities {
             let reading = EnvReading {
-                temperature_c: 22.0,
-                humidity_pct: humidity,
+                temperature_c: Some(22.0),
+                humidity_pct: Some(humidity),
                 timestamp: Utc::now(),
             };
             state.update(reading);

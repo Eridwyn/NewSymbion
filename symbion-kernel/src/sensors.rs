@@ -531,8 +531,8 @@ mod tests {
 
         // Update reading
         let reading = EnvReading {
-            temperature_c: 22.5,
-            humidity_pct: 55.0,
+            temperature_c: Some(22.5),
+            humidity_pct: Some(55.0),
             timestamp: Utc::now(),
         };
         registry
@@ -541,8 +541,8 @@ mod tests {
 
         // Verify environment state updated
         let env = registry.get_environment("esp32-salon-01").unwrap();
-        assert_eq!(env.current.temperature_c, 22.5);
-        assert_eq!(env.current.humidity_pct, 55.0);
+        assert_eq!(env.current.temperature_c, Some(22.5));
+        assert_eq!(env.current.humidity_pct, Some(55.0));
         assert_eq!(env.history.len(), 1);
     }
 
@@ -724,8 +724,8 @@ mod tests {
             // Add multiple readings to build history
             for i in 0..5 {
                 let reading = EnvReading {
-                    temperature_c: 20.0 + i as f32,
-                    humidity_pct: 50.0 + i as f32,
+                    temperature_c: Some(20.0 + i as f32),
+                    humidity_pct: Some(50.0 + i as f32),
                     timestamp: Utc::now(),
                 };
                 registry.update_reading("esp32-env-test", reading).unwrap();
@@ -746,8 +746,8 @@ mod tests {
             assert_eq!(env.history.len(), 5);
 
             // Verify last reading
-            assert_eq!(env.current.temperature_c, 24.0); // 20.0 + 4
-            assert_eq!(env.current.humidity_pct, 54.0); // 50.0 + 4
+            assert_eq!(env.current.temperature_c, Some(24.0)); // 20.0 + 4
+            assert_eq!(env.current.humidity_pct, Some(54.0)); // 50.0 + 4
         }
     }
 
@@ -772,8 +772,8 @@ mod tests {
 
         // First save should succeed (dirty flag set)
         let reading = EnvReading {
-            temperature_c: 21.0,
-            humidity_pct: 52.0,
+            temperature_c: Some(21.0),
+            humidity_pct: Some(52.0),
             timestamp: Utc::now(),
         };
         registry.update_reading("esp32-debounce-test", reading).unwrap();
