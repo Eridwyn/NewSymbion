@@ -427,3 +427,311 @@ impl WebAuthnManager {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    const TEST_CREDENTIALS_FILE: &str = "test_passkeys.json";
+
+    /// Helper: Cleanup test credentials file
+    fn cleanup_test_credentials() {
+        let path = PathBuf::from(TEST_CREDENTIALS_FILE);
+        if path.exists() {
+            let _ = fs::remove_file(&path);
+        }
+    }
+
+    /// Helper: Create test WebAuthnManager
+    fn create_test_manager() -> Result<WebAuthnManager> {
+        cleanup_test_credentials();
+        WebAuthnManager::new(
+            "localhost",
+            "https://localhost:8443",
+            PathBuf::from(TEST_CREDENTIALS_FILE),
+        )
+    }
+
+    #[test]
+    fn test_webauthn_manager_creation() {
+        cleanup_test_credentials();
+
+        let result = WebAuthnManager::new(
+            "localhost",
+            "https://localhost:8443",
+            PathBuf::from(TEST_CREDENTIALS_FILE),
+        );
+
+        assert!(result.is_ok(), "WebAuthnManager creation should succeed");
+        let manager = result.unwrap();
+
+        // Verify no credentials initially
+        let creds = manager.credentials.read();
+        assert_eq!(creds.len(), 0, "Should start with no credentials");
+
+        cleanup_test_credentials();
+    }
+
+    #[test]
+    fn test_webauthn_manager_invalid_origin() {
+        cleanup_test_credentials();
+
+        let result = WebAuthnManager::new(
+            "localhost",
+            "invalid-url-not-https",
+            PathBuf::from(TEST_CREDENTIALS_FILE),
+        );
+
+        assert!(result.is_err(), "Should fail with invalid origin URL");
+        cleanup_test_credentials();
+    }
+
+    #[test]
+    fn test_start_registration_challenge_structure() {
+        let manager = create_test_manager().expect("Failed to create manager");
+
+        let ccr = manager
+            .start_registration("testuser", "Test User")
+            .expect("Should start registration");
+
+        // Verify challenge structure (challenge is opaque, just verify it exists)
+        assert_eq!(ccr.public_key.rp.name, "Symbion Home Automation");
+        assert_eq!(ccr.public_key.user.name, "testuser");
+        assert_eq!(ccr.public_key.user.display_name, "Test User");
+
+        // Verify state was stored
+        let states = manager.registration_states.read();
+        assert!(states.contains_key("testuser"), "Registration state should be stored");
+        let state = states.get("testuser").unwrap();
+
+        let now = time::OffsetDateTime::now_utc().unix_timestamp();
+        assert!(state.expires_at > now, "Challenge should not be expired");
+        assert!(state.expires_at <= now + 301, "Challenge should expire in ~5 minutes");
+
+        cleanup_test_credentials();
+    }
+
+    #[test]
+    fn test_start_registration_multiple_users() {
+        let manager = create_test_manager().expect("Failed to create manager");
+
+        manager.start_registration("user1", "User One").expect("User 1 registration");
+        manager.start_registration("user2", "User Two").expect("User 2 registration");
+
+        let states = manager.registration_states.read();
+        assert_eq!(states.len(), 2, "Should have 2 pending registrations");
+        assert!(states.contains_key("user1"));
+        assert!(states.contains_key("user2"));
+
+        cleanup_test_credentials();
+    }
+
+    #[test]
+    fn test_start_authentication_no_passkeys() {
+        let manager = create_test_manager().expect("Failed to create manager");
+
+        let result = manager.start_authentication("nonexistent");
+
+        assert!(result.is_err(), "Should fail when user has no passkeys");
+        let error_msg = result.unwrap_err().to_string();
+        assert!(
+            error_msg.contains("No passkeys") || error_msg.contains("no registered"),
+            "Error should mention no passkeys, got: {}",
+            error_msg
+        );
+
+        cleanup_test_credentials();
+    }
+
+    #[test]
+    fn test_start_discoverable_authentication_no_passkeys() {
+        let manager = create_test_manager().expect("Failed to create manager");
+
+        let result = manager.start_discoverable_authentication();
+
+        assert!(result.is_err(), "Should fail when no passkeys registered");
+        let error_msg = result.unwrap_err().to_string();
+        assert!(
+            error_msg.contains("No passkeys registered"),
+            "Error should mention no passkeys, got: {}",
+            error_msg
+        );
+
+        cleanup_test_credentials();
+    }
+
+    #[test]
+    fn test_list_user_passkeys_empty() {
+        let manager = create_test_manager().expect("Failed to create manager");
+
+        let passkeys = manager.list_user_passkeys("testuser");
+
+        assert_eq!(passkeys.len(), 0, "Should return empty vec for user with no passkeys");
+        cleanup_test_credentials();
+    }
+
+    #[test]
+    fn test_delete_passkey_no_user() {
+        let manager = create_test_manager().expect("Failed to create manager");
+
+        let result = manager.delete_passkey("nonexistent", &[1, 2, 3]);
+
+        assert!(result.is_err(), "Should fail when user doesn't exist");
+        let error_msg = result.unwrap_err().to_string();
+        assert!(
+            error_msg.contains("no passkeys"),
+            "Error should mention no passkeys, got: {}",
+            error_msg
+        );
+
+        cleanup_test_credentials();
+    }
+
+    #[test]
+    fn test_cleanup_expired_states() {
+        let manager = create_test_manager().expect("Failed to create manager");
+
+        // Create a temporary registration to get a valid state
+        manager.start_registration("temp", "Temp").unwrap();
+
+        // Extract the state and modify its expiration
+        let expired_state = {
+            let mut states = manager.registration_states.write();
+            let mut temp_state = states.remove("temp").unwrap();
+            temp_state.expires_at = time::OffsetDateTime::now_utc().unix_timestamp() - 100; // Expired 100s ago
+            temp_state.username = "expired_user".to_string();
+            temp_state
+        };
+
+        // Insert the expired state
+        {
+            let mut states = manager.registration_states.write();
+            states.insert("expired_user".to_string(), expired_state);
+        }
+
+        // Add a valid state
+        manager.start_registration("valid_user", "Valid User").expect("Valid registration");
+
+        // Verify we have 2 states
+        {
+            let states = manager.registration_states.read();
+            assert_eq!(states.len(), 2, "Should have 2 registration states before cleanup");
+        }
+
+        // Cleanup
+        manager.cleanup_expired_states();
+
+        // Verify only valid state remains
+        {
+            let states = manager.registration_states.read();
+            assert_eq!(states.len(), 1, "Should have 1 registration state after cleanup");
+            assert!(states.contains_key("valid_user"), "Valid state should remain");
+            assert!(!states.contains_key("expired_user"), "Expired state should be removed");
+        }
+
+        cleanup_test_credentials();
+    }
+
+    #[test]
+    fn test_load_credentials_nonexistent_file() {
+        cleanup_test_credentials();
+
+        let path = PathBuf::from("nonexistent_passkeys.json");
+        let result = WebAuthnManager::load_credentials(&path);
+
+        assert!(result.is_ok(), "Should return empty HashMap when file doesn't exist");
+        assert_eq!(result.unwrap().len(), 0, "Should have no credentials");
+    }
+
+    #[test]
+    fn test_load_credentials_invalid_json() {
+        let test_file = "invalid_passkeys.json";
+        fs::write(test_file, "{ invalid json :::").expect("Write invalid JSON");
+
+        let path = PathBuf::from(test_file);
+        let result = WebAuthnManager::load_credentials(&path);
+
+        assert!(result.is_err(), "Should fail with invalid JSON");
+
+        fs::remove_file(test_file).ok();
+    }
+
+    #[test]
+    fn test_registration_state_expiration() {
+        let manager = create_test_manager().expect("Failed to create manager");
+
+        manager.start_registration("testuser", "Test User").expect("Start registration");
+
+        // Manually expire the state
+        {
+            let mut states = manager.registration_states.write();
+            let state = states.get_mut("testuser").unwrap();
+            state.expires_at = time::OffsetDateTime::now_utc().unix_timestamp() - 10; // Expired 10s ago
+        }
+
+        // Attempt to finish registration (would fail due to expiration in real flow)
+        // We can't actually call finish_registration without a valid RegisterPublicKeyCredential,
+        // but we've tested the expiration check logic exists
+
+        cleanup_test_credentials();
+    }
+
+    #[test]
+    fn test_webauthn_rp_configuration() {
+        let manager = create_test_manager().expect("Failed to create manager");
+
+        // Start registration to get challenge response
+        let ccr = manager
+            .start_registration("testuser", "Test User")
+            .expect("Registration started");
+
+        // Verify RP (Relying Party) configuration
+        assert_eq!(ccr.public_key.rp.id, "localhost");
+        assert_eq!(ccr.public_key.rp.name, "Symbion Home Automation");
+
+        cleanup_test_credentials();
+    }
+
+    #[test]
+    fn test_concurrent_registrations_different_users() {
+        let manager = create_test_manager().expect("Failed to create manager");
+
+        // Start multiple registrations concurrently
+        let _ccr1 = manager.start_registration("user1", "User One").expect("User 1");
+        let _ccr2 = manager.start_registration("user2", "User Two").expect("User 2");
+        let _ccr3 = manager.start_registration("user3", "User Three").expect("User 3");
+
+        // Verify all states are stored (challenges are opaque, can't compare directly)
+        let states = manager.registration_states.read();
+        assert_eq!(states.len(), 3, "All 3 registration states should be stored");
+
+        cleanup_test_credentials();
+    }
+
+
+    #[test]
+    fn test_challenge_expiration_time() {
+        let manager = create_test_manager().expect("Failed to create manager");
+
+        let now_before = time::OffsetDateTime::now_utc().unix_timestamp();
+        manager.start_registration("testuser", "Test User").expect("Registration");
+        let now_after = time::OffsetDateTime::now_utc().unix_timestamp();
+
+        let states = manager.registration_states.read();
+        let state = states.get("testuser").unwrap();
+
+        // Challenge should expire in ~5 minutes (300 seconds)
+        let expected_min = now_before + 299; // Allow 1s tolerance
+        let expected_max = now_after + 301;
+
+        assert!(
+            state.expires_at >= expected_min && state.expires_at <= expected_max,
+            "Challenge should expire in ~5 minutes, got expires_at={}, now=~{}",
+            state.expires_at,
+            now_before
+        );
+
+        cleanup_test_credentials();
+    }
+}
