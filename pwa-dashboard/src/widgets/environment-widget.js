@@ -522,6 +522,14 @@ class EnvironmentWidget extends LitElement {
 
   getStatusIcon(status) {
     const icons = {
+      // New dew point-based alert levels (physics-based)
+      safe: '✅',
+      weak: '💧',
+      moderate: '💧💧',
+      strong: '⚠️',
+      critical: '🚨',
+      danger: '🔴',
+      // Legacy compatibility (deprecated)
       ok: '✓',
       normal: '✓',
       mold_risk: '🚨',
@@ -536,6 +544,14 @@ class EnvironmentWidget extends LitElement {
 
   getStatusLabel(status) {
     const labels = {
+      // New dew point-based alert levels (Magnus formula)
+      safe: 'Normal',
+      weak: 'Tendance Haute',
+      moderate: 'Humidité Excessive',
+      strong: 'Risque Condensation',
+      critical: 'Condensation Probable',
+      danger: 'Condensation Certaine',
+      // Legacy compatibility (deprecated)
       ok: 'Normal',
       normal: 'Normal',
       mold_risk: 'Risque Moisissure',
