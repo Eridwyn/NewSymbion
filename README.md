@@ -2,7 +2,7 @@
 
 **Version**: v0.3.0-alpha.3
 **Status**: Production-Ready Core (PR1-PR5 Complete)
-**License**: MIT
+**License**: Proprietary - All Rights Reserved
 
 Système d'automatisation personnelle et domotique intelligent avec architecture IoT distribuée.
 
