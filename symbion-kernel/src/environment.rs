@@ -79,6 +79,14 @@ impl RoomEnvironmentState {
         self.max_history = 20160;
     }
 
+    /// Recalculate status from current data
+    ///
+    /// Should be called after loading from disk to ensure status reflects
+    /// the latest evaluation logic (not the persisted value)
+    pub fn recalculate_status(&mut self) {
+        self.status = self.calculate_status();
+    }
+
     /// Update state with new reading
     ///
     /// - Updates current reading

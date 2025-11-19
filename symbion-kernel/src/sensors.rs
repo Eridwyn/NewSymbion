@@ -358,9 +358,11 @@ impl SensorRegistry {
         let json = std::fs::read_to_string(&self.persistence_env_path)?;
         let mut environments: HashMap<String, RoomEnvironmentState> = serde_json::from_str(&json)?;
 
-        // Fix max_history for all loaded states (serde skips it, defaults to 0)
+        // Fix max_history and recalculate status for all loaded states
+        // (serde skips max_history, and status needs re-eval with latest logic)
         for env_state in environments.values_mut() {
             env_state.fix_max_history();
+            env_state.recalculate_status(); // Ensure status reflects current eval logic
         }
 
         println!(
