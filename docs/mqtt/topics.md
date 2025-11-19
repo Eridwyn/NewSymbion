@@ -1,6 +1,6 @@
 # MQTT Topics - Référence Complète
 
-> 📡 Documentation exhaustive des 15 topics actifs MQTT de l'écosystème Symbion
+> 📡 Documentation exhaustive des 17 topics actifs MQTT de l'écosystème Symbion
 
 ## 🗂️ Classification des Topics
 
@@ -8,11 +8,12 @@
 |-----------|--------|-----------|-------------|
 | **Agent Lifecycle** | 4 | Agents → Kernel | Enregistrement, heartbeat (v1+v2), état |
 | **Agent Control** | 2 | Kernel → Agents | Commandes, wake-on-LAN |
+| **Environment Sensors (F1)** | 2 | Sensors → Kernel | Enregistrement ESP32, telemetry env |
 | **Plugin Communication** | 2 | Bidirectionnel | Requêtes/réponses notes |
 | **Dashboard Updates** | 6 | Kernel → PWA | Événements temps réel |
 | **System Events** | 2 | Multicast | Health, notifications globales |
 
-**Total** : 15 topics actifs + 1 legacy (symbion/context/mode sans version)
+**Total** : 17 topics actifs + 1 legacy (symbion/context/mode sans version)
 
 ---
 
@@ -306,6 +307,145 @@ socket.send_to(&packet, "192.168.1.255:9").await?;
 
 **Voir Aussi** :
 - [ROADMAP.md](../ROADMAP.md) - Phase 5: Wake-on-LAN implementation
+
+---
+
+## 🌡️ Environment Sensor Topics (F1)
+
+> ✅ **IMPLEMENTED (November 18, 2025)**: F1 Environment Monitoring Organ - ESP32/BME280 sensors
+>
+> **Source**: `symbion-kernel/src/environment.rs`, `symbion-kernel/src/sensors.rs`, `symbion-kernel/src/mqtt.rs:86-92,208-223`
+
+### `symbion/sensors/registration@v1`
+
+**Direction** : Sensors (ESP32) → Kernel
+**QoS** : 1 (At least once)
+**Fréquence** : Au démarrage capteur
+
+**Description** : Enregistrement automatique capteur environnemental (ESP32 + BME280)
+
+**Payload** :
+```json
+{
+  "sensor_id": "esp32-chambre-01",
+  "sensor_type": "bme280",
+  "room_id": "chambre",
+  "firmware_version": "v1.0.2"
+}
+```
+
+**Champs** :
+- `sensor_id` : Identifiant unique capteur (format: `esp32-{room}-{num}`)
+- `sensor_type` : Type de capteur matériel (`bme280`, `dht22`, `scd30`)
+- `room_id` : Pièce surveillée (clé pour RoomEnvironmentState)
+- `firmware_version` : Version firmware ESP32 (optionnel)
+
+**Fichier source** :
+- **Publisher** : `symbion-plugin-sensors/src/main.rs` (ESP32 firmware)
+- **Subscriber** : `symbion-kernel/src/mqtt.rs:86`
+- **Handler** : `symbion-kernel/src/sensors.rs:106-135` (SensorRegistry::register)
+
+**Traitement Kernel** :
+```rust
+// symbion-kernel/src/mqtt.rs:193-206
+if p.topic == "symbion/sensors/registration@v1" {
+    match serde_json::from_str::<SensorRegistrationMessage>(&txt) {
+        Ok(reg) => {
+            if let Err(e) = sensor_registry.register(reg) {
+                eprintln!("[kernel] sensor registration failed: {}", e);
+            } else {
+                println!("[kernel] sensor registration handled successfully");
+            }
+        }
+        Err(e) => eprintln!("[kernel] sensor registration JSON invalide: {txt}, error: {}", e),
+    }
+}
+```
+
+**Voir Aussi** :
+- [`symbion/sensors/{sensor_id}/env@v1`](#symbionsensorssensor_idenvv1) - Telemetry readings périodiques
+- [API Environment Endpoints](../api/endpoints.md#environment-sensors) - HTTP API endpoints
+- [Decision Engine Rules](../architecture/SYSTEM_OVERVIEW.md#f1-environment-monitoring) - Automated alerts
+
+---
+
+### `symbion/sensors/{sensor_id}/env@v1`
+
+**Direction** : Sensors (ESP32) → Kernel
+**QoS** : 1 (At least once)
+**Fréquence** : Toutes les 30 secondes (2 readings/min)
+
+**Description** : Telemetry environnementale temps réel (température, humidité, battery, signal)
+
+**Topic Pattern** : `symbion/sensors/esp32-chambre-01/env@v1`
+
+**Payload** :
+```json
+{
+  "sensor_id": "esp32-chambre-01",
+  "temperature_c": 22.5,
+  "humidity_pct": 58.2,
+  "battery_pct": 87,
+  "signal_rssi": -45
+}
+```
+
+**Champs** :
+- `sensor_id` : Identifiant capteur (doit matcher registration)
+- `temperature_c` : Température en degrés Celsius
+- `humidity_pct` : Humidité relative en pourcentage (0-100)
+- `battery_pct` : Niveau batterie (optionnel, 0-100)
+- `signal_rssi` : Signal WiFi en dBm (optionnel, ex: -45 = excellent, -70 = faible)
+
+**Capacité Stockage** :
+- Buffer circulaire : **20,160 readings** (7 jours @ 2 readings/min)
+- Taille mémoire : ~500 KB par room (température + humidité + timestamps)
+- Persistence : Sauvegarde périodique (5 min debounce)
+
+**Détection Offline** :
+- Timeout : 5 minutes sans message → Status `NA` (Not Available)
+- Frontend : Badge "⚠️ Capteur Déconnecté" affiché
+- API : `temperature_c: null`, `humidity_pct: null` retournés
+
+**Fichier source** :
+- **Publisher** : `symbion-plugin-sensors/src/main.rs` (ESP32 firmware)
+- **Subscriber** : `symbion-kernel/src/mqtt.rs:89` (wildcard `symbion/sensors/+/env@v1`)
+- **Handler** : `symbion-kernel/src/mqtt.rs:208-223` + `symbion-kernel/src/sensors.rs:137-169`
+- **State Management** : `symbion-kernel/src/environment.rs:52-146` (RoomEnvironmentState)
+- **Decision Rules** : `symbion-kernel/src/decision/environment.rs:45-171` (EnvironmentRules)
+
+**Traitement Kernel** :
+```rust
+// symbion-kernel/src/mqtt.rs:208-223
+else if p.topic.starts_with("symbion/sensors/") && p.topic.ends_with("/env@v1") {
+    // Environment sensor readings (topic pattern: symbion/sensors/{sensor_id}/env@v1)
+    if let Some(ref sensor_registry) = sensors {
+        match serde_json::from_str::<SensorEnvMessage>(&txt) {
+            Ok(msg) => {
+                println!("[kernel] received env reading from sensor {}: {}°C, {}%",
+                    msg.sensor_id, msg.temperature_c, msg.humidity_pct);
+                if let Err(e) = sensor_registry.handle_env_reading(msg) {
+                    eprintln!("[kernel] failed to handle env reading: {}", e);
+                }
+            }
+            Err(e) => eprintln!("[kernel] sensor env JSON invalide: {txt}, error: {}", e),
+        }
+    }
+}
+```
+
+**Automated Decision Rules** (evaluated on each reading):
+- **ALERT_HUMIDITY_CHAMBRE** : Humidity >65% sustained 30 min → Medium impact alert
+- **ALERT_HUMIDITY_CRITICAL** : Humidity >75% sustained 10 min → High impact alert (mold risk)
+- **ALERT_COLD_NIGHT** : Temperature <16°C during night (22:00-07:00) → Low impact alert
+
+**Voir Aussi** :
+- [`symbion/sensors/registration@v1`](#symbionsensorsregistrationv1) - Initial sensor registration
+- [API GET /v1/environment/{room_id}](../api/endpoints.md#get-v1environmentroom_id) - Récupérer état room
+- [API GET /v1/environment/{room_id}/history](../api/endpoints.md#get-v1environmentroom_idhistory) - Historique telemetry
+- [API GET /v1/environment/sensors](../api/endpoints.md#get-v1environmentsensors) - Liste tous sensors
+- [Decision Environment Rules](../architecture/SYSTEM_OVERVIEW.md#decision-engine-rules) - Automated alerting logic
+- [PWA Environment Widget](../architecture/SYSTEM_OVERVIEW.md#environment-widget) - 7-day Chart.js visualization
 
 ---
 
@@ -885,6 +1025,8 @@ Les topics suivants ont été remplacés par les 6 topics spécifiques ci-dessus
 | `symbion/hosts/heartbeat@v2` | Agents → Kernel | 1 | 30s | ⚠️ Legacy |
 | `symbion/agents/response@v1` | Agents → Kernel | 1 | À la demande | ✅ |
 | `symbion/agents/command@v1` | Kernel → Agents | 1 | À la demande | ✅ |
+| `symbion/sensors/registration@v1` | Sensors → Kernel | 1 | Au démarrage | ✅ F1 |
+| `symbion/sensors/{sensor_id}/env@v1` | Sensors → Kernel | 1 | 30s | ✅ F1 |
 | `symbion/notes/command@v1` | Kernel → Plugin | 1 | À la demande | ✅ |
 | `symbion/notes/response@v1` | Plugin → Kernel | 1 | À la demande | ✅ |
 | `symbion/dashboard/context@v1` | Kernel → PWA | 1 (retain) | Temps réel | ✅ |
@@ -896,7 +1038,7 @@ Les topics suivants ont été remplacés par les 6 topics spécifiques ci-dessus
 | `symbion/kernel/health@v1` | Kernel → Tous | 1 | 5 min | ✅ |
 | `symbion/context/mode` | Kernel → Tous | 1 (retain) | Temps réel | ⚠️ No version |
 
-**Total** : 15 topics actifs
+**Total** : 17 topics actifs
 
 ### Topics Planifiés (Non Implémentés)
 
@@ -967,10 +1109,13 @@ Les topics suivants ont été remplacés par les 6 topics spécifiques ci-dessus
 
 ---
 
-**Dernière mise à jour** : 15 Novembre 2025 (Audit topics actifs vs documentation)
+**Dernière mise à jour** : 19 Novembre 2025 (Ajout sensor topics F1 Environment)
 **Fichiers sources** :
-- `symbion-kernel/src/mqtt.rs` (subscriptions Kernel)
+- `symbion-kernel/src/mqtt.rs` (subscriptions Kernel + sensor topics)
 - `symbion-kernel/src/dashboard_events.rs` (6 topics dashboard)
+- `symbion-kernel/src/sensors.rs` (sensor registry + handlers)
+- `symbion-kernel/src/environment.rs` (environment state management)
 - `symbion-agent-host/src/main.rs` (publishers Agents)
 - `symbion-kernel/src/agents.rs` (commandes Agents)
 - `symbion-kernel/src/context.rs` (legacy topic context/mode)
+- `symbion-plugin-sensors/src/main.rs` (ESP32 firmware - sensor publisher)
