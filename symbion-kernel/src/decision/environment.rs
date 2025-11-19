@@ -185,14 +185,16 @@ mod tests {
         let mut state = RoomEnvironmentState::new("chambre".to_string());
 
         // Add readings with RH > 55% for 6+ hours (weak threshold)
-        let hours = 7; // Exceed 6h threshold
-        let readings_per_hour = 2; // 30min interval
+        // Need to span from (now - 6h) to now with 30sec intervals
+        let now = Utc::now();
+        let duration_min = 6 * 60; // 360 minutes = 6 hours
+        let num_readings = (duration_min * 2) as usize; // 30sec interval = 720 readings
 
-        for i in 0..(hours * readings_per_hour) {
+        for i in 0..num_readings {
             let reading = EnvReading {
                 temperature_c: Some(20.0),
                 humidity_pct: Some(58.0), // Above 55% threshold
-                timestamp: Utc::now() - Duration::minutes((hours * 60 - i * 30) as i64),
+                timestamp: now - Duration::seconds(((duration_min * 60) - (i * 30)) as i64),
             };
             state.update(reading);
         }
@@ -215,12 +217,16 @@ mod tests {
         let mut state = RoomEnvironmentState::new("chambre".to_string());
 
         // Add readings with RH > 60% for 3+ hours
-        let hours = 4; // Exceed 3h threshold
-        for i in 0..(hours * 2) {
+        // Need to span from (now - 3h) to now with 30sec intervals
+        let now = Utc::now();
+        let duration_min = 3 * 60; // 180 minutes = 3 hours
+        let num_readings = (duration_min * 2) as usize; // 30sec interval = 360 readings
+
+        for i in 0..num_readings {
             let reading = EnvReading {
                 temperature_c: Some(20.0),
                 humidity_pct: Some(62.0), // Above 60% threshold
-                timestamp: Utc::now() - Duration::minutes((hours * 60 - i * 30) as i64),
+                timestamp: now - Duration::seconds(((duration_min * 60) - (i * 30)) as i64),
             };
             state.update(reading);
         }
@@ -238,12 +244,16 @@ mod tests {
         let mut state = RoomEnvironmentState::new("chambre".to_string());
 
         // Add readings with RH > 70% for 20+ minutes (critical threshold)
-        for i in 0..5 {
-            // 5 readings × 5min = 25 minutes
+        // Need to span from (now - 20min) to now with 30sec intervals
+        let now = Utc::now();
+        let duration_min = 20;
+        let num_readings = (duration_min * 2) as usize; // 30sec interval = 40 readings
+
+        for i in 0..num_readings {
             let reading = EnvReading {
                 temperature_c: Some(20.0),
                 humidity_pct: Some(72.0), // Above 70% critical threshold
-                timestamp: Utc::now() - Duration::minutes((25 - i * 5) as i64),
+                timestamp: now - Duration::seconds(((duration_min * 60) - (i * 30)) as i64),
             };
             state.update(reading);
         }
@@ -265,15 +275,26 @@ mod tests {
         let mut state = RoomEnvironmentState::new("chambre".to_string());
 
         // Add readings with RH > 75% for 5+ minutes (danger threshold)
-        for i in 0..2 {
-            // 2 readings × 2.5min = 5+ minutes
+        // Need to span from past to very recent with 30sec intervals
+        let duration_min = 5;
+        let num_readings = (duration_min * 2) as usize; // 30sec interval = 10 readings
+
+        for i in 0..num_readings {
             let reading = EnvReading {
                 temperature_c: Some(20.0),
                 humidity_pct: Some(78.0), // Above 75% danger threshold
-                timestamp: Utc::now() - Duration::minutes((5 - i * 2) as i64),
+                timestamp: Utc::now() - Duration::seconds(((duration_min * 60) - (i * 30)) as i64),
             };
             state.update(reading);
         }
+
+        // Add current reading to ensure freshness
+        let reading = EnvReading {
+            temperature_c: Some(20.0),
+            humidity_pct: Some(78.0),
+            timestamp: Utc::now(),
+        };
+        state.update(reading);
 
         let intentions = EnvironmentRules::evaluate_all(&state);
         assert_eq!(intentions.len(), 1);
@@ -291,12 +312,16 @@ mod tests {
     fn test_intention_contains_dew_point_diagnostics() {
         let mut state = RoomEnvironmentState::new("chambre".to_string());
 
-        // Critical humidity
-        for i in 0..5 {
+        // Critical humidity - need proper time span for 20min requirement
+        let now = Utc::now();
+        let duration_min = 20;
+        let num_readings = (duration_min * 2) as usize; // 30sec interval = 40 readings
+
+        for i in 0..num_readings {
             let reading = EnvReading {
                 temperature_c: Some(18.0),
                 humidity_pct: Some(72.0),
-                timestamp: Utc::now() - Duration::minutes((25 - i * 5) as i64),
+                timestamp: now - Duration::seconds(((duration_min * 60) - (i * 30)) as i64),
             };
             state.update(reading);
         }
@@ -376,15 +401,26 @@ mod tests {
         let mut state = RoomEnvironmentState::new("chambre".to_string());
 
         // Create condition that could trigger multiple levels
-        // RH = 76% triggers Danger (highest)
-        for i in 0..2 {
+        // RH = 76% triggers Danger (highest) - need proper 5min span
+        let duration_min = 5;
+        let num_readings = (duration_min * 2) as usize; // 30sec interval = 10 readings
+
+        for i in 0..num_readings {
             let reading = EnvReading {
                 temperature_c: Some(20.0),
                 humidity_pct: Some(76.0), // Triggers all levels, but Danger is highest
-                timestamp: Utc::now() - Duration::minutes((5 - i * 2) as i64),
+                timestamp: Utc::now() - Duration::seconds(((duration_min * 60) - (i * 30)) as i64),
             };
             state.update(reading);
         }
+
+        // Add current reading to ensure freshness
+        let reading = EnvReading {
+            temperature_c: Some(20.0),
+            humidity_pct: Some(76.0),
+            timestamp: Utc::now(),
+        };
+        state.update(reading);
 
         let intentions = EnvironmentRules::evaluate_all(&state);
 

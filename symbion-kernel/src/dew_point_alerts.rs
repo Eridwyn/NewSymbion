@@ -387,6 +387,9 @@ impl DewPointCalculator {
     /// Vérifier si deltaT est resté sous seuil pendant durée donnée
     ///
     /// Similaire à is_humidity_sustained mais pour deltaT
+    ///
+    /// IMPORTANT: Validates that actual time coverage meets duration requirement
+    /// to prevent false positives with insufficient historical data
     fn is_delta_t_sustained_below(
         &self,
         state: &RoomEnvironmentState,
@@ -406,18 +409,34 @@ impl DewPointCalculator {
             return false; // Actuel au-dessus du seuil
         }
 
-        // Vérifier historique
-        let sustained = state
+        // Collect readings in time window
+        let readings_in_window: Vec<_> = state
             .history
             .iter()
             .rev()
             .take_while(|r| r.timestamp > cutoff)
+            .collect();
+
+        // Validate sufficient time coverage (prevent false positives)
+        if let (Some(oldest), Some(newest)) = (readings_in_window.last(), readings_in_window.first()) {
+            let actual_duration_secs = (newest.timestamp - oldest.timestamp).num_seconds();
+            let required_duration_secs = (duration_minutes as i64) * 60;
+
+            // Require at least 90% of duration to be covered by actual data
+            if actual_duration_secs < (required_duration_secs * 9 / 10) {
+                return false; // NOT ENOUGH DATA - prevent false positive
+            }
+        } else {
+            return false; // No data in window
+        }
+
+        // Vérifier que tous les deltaT sont sous le seuil
+        readings_in_window
+            .iter()
             .all(|reading| {
                 let delta = self.calculate_reading_delta_t(reading);
                 delta.map_or(false, |d| d < threshold)
-            });
-
-        sustained
+            })
     }
 
     /// Calculer deltaT pour lecture actuelle
@@ -505,15 +524,27 @@ mod tests {
         let calc = DewPointCalculator::new();
         let mut state = RoomEnvironmentState::new("chambre".to_string());
 
-        // Ajouter 7h de lectures à 57% RH (au-dessus seuil 55%, sous 60%)
-        for i in 0..14 {
+        // Ajouter 6h de lectures à 57% RH (au-dessus seuil 55%, sous 60%)
+        // Need proper time span with 30sec intervals
+        let duration_min = 6 * 60; // 360 minutes = 6 hours
+        let num_readings = (duration_min * 2) as usize; // 30sec interval = 720 readings
+
+        for i in 0..num_readings {
             let reading = EnvReading {
                 temperature_c: Some(20.0),
                 humidity_pct: Some(57.0), // Above weak threshold (55%)
-                timestamp: Utc::now() - Duration::hours(7 - i / 2),
+                timestamp: Utc::now() - Duration::seconds(((duration_min * 60) - (i * 30)) as i64),
             };
             state.update(reading);
         }
+
+        // Add current reading to ensure freshness
+        let reading = EnvReading {
+            temperature_c: Some(20.0),
+            humidity_pct: Some(57.0),
+            timestamp: Utc::now(),
+        };
+        state.update(reading);
 
         let eval = calc.evaluate(&state);
         assert_eq!(eval.level, DewPointAlertLevel::Weak);
@@ -525,15 +556,27 @@ mod tests {
         let calc = DewPointCalculator::new();
         let mut state = RoomEnvironmentState::new("chambre".to_string());
 
-        // 4h de lectures à 62% RH
-        for i in 0..8 {
+        // 3h de lectures à 62% RH (au-dessus seuil 60%)
+        // Need proper time span with 30sec intervals
+        let duration_min = 3 * 60; // 180 minutes = 3 hours
+        let num_readings = (duration_min * 2) as usize; // 30sec interval = 360 readings
+
+        for i in 0..num_readings {
             let reading = EnvReading {
                 temperature_c: Some(20.0),
                 humidity_pct: Some(62.0), // Above moderate threshold (60%)
-                timestamp: Utc::now() - Duration::hours(4 - i / 2),
+                timestamp: Utc::now() - Duration::seconds(((duration_min * 60) - (i * 30)) as i64),
             };
             state.update(reading);
         }
+
+        // Add current reading to ensure freshness
+        let reading = EnvReading {
+            temperature_c: Some(20.0),
+            humidity_pct: Some(62.0),
+            timestamp: Utc::now(),
+        };
+        state.update(reading);
 
         let eval = calc.evaluate(&state);
         assert_eq!(eval.level, DewPointAlertLevel::Moderate);
@@ -544,15 +587,27 @@ mod tests {
         let calc = DewPointCalculator::new();
         let mut state = RoomEnvironmentState::new("chambre".to_string());
 
-        // 10 minutes de lectures à 78% RH
-        for i in 0..10 {
+        // 5 minutes de lectures à 78% RH (au-dessus seuil 75%)
+        // Need proper time span with 30sec intervals
+        let duration_min = 5;
+        let num_readings = (duration_min * 2) as usize; // 30sec interval = 10 readings
+
+        for i in 0..num_readings {
             let reading = EnvReading {
                 temperature_c: Some(20.0),
                 humidity_pct: Some(78.0), // Above danger threshold (75%)
-                timestamp: Utc::now() - Duration::minutes(10 - i),
+                timestamp: Utc::now() - Duration::seconds(((duration_min * 60) - (i * 30)) as i64),
             };
             state.update(reading);
         }
+
+        // Add current reading to ensure freshness
+        let reading = EnvReading {
+            temperature_c: Some(20.0),
+            humidity_pct: Some(78.0),
+            timestamp: Utc::now(),
+        };
+        state.update(reading);
 
         let eval = calc.evaluate(&state);
         assert_eq!(eval.level, DewPointAlertLevel::Danger);
