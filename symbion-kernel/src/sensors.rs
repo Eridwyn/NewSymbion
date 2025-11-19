@@ -7,6 +7,26 @@
  * UTILITÉ : Infrastructure scalable N capteurs (BME280, DHT22, SCD30, etc.)
  *
  * PATTERN : Similaire à AgentRegistry mais simplifié pour IoT sensors
+ *
+ * PERSISTENCE :
+ * - Sensors metadata : Auto-save on registration (sensors.json)
+ * - Environment histories : Debounced save every 5 min (sensors_environments.json)
+ * - Call save_environments_to_disk() periodically in background task
+ *
+ * USAGE EXAMPLE (periodic save):
+ * ```rust
+ * let registry = Arc::new(SensorRegistry::new("sensors.json"));
+ * let registry_clone = registry.clone();
+ * tokio::spawn(async move {
+ *     let mut interval = tokio::time::interval(Duration::from_secs(300)); // 5 min
+ *     loop {
+ *         interval.tick().await;
+ *         if let Err(e) = registry_clone.save_environments_to_disk() {
+ *             eprintln!("[sensors] failed to save environments: {}", e);
+ *         }
+ *     }
+ * });
+ * ```
  */
 
 use crate::environment::{EnvReading, RoomEnvironmentState};
@@ -16,6 +36,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 /// MQTT sensor registration message
@@ -93,8 +114,14 @@ pub struct SensorRegistry {
     /// Map: sensor_id -> RoomEnvironmentState (readings history)
     environments: RwLock<HashMap<String, RoomEnvironmentState>>,
 
-    /// Persistence file path
+    /// Persistence file path (sensors metadata)
     persistence_path: String,
+
+    /// Persistence file path (environments history)
+    persistence_env_path: String,
+
+    /// Dirty flag for debounced environment persistence
+    dirty_env: Arc<AtomicBool>,
 }
 
 /// Shared reference to SensorRegistry (thread-safe)
@@ -103,10 +130,15 @@ pub type SharedSensorRegistry = Arc<SensorRegistry>;
 impl SensorRegistry {
     /// Create new sensor registry
     pub fn new(persistence_path: impl AsRef<Path>) -> Self {
+        let path_str = persistence_path.as_ref().to_string_lossy().to_string();
+        let env_path = path_str.replace(".json", "_environments.json");
+
         Self {
             sensors: RwLock::new(HashMap::new()),
             environments: RwLock::new(HashMap::new()),
-            persistence_path: persistence_path.as_ref().to_string_lossy().to_string(),
+            persistence_path: path_str,
+            persistence_env_path: env_path,
+            dirty_env: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -135,6 +167,8 @@ impl SensorRegistry {
         // Update environment state
         if let Some(env_state) = self.environments.write().get_mut(sensor_id) {
             env_state.update(reading);
+            // Mark environments as dirty for debounced persistence
+            self.dirty_env.store(true, Ordering::Relaxed);
         } else {
             anyhow::bail!("Sensor {} not registered", sensor_id);
         }
@@ -242,7 +276,7 @@ impl SensorRegistry {
         }
     }
 
-    /// Save registry to disk (JSON persistence)
+    /// Save sensors registry to disk (JSON persistence)
     fn save_to_disk(&self) -> Result<()> {
         let sensors = self.sensors.read();
         let json = serde_json::to_string_pretty(&*sensors)?;
@@ -250,8 +284,34 @@ impl SensorRegistry {
         Ok(())
     }
 
+    /// Save environments to disk (JSON persistence, debounced)
+    /// Call this periodically (e.g., every 5 minutes) to persist history
+    pub fn save_environments_to_disk(&self) -> Result<()> {
+        // Only save if dirty flag is set
+        if !self.dirty_env.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+
+        let environments = self.environments.read();
+        let json = serde_json::to_string_pretty(&*environments)?;
+        let json_size_kb = json.len() / 1024;
+        std::fs::write(&self.persistence_env_path, json)?;
+
+        // Clear dirty flag
+        self.dirty_env.store(false, Ordering::Relaxed);
+
+        println!(
+            "[sensors] saved {} environment histories to disk (~{} KB)",
+            environments.len(),
+            json_size_kb
+        );
+
+        Ok(())
+    }
+
     /// Load registry from disk
     pub fn load_from_disk(&self) -> Result<()> {
+        // Load sensors metadata
         if !Path::new(&self.persistence_path).exists() {
             return Ok(()); // No file yet, skip
         }
@@ -262,13 +322,46 @@ impl SensorRegistry {
         // Restore sensors
         *self.sensors.write() = sensors.clone();
 
-        // Recreate environment states (history not persisted for now)
-        for sensor in sensors.values() {
-            let env_state = RoomEnvironmentState::new(sensor.room_id.clone());
-            self.environments
-                .write()
-                .insert(sensor.sensor_id.clone(), env_state);
+        // Load environment histories if available
+        self.load_environments_from_disk()?;
+
+        // If no environment file, create empty states for registered sensors
+        let environments = self.environments.read();
+        if environments.is_empty() {
+            drop(environments); // Release read lock
+            for sensor in sensors.values() {
+                let env_state = RoomEnvironmentState::new(sensor.room_id.clone());
+                self.environments
+                    .write()
+                    .insert(sensor.sensor_id.clone(), env_state);
+            }
         }
+
+        Ok(())
+    }
+
+    /// Load environments from disk
+    fn load_environments_from_disk(&self) -> Result<()> {
+        if !Path::new(&self.persistence_env_path).exists() {
+            return Ok(()); // No environment file yet, skip
+        }
+
+        let json = std::fs::read_to_string(&self.persistence_env_path)?;
+        let mut environments: HashMap<String, RoomEnvironmentState> = serde_json::from_str(&json)?;
+
+        // Fix max_history for all loaded states (serde skips it, defaults to 0)
+        for env_state in environments.values_mut() {
+            env_state.fix_max_history();
+        }
+
+        println!(
+            "[sensors] loaded {} environment histories from disk (~{} KB)",
+            environments.len(),
+            json.len() / 1024
+        );
+
+        // Restore environment states
+        *self.environments.write() = environments;
 
         Ok(())
     }
@@ -329,6 +422,27 @@ impl SensorRegistry {
         }
 
         Ok(())
+    }
+
+    /// Start periodic environment save task (debounced, every 5 minutes)
+    ///
+    /// Spawns a background tokio task that saves environment histories to disk
+    /// only when dirty flag is set (i.e., new readings received).
+    ///
+    /// Call this once during kernel initialization.
+    pub fn start_periodic_env_save(registry: SharedSensorRegistry) {
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300)); // 5 min
+            loop {
+                interval.tick().await;
+
+                // Save environments if dirty flag is set
+                if let Err(e) = registry.save_environments_to_disk() {
+                    eprintln!("[sensors] periodic environment save failed: {}", e);
+                }
+            }
+        });
+        println!("[sensors] started periodic environment save task (5 min interval)");
     }
 }
 
@@ -552,5 +666,88 @@ mod tests {
 
         assert_eq!(registry.sensor_count(), 3);
         assert_eq!(registry.online_sensor_count(), 2);
+    }
+
+    #[test]
+    fn test_environment_persistence() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("sensors_env_persist.json");
+
+        // Create registry, register sensor, and add readings
+        {
+            let registry = SensorRegistry::new(&path);
+            let sensor = Sensor {
+                sensor_id: "esp32-env-test".to_string(),
+                sensor_type: "bme280".to_string(),
+                room_id: "env_room".to_string(),
+                firmware_version: Some("1.0.0".to_string()),
+                registered_at: Utc::now(),
+                last_seen: Utc::now(),
+                status: SensorStatus::Online,
+                battery_pct: Some(95),
+                signal_rssi: Some(-42),
+            };
+            registry.register_sensor(sensor).unwrap();
+
+            // Add multiple readings to build history
+            for i in 0..5 {
+                let reading = EnvReading {
+                    temperature_c: 20.0 + i as f32,
+                    humidity_pct: 50.0 + i as f32,
+                    timestamp: Utc::now(),
+                };
+                registry.update_reading("esp32-env-test", reading).unwrap();
+            }
+
+            // Manually save environments
+            registry.save_environments_to_disk().unwrap();
+        }
+
+        // Load in new registry instance
+        {
+            let registry = SensorRegistry::new(&path);
+            registry.load_from_disk().unwrap();
+
+            // Verify environment was restored
+            let env = registry.get_environment("esp32-env-test").unwrap();
+            assert_eq!(env.room_id, "env_room");
+            assert_eq!(env.history.len(), 5);
+
+            // Verify last reading
+            assert_eq!(env.current.temperature_c, 24.0); // 20.0 + 4
+            assert_eq!(env.current.humidity_pct, 54.0); // 50.0 + 4
+        }
+    }
+
+    #[test]
+    fn test_environment_debounced_save() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("sensors_debounce.json");
+        let registry = SensorRegistry::new(&path);
+
+        let sensor = Sensor {
+            sensor_id: "esp32-debounce-test".to_string(),
+            sensor_type: "bme280".to_string(),
+            room_id: "debounce_room".to_string(),
+            firmware_version: None,
+            registered_at: Utc::now(),
+            last_seen: Utc::now(),
+            status: SensorStatus::Online,
+            battery_pct: None,
+            signal_rssi: None,
+        };
+        registry.register_sensor(sensor).unwrap();
+
+        // First save should succeed (dirty flag set)
+        let reading = EnvReading {
+            temperature_c: 21.0,
+            humidity_pct: 52.0,
+            timestamp: Utc::now(),
+        };
+        registry.update_reading("esp32-debounce-test", reading).unwrap();
+        assert!(registry.save_environments_to_disk().is_ok());
+
+        // Second save without update should skip (dirty flag cleared)
+        assert!(registry.save_environments_to_disk().is_ok());
     }
 }
