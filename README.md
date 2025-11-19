@@ -421,7 +421,7 @@ Pour contribuer :
 
 ## Licence
 
-MIT License - Voir [LICENSE](LICENSE) pour détails.
+Proprietary License - All Rights Reserved. Voir [LICENSE](LICENSE) pour détails.
 
 ---
 
