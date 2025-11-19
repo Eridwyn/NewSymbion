@@ -264,15 +264,24 @@ impl SensorRegistry {
         }
     }
 
-    /// Check offline sensors (no data for >10 min)
+    /// Check offline sensors (no data for >90 sec = 3 missed readings at 30sec interval)
     pub fn check_offline_sensors(&self) {
         let now = Utc::now();
-        let offline_threshold = chrono::Duration::minutes(10);
+        let offline_threshold = chrono::Duration::seconds(90);
 
         for sensor in self.sensors.write().values_mut() {
             if now.signed_duration_since(sensor.last_seen) > offline_threshold {
                 sensor.status = SensorStatus::Offline;
             }
+        }
+    }
+
+    /// Update environment statuses to N/A if data is stale (>30 sec)
+    ///
+    /// Should be called periodically (every 10 seconds) to detect stale data
+    pub fn update_stale_environment_statuses(&self) {
+        for env_state in self.environments.write().values_mut() {
+            env_state.update_stale_status();
         }
     }
 
@@ -402,8 +411,8 @@ impl SensorRegistry {
     /// Handle environment reading MQTT message
     pub fn handle_env_reading(&self, msg: SensorEnvMessage) -> Result<()> {
         let reading = EnvReading {
-            temperature_c: msg.temperature_c,
-            humidity_pct: msg.humidity_pct,
+            temperature_c: Some(msg.temperature_c),
+            humidity_pct: Some(msg.humidity_pct),
             timestamp: Utc::now(),
         };
 
@@ -443,6 +452,29 @@ impl SensorRegistry {
             }
         });
         println!("[sensors] started periodic environment save task (5 min interval)");
+    }
+
+    /// Start periodic sensor monitoring (every 10 sec)
+    ///
+    /// Checks for:
+    /// - Stale environment data (>30 sec) → status N/A
+    /// - Offline sensors (>90 sec = 3 missed readings) → status Offline
+    ///
+    /// Call this once during kernel initialization.
+    pub fn start_periodic_monitoring(registry: SharedSensorRegistry) {
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10)); // 10 sec
+            loop {
+                interval.tick().await;
+
+                // Update environment statuses (stale data → N/A)
+                registry.update_stale_environment_statuses();
+
+                // Check for offline sensors (>90 sec)
+                registry.check_offline_sensors();
+            }
+        });
+        println!("[sensors] started periodic monitoring task (10 sec interval)");
     }
 }
 

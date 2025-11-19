@@ -239,6 +239,12 @@ async fn main() {
     // démarre la sauvegarde périodique débounced des agents (toutes les 5min si modifiés)
     AgentRegistry::start_periodic_save(agents.clone());
 
+    // démarre la sauvegarde périodique débounced des environnements sensors (toutes les 5min si modifiés)
+    crate::sensors::SensorRegistry::start_periodic_env_save(sensor_registry.clone());
+
+    // démarre le monitoring périodique des sensors (toutes les 10s : stale data + offline sensors)
+    crate::sensors::SensorRegistry::start_periodic_monitoring(sensor_registry.clone());
+
     // démarre la publication auto du health
     health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), agents.clone(), plugins.clone(), dashboard_events.clone());
 

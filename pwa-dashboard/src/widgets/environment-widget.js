@@ -97,12 +97,14 @@ class EnvironmentWidget extends LitElement {
 
     .room-card {
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
-      border: 1px solid rgba(59, 130, 246, 0.2);
+      border: 1px solid rgba(0, 212, 170, 0.2);
       border-radius: 12px;
       padding: 18px;
-      transition: all 0.3s ease;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
       position: relative;
       overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     }
 
     .room-card::before {
@@ -132,9 +134,13 @@ class EnvironmentWidget extends LitElement {
 
     .room-card:hover {
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
-      border-color: rgba(59, 130, 246, 0.4);
-      transform: translateY(-2px);
-      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+      border-color: rgba(0, 212, 170, 0.4);
+      transform: translateY(-4px) scale(1.02);
+      box-shadow: 0 12px 32px rgba(0, 212, 170, 0.2);
+    }
+
+    .room-card:hover::before {
+      width: 6px;
     }
 
     .room-header {
@@ -152,32 +158,40 @@ class EnvironmentWidget extends LitElement {
     }
 
     .status-badge {
-      padding: 4px 10px;
-      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 16px;
       font-size: 11px;
       font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.8px;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
     .status-badge.ok,
     .status-badge.normal {
-      background: rgba(34, 197, 94, 0.2);
-      color: #86efac;
-      border: 1px solid rgba(34, 197, 94, 0.3);
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, rgba(0, 212, 170, 0.2) 100%);
+      color: #00d4aa;
+      border: 1px solid rgba(0, 212, 170, 0.3);
+      box-shadow: 0 2px 12px rgba(0, 212, 170, 0.3);
     }
 
     .status-badge.mold_risk {
-      background: rgba(249, 115, 22, 0.2);
+      background: linear-gradient(135deg, rgba(249, 115, 22, 0.25) 0%, rgba(234, 88, 12, 0.2) 100%);
       color: #fdba74;
       border: 1px solid rgba(249, 115, 22, 0.3);
+      box-shadow: 0 2px 12px rgba(249, 115, 22, 0.3);
       animation: pulse-warning 2s ease-in-out infinite;
     }
 
     .status-badge.temp_low {
-      background: rgba(59, 130, 246, 0.2);
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(37, 99, 235, 0.2) 100%);
       color: #93c5fd;
       border: 1px solid rgba(59, 130, 246, 0.3);
+      box-shadow: 0 2px 12px rgba(59, 130, 246, 0.25);
     }
 
     @keyframes pulse-warning {
@@ -290,7 +304,7 @@ class EnvironmentWidget extends LitElement {
 
     .modal-content {
       background: linear-gradient(135deg, #1a1a1a 0%, #252525 100%);
-      border: 1px solid rgba(59, 130, 246, 0.3);
+      border: 1px solid rgba(0, 212, 170, 0.3);
       border-radius: 16px;
       max-width: 900px;
       width: 100%;
@@ -511,7 +525,11 @@ class EnvironmentWidget extends LitElement {
       ok: '✓',
       normal: '✓',
       mold_risk: '🚨',
-      temp_low: '❄'
+      temp_low: '❄',
+      n_a: '⚠️',
+      humid: '💧',
+      risk_mold: '🚨',
+      cold: '❄'
     }
     return icons[status] || '?'
   }
@@ -521,7 +539,11 @@ class EnvironmentWidget extends LitElement {
       ok: 'Normal',
       normal: 'Normal',
       mold_risk: 'Risque Moisissure',
-      temp_low: 'Froid'
+      temp_low: 'Froid',
+      n_a: 'Capteur Déconnecté',
+      humid: 'Humide',
+      risk_mold: 'Risque Moisissure',
+      cold: 'Froid'
     }
     return labels[status] || status
   }
@@ -675,6 +697,9 @@ class EnvironmentWidget extends LitElement {
     const downsampledData = this.chartData.filter((_, index) => index % downsampleInterval === 0)
 
     console.log(`[chart] Downsampled from ${this.chartData.length} to ${downsampledData.length} points`)
+
+    // Reverse data so oldest is on left, newest on right (chronological order)
+    downsampledData.reverse()
 
     // Calculate stats for display
     const temps = this.chartData.map(r => r.temperature_c)
@@ -909,8 +934,13 @@ class EnvironmentWidget extends LitElement {
   }
 
   renderRoomCard(roomId, env, sensor) {
-    const temp = env.current.temperature_c.toFixed(1)
-    const humidity = env.current.humidity_pct.toFixed(1)
+    // Handle null values when sensor is offline (>30 sec)
+    const temp = env.current.temperature_c !== null
+      ? env.current.temperature_c.toFixed(1)
+      : 'N/A'
+    const humidity = env.current.humidity_pct !== null
+      ? env.current.humidity_pct.toFixed(1)
+      : 'N/A'
     const status = env.status
     const statusLabel = this.getStatusLabel(status)
 
@@ -942,7 +972,9 @@ class EnvironmentWidget extends LitElement {
         ${sensor ? html`
           <div class="sensor-info">
             <span class="sensor-type">${sensor.sensor_type}</span>
-            <span class="sensor-signal">${this.formatSignalStrength(sensor.signal_rssi)}</span>
+            ${status !== 'n_a' ? html`
+              <span class="sensor-signal">${this.formatSignalStrength(sensor.signal_rssi)}</span>
+            ` : ''}
           </div>
         ` : ''}
       </div>
