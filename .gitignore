@@ -78,6 +78,11 @@ TECHNICAL.md
 AGENTS.md
 idea/
 
+# Documentation temporaire et backups
+*.md.backup
+*.json.backup
+AGENT_KERNEL_COMMUNICATION*.md
+
 # Scripts de monitoring (sécurité - ne pas exposer publiquement)
 scripts/device_tokens.json
 device_tokens.json
