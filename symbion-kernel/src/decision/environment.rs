@@ -184,8 +184,8 @@ mod tests {
         // Add 7 readings with high humidity over 35 minutes (>30 min threshold)
         for i in 0..7 {
             let reading = EnvReading {
-                temperature_c: 22.0,
-                humidity_pct: 70.0, // Above 65% threshold
+                temperature_c: Some(22.0),
+                humidity_pct: Some(70.0), // Above 65% threshold
                 timestamp: Utc::now() - Duration::minutes(35 - i * 5),
             };
             state.update(reading);
@@ -208,8 +208,8 @@ mod tests {
         // This simulates humidity spike that doesn't sustain for 30 min
         for i in 0..2 {
             let reading = EnvReading {
-                temperature_c: 22.0,
-                humidity_pct: 70.0, // High
+                temperature_c: Some(22.0),
+                humidity_pct: Some(70.0), // High
                 timestamp: Utc::now() - Duration::minutes(15 - i * 5),
             };
             state.update(reading);
@@ -217,8 +217,8 @@ mod tests {
 
         // Current reading drops below threshold (not sustained)
         let reading = EnvReading {
-            temperature_c: 22.0,
-            humidity_pct: 60.0, // Below 65% threshold
+            temperature_c: Some(22.0),
+            humidity_pct: Some(60.0), // Below 65% threshold
             timestamp: Utc::now(),
         };
         state.update(reading);
@@ -233,8 +233,8 @@ mod tests {
 
         // Current reading below threshold
         let reading = EnvReading {
-            temperature_c: 22.0,
-            humidity_pct: 60.0, // Below 65% threshold
+            temperature_c: Some(22.0),
+            humidity_pct: Some(60.0), // Below 65% threshold
             timestamp: Utc::now(),
         };
         state.update(reading);
@@ -250,8 +250,8 @@ mod tests {
         // Add 3 readings with critical humidity over 15 minutes (>10 min threshold)
         for i in 0..3 {
             let reading = EnvReading {
-                temperature_c: 22.0,
-                humidity_pct: 78.0, // Above 75% critical threshold
+                temperature_c: Some(22.0),
+                humidity_pct: Some(78.0), // Above 75% critical threshold
                 timestamp: Utc::now() - Duration::minutes(15 - i * 5),
             };
             state.update(reading);
@@ -271,8 +271,8 @@ mod tests {
 
         // Cold temperature
         let reading = EnvReading {
-            temperature_c: 14.0, // Below 16°C
-            humidity_pct: 50.0,
+            temperature_c: Some(14.0), // Below 16°C
+            humidity_pct: Some(50.0),
             timestamp: Utc::now(),
         };
         state.update(reading);
@@ -301,8 +301,8 @@ mod tests {
 
         // Warm temperature
         let reading = EnvReading {
-            temperature_c: 20.0, // Above 16°C threshold
-            humidity_pct: 50.0,
+            temperature_c: Some(20.0), // Above 16°C threshold
+            humidity_pct: Some(50.0),
             timestamp: Utc::now(),
         };
         state.update(reading);
@@ -318,8 +318,8 @@ mod tests {
         // Add readings with critical humidity AND cold temp
         for i in 0..3 {
             let reading = EnvReading {
-                temperature_c: 14.0, // Cold
-                humidity_pct: 78.0,  // Critical humidity
+                temperature_c: Some(14.0), // Cold
+                humidity_pct: Some(78.0),  // Critical humidity
                 timestamp: Utc::now() - Duration::minutes(15 - i * 5),
             };
             state.update(reading);
