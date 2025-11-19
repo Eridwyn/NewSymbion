@@ -137,8 +137,11 @@ impl EnvironmentRules {
     pub fn evaluate_cold_night(state: &RoomEnvironmentState) -> Option<Intention> {
         const THRESHOLD_TEMP: f32 = 16.0;
 
-        // Check temperature threshold
-        if state.current.temperature_c >= THRESHOLD_TEMP {
+        // Check temperature threshold (return None if sensor offline or temp >= threshold)
+        let Some(temp) = state.current.temperature_c else {
+            return None; // Sensor offline
+        };
+        if temp >= THRESHOLD_TEMP {
             return None;
         }
 
@@ -158,7 +161,7 @@ impl EnvironmentRules {
             impact: ImpactLevel::Low,
             context: serde_json::json!({
                 "room_id": state.room_id,
-                "temperature_c": state.current.temperature_c,
+                "temperature_c": temp,
                 "threshold_c": THRESHOLD_TEMP,
                 "time_hour": hour,
                 "suggestion": "Température basse la nuit - Augmenter chauffage",

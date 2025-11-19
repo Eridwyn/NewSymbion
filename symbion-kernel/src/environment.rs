@@ -22,10 +22,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
 /// Single environment reading (temperature + humidity + timestamp)
+///
+/// temperature_c and humidity_pct are Option<f32> to handle offline sensors:
+/// - Some(value) when sensor is online
+/// - None when sensor is offline (serializes to JSON null instead of NaN)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnvReading {
-    pub temperature_c: f32,
-    pub humidity_pct: f32,
+    pub temperature_c: Option<f32>,
+    pub humidity_pct: Option<f32>,
     pub timestamp: DateTime<Utc>,
 }
 
@@ -41,6 +45,8 @@ pub enum EnvironmentStatus {
     RiskMold,
     /// Too cold for comfort (temp <16°C at night)
     Cold,
+    /// No recent data (>30 sec since last reading)
+    NA,
 }
 
 /// Room environment state with circular buffer history
@@ -69,8 +75,8 @@ impl RoomEnvironmentState {
         Self {
             room_id,
             current: EnvReading {
-                temperature_c: 20.0,
-                humidity_pct: 50.0,
+                temperature_c: Some(20.0),
+                humidity_pct: Some(50.0),
                 timestamp: Utc::now(),
             },
             history: VecDeque::with_capacity(20160),
@@ -104,12 +110,20 @@ impl RoomEnvironmentState {
 
     /// Calculate status from reading thresholds
     fn calculate_status(reading: &EnvReading) -> EnvironmentStatus {
+        // If values are None (offline sensor), return NA
+        let Some(humidity) = reading.humidity_pct else {
+            return EnvironmentStatus::NA;
+        };
+        let Some(temperature) = reading.temperature_c else {
+            return EnvironmentStatus::NA;
+        };
+
         // Priority: RiskMold > Humid > Cold > Ok
-        if reading.humidity_pct > 75.0 {
+        if humidity > 75.0 {
             EnvironmentStatus::RiskMold
-        } else if reading.humidity_pct > 60.0 {
+        } else if humidity > 60.0 {
             EnvironmentStatus::Humid
-        } else if reading.temperature_c < 16.0 {
+        } else if temperature < 16.0 {
             EnvironmentStatus::Cold
         } else {
             EnvironmentStatus::Ok
@@ -136,8 +150,11 @@ impl RoomEnvironmentState {
     pub fn is_humidity_sustained(&self, threshold_pct: f32, duration_minutes: u32) -> bool {
         let cutoff = Utc::now() - Duration::minutes(duration_minutes as i64);
 
-        // Check current reading first
-        if self.current.humidity_pct <= threshold_pct {
+        // Check current reading first (return false if None or below threshold)
+        let Some(current_humidity) = self.current.humidity_pct else {
+            return false;
+        };
+        if current_humidity <= threshold_pct {
             return false;
         }
 
@@ -146,7 +163,7 @@ impl RoomEnvironmentState {
             .iter()
             .rev()
             .take_while(|r| r.timestamp > cutoff)
-            .all(|r| r.humidity_pct > threshold_pct);
+            .all(|r| r.humidity_pct.map_or(false, |h| h > threshold_pct));
 
         sustained
     }
@@ -155,24 +172,56 @@ impl RoomEnvironmentState {
     pub fn avg_temperature(&self, hours: u32) -> Option<f32> {
         let readings = self.get_history(hours);
 
-        if readings.is_empty() {
+        // Filter out None values (offline sensors)
+        let valid_temps: Vec<f32> = readings
+            .iter()
+            .filter_map(|r| r.temperature_c)
+            .collect();
+
+        if valid_temps.is_empty() {
             return None;
         }
 
-        let sum: f32 = readings.iter().map(|r| r.temperature_c).sum();
-        Some(sum / readings.len() as f32)
+        let sum: f32 = valid_temps.iter().sum();
+        Some(sum / valid_temps.len() as f32)
     }
 
     /// Get average humidity over last N hours
     pub fn avg_humidity(&self, hours: u32) -> Option<f32> {
         let readings = self.get_history(hours);
 
-        if readings.is_empty() {
+        // Filter out None values (offline sensors)
+        let valid_humidity: Vec<f32> = readings
+            .iter()
+            .filter_map(|r| r.humidity_pct)
+            .collect();
+
+        if valid_humidity.is_empty() {
             return None;
         }
 
-        let sum: f32 = readings.iter().map(|r| r.humidity_pct).sum();
-        Some(sum / readings.len() as f32)
+        let sum: f32 = valid_humidity.iter().sum();
+        Some(sum / valid_humidity.len() as f32)
+    }
+
+    /// Check if data is stale (>30 sec since last reading)
+    ///
+    /// Returns true if current reading timestamp is older than 30 seconds
+    pub fn is_data_stale(&self) -> bool {
+        let elapsed = Utc::now() - self.current.timestamp;
+        elapsed.num_seconds() > 30
+    }
+
+    /// Update status to N/A if data is stale and set None values
+    ///
+    /// Should be called periodically (every 10 seconds) to detect offline sensors
+    pub fn update_stale_status(&mut self) {
+        if self.is_data_stale() {
+            self.status = EnvironmentStatus::NA;
+            // Set None values to indicate data is not available (JSON null)
+            self.current.temperature_c = None;
+            self.current.humidity_pct = None;
+        }
     }
 }
 
