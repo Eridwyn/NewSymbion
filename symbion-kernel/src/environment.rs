@@ -4,15 +4,17 @@
  * RÔLE : Gestion état environnemental (température, humidité) pour espaces surveillés
  *
  * ARCHITECTURE :
- * - RoomEnvironmentState : État temps réel + historique circulaire (VecDeque, max 100 items)
+ * - RoomEnvironmentState : État temps réel + historique circulaire (VecDeque, max 20160 items)
  * - EnvironmentStatus : Enum états (Ok, Humid, RiskMold, Cold)
  * - EnvReading : Snapshot température/humidité/timestamp
+ * - Persistence : Sauvegarde périodique (5 min) + chargement au démarrage
  *
  * UTILITÉ : Fondation alertes intelligentes humidité/température (Decision Engine intégration)
  *
  * SOURCES DE DONNÉES :
  * - MQTT topic `symbion/sensors/{room_id}/env@v1` (ESP32 + BME280 sensors)
- * - Fréquence : 1 message / 5 min (optimisation batterie)
+ * - Fréquence : 1 message / 30 sec (2 readings/min, 20160 = 7 days)
+ * - Offline detection : N/A status si pas de réponse depuis 5 minutes
  */
 
 use chrono::{DateTime, Duration, Utc};
@@ -56,7 +58,7 @@ pub struct RoomEnvironmentState {
     /// Current status classification
     pub status: EnvironmentStatus,
 
-    /// Maximum history items (default 100 = ~8h at 5min interval)
+    /// Maximum history items (default 20160 = 7 days at 30sec interval)
     #[serde(skip)]
     max_history: usize,
 }
@@ -71,10 +73,15 @@ impl RoomEnvironmentState {
                 humidity_pct: 50.0,
                 timestamp: Utc::now(),
             },
-            history: VecDeque::with_capacity(100),
+            history: VecDeque::with_capacity(20160),
             status: EnvironmentStatus::Ok,
-            max_history: 100,
+            max_history: 20160,
         }
+    }
+
+    /// Fix max_history after deserialization (serde skips it)
+    pub fn fix_max_history(&mut self) {
+        self.max_history = 20160;
     }
 
     /// Update state with new reading
