@@ -140,18 +140,13 @@ impl RoomEnvironmentState {
     ///
     /// Used by Decision Engine rules for alert triggering
     ///
-    /// IMPORTANT: Validates that actual time coverage meets duration requirement
-    /// to prevent false positives with insufficient historical data
+    /// IMPORTANT: Uses 90% threshold for both:
+    /// - Time coverage: actual duration must be ≥90% of required duration
+    /// - Reading percentage: ≥90% of readings must be above threshold
+    ///
+    /// This provides hysteresis and prevents alert flickering from temporary drops
     pub fn is_humidity_sustained(&self, threshold_pct: f32, duration_minutes: u32) -> bool {
         let cutoff = Utc::now() - Duration::minutes(duration_minutes as i64);
-
-        // Check current reading first (return false if None or below threshold)
-        let Some(current_humidity) = self.current.humidity_pct else {
-            return false;
-        };
-        if current_humidity <= threshold_pct {
-            return false;
-        }
 
         // Collect readings in time window
         let readings_in_window: Vec<_> = self.history
@@ -173,10 +168,22 @@ impl RoomEnvironmentState {
             return false; // No data in window
         }
 
-        // Verify all readings are above threshold
-        readings_in_window
+        // Count readings above threshold
+        let total_readings = readings_in_window.len();
+        let readings_above_threshold = readings_in_window
             .iter()
-            .all(|r| r.humidity_pct.map_or(false, |h| h > threshold_pct))
+            .filter(|r| r.humidity_pct.map_or(false, |h| h > threshold_pct))
+            .count();
+
+        // Require at least 90% of readings to be above threshold
+        // This provides hysteresis: alert persists through temporary drops
+        // but disappears when sustained improvement occurs
+        if total_readings == 0 {
+            return false;
+        }
+
+        let percentage_above = (readings_above_threshold as f64) / (total_readings as f64);
+        percentage_above >= 0.90
     }
 
     /// Get average temperature over last N hours
