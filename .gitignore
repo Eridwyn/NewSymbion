@@ -89,3 +89,16 @@ device_tokens.json
 
 # Private folder (vision personnelle, ne jamais commiter)
 private/
+
+# Claude Code configuration (local settings, commands custom)
+.claude/
+
+# GitHub Actions workflows (CI/CD - à gérer séparément si besoin)
+.github/
+
+# Test integration artifacts
+test-integration/
+**/test-integration/
+
+# Incidents résolus (archives locales)
+incidents/resolu/
