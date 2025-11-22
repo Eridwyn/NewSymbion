@@ -412,6 +412,42 @@ impl AuthManager {
         Ok(())
     }
 
+    /// Vérifie le mot de passe d'un utilisateur (sans rate limiting)
+    pub fn verify_password(&self, username: &str, password: &str) -> Result<bool> {
+        let users = self.users.read();
+
+        let user = users.get(username)
+            .context(format!("User '{}' not found", username))?;
+
+        let valid = verify(password, &user.password_hash)
+            .context("Failed to verify password")?;
+
+        Ok(valid)
+    }
+
+    /// Met à jour le mot de passe d'un utilisateur
+    pub fn update_password(&self, username: &str, new_password: &str) -> Result<()> {
+        let mut users = self.users.write();
+
+        let user = users.get_mut(username)
+            .context(format!("User '{}' not found", username))?;
+
+        // Hash du nouveau mot de passe
+        let password_hash = hash(new_password, 12)
+            .context("Failed to hash password")?;
+
+        user.password_hash = password_hash;
+
+        // Sauvegarder dans le fichier
+        let json = serde_json::to_string_pretty(&*users)
+            .context("Failed to serialize users")?;
+        fs::write(USERS_FILE, json)
+            .context("Failed to write users file")?;
+
+        println!("[auth] Password updated for user '{}'", username);
+        Ok(())
+    }
+
     /// Recharge les utilisateurs depuis users.json sans redémarrer le kernel
     pub fn reload_users(&self) -> Result<()> {
         let new_users = Self::load_users()?;

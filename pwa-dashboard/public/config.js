@@ -8,41 +8,46 @@
  * Modifiez-le après déploiement pour pointer vers votre kernel Symbion.
  */
 
-window.SYMBION_CONFIG = {
-  /**
-   * URL de base du Kernel Symbion API
-   *
-   * Exemples:
-   * - Développement local: 'https://localhost:8443'
-   * - Production même serveur: window.location.protocol + '//' + window.location.hostname + ':8443'
-   * - Production serveur distant: 'https://symbion.votredomaine.com:8443'
-   * - Production IP statique: 'https://192.168.1.100:8443'
-   */
-  // API_BASE: 'https://localhost:8443',  // Désactivé pour utiliser détection auto
+// Fonction pour détecter l'environnement et retourner la config appropriée
+(function() {
+  const port = window.location.port;
+  const hostname = window.location.hostname;
+  const protocol = window.location.protocol;
 
-  /**
-   * Clé API pour authentification
-   *
-   * IMPORTANT: En production, cette valeur devrait être gérée par un système
-   * d'authentification utilisateur (login/password → JWT token).
-   *
-   * Pour dev/test uniquement:
-   */
-  API_KEY: 's3cr3t-42',
+  // Détection: via Nginx (port 443, 80, ou vide) ou dev direct (port 3000)
+  const viaProxy = (port === '' || port === '443' || port === '80');
 
-  /**
-   * Détection automatique de l'URL (ACTIVÉ)
-   *
-   * Ceci configure automatiquement l'API pour pointer vers le même hostname
-   * que le dashboard, sur le port 8443 en HTTPS.
-   */
-  API_BASE: 'https://' + window.location.hostname + ':8443',
-  // API_BASE: 'https://192.168.1.14:8443',  // IP statique si détection auto échoue
+  window.SYMBION_CONFIG = {
+    /**
+     * Clé API pour authentification
+     */
+    API_KEY: 's3cr3t-42',
 
-  /**
-   * Configuration MQTT (optionnel, si WebSocket MQTT ajouté)
-   */
-  MQTT_BROKER: (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.hostname + ':9001',  // WebSocket MQTT broker
-}
+    /**
+     * URL de base du Kernel Symbion API
+     * - Via Nginx (proxy): https://hostname (appels vers /api/*)
+     * - Dev direct (3000): https://hostname:8443
+     */
+    API_BASE: viaProxy
+      ? window.location.origin
+      : 'https://' + hostname + ':8443',
+
+    /**
+     * MQTT WebSocket Broker
+     * - Via Nginx: wss://hostname/ws/mqtt (même port 443, path /ws/mqtt)
+     * - Dev direct: wss://hostname:9001 (direct Mosquitto)
+     */
+    MQTT_BROKER: viaProxy
+      ? (protocol === 'https:' ? 'wss://' : 'ws://') + hostname + '/ws/mqtt'
+      : (protocol === 'https:' ? 'wss://' : 'ws://') + hostname + ':9001'
+  };
+
+  console.log('[config] Detected environment:', {
+    port: port || '(default)',
+    viaProxy: viaProxy,
+    API_BASE: window.SYMBION_CONFIG.API_BASE,
+    MQTT_BROKER: window.SYMBION_CONFIG.MQTT_BROKER
+  });
+})();
 
 console.log('[config] Symbion configuration loaded:', window.SYMBION_CONFIG)

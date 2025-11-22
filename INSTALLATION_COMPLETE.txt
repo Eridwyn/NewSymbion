@@ -1,0 +1,123 @@
+╔═══════════════════════════════════════════════════════════════╗
+║           NGINX CONFIGURATION - INSTALLATION COMPLÈTE         ║
+╔═══════════════════════════════════════════════════════════════╗
+
+📊 SERVICES STATUS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Kernel (8443)    : Running
+✅ MQTT WS (9001)   : Running
+✅ PWA (3000)       : Running  
+✅ Nginx (443)      : Running (API + PWA, HTTP/2)
+✅ Nginx (8444)     : Running (MQTT WS, HTTP/1.1)
+
+🏗️ ARCHITECTURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Internet → symbion.markcha.fr
+    ↓
+NAS Reverse Proxy
+    ↓
+    ├─ Port 443 (HTTPS + HTTP/2)
+    │   ├─ /api/* → Kernel (localhost:8443)
+    │   ├─ /health → Kernel health check
+    │   └─ /* → PWA Dashboard (localhost:3000)
+    │
+    └─ Port 8444 (HTTPS, HTTP/1.1 ONLY)
+        └─ / → MQTT WebSocket (localhost:9001)
+
+📁 FICHIERS CRÉÉS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ nginx-symbion.conf                      - Config principale (443)
+✅ nginx-symbion-mqtt-dedicated.conf       - Config MQTT (8444)
+✅ /etc/nginx/conf.d/websocket-upgrade.conf - Map directive WS
+✅ /etc/nginx/sites-enabled/symbion        - Lien symbolique 443
+✅ /etc/nginx/sites-enabled/symbion-mqtt   - Lien symbolique 8444
+✅ NGINX_SETUP.md                          - Guide installation
+✅ NGINX_STATUS.md                         - Analyse technique
+✅ test-websocket.html                     - Page test navigateur
+✅ pwa-dashboard/public/config.js          - Config adaptative
+
+🧪 TESTS VALIDÉS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Nginx syntax check passed
+✅ Port 443 listening (API + PWA)
+✅ Port 8444 listening (MQTT WS)
+✅ WebSocket upgrade successful (code 101)
+✅ Access logs show HTTP/1.1 101 responses
+
+🔍 VÉRIFICATION RAPIDE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ports en écoute:
+  0.0.0.0:443 - 
+  0.0.0.0:3000 - 
+  0.0.0.0:9001 - 
+  0.0.0.0:8443 - 
+  0.0.0.0:8444 - 
+
+Logs WebSocket (dernières connexions):
+127.0.0.1 - - [22/Nov/2025:20:59:24 +0100] "GET /ws/mqtt HTTP/1.1" 101 0 "-" "curl/8.5.0"
+127.0.0.1 - - [22/Nov/2025:21:04:56 +0100] "GET / HTTP/1.1" 101 0 "-" "curl/8.5.0"
+127.0.0.1 - - [22/Nov/2025:21:05:13 +0100] "GET / HTTP/1.1" 101 0 "-" "curl/8.5.0"
+
+⚡ PROCHAINES ÉTAPES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Tester WebSocket dans navigateur
+   → Ouvrir: file:///home/eridwyn/RustroverProjects/NewSymbion/test-websocket.html
+   → Cliquer "Tester Port 8444"
+   → Vérifier status "Connecté" ✅
+
+2. Configurer NAS reverse proxy
+   → Ajouter port 8444 au routage
+   → Pointer vers IP serveur Symbion
+   → Tester depuis Internet: wss://symbion.markcha.fr:8444
+
+3. Mettre à jour DNS
+   → Vérifier symbion.markcha.fr pointe vers NAS
+   → Tester résolution: dig symbion.markcha.fr
+
+4. Tester accès PWA production
+   → Naviguer vers https://symbion.markcha.fr
+   → Vérifier connexion MQTT dans console (F12)
+   → Valider tous les widgets chargent
+
+5. (Optionnel) Certificats Let's Encrypt production
+   → sudo certbot certonly -d symbion.markcha.fr
+   → Modifier nginx-symbion.conf et nginx-symbion-mqtt-dedicated.conf
+   → Recharger Nginx
+
+🌐 URLS DE TEST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Local:
+  Health:      https://localhost/health
+  API:         https://localhost/api/agents
+  PWA:         https://localhost/
+  MQTT WS:     wss://localhost:8444
+
+Production (après config NAS):
+  Health:      https://symbion.markcha.fr/health
+  API:         https://symbion.markcha.fr/api/agents
+  PWA:         https://symbion.markcha.fr/
+  MQTT WS:     wss://symbion.markcha.fr:8444
+
+📚 DOCUMENTATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NGINX_SETUP.md    - Guide installation complet + troubleshooting
+NGINX_STATUS.md   - Analyse problème HTTP/2 vs WebSocket
+test-websocket.html - Page test interactive
+
+🔐 SÉCURITÉ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  Certificats actuels: mkcert (dev uniquement)
+    → Remplacer par Let's Encrypt en production
+
+⚠️  Ports à ouvrir sur firewall NAS:
+    → 443 (HTTPS API + PWA)
+    → 8444 (HTTPS MQTT WebSocket)
+
+✅ Configuration SSL moderne (TLS 1.3 + 1.2)
+✅ HSTS headers activés
+✅ Security headers configurés
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Installation terminée: 22 Nov 2025 21:07 CET
+Status: ✅ READY FOR TESTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

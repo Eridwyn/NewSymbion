@@ -1347,8 +1347,40 @@ class AgentControlWidget extends LitElement {
 
   render() {
     console.log('Agent control render - isOpen:', this.isOpen, 'agent:', this.agent)
-    if (!this.isOpen || !this.agent) {
+
+    // Si pas ouvert, ne rien afficher
+    if (!this.isOpen) {
       return html``
+    }
+
+    // Si pas d'agent, afficher erreur au lieu d'une modal vide
+    if (!this.agent) {
+      return html`
+        <div class="modal">
+          <div class="modal-header">
+            <div class="modal-title">
+              <span style="font-size: 1.5em;">⚠️</span>
+              <h2 style="margin: 0 0 0 0.5rem;">Agent non trouvé</h2>
+            </div>
+            <button class="icon-btn close-btn" @click="${this.close}" title="Fermer">
+              ✕
+            </button>
+          </div>
+          <div class="modal-body" style="display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 3rem;">
+            <div style="font-size: 3em; margin-bottom: 1rem; opacity: 0.5;">🤖❌</div>
+            <p style="font-size: 1.1em; opacity: 0.8; text-align: center;">
+              Impossible de charger les données de l'agent.
+              <br>
+              <small style="opacity: 0.6;">L'agent est peut-être hors ligne ou l'ID est invalide.</small>
+            </p>
+            <button
+              @click="${this.close}"
+              style="margin-top: 2rem; padding: 0.8rem 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: #fff; cursor: pointer; font-size: 0.95em;">
+              Fermer
+            </button>
+          </div>
+        </div>
+      `
     }
 
     return html`

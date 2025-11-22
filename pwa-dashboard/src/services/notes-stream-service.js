@@ -171,6 +171,7 @@ class NotesStreamService extends LitElement {
 
     switch (data.type) {
       case 'note':
+      case 'note_item':  // Format MQTT
         // Note individuelle reçue
         this.dispatchEvent(new CustomEvent('note-received', {
           detail: { note: data.note },
@@ -180,6 +181,7 @@ class NotesStreamService extends LitElement {
         break
 
       case 'end':
+      case 'list_end':  // Format MQTT
         // Fin du stream
         this.loading = false
         this.dispatchEvent(new CustomEvent('notes-complete', {
@@ -190,7 +192,7 @@ class NotesStreamService extends LitElement {
           bubbles: true,
           composed: true
         }))
-        console.log(`[notes-stream] Stream complete: ${data.received_count}/${data.total_count} notes`)
+        console.log(`[notes-stream] Stream complete: ${data.received_count || data.total_count}/${data.total_count} notes`)
         break
 
       case 'error':

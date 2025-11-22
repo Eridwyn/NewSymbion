@@ -715,6 +715,7 @@ class DashboardApp extends LitElement {
     apiStatus: { type: String },
     systemHealth: { type: Object },
     plugins: { type: Array },
+    agents: { type: Array },
     error: { type: String },
     showUserMenu: { type: Boolean },
     showSettingsPage: { type: Boolean },
@@ -732,6 +733,7 @@ class DashboardApp extends LitElement {
     this.apiStatus = 'loading'
     this.systemHealth = null
     this.plugins = []
+    this.agents = []
     this.error = null
     this.showUserMenu = false
     this.showSettingsPage = false
@@ -844,21 +846,27 @@ class DashboardApp extends LitElement {
   
   async loadInitialData() {
     console.log('📊 Loading initial data...')
-    
+
     try {
       // Charger l'état du système
       const health = await this.apiService.getSystemHealth()
-      this.systemHealth = health
-      
+      this.systemHealth = { ...health } // Force new reference
+
       // Charger les plugins
       const plugins = await this.apiService.getPlugins()
-      this.plugins = plugins
-      
+      this.plugins = Array.isArray(plugins) ? [...plugins] : [] // Force new array reference
+
+      // Charger les agents
+      const agents = await this.apiService.request('/v1/agents')
+      this.agents = Array.isArray(agents) ? [...agents] : [] // Force new array reference
+
       this.apiStatus = 'online'
       this.connected = true
-      
-      console.log('✅ Initial data loaded')
-      
+
+      console.log('✅ Initial data loaded:', { plugins: this.plugins.length, agents: this.agents.length })
+
+      this.requestUpdate() // Force Lit to re-render
+
     } catch (error) {
       console.error('❌ Failed to load initial data:', error)
       this.apiStatus = 'offline'
@@ -874,15 +882,18 @@ class DashboardApp extends LitElement {
       if (this.apiStatus === 'online') {
         try {
           const health = await this.apiService.getSystemHealth()
-          this.systemHealth = health
+          this.systemHealth = { ...health } // Force new reference for Lit reactivity
 
-          // Mettre à jour le status MQTT du header
-          if (health && health.mqtt_status) {
-            this.mqttStatus = health.mqtt_status
-          }
+          // Note: MQTT status is managed by mqtt-service via 'status-change' event
+          // Don't override it from API health to avoid stale/incorrect status
 
           const plugins = await this.apiService.getPlugins()
-          this.plugins = plugins
+          this.plugins = Array.isArray(plugins) ? [...plugins] : [] // Force new array reference
+
+          const agents = await this.apiService.request('/v1/agents')
+          this.agents = Array.isArray(agents) ? [...agents] : [] // Force new array reference
+
+          this.requestUpdate() // Force Lit to re-render
         } catch (error) {
           console.warn('⚠️ Periodic update failed:', error)
         }
@@ -1000,7 +1011,8 @@ class DashboardApp extends LitElement {
             </div>
             <div class="widget-container">
               <agents-network-widget
-                .connected="${this.connected}">
+                .connected="${this.connected}"
+                .agents="${this.agents}">
               </agents-network-widget>
             </div>
           </div>
@@ -1088,7 +1100,8 @@ class DashboardApp extends LitElement {
           <!-- Widget agents network -->
           <div class="widget-container">
             <agents-network-widget
-              .connected="${this.connected}">
+              .connected="${this.connected}"
+              .agents="${this.agents}">
             </agents-network-widget>
           </div>
 

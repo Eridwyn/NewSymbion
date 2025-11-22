@@ -261,7 +261,7 @@ class PluginsWidget extends LitElement {
   }
   
   render() {
-    if (!this.plugins || this.plugins.length === 0) {
+    if (!Array.isArray(this.plugins) || this.plugins.length === 0) {
       return html`
         <div class="widget-header">
           <h3 class="widget-title">🔌 Plugins</h3>
@@ -271,7 +271,7 @@ class PluginsWidget extends LitElement {
         </div>
       `
     }
-    
+
     const runningCount = this.plugins.filter(p => {
       const status = this.normalizeStatus(p.status)
       return status.toLowerCase() === 'running'

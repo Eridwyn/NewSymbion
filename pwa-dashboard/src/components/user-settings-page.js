@@ -993,6 +993,78 @@ class UserSettingsPage extends LitElement {
     }
   }
 
+  async handlePasswordChange() {
+    const currentPassword = this.shadowRoot.getElementById('current-password').value
+    const newPassword = this.shadowRoot.getElementById('new-password').value
+    const confirmPassword = this.shadowRoot.getElementById('confirm-password').value
+
+    // Validations
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      this.showMessage('error', 'Tous les champs sont requis')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      this.showMessage('error', 'Les nouveaux mots de passe ne correspondent pas')
+      return
+    }
+
+    if (newPassword.length < 8) {
+      this.showMessage('error', 'Le nouveau mot de passe doit contenir au moins 8 caractères')
+      return
+    }
+
+    if (newPassword === currentPassword) {
+      this.showMessage('error', 'Le nouveau mot de passe doit être différent de l\'ancien')
+      return
+    }
+
+    try {
+      const apiService = document.querySelector('api-service')
+      const csrfService = (await import('../services/csrf-service.js')).default
+      if (!apiService) throw new Error('API service not available')
+
+      // Initialiser csrfService avec authService si nécessaire
+      if (!csrfService.authService) {
+        const authServiceModule = await import('../services/auth-service.js')
+        csrfService.setAuthService(authServiceModule.default)
+      }
+
+      this.loading = true
+      this.message = null
+
+      const currentUser = authService.getCurrentUser()
+      const url = `${apiService.baseUrl}/v1/users/${encodeURIComponent(currentUser.username)}/password`
+      const response = await csrfService.fetchWithCsrf(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword
+        })
+      })
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Mot de passe actuel incorrect')
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      this.showMessage('success', '✅ Mot de passe changé avec succès !')
+
+      // Vider les champs
+      this.shadowRoot.getElementById('current-password').value = ''
+      this.shadowRoot.getElementById('new-password').value = ''
+      this.shadowRoot.getElementById('confirm-password').value = ''
+    } catch (error) {
+      console.error('[settings] Failed to change password:', error)
+      this.showMessage('error', 'Échec du changement: ' + error.message)
+    } finally {
+      this.loading = false
+    }
+  }
+
   handleClose() {
     this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }))
   }
@@ -1067,8 +1139,51 @@ class UserSettingsPage extends LitElement {
           <div class="section">
             <h2 class="section-title">🔒 Changement de Mot de Passe</h2>
             <p class="section-description">
-              Fonctionnalité à venir dans une prochaine mise à jour.
+              Modifiez votre mot de passe pour renforcer la sécurité de votre compte.
             </p>
+
+            <div class="mfa-setup-container">
+              <div class="input-group">
+                <label class="input-label">Mot de passe actuel</label>
+                <input
+                  type="password"
+                  class="input"
+                  id="current-password"
+                  placeholder="••••••••"
+                  autocomplete="current-password"
+                />
+              </div>
+
+              <div class="input-group">
+                <label class="input-label">Nouveau mot de passe</label>
+                <input
+                  type="password"
+                  class="input"
+                  id="new-password"
+                  placeholder="••••••••"
+                  autocomplete="new-password"
+                />
+              </div>
+
+              <div class="input-group">
+                <label class="input-label">Confirmer le nouveau mot de passe</label>
+                <input
+                  type="password"
+                  class="input"
+                  id="confirm-password"
+                  placeholder="••••••••"
+                  autocomplete="new-password"
+                />
+              </div>
+
+              <button
+                class="button"
+                @click="${this.handlePasswordChange}"
+                ?disabled="${this.loading}"
+              >
+                ${this.loading ? '⏳ Modification...' : '✓ Changer le mot de passe'}
+              </button>
+            </div>
           </div>
         </div>
 

@@ -237,6 +237,7 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/auth/reload", post(auth_reload_users))
         .route("/v1/users", post(create_user))
         .route("/v1/users/{username}", axum::routing::delete(delete_user))
+        .route("/v1/users/{username}/password", axum::routing::put(update_user_password))
         .route("/plugins/{name}/start", post(start_plugin_endpoint))
         .route("/plugins/{name}/stop", post(stop_plugin_endpoint))
         .route("/plugins/{name}/restart", post(restart_plugin_endpoint))
@@ -331,6 +332,9 @@ pub fn build_router(app_state: AppState) -> Router {
                     "http://192.168.1.14:3000".parse().unwrap(),
                     "https://192.168.1.14:3000".parse().unwrap(),
                     "https://symbion.local:3000".parse().unwrap(),
+                    "https://symbion.markcha.fr".parse().unwrap(), // Production domain
+                    "https://192.168.1.14".parse().unwrap(), // Via Nginx reverse proxy (local)
+                    "https://localhost".parse().unwrap(), // Via Nginx reverse proxy (localhost)
                 ])
                 .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT, Method::OPTIONS])
                 .allow_headers([
@@ -1449,6 +1453,12 @@ struct CreateUserRequest {
     role: String,
 }
 
+#[derive(Debug, serde::Deserialize)]
+struct UpdatePasswordRequest {
+    current_password: String,
+    new_password: String,
+}
+
 /// POST /v1/users - Créer un nouvel utilisateur (admin seulement)
 async fn create_user(
     State(app): State<AppState>,
@@ -1489,6 +1499,55 @@ async fn list_users(
 ) -> Json<Vec<serde_json::Value>> {
     let users = app.auth_manager.list_users();
     Json(users)
+}
+
+/// PUT /v1/users/{username}/password - Changer le mot de passe d'un utilisateur
+async fn update_user_password(
+    State(app): State<AppState>,
+    Path(username): Path<String>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<UpdatePasswordRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Extraire le token JWT pour vérifier que c'est bien l'utilisateur qui demande
+    let token = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    // Vérifier et décoder le token
+    let claims = app.auth_manager.verify_token(token)
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+    // Vérifier que l'utilisateur ne peut changer que son propre mot de passe
+    if claims.sub != username {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // Vérifier le mot de passe actuel
+    match app.auth_manager.verify_password(&username, &body.current_password) {
+        Ok(true) => {
+            // Mot de passe actuel correct, procéder au changement
+            app.auth_manager.update_password(&username, &body.new_password)
+                .map_err(|e| {
+                    eprintln!("[http] Failed to update password for '{}': {}", username, e);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
+
+            Ok(Json(serde_json::json!({
+                "success": true,
+                "message": "Password updated successfully"
+            })))
+        },
+        Ok(false) => {
+            // Mot de passe actuel incorrect
+            Err(StatusCode::UNAUTHORIZED)
+        },
+        Err(e) => {
+            eprintln!("[http] Password verification failed for '{}': {}", username, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 // ============================================================================
