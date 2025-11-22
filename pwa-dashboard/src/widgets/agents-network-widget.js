@@ -476,10 +476,11 @@ class AgentsNetworkWidget extends LitElement {
       this.loading = true
       this.error = null
       const agents = await this.agentsService.getAgents()
-      this.agents = agents
+      this.agents = Array.isArray(agents) ? agents : []
     } catch (error) {
       console.error('Failed to load agents:', error)
       this.error = `Failed to load agents: ${error.message}`
+      this.agents = []
     } finally {
       this.loading = false
     }

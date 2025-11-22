@@ -400,13 +400,51 @@ class ContextStatsWidget extends LitElement {
         apiService.request('/context/productivity')
       ])
 
-      this.stats = stats || []
-      this.patterns = patterns || []
-      this.productivity = productivity || []
+      // Valider que les réponses sont des arrays avec logs de debug
+      this.stats = apiService.validateArrayResponse(stats, '/context/stats', [])
+      this.patterns = apiService.validateArrayResponse(patterns, '/context/patterns', [])
+      this.productivity = apiService.validateArrayResponse(productivity, '/context/productivity', [])
       this.status = 'ready'
     } catch (error) {
       console.error('[context-stats-widget] Failed to fetch data:', error)
       this.status = 'error'
+    }
+  }
+
+  renderStatsSection() {
+    try {
+      if (!this.stats || this.stats.length === 0) {
+        return html`
+          <div class="empty-state">
+            <div class="empty-icon">⏱️</div>
+            <div style="font-size: 0.85rem;">Aucune statistique disponible</div>
+          </div>
+        `
+      }
+
+      return html`
+        <div class="stats-grid">
+          ${this.stats.map(stat => html`
+            <div class="stat-card">
+              <div class="stat-icon">${this.getModeIcon(stat.mode)}</div>
+              <div class="stat-label">${this.getModeName(stat.mode)}</div>
+              <div class="stat-value">${this.formatDuration(stat.total_duration_minutes)}</div>
+              <div class="stat-subvalue">${stat.percentage.toFixed(1)}% du temps</div>
+              <div class="progress-bar">
+                <div class="progress-fill ${stat.mode.toLowerCase()}" style="width: ${stat.percentage}%"></div>
+              </div>
+            </div>
+          `)}
+        </div>
+      `
+    } catch (error) {
+      console.error('[context-stats] Error rendering stats:', error)
+      return html`
+        <div class="empty-state">
+          <div class="empty-icon">⚠️</div>
+          <div style="font-size: 0.85rem;">Erreur d'affichage des statistiques</div>
+        </div>
+      `
     }
   }
 
@@ -503,26 +541,8 @@ class ContextStatsWidget extends LitElement {
         <!-- Statistiques par mode -->
         <div class="section">
           <div class="section-title">Temps par mode</div>
-          ${this.stats.length === 0 ? html`
-            <div class="empty-state">
-              <div class="empty-icon">⏱️</div>
-              <div style="font-size: 0.85rem;">Aucune statistique disponible</div>
-            </div>
-          ` : html`
-            <div class="stats-grid">
-              ${this.stats.map(stat => html`
-                <div class="stat-card">
-                  <div class="stat-icon">${this.getModeIcon(stat.mode)}</div>
-                  <div class="stat-label">${this.getModeName(stat.mode)}</div>
-                  <div class="stat-value">${this.formatDuration(stat.total_duration_minutes)}</div>
-                  <div class="stat-subvalue">${stat.percentage.toFixed(1)}% du temps</div>
-                  <div class="progress-bar">
-                    <div class="progress-fill ${stat.mode.toLowerCase()}" style="width: ${stat.percentage}%"></div>
-                  </div>
-                </div>
-              `)}
-            </div>
-          `}
+          ${this.renderStatsSection()}
+
         </div>
 
         <!-- Patterns détectés -->

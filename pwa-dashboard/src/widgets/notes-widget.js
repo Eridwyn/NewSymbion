@@ -263,7 +263,7 @@ class NotesWidget extends LitElement {
     const maxRetries = 10
     const retryInterval = 100
 
-    const checkServices = () => {
+    const checkServices = async () => {
       this.apiService = document.querySelector('api-service')
       this.contextService = document.querySelector('context-service')
 
@@ -273,16 +273,19 @@ class NotesWidget extends LitElement {
         // Écouter les changements de contexte sur window (comme context-widget)
         window.addEventListener('context-change', this.handleContextChange)
 
-        // Récupérer le contexte actuel depuis contextService
-        const contextState = this.contextService.getContextState()
+        // HYBRID APPROACH: Attendre le contexte max 2s avec waitForContextReady()
+        console.log('[notes-widget] Waiting for context ready (2s timeout)...')
+        const contextState = await this.contextService.waitForContextReady(2000)
+
         if (contextState && contextState.mode) {
           this.currentContext = contextState.mode
-          console.log('[notes-widget] Initial context from service:', this.currentContext)
+          console.log('[notes-widget] ✅ Context ready:', this.currentContext)
         } else {
-          console.warn('[notes-widget] ⚠️ Context state not ready yet, defaulting to neutre')
+          console.warn('[notes-widget] ⏱️ Context timeout, defaulting to neutre')
+          this.currentContext = 'neutre' // Fallback
         }
 
-        // Charger les notes
+        // Charger les notes (affichera toutes les notes si contexte pas prêt)
         this.loadNotes()
         return true
       }
@@ -391,13 +394,33 @@ class NotesWidget extends LitElement {
 
     console.log('[notes-widget] After context filter:', filtered.length, 'notes (context:', this.currentContext + ')')
 
-    // Debug: afficher les contextes des notes
-    if (filtered.length === 0) {
-      console.log('[notes-widget] ⚠️ Available note contexts:',
+    // FALLBACK: Si aucune note pour le contexte actuel, montrer notes du contexte "neutre" ou toutes les notes
+    if (filtered.length === 0 && this.notes.length > 0) {
+      console.warn('[notes-widget] ⚠️ No notes for context', this.currentContext)
+      console.log('[notes-widget] Available note contexts:',
         this.notes.map(n => n.data?.context || 'undefined').join(', '))
+
+      // Essayer d'abord le contexte "neutre"
+      const neutreFiltered = applyAllFilters(this.notes, {
+        context: 'neutre',
+        contextFilterEnabled: true
+      })
+
+      if (neutreFiltered.length > 0) {
+        console.log('[notes-widget] 💡 Fallback to "neutre" context:', neutreFiltered.length, 'notes')
+        const topNotes = getTopPriorityNotes(neutreFiltered, 'neutre', 3)
+        console.log('[notes-widget] Top 3 priority notes (neutre fallback):', topNotes.length)
+        return topNotes
+      }
+
+      // Sinon, afficher toutes les notes (désactiver filtre contexte)
+      console.log('[notes-widget] 💡 Fallback to all notes:', this.notes.length)
+      const topNotes = getTopPriorityNotes(this.notes, this.currentContext, 3)
+      console.log('[notes-widget] Top 3 priority notes (all notes fallback):', topNotes.length)
+      return topNotes
     }
 
-    // Retourner les 3 notes les plus prioritaires du contexte actuel UNIQUEMENT
+    // Retourner les 3 notes les plus prioritaires du contexte actuel
     const topNotes = getTopPriorityNotes(filtered, this.currentContext, 3)
     console.log('[notes-widget] Top 3 priority notes:', topNotes.length)
 

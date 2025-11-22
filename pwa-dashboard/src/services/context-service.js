@@ -162,6 +162,46 @@ class ContextService extends LitElement {
   getTheme() {
     return this.contextState?.theme || null
   }
+
+  /**
+   * Attendre que le contexte soit prêt avec timeout
+   * Résout la race condition où les widgets chargent avant le contexte
+   *
+   * @param {number} timeout - Timeout en ms (défaut: 2000ms)
+   * @returns {Promise<Object|null>} - Le contexte ou null si timeout
+   */
+  async waitForContextReady(timeout = 2000) {
+    // Si déjà prêt, retourner immédiatement
+    if (this.status === 'ready' && this.contextState) {
+      console.log('[context-service] Context already ready')
+      return this.contextState
+    }
+
+    // Attendre avec timeout
+    return new Promise((resolve) => {
+      const timeoutId = setTimeout(() => {
+        console.warn(`[context-service] ⏱️ Context timeout after ${timeout}ms, proceeding with default`)
+        resolve(null) // Timeout = continuer sans contexte
+      }, timeout)
+
+      // Écouter l'événement context-change
+      const onContextChange = (event) => {
+        clearTimeout(timeoutId)
+        window.removeEventListener('context-change', onContextChange)
+        console.log('[context-service] ✅ Context ready:', event.detail.context.mode)
+        resolve(event.detail.context)
+      }
+
+      window.addEventListener('context-change', onContextChange)
+
+      // Si le contexte devient prêt pendant qu'on écoute
+      if (this.status === 'ready' && this.contextState) {
+        clearTimeout(timeoutId)
+        window.removeEventListener('context-change', onContextChange)
+        resolve(this.contextState)
+      }
+    })
+  }
 }
 
 customElements.define('context-service', ContextService)

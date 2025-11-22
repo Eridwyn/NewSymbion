@@ -128,7 +128,7 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                                 Ok(response) => {
                                     bridge.handle_response(response);
                                 }
-                                Err(_) => eprintln!("[kernel] notes response JSON invalide: {txt}"),
+                                Err(e) => eprintln!("[kernel] notes response JSON invalide: {}, error: {}", &txt[..txt.len().min(200)], e),
                             }
                         }
                     }

@@ -161,9 +161,28 @@ class ApiService extends LitElement {
       throw error
     }
   }
-  
+
+  /**
+   * Valide qu'une réponse API est un array, sinon retourne le fallback
+   * Ajoute des logs de debug si le format est incorrect
+   */
+  validateArrayResponse(data, endpoint, fallback = []) {
+    if (Array.isArray(data)) {
+      return data
+    }
+
+    // Log détaillé si format incorrect
+    console.warn(
+      `[api-service] ⚠️ ${endpoint} returned non-array data:`,
+      typeof data === 'object' ? JSON.stringify(data).substring(0, 100) : data,
+      '- Using fallback:', fallback
+    )
+
+    return fallback
+  }
+
   // ===== Endpoints spécifiques =====
-  
+
   async getSystemHealth() {
     return await this.request('/system/health')
   }
