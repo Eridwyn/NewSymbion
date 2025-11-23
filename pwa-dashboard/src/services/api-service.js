@@ -238,7 +238,7 @@ class ApiService extends LitElement {
   }
   
   async wakeHost(hostId) {
-    return await this.request(`/wake?host_id=${encodeURIComponent(hostId)}`, { method: 'POST' })
+    return await this.request(`/v1/wake?host_id=${encodeURIComponent(hostId)}`, { method: 'POST' })
   }
   
   async getContracts() {
@@ -268,10 +268,14 @@ class ApiService extends LitElement {
   }
   
   async createNote(note) {
-    return await this.request('/ports/memo', {
+    const url = `${this.baseUrl}/v1/ports/memo`
+    const response = await csrfService.fetchWithCsrf(url, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(note)
     })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    return await response.json()
   }
   
   async updateNote(id, updates) {

@@ -186,37 +186,13 @@ class AgentsService extends LitElement {
     return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/metrics`)
   }
 
-  // ===== Local Agent API =====
-  
-  async getAgentLocalStatus(agentIP, port = 9899) {
-    // Direct access to agent's local API for real-time data
-    try {
-      const response = await fetch(`http://${agentIP}:${port}/status`, {
-        mode: 'cors',
-        headers: {
-          'Accept': 'application/json'
-        }
-      })
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      return await response.json()
-    } catch (error) {
-      console.warn(`Failed to fetch local status from ${agentIP}:${port}`, error)
-      throw error
-    }
-  }
+  // ===== Agent Reconnection =====
 
-  async reconnectAgent(agentIP, port = 9899) {
-    try {
-      const response = await fetch(`http://${agentIP}:${port}/reconnect`, {
-        method: 'POST',
-        mode: 'cors'
-      })
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      return await response.json()
-    } catch (error) {
-      console.warn(`Failed to reconnect agent ${agentIP}:${port}`, error)
-      throw error
-    }
+  async reconnectAgent(agentId) {
+    // Route via kernel pour respecter la sécurité centralisée
+    return await this.apiService.request(`/v1/agents/${encodeURIComponent(agentId)}/reconnect`, {
+      method: 'POST'
+    })
   }
 
   getAgentLocalDashboardURL(agentIP, port = 9899) {
@@ -227,7 +203,7 @@ class AgentsService extends LitElement {
   
   async wakeAgent(agentId) {
     // Utilise l'API wake existante avec agent_id comme host_id
-    return await this.apiService.request(`/wake?host_id=${encodeURIComponent(agentId)}`, {
+    return await this.apiService.request(`/v1/wake?host_id=${encodeURIComponent(agentId)}`, {
       method: 'POST'
     })
   }

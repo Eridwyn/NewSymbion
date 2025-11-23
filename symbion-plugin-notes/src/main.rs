@@ -118,7 +118,7 @@ pub enum NoteResponse {
 }
 
 /// Gestionnaire de stockage des notes (similaire au port memo)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NotesStorage {
     /// Cache mémoire des notes
     notes: Arc<Mutex<Vec<Note>>>,
@@ -150,12 +150,26 @@ impl NotesStorage {
             eprintln!("[notes] created empty storage file");
             return Ok(());
         }
-        
+
         let content = fs::read_to_string(&self.storage_path)?;
         let loaded_notes: Vec<Note> = serde_json::from_str(&content)?;
-        
+
         *self.notes.lock() = loaded_notes;
         eprintln!("[notes] loaded {} notes from disk", self.notes.lock().len());
+        Ok(())
+    }
+
+    /// Recharge les notes depuis le disque (pour sync après modifications externes)
+    pub fn reload_from_disk(&self) -> Result<(), Box<dyn std::error::Error>> {
+        if !self.storage_path.exists() {
+            return Ok(());
+        }
+
+        let content = fs::read_to_string(&self.storage_path)?;
+        let loaded_notes: Vec<Note> = serde_json::from_str(&content)?;
+
+        *self.notes.lock() = loaded_notes;
+        eprintln!("[notes] reloaded {} notes from disk", self.notes.lock().len());
         Ok(())
     }
     
@@ -185,8 +199,13 @@ impl NotesStorage {
     
     /// Liste les notes avec filtrage optionnel
     pub fn list_notes(&self, filters: Option<HashMap<String, serde_json::Value>>) -> Vec<Note> {
+        // Reload depuis le disque pour avoir les dernières modifications
+        if let Err(e) = self.reload_from_disk() {
+            eprintln!("[notes] failed to reload from disk: {}", e);
+        }
+
         let notes = self.notes.lock();
-        
+
         if let Some(filters) = filters {
             notes.iter()
                 .filter(|note| self.matches_filters(note, &filters))
@@ -290,7 +309,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     mqttopts.set_clean_session(true); // Nettoie la session à la déconnexion (évite collision client ID)
     mqttopts.set_max_packet_size(1024 * 1024, 1024 * 1024); // 1 MB max pour les gros payloads (notes)
 
-    let (client, mut eventloop) = AsyncClient::new(mqttopts, 10);
+    // Buffer de 200 messages pour supporter le streaming de notes sans deadlock
+    let (client, mut eventloop) = AsyncClient::new(mqttopts, 200);
     
     // S'abonner aux topics de commandes
     client.subscribe("symbion/notes/command@v1", QoS::AtLeastOnce).await?;
@@ -302,7 +322,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match eventloop.poll().await {
             Ok(Event::Incoming(Incoming::Publish(publish))) => {
                 if publish.topic == "symbion/notes/command@v1" {
-                    handle_command(&client, &storage, &publish.payload).await;
+                    // IMPORTANT: Spawner dans une task séparée pour ne PAS bloquer l'eventloop
+                    // Sinon deadlock quand handle_command fait client.publish().await
+                    let client_clone = client.clone();
+                    let storage_clone = storage.clone();
+                    let payload = publish.payload.to_vec();
+                    tokio::spawn(async move {
+                        handle_command(&client_clone, &storage_clone, &payload).await;
+                    });
                 }
             }
             Ok(_) => {

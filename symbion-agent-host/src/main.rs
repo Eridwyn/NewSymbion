@@ -383,6 +383,7 @@ impl Agent {
             "shutdown" => self.execute_shutdown(&incoming).await,
             "reboot" => self.execute_reboot(&incoming).await,
             "hibernate" => self.execute_hibernate(&incoming).await,
+            "reconnect" => self.execute_reconnect(&incoming).await,
             "kill_process" => self.execute_kill_process(&incoming).await,
             "run_command" => self.execute_shell_command(&incoming).await,
             "get_metrics" => self.execute_get_metrics(&incoming).await,
@@ -686,7 +687,18 @@ impl Agent {
             }
         }
     }
-    
+
+    /// Execute reconnect command - Force re-registration with kernel
+    async fn execute_reconnect(&self, _cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
+        info!("Executing reconnect command - forcing re-registration...");
+
+        // La reconnexion se fera automatiquement via le heartbeat suivant
+        // On retourne simplement un succès pour confirmer que la commande a été reçue
+        ("success".to_string(), Some(serde_json::json!({
+            "message": "Reconnect acknowledged - agent will re-register on next heartbeat"
+        })), None)
+    }
+
     /// Execute kill process command
     async fn execute_kill_process(&self, cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
         info!("Executing kill process command...");
