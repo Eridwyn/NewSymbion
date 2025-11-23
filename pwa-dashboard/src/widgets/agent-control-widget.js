@@ -1023,15 +1023,14 @@ class AgentControlWidget extends LitElement {
   }
 
   async reconnectAgent() {
-    const agentIP = this.agentsService?.getAgentIP(this.agentId)
-    if (!agentIP) {
-      alert('⚠️ Cannot determine agent IP address')
+    if (!this.agentId) {
+      alert('⚠️ No agent selected')
       return
     }
 
     try {
-      await this.agentsService.reconnectAgent(agentIP)
-      alert('✅ Reconnection signal sent to agent')
+      await this.agentsService.reconnectAgent(this.agentId)
+      alert('✅ Reconnection signal sent to agent via kernel')
     } catch (error) {
       console.error('Failed to reconnect agent:', error)
       alert(`❌ Failed to reconnect: ${error.message}`)

@@ -10,6 +10,8 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js'
 import { marked } from 'marked'
 import { calculatePriorityScore, sortNotesByPriority, isHighPriority } from '../utils/notes-scoring.js'
 import { applyAllFilters, extractAllTags } from '../utils/notes-filters.js'
+import notesStreamService from '../services/notes-stream-service.js'
+import '../components/organic-loader.js'
 
 class NotesPage extends LitElement {
   static styles = css`
@@ -980,6 +982,7 @@ class NotesPage extends LitElement {
     contextFilterEnabled: { type: Boolean },
     showNoteForm: { type: Boolean },
     selectedNote: { type: Object },
+    editingNote: { type: Object },
     loading: { type: Boolean }
   }
 
@@ -996,6 +999,7 @@ class NotesPage extends LitElement {
     this.contextFilterEnabled = false
     this.showNoteForm = false
     this.selectedNote = null
+    this.editingNote = null
     this.loading = false
   }
 
@@ -1015,7 +1019,9 @@ class NotesPage extends LitElement {
     // Escape key handler
     this.handleEscape = (e) => {
       if (e.key === 'Escape') {
-        if (this.selectedNote) {
+        if (this.editingNote) {
+          this.editingNote = null
+        } else if (this.selectedNote) {
           this.selectedNote = null
         } else if (this.showNoteForm) {
           this.showNoteForm = false
@@ -1033,16 +1039,59 @@ class NotesPage extends LitElement {
   }
 
   async loadNotes() {
-    if (!this.apiService) return
-
     this.loading = true
-    try {
-      this.notes = await this.apiService.getNotes({})
+    this.notes = [] // Reset for progressive loading
+
+    console.log('[notes-page] 📡 Loading notes via WebSocket...')
+
+    const onNoteReceived = (e) => {
+      console.log('[notes-page] 📝 Note received')
+      this.notes = [...this.notes, e.detail.note]
       this.availableTags = extractAllTags(this.notes)
-    } catch (error) {
-      console.error('❌ Failed to load notes:', error)
-    } finally {
+      this.requestUpdate()
+    }
+
+    const onNotesComplete = (e) => {
       this.loading = false
+      console.log(`[notes-page] ✅ Loaded ${this.notes.length} notes (total: ${e.detail.total})`)
+      this.availableTags = extractAllTags(this.notes)
+
+      // Cleanup listeners
+      notesStreamService.removeEventListener('note-received', onNoteReceived)
+      notesStreamService.removeEventListener('notes-complete', onNotesComplete)
+      notesStreamService.removeEventListener('notes-error', onNotesError)
+
+      this.requestUpdate()
+    }
+
+    const onNotesError = (e) => {
+      this.loading = false
+      console.error('[notes-page] ❌ WebSocket error:', e.detail.error)
+
+      // Cleanup listeners
+      notesStreamService.removeEventListener('note-received', onNoteReceived)
+      notesStreamService.removeEventListener('notes-complete', onNotesComplete)
+      notesStreamService.removeEventListener('notes-error', onNotesError)
+
+      this.requestUpdate()
+    }
+
+    // Register event listeners
+    notesStreamService.addEventListener('note-received', onNoteReceived)
+    notesStreamService.addEventListener('notes-complete', onNotesComplete)
+    notesStreamService.addEventListener('notes-error', onNotesError)
+
+    // Start WebSocket streaming
+    try {
+      await notesStreamService.loadNotes({}) // Empty filters = all notes
+    } catch (error) {
+      console.error('[notes-page] ❌ Failed to start WebSocket:', error)
+      this.loading = false
+
+      // Cleanup listeners
+      notesStreamService.removeEventListener('note-received', onNoteReceived)
+      notesStreamService.removeEventListener('notes-complete', onNotesComplete)
+      notesStreamService.removeEventListener('notes-error', onNotesError)
     }
   }
 
@@ -1107,6 +1156,37 @@ class NotesPage extends LitElement {
       console.log('✅ Note deleted successfully')
     } catch (error) {
       console.error('❌ Failed to delete note:', error)
+    }
+  }
+
+  openEditNote(note, event) {
+    if (event) event.stopPropagation()
+    this.editingNote = note
+    this.selectedNote = null
+  }
+
+  closeEditNote() {
+    this.editingNote = null
+  }
+
+  async handleUpdateNote(event) {
+    event.preventDefault()
+
+    const formData = new FormData(event.target)
+    const updatedData = {
+      content: formData.get('content'),
+      context: formData.get('context') || null,
+      urgent: formData.has('urgent'),
+      tags: formData.get('tags') ? formData.get('tags').split(',').map(t => t.trim()).filter(t => t) : []
+    }
+
+    try {
+      await this.apiService.updateNote(this.editingNote.id, updatedData)
+      this.editingNote = null
+      await this.loadNotes()
+      console.log('✅ Note updated successfully')
+    } catch (error) {
+      console.error('❌ Failed to update note:', error)
     }
   }
 
@@ -1239,7 +1319,7 @@ class NotesPage extends LitElement {
         ` : ''}
 
         ${this.loading ? html`
-          <div class="placeholder">⏳ Chargement des notes...</div>
+          <organic-loader text="🧬 Organisme en synapse..."></organic-loader>
         ` : filteredNotes.length === 0 ? html`
           <div class="placeholder">
             ${this.searchQuery || this.contextFilterEnabled || this.selectedTags.length > 0
@@ -1266,6 +1346,12 @@ class NotesPage extends LitElement {
                       ` : ''}
                     </div>
                     <div class="note-actions">
+                      <button
+                        class="note-action edit"
+                        @click="${(e) => this.openEditNote(note, e)}"
+                        title="Modifier">
+                        ✏️
+                      </button>
                       <button
                         class="note-action delete"
                         @click="${(e) => this.handleDeleteNote(note.id, e)}"
@@ -1374,15 +1460,84 @@ class NotesPage extends LitElement {
               ${unsafeHTML(this.renderMarkdown(this.selectedNote.data.content))}
             </div>
 
-            <div class="note-meta" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+            <div class="note-meta" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center;">
               <span>📅 ${this.formatTimestamp(this.selectedNote.timestamp)}</span>
-              <button
-                class="note-action delete"
-                @click="${(e) => this.handleDeleteNote(this.selectedNote.id, e)}"
-                style="padding: 0.4rem 0.8rem;">
-                🗑️ Supprimer
-              </button>
+              <div style="display: flex; gap: 0.5rem;">
+                <button
+                  class="note-action edit"
+                  @click="${(e) => this.openEditNote(this.selectedNote, e)}"
+                  style="padding: 0.4rem 0.8rem;">
+                  ✏️ Modifier
+                </button>
+                <button
+                  class="note-action delete"
+                  @click="${(e) => this.handleDeleteNote(this.selectedNote.id, e)}"
+                  style="padding: 0.4rem 0.8rem;">
+                  🗑️ Supprimer
+                </button>
+              </div>
             </div>
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Edit Note Modal -->
+      ${this.editingNote ? html`
+        <div class="modal-overlay" @click="${this.closeEditNote}">
+          <div class="modal-content" @click="${(e) => e.stopPropagation()}">
+            <div class="modal-header">
+              <h2 class="modal-title">✏️ Modifier la Note</h2>
+              <button class="modal-close-btn" @click="${this.closeEditNote}">×</button>
+            </div>
+
+            <form @submit="${this.handleUpdateNote}">
+              <div class="form-field">
+                <label for="edit-content">Contenu *</label>
+                <textarea
+                  name="content"
+                  id="edit-content"
+                  required
+                  placeholder="Votre note (markdown supporté)..."
+                  .value="${this.editingNote.data.content}"></textarea>
+              </div>
+
+              <div class="form-field">
+                <label for="edit-context">Contexte</label>
+                <input
+                  name="context"
+                  id="edit-context"
+                  placeholder="cravate, intime, neutre..."
+                  .value="${this.editingNote.data.context || ''}">
+              </div>
+
+              <div class="form-field">
+                <label for="edit-tags">Tags</label>
+                <input
+                  name="tags"
+                  id="edit-tags"
+                  placeholder="tag1, tag2, tag3..."
+                  .value="${this.editingNote.data.tags ? this.editingNote.data.tags.join(', ') : ''}">
+              </div>
+
+              <div class="form-checkboxes">
+                <label class="checkbox-field">
+                  <input
+                    type="checkbox"
+                    name="urgent"
+                    ?checked="${this.editingNote.data.urgent}">
+                  <span>🚨 Marquer comme urgent</span>
+                </label>
+              </div>
+
+              <div class="form-actions">
+                <button type="button" class="form-btn secondary" @click="${this.closeEditNote}">
+                  Annuler
+                </button>
+                <button type="submit" class="form-btn primary">
+                  ✅ Enregistrer
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       ` : ''}

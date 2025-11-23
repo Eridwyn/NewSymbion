@@ -231,6 +231,7 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/agents/{id}/shutdown", post(agent_shutdown_endpoint))
         .route("/agents/{id}/reboot", post(agent_reboot_endpoint))
         .route("/agents/{id}/hibernate", post(agent_hibernate_endpoint))
+        .route("/v1/agents/{id}/reconnect", post(agent_reconnect_endpoint))
         .route("/agents/{id}/processes/{pid}/kill", post(agent_kill_process_endpoint))
         .route("/context/override", post(set_context_override))
         .route("/context/clear", post(clear_context_override))
@@ -1075,6 +1076,31 @@ async fn agent_hibernate_endpoint(
             eprintln!("[http] failed to send hibernate command to agent {}: {}", id, e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
+    }
+}
+
+// POST /v1/agents/{id}/reconnect - Demande de reconnexion agent
+async fn agent_reconnect_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Vérifier que l'agent existe
+    match app.agents.get_agent(&id).await {
+        Some(_) => {
+            // Envoyer commande reconnect via MQTT
+            match app.agents.send_command(&id, "reconnect", None).await {
+                Ok(command_id) => Ok(Json(serde_json::json!({
+                    "success": true,
+                    "command_id": command_id,
+                    "message": "Reconnect command sent to agent via kernel"
+                }))),
+                Err(e) => {
+                    eprintln!("[http] failed to send reconnect command to agent {}: {}", id, e);
+                    Err(StatusCode::INTERNAL_SERVER_ERROR)
+                }
+            }
+        },
+        None => Err(StatusCode::NOT_FOUND),
     }
 }
 
