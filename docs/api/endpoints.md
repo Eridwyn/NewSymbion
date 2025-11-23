@@ -590,6 +590,19 @@ Les endpoints suivants sont **RETIRÉS** de la documentation car non implément�
 }
 ```
 
+### `POST /v1/agents/{id}/reconnect`
+**Description** : Demande de reconnexion de l'agent au kernel (force re-registration)
+**Auth** : JWT
+**CSRF** : Requis
+**Response** :
+```json
+{
+  "success": true,
+  "command_id": "cmd_abc123",
+  "message": "Reconnect command sent to agent via kernel"
+}
+```
+
 ### `POST /agents/{id}/command`
 **Description** : Exécution commande whitelistée
 **Auth** : JWT
