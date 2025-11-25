@@ -94,6 +94,83 @@ Les endpoints suivants sont **RETIRÉS** de la documentation car non implément�
 
 ---
 
+## 📊 Metrics & Observability (PR4)
+
+### `GET /metrics`
+**Description** : Métriques Prometheus (format text/plain)
+**Auth** : Non requis
+**Response** : Format Prometheus text
+```
+# HELP symbion_decisions_total Total decision engine evaluations
+# TYPE symbion_decisions_total counter
+symbion_decisions_total{outcome="approved"} 42
+symbion_decisions_total{outcome="blocked"} 5
+
+# HELP symbion_guards_total Guard executions
+# TYPE symbion_guards_total counter
+symbion_guards_total{result="passed"} 38
+symbion_guards_total{result="blocked"} 9
+```
+
+### `GET /v1/metrics/agents`
+**Description** : Métriques agents (format JSON)
+**Auth** : JWT
+**Response** :
+```json
+{
+  "agents": [
+    {
+      "agent_id": "eridwyn-Salon",
+      "status": "online",
+      "uptime_seconds": 86400,
+      "last_heartbeat": 1732396800,
+      "commands_executed": 42
+    }
+  ],
+  "total": 2,
+  "online": 2
+}
+```
+
+### `GET /v1/metrics/system`
+**Description** : Métriques système (format JSON)
+**Auth** : JWT
+**Response** :
+```json
+{
+  "uptime_seconds": 172800,
+  "version": "1.1.7",
+  "mqtt": {
+    "connected": true,
+    "messages_published": 1542,
+    "messages_received": 1834
+  },
+  "http": {
+    "requests_total": 2341,
+    "active_connections": 12
+  },
+  "decision_engine": {
+    "decisions_total": 89,
+    "approvals": 67,
+    "blocks": 15,
+    "validations": 7
+  }
+}
+```
+
+### `GET /ws/notes/stream`
+**Description** : WebSocket streaming notes (temps réel)
+**Auth** : JWT via query param `?token=...`
+**Protocol** : WebSocket
+**Response** : Stream MQTT
+```json
+{"type": "note", "data": {...}}
+{"type": "note", "data": {...}}
+{"type": "list_end"}
+```
+
+---
+
 ## 🔐 Authentification & Sessions
 
 > ⚠️ **NOTE DE MIGRATION (Novembre 2025)**: Tous les endpoints d'authentification utilisent maintenant le préfixe `/auth/*`:
@@ -282,6 +359,17 @@ Les endpoints suivants sont **RETIRÉS** de la documentation car non implément�
 }
 ```
 
+### `GET /auth/mfa/status`
+**Description** : Statut MFA pour l'utilisateur actuel
+**Auth** : JWT
+**Response** :
+```json
+{
+  "mfa_enabled": true,
+  "backup_codes_remaining": 2
+}
+```
+
 ---
 
 ## 🗝️ WebAuthn (Passkeys Biométriques)
@@ -390,6 +478,23 @@ Les endpoints suivants sont **RETIRÉS** de la documentation car non implément�
 }
 ```
 
+### `POST /auth/webauthn/authenticate-discoverable-start`
+**Description** : Authentification passkey sans username (discoverable credentials)
+**Auth** : Non requis
+**Request** :
+```json
+{}
+```
+**Response** :
+```json
+{
+  "challenge": "random-challenge-base64",
+  "rpId": "symbion.local",
+  "timeout": 60000,
+  "userVerification": "required"
+}
+```
+
 ### `GET /auth/webauthn/passkeys`
 **Description** : Liste passkeys enregistrées
 **Auth** : JWT
@@ -459,6 +564,24 @@ Les endpoints suivants sont **RETIRÉS** de la documentation car non implément�
 {
   "success": true,
   "message": "User deleted"
+}
+```
+
+### `PUT /v1/users/{username}/password`
+**Description** : Mise à jour mot de passe utilisateur
+**Auth** : JWT (admin ou utilisateur lui-même)
+**CSRF** : Requis
+**Request** :
+```json
+{
+  "new_password": "newSecurePassword123"
+}
+```
+**Response** :
+```json
+{
+  "success": true,
+  "message": "Password updated successfully"
 }
 ```
 
