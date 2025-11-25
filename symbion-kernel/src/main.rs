@@ -34,6 +34,7 @@ mod environment;
 mod dew_point_alerts;  // F1: Physics-based humidity alerts (Magnus dew point formula)
 mod sensors;  // F1: Sensor registry for scalable IoT sensors
 mod environment_http;  // F1: API endpoints for environment monitoring
+// F4: Mobile API removed - now part of symbion-plugin-notifications
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -333,8 +334,8 @@ async fn main() {
         sensors: sensor_registry,
     };
 
-    // HTTPS avec TLS
-    let app_https = http::build_router(app_state);
+    // HTTPS avec TLS (PWA + mTLS)
+    let app_https = http::build_router(app_state.clone());
 
     // Charger certificats TLS depuis variables d'environnement
     let cert_path = std::env::var("SYMBION_TLS_CERT_PATH")
@@ -367,6 +368,8 @@ async fn main() {
     // Serveur HTTP simple pour redirection vers HTTPS
     let redirect_app = http::build_redirect_router(https_port);
     println!("[kernel] 🔄 HTTP redirect enabled - listening on http://{} → https://localhost:{}", http_addr, https_port);
+
+    // F4: Mobile API removed - now part of symbion-plugin-notifications (port 8445)
 
     // Lancer les deux serveurs en parallèle
     let https_server = axum_server::bind_rustls(https_addr, tls_config)

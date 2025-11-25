@@ -1,0 +1,11 @@
+{
+  "name": "notifications-manager",
+  "version": "0.1.0",
+  "description": "F4 Notifications Manager - Firebase FCM + Email SMTP for mobile push notifications",
+  "binary": "../target/release/symbion-plugin-notifications",
+  "autostart": true,
+  "restart_on_failure": true,
+  "environment": {
+    "SYMBION_MQTT_BROKER": "127.0.0.1:1883"
+  }
+}

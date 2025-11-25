@@ -268,28 +268,64 @@ pwa-dashboard/src/
 
 ### 🌐 Architecture Réseau
 
-**Ports Réseau** :
+**Architecture Complète (Internet → Kernel)** :
+
+```
+Internet
+   ↓
+┌─────────────────────────────────────────────────────────┐
+│ Cloudflare Proxy (symbion.markcha.fr)                   │
+│ - WAF + DDoS Protection                                 │
+│ - mTLS Client Certificate (OBLIGATOIRE)                 │
+│ - DNS + CDN                                             │
+└─────────────────────────────────────────────────────────┘
+   ↓ HTTPS + mTLS
+┌─────────────────────────────────────────────────────────┐
+│ NAS (Synology/Custom)                                   │
+│ - Port Forwarding: WAN:443 → LAN:192.168.1.14:443      │
+│ - Firewall rules                                        │
+└─────────────────────────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────────────────────────┐
+│ NGINX Reverse Proxy (192.168.1.14:443)                 │
+│ - Agrégation tous services sur port 443                │
+│ - Routing par path:                                     │
+│   • / → Kernel API (192.168.1.14:8443)                 │
+│   • /mobile → Mobile API (192.168.1.14:8444)           │
+│   • /dashboard → PWA (192.168.1.14:3000)               │
+│   • /mqtt → MQTT WSS (192.168.1.14:9001)               │
+└─────────────────────────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────────────────────────┐
+│ Symbion Kernel (192.168.1.14)                          │
+│ - Port 8080: HTTP → HTTPS redirect                     │
+│ - Port 8443: API REST + WebSocket (TLS 1.3)            │
+│ - Port 8444: Mobile API (JWT + mTLS via Cloudflare)    │
+│ - Port 1883: MQTT Broker (local only)                  │
+│ - Port 9001: MQTT WebSocket Secure                     │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Ports Réseau Internes** :
 - **8080** (HTTP) : Redirection automatique → 8443 (HTTPS)
-- **8443** (HTTPS) : API REST + WebSocket (TLS 1.3)
+- **8443** (HTTPS) : API REST principale + WebSocket (TLS 1.3)
+- **8444** (HTTPS) : Mobile API (notifications, validations) - TLS 1.3
 - **1883** (TCP) : MQTT Broker (Mosquitto, local only)
 - **9001** (WSS) : MQTT WebSocket Secure (PWA → Broker)
 
-**Flux TLS** :
-```
-┌─────────────┐         ┌──────────────┐         ┌─────────────┐
-│ PWA/Agent   │  HTTPS  │   Kernel     │  MQTT   │  Mosquitto  │
-│ (Client)    ├────────►│  (Server)    ├────────►│   Broker    │
-│             │  :8443  │   TLS 1.3    │  :1883  │   (Local)   │
-└─────────────┘         └──────────────┘         └─────────────┘
-     │                                                   │
-     │                    MQTT WSS :9001                 │
-     └───────────────────────────────────────────────────┘
-```
+**Ports Réseau Externes** :
+- **443** (HTTPS) : Seul port exposé via Cloudflare + NAS
+  - Tous les services agrégés via NGINX reverse proxy
+  - mTLS obligatoire au niveau Cloudflare (certificat client requis)
 
 **Certificats TLS** :
 - **Production** : Let's Encrypt (auto-renewal via certbot)
 - **Développement** : mkcert (CA local auto-signé)
-- **Stockage** : `symbion-kernel/certs/` (cert + key)
+- **mTLS Cloudflare** : Certificat client obligatoire (authentification mutuelle)
+  - PWA Dashboard : Certificat client installé dans navigateur
+  - Mobile App : Certificat client embarqué dans l'application
+  - Protection : Seuls les clients avec certificat valide peuvent accéder
+- **Stockage** : `symbion-kernel/certs/` (cert + key serveur)
 - **Format** : PEM (Privacy Enhanced Mail)
 
 **Protocoles & Cipher Suites** :
