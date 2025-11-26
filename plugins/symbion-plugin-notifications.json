@@ -2,10 +2,19 @@
   "name": "notifications-manager",
   "version": "0.1.0",
   "description": "F4 Notifications Manager - Firebase FCM + Email SMTP for mobile push notifications",
-  "binary": "../target/release/symbion-plugin-notifications",
-  "autostart": true,
+  "binary": "./plugins/symbion-plugin-notifications",
+  "contracts": [
+    "notifications.send@v1",
+    "notifications.list@v1",
+    "notifications.ack@v1"
+  ],
+  "auto_start": true,
   "restart_on_failure": true,
-  "environment": {
+  "startup_timeout_seconds": 10,
+  "shutdown_timeout_seconds": 5,
+  "depends_on": [],
+  "start_priority": 15,
+  "env": {
     "SYMBION_MQTT_BROKER": "127.0.0.1:1883"
   }
 }
