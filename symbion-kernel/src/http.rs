@@ -166,7 +166,6 @@ pub struct AppState {
     pub csrf_manager: std::sync::Arc<crate::csrf::CsrfManager>,
     pub device_trust_manager: std::sync::Arc<crate::device_trust::DeviceTrustManager>,
     pub webauthn_manager: std::sync::Arc<crate::webauthn::WebAuthnManager>,
-    pub ports: Shared<crate::ports::PortRegistry>,
     pub plugins: Shared<crate::plugins::PluginManager>,
     pub notes_bridge: Option<SharedNotesBridge>,
     pub agents: crate::agents::SharedAgentRegistry,
@@ -249,8 +248,6 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/plugins/{name}/start", post(start_plugin_endpoint))
         .route("/plugins/{name}/stop", post(stop_plugin_endpoint))
         .route("/plugins/{name}/restart", post(restart_plugin_endpoint))
-        .route("/ports/memo/{id}", axum::routing::delete(handle_memo_delete).put(handle_memo_update))
-        .route("/ports/{port_name}/{id}", axum::routing::delete(delete_from_port))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_csrf));
 
@@ -272,9 +269,6 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/wake", post(wake))
         .route("/contracts", get(list_contracts))
         .route("/contracts/{name}", get(get_contract))
-        .route("/ports", get(list_ports))
-        .route("/ports/memo", get(handle_memo_list).post(handle_memo_create))
-        .route("/ports/{port_name}", get(read_from_port).post(write_to_port))
         .route("/plugins", get(crate::plugin_proxy::handle_list_plugins))
         .route("/agents", get(list_agents_endpoint))
         .route("/agents/{id}", get(get_agent_endpoint))
@@ -638,115 +632,6 @@ async fn get_context_patterns(State(app): State<AppState>) -> Json<Vec<crate::co
 // GET /context/productivity (métriques de productivité par mode)
 async fn get_context_productivity(State(app): State<AppState>) -> Json<Vec<crate::context::ProductivityMetrics>> {
     Json(app.context_engine.calculate_productivity())
-}
-
-// GET /ports (liste des ports disponibles)
-async fn list_ports(State(app): State<AppState>) -> Json<Vec<crate::ports::PortInfo>> {
-    let port_info = {
-        let ports = app.ports.lock();
-        ports.list_port_info()
-    }; // Lock libéré immédiatement
-    Json(port_info)
-}
-
-// GET /ports/{port_name} (lecture depuis un port avec query optionnelle)
-async fn read_from_port(
-    State(app): State<AppState>,
-    Path(port_name): Path<String>,
-    Query(params): Query<HashMap<String, String>>,
-) -> Result<Json<Vec<crate::ports::PortData>>, StatusCode> {
-    // Construction de la query depuis les paramètres URL
-    let mut query = crate::ports::PortQuery::default();
-
-    // Parsing des filtres depuis query params
-    for (key, value) in params {
-        match key.as_str() {
-            "limit" => {
-                if let Ok(limit) = value.parse::<usize>() {
-                    query.limit = Some(limit);
-                }
-            }
-            "offset" => {
-                if let Ok(offset) = value.parse::<usize>() {
-                    query.offset = Some(offset);
-                }
-            }
-            "order_by" => {
-                query.order_by = Some(value);
-            }
-            _ => {
-                // Autres paramètres = filtres
-                let filter_value = if value == "true" {
-                    serde_json::Value::Bool(true)
-                } else if value == "false" {
-                    serde_json::Value::Bool(false)
-                } else {
-                    serde_json::Value::String(value)
-                };
-                query.filters.insert(key, filter_value);
-            }
-        }
-    }
-
-    // Obtenir le port et exécuter la query - Lock minimal
-    let data = {
-        let ports = app.ports.lock();
-        let port = ports.get(&port_name)
-            .ok_or(StatusCode::NOT_FOUND)?;
-        port.read(&query)
-    }; // Lock libéré immédiatement
-
-    match data {
-        Ok(data) => Ok(Json(data)),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-    }
-}
-
-// POST /ports/{port_name} (écriture vers un port)
-async fn write_to_port(
-    State(app): State<AppState>,
-    Path(port_name): Path<String>,
-    Json(data): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    // Construction d'un PortData depuis le JSON reçu
-    let port_data = crate::ports::PortData {
-        id: String::new(), // L'ID sera généré automatiquement
-        timestamp: time::OffsetDateTime::now_utc(),
-        data: data,
-        metadata: HashMap::new(),
-    };
-
-    // Écriture - Lock minimal
-    let write_result = {
-        let ports = app.ports.lock();
-        let port = ports.get(&port_name)
-            .ok_or(StatusCode::NOT_FOUND)?;
-        port.write(&port_data)
-    }; // Lock libéré immédiatement
-
-    match write_result {
-        Ok(id) => Ok(Json(serde_json::json!({"id": id, "status": "created"}))),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-    }
-}
-
-// DELETE /ports/{port_name}/{id} (suppression depuis un port)
-async fn delete_from_port(
-    State(app): State<AppState>,
-    Path((port_name, id)): Path<(String, String)>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    // Suppression - Lock minimal
-    let delete_result = {
-        let ports = app.ports.lock();
-        let port = ports.get(&port_name)
-            .ok_or(StatusCode::NOT_FOUND)?;
-        port.delete(&id)
-    }; // Lock libéré immédiatement
-
-    match delete_result {
-        Ok(_) => Ok(Json(serde_json::json!({"status": "deleted"}))),
-        Err(_) => Err(StatusCode::NOT_FOUND),
-    }
 }
 
 // GET /plugins (liste des plugins avec leur état)

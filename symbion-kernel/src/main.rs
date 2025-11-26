@@ -16,7 +16,6 @@ mod config;
 mod wol;
 mod contracts;
 mod health;
-mod ports;
 mod plugins;
 mod notes_bridge;
 mod notes_ws;
@@ -43,7 +42,6 @@ use crate::config::{load_config, HostsConfig};
 use crate::http::AppState;
 use crate::contracts::ContractRegistry;
 use crate::health::HealthTracker;
-use crate::ports::create_default_ports;
 use crate::plugins::PluginManager;
 use crate::notes_bridge::{NotesBridge, SharedNotesBridge};
 use crate::agents::{AgentRegistry, SharedAgentRegistry};
@@ -165,22 +163,6 @@ async fn main() {
         }
     };
     println!("[kernel] initialized Device Trust manager");
-
-    // data ports
-    std::fs::create_dir_all("./data").unwrap_or_else(|e| {
-        eprintln!("[kernel] warning: failed to create data dir: {}", e);
-    });
-    
-    let ports = match create_default_ports("./data") {
-        Ok(registry) => {
-            println!("[kernel] initialized {} data ports", registry.list_ports().len());
-            new_state(registry)
-        }
-        Err(e) => {
-            eprintln!("[kernel] failed to initialize ports: {}", e);
-            new_state(crate::ports::PortRegistry::new())
-        }
-    };
 
     // plugin manager
     std::fs::create_dir_all("./plugins").unwrap_or_else(|e| {
@@ -326,7 +308,6 @@ async fn main() {
         csrf_manager,
         device_trust_manager,
         webauthn_manager,
-        ports,
         plugins,
         notes_bridge,
         agents: agents.clone(),
