@@ -129,16 +129,16 @@ impl PluginRegistry {
             println!("  - {} -> {}", route, info.socket_path.display());
         }
 
-        // Find longest matching prefix
+        // Find longest matching route (supports parameterized routes like :id)
         let mut best_match: Option<(&String, &PluginInfo)> = None;
-        for (route_prefix, plugin_info) in plugins.iter() {
-            if path.starts_with(route_prefix) {
+        for (route_pattern, plugin_info) in plugins.iter() {
+            if Self::route_matches(route_pattern, path) {
                 if let Some((best_prefix, _)) = best_match {
-                    if route_prefix.len() > best_prefix.len() {
-                        best_match = Some((route_prefix, plugin_info));
+                    if route_pattern.len() > best_prefix.len() {
+                        best_match = Some((route_pattern, plugin_info));
                     }
                 } else {
-                    best_match = Some((route_prefix, plugin_info));
+                    best_match = Some((route_pattern, plugin_info));
                 }
             }
         }
@@ -150,6 +150,36 @@ impl PluginRegistry {
         }
 
         best_match.map(|(_, info)| info.socket_path.clone())
+    }
+
+    /// Check if a path matches a route pattern (supports :param segments)
+    ///
+    /// Examples:
+    /// - `/v1/plugin-api/notes/notes` matches `/v1/plugin-api/notes/notes`
+    /// - `/v1/plugin-api/notes/123` matches `/v1/plugin-api/notes/:id`
+    /// - `/v1/plugin-api/sensors/environment/chambre` matches `/v1/plugin-api/sensors/environment/:room_id`
+    fn route_matches(pattern: &str, path: &str) -> bool {
+        let pattern_segments: Vec<&str> = pattern.split('/').collect();
+        let path_segments: Vec<&str> = path.split('/').collect();
+
+        // Must have same number of segments
+        if pattern_segments.len() != path_segments.len() {
+            return false;
+        }
+
+        // Check each segment
+        for (pattern_seg, path_seg) in pattern_segments.iter().zip(path_segments.iter()) {
+            // If pattern segment starts with ':', it's a parameter - matches anything
+            if pattern_seg.starts_with(':') {
+                continue;
+            }
+            // Otherwise must be exact match
+            if pattern_seg != path_seg {
+                return false;
+            }
+        }
+
+        true
     }
 }
 

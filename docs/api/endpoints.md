@@ -2,13 +2,13 @@
 
 > 📍 Documentation exhaustive de l'API Symbion Kernel
 >
-> ✅ **Mise à jour complète (18 Novembre 2025)**: Documentation 100% synchronisée avec `symbion-kernel/src/http.rs`
+> ✅ **Mise à jour complète (26 Novembre 2025)**: Documentation 100% synchronisée avec `symbion-kernel/src/http.rs` + Service Discovery
 >
-> **Endpoints documentés** : 78 endpoints uniques (F1 Environment API +5)
+> **Endpoints documentés** : 81 endpoints (73 kernel + 8 plugin API)
 > - ✅ Tous les endpoints implémentés sont documentés
-> - ✅ Tous les paths corrigés (7 mismatches résolus)
-> - ✅ 19 phantom endpoints retirés
-> - ✅ 37 nouveaux endpoints ajoutés (Context, Decision, Agents, Auth)
+> - ✅ Service Discovery Plugin API (+8 endpoints dynamiques)
+> - ✅ Parameterized routes supportés (`:room_id`, `:id`)
+> - ✅ 3 plugins actifs (sensors, notes, notifications)
 
 ---
 
@@ -2179,6 +2179,267 @@ client.on('message', (topic, payload) => {
 
 ---
 
+## 🔌 Plugin API - Service Discovery
+
+> **Architecture** : Reverse Proxy HTTP → Unix Domain Sockets
+> **Prefix** : `/v1/plugin-api/{plugin_name}/{route}`
+> **Auth** : JWT requis pour tous les endpoints
+> **Format** : JSON
+
+Les plugins s'enregistrent dynamiquement au démarrage via Service Discovery (`POST /v1/plugins/register`) et exposent leurs routes HTTP via Unix sockets. Le kernel agit comme reverse proxy authentifié.
+
+### Plugins Disponibles
+
+#### **sensors** (F1 Environment Monitoring)
+Routes exposées : 2
+
+##### `GET /v1/plugin-api/sensors/sensors`
+**Description** : Liste tous les capteurs d'environnement enregistrés
+**Auth** : JWT
+**Response** :
+```json
+{
+  "count": 1,
+  "sensors": [
+    {
+      "room_id": "chambre",
+      "device_id": "esp32-bme280-001",
+      "last_seen": "2025-11-26T22:30:00Z"
+    }
+  ]
+}
+```
+
+##### `GET /v1/plugin-api/sensors/environment/:room_id`
+**Description** : Données environnement pour une pièce spécifique (parameterized route)
+**Auth** : JWT
+**Path Params** : `room_id` (ex: "chambre", "bureau", "salon")
+**Response** :
+```json
+{
+  "room_id": "chambre",
+  "current": {
+    "temperature_c": 21.5,
+    "humidity_pct": 45.0,
+    "timestamp": "2025-11-26T22:35:12Z"
+  },
+  "status": "comfort",
+  "thresholds": {
+    "temp_min": 18.0,
+    "temp_max": 24.0,
+    "humidity_min": 30.0,
+    "humidity_max": 60.0
+  },
+  "alerts": []
+}
+```
+**Errors** :
+- `404` si `room_id` inexistant
+
+---
+
+#### **notes** (Notes/Memo Management)
+Routes exposées : 2
+
+##### `GET /v1/plugin-api/notes/notes`
+**Description** : Liste toutes les notes (avec MQTT streaming pagination)
+**Auth** : JWT
+**Response** :
+```json
+{
+  "notes": [
+    {
+      "id": "note_abc123",
+      "title": "Réunion projet Symbion",
+      "content": "Discussion architecture Service Discovery...",
+      "tags": ["project", "architecture"],
+      "created_at": "2025-11-26T14:20:00Z",
+      "updated_at": "2025-11-26T18:45:00Z"
+    }
+  ],
+  "total": 42
+}
+```
+
+##### `GET /v1/plugin-api/notes/notes/:id`
+**Description** : Récupération d'une note spécifique (parameterized route)
+**Auth** : JWT
+**Path Params** : `id` (UUID de la note)
+**Response** :
+```json
+{
+  "id": "note_abc123",
+  "title": "Réunion projet Symbion",
+  "content": "Discussion architecture Service Discovery...",
+  "tags": ["project", "architecture"],
+  "created_at": "2025-11-26T14:20:00Z",
+  "updated_at": "2025-11-26T18:45:00Z"
+}
+```
+**Errors** :
+- `404` si note inexistante
+
+---
+
+#### **notifications-manager** (F4 Notifications)
+Routes exposées : 4
+
+##### `GET /v1/plugin-api/notifications/notifications`
+**Description** : Liste toutes les notifications
+**Auth** : JWT
+**Response** :
+```json
+{
+  "notifications": [
+    {
+      "id": "notif_001",
+      "priority": "P2",
+      "title": "Alerte température chambre",
+      "body": "Température descendue à 16°C",
+      "source": "sensors-manager",
+      "timestamp": 1732664400,
+      "acknowledged": false,
+      "actions": ["dismiss", "acknowledge"]
+    }
+  ],
+  "total": 5,
+  "unread": 2
+}
+```
+
+##### `POST /v1/plugin-api/notifications/notifications/send`
+**Description** : Envoi d'une nouvelle notification (MQTT + FCM)
+**Auth** : JWT
+**CSRF** : Requis
+**Request** :
+```json
+{
+  "priority": "P1",
+  "title": "Action requise",
+  "body": "Validation manuelle nécessaire pour automation",
+  "source": "decision-engine",
+  "actions": ["approve", "reject"]
+}
+```
+**Response** :
+```json
+{
+  "id": "notif_002",
+  "status": "sent",
+  "timestamp": 1732664500
+}
+```
+
+##### `POST /v1/plugin-api/notifications/notifications/acknowledge`
+**Description** : Marquage notification comme lue
+**Auth** : JWT
+**CSRF** : Requis
+**Request** :
+```json
+{
+  "notification_id": "notif_001"
+}
+```
+**Response** :
+```json
+{
+  "success": true,
+  "notification_id": "notif_001",
+  "acknowledged_at": 1732664600
+}
+```
+
+##### `POST /v1/plugin-api/notifications/fcm/register`
+**Description** : Enregistrement d'un token Firebase Cloud Messaging (mobile)
+**Auth** : JWT
+**CSRF** : Requis
+**Request** :
+```json
+{
+  "fcm_token": "dXA8G...",
+  "device_type": "android",
+  "device_name": "Pixel 7"
+}
+```
+**Response** :
+```json
+{
+  "success": true,
+  "registered_at": 1732664700
+}
+```
+
+---
+
+### Service Discovery Flow
+
+```
+1. Plugin Startup
+   ├─ Plugin crée Unix socket (/tmp/symbion-plugin-{name}.sock)
+   ├─ Plugin lance serveur HTTP sur socket
+   └─ Plugin envoie POST /v1/plugins/register au kernel
+
+2. Registration Payload
+   {
+     "name": "sensors",
+     "version": "0.1.0",
+     "socket_path": "/tmp/symbion-plugin-sensors.sock",
+     "routes": ["/sensors", "/environment/:room_id"],
+     "contracts": ["environment.data@v1", "sensors.health@v1"]
+   }
+
+3. Kernel Processing
+   ├─ Valide manifest et socket
+   ├─ Enregistre routes dans router dynamique
+   ├─ Map /v1/plugin-api/{name}/* → socket Unix
+   └─ Health checks périodiques (30s interval)
+
+4. Client Request Flow
+   Client → Kernel HTTPS :8443/v1/plugin-api/sensors/environment/chambre
+           ↓ JWT validation
+           ↓ CSRF check (si POST/PUT/DELETE)
+           ↓ Rate limiting
+   Kernel → Plugin Unix Socket /tmp/symbion-plugin-sensors.sock
+           ↓ HTTP reverse proxy
+   Plugin → Business Logic + Response
+           ↓
+   Kernel ← JSON response
+           ↓
+   Client ← HTTPS response
+```
+
+### Parameterized Routes
+
+Service Discovery supporte les routes paramétrées avec pattern `:param` :
+
+| Pattern | Example | Extracted Params |
+|---------|---------|------------------|
+| `/environment/:room_id` | `/environment/chambre` | `room_id = "chambre"` |
+| `/notes/:id` | `/notes/abc123` | `id = "abc123"` |
+| `/devices/:mac/config` | `/devices/AA:BB:CC:DD/config` | `mac = "AA:BB:CC:DD"` |
+
+Le kernel effectue le matching et passe les params via headers HTTP au plugin :
+```
+X-Param-room_id: chambre
+X-Param-id: abc123
+```
+
+### Testing
+
+E2E tests disponibles : `/home/eridwyn/RustroverProjects/NewSymbion/scripts/test-service-discovery-e2e.sh`
+
+**Tests Coverage** :
+- ✅ Plugin registry listing (`GET /v1/plugins`)
+- ✅ Route registration verification
+- ✅ Static routes (`/sensors`, `/notes`)
+- ✅ Parameterized routes (`/environment/:room_id`, `/notes/:id`)
+- ✅ Invalid routes (404 handling)
+- ✅ Multi-segment path matching
+
+**Test Results** : 11/12 passing (92% success rate)
+
+---
+
 ## 📊 Récapitulatif Endpoints par Catégorie
 
 | Catégorie | Endpoints | Status |
@@ -2195,10 +2456,11 @@ client.on('message', (topic, payload) => {
 | **Notes/Memo** | 3 | ✅ |
 | **Ports** | 4 | ✅ |
 | **WebSocket** | 1 | ✅ |
-| **Plugins** | 4 | ✅ |
+| **Plugins (Core)** | 4 | ✅ |
+| **Plugin API (Service Discovery)** | 8 | ✅ |
 | **Decision Engine** | 13 | ✅ |
 | **Système & Config** | 2 | ✅ |
-| **TOTAL** | **73** | **✅ 100% sync** |
+| **TOTAL** | **81** | **✅ 100% sync** |
 
 ### Changements Effectués
 - ✅ **7 path mismatches corrigés**:
@@ -2226,7 +2488,15 @@ client.on('message', (topic, payload) => {
 
 ---
 
-**Dernière mise à jour** : 15 Novembre 2025
-**Fichier source** : `symbion-kernel/src/http.rs` (lignes 189-311)
-**Total endpoints documentés** : 73
+**Dernière mise à jour** : 26 Novembre 2025
+**Fichier source** : `symbion-kernel/src/http.rs` (lignes 189-311) + Service Discovery
+**Total endpoints documentés** : 81 (73 kernel + 8 plugin API)
 **Synchronisation** : ✅ 100% (tous les endpoints implémentés sont documentés)
+
+### Nouveaux Endpoints (26 Nov 2025)
+- ✅ **Service Discovery - Plugin API** (8 endpoints):
+  - sensors: `/v1/plugin-api/sensors/sensors`, `/v1/plugin-api/sensors/environment/:room_id`
+  - notes: `/v1/plugin-api/notes/notes`, `/v1/plugin-api/notes/notes/:id`
+  - notifications: `/v1/plugin-api/notifications/notifications`, `/v1/plugin-api/notifications/notifications/send`, `/v1/plugin-api/notifications/notifications/acknowledge`, `/v1/plugin-api/notifications/fcm/register`
+- ✅ **Parameterized Routes** : Support `:param` dans paths (ex: `:room_id`, `:id`)
+- ✅ **Reverse Proxy Architecture** : Kernel → Unix sockets (HTTP proxy dynamique)
