@@ -43,5 +43,10 @@ webauthn-rs-proto = "0.5"  # Protocol types for WebAuthn
 # F4: Notifications (Firebase FCM + SMTP)
 reqwest = { version = "0.12", features = ["json"] }  # HTTP client for FCM API
 
+# Dynamic Plugin Routing (Unix Socket Reverse Proxy)
+hyper = "1.0"
+hyper-util = { version = "0.1", features = ["tokio", "client", "client-legacy", "http1"] }
+http-body-util = "0.1"
+
 [dev-dependencies]
 tempfile = "3.8"  # Temporary files for sensor registry tests

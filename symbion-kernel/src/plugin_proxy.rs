@@ -1,0 +1,335 @@
+/**
+ * PLUGIN REVERSE PROXY - Dynamic routing via Unix sockets
+ *
+ * Architecture:
+ * - Kernel scans /tmp/symbion-plugin-*.sock at startup
+ * - Plugins register routes dynamically
+ * - Kernel proxies authenticated HTTPS requests to plugin Unix sockets
+ * - Plugins don't handle TLS/JWT - kernel does it
+ */
+
+use axum::{
+    body::Body,
+    extract::{Request, State, Json},
+    http::{StatusCode, Uri},
+    response::{IntoResponse, Response},
+};
+use http_body_util::{BodyExt, Empty, Full};
+use hyper::body::{Incoming, Bytes};
+use hyper_util::rt::TokioIo;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+/// Plugin registration request payload
+#[derive(Debug, Deserialize)]
+pub struct PluginRegistration {
+    pub name: String,
+    pub socket_path: String,
+    pub routes: Vec<String>,
+    #[serde(default)]
+    pub version: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+/// Plugin metadata stored in registry
+#[derive(Debug, Clone, Serialize)]
+pub struct PluginInfo {
+    pub name: String,
+    pub socket_path: PathBuf,
+    pub routes: Vec<String>,
+    pub version: Option<String>,
+    pub description: Option<String>,
+    pub registered_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Plugin route registry - maps path prefixes to Unix socket paths
+#[derive(Clone)]
+pub struct PluginRegistry {
+    // Map: route_prefix -> PluginInfo
+    plugins: Arc<RwLock<HashMap<String, PluginInfo>>>,
+}
+
+impl PluginRegistry {
+    pub fn new() -> Self {
+        Self {
+            plugins: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    /// Register a plugin dynamically (hot reload)
+    pub async fn register_plugin(&self, registration: PluginRegistration) -> anyhow::Result<()> {
+        let mut plugins = self.plugins.write().await;
+
+        let plugin_info = PluginInfo {
+            name: registration.name.clone(),
+            socket_path: PathBuf::from(&registration.socket_path),
+            routes: registration.routes.clone(),
+            version: registration.version,
+            description: registration.description,
+            registered_at: chrono::Utc::now(),
+        };
+
+        // Validate socket exists
+        if !plugin_info.socket_path.exists() {
+            anyhow::bail!("Socket path does not exist: {}", plugin_info.socket_path.display());
+        }
+
+        // Register each route for this plugin
+        for route in &plugin_info.routes {
+            let full_route = format!("/v1/plugin-api/{}{}", registration.name, route);
+            plugins.insert(full_route.clone(), plugin_info.clone());
+            println!("[plugin-proxy] Registered route: {} -> {}",
+                     full_route, plugin_info.socket_path.display());
+        }
+
+        println!("[plugin-proxy] Plugin '{}' registered successfully with {} routes",
+                 registration.name, registration.routes.len());
+        Ok(())
+    }
+
+    /// Unregister a plugin (for cleanup)
+    pub async fn unregister_plugin(&self, plugin_name: &str) -> anyhow::Result<()> {
+        let mut plugins = self.plugins.write().await;
+        plugins.retain(|_, info| info.name != plugin_name);
+        println!("[plugin-proxy] Plugin '{}' unregistered", plugin_name);
+        Ok(())
+    }
+
+    /// List all registered plugins
+    pub async fn list_plugins(&self) -> Vec<PluginInfo> {
+        let plugins = self.plugins.read().await;
+        let mut unique_plugins: HashMap<String, PluginInfo> = HashMap::new();
+
+        for (_, info) in plugins.iter() {
+            unique_plugins.insert(info.name.clone(), info.clone());
+        }
+
+        unique_plugins.into_values().collect()
+    }
+
+    /// Scan /tmp for plugin Unix sockets and register them (startup discovery)
+    pub async fn discover_plugins(&self) -> anyhow::Result<()> {
+        // Note: With service discovery, this becomes optional
+        // Plugins can self-register via POST /v1/plugins/register
+        println!("[plugin-proxy] Startup discovery disabled - plugins will self-register");
+        Ok(())
+    }
+
+    /// Find Unix socket for a given path
+    pub async fn find_socket(&self, path: &str) -> Option<PathBuf> {
+        let plugins = self.plugins.read().await;
+
+        println!("[plugin-proxy] DEBUG - find_socket searching for: {}", path);
+        println!("[plugin-proxy] DEBUG - Registered routes:");
+        for (route, info) in plugins.iter() {
+            println!("  - {} -> {}", route, info.socket_path.display());
+        }
+
+        // Find longest matching prefix
+        let mut best_match: Option<(&String, &PluginInfo)> = None;
+        for (route_prefix, plugin_info) in plugins.iter() {
+            if path.starts_with(route_prefix) {
+                if let Some((best_prefix, _)) = best_match {
+                    if route_prefix.len() > best_prefix.len() {
+                        best_match = Some((route_prefix, plugin_info));
+                    }
+                } else {
+                    best_match = Some((route_prefix, plugin_info));
+                }
+            }
+        }
+
+        if let Some((matched_route, _)) = best_match {
+            println!("[plugin-proxy] DEBUG - Matched route: {}", matched_route);
+        } else {
+            println!("[plugin-proxy] DEBUG - No matching route found");
+        }
+
+        best_match.map(|(_, info)| info.socket_path.clone())
+    }
+}
+
+/// Proxy handler - forwards authenticated requests to plugin Unix sockets
+pub async fn proxy_to_plugin(
+    State(app_state): State<crate::http::AppState>,
+    req: Request,
+) -> Response {
+    let path = req.uri().path();
+
+    // DEBUG: Log what we receive from router
+    println!("[plugin-proxy] DEBUG - Received path from router: {}", path);
+    println!("[plugin-proxy] DEBUG - Full URI: {}", req.uri());
+
+    // When merged (not nested), the full path is preserved minus the /v1 prefix
+    // So we receive paths like /plugin-api/notifications/notifications
+    // We need to add back the /v1 prefix for registry lookup
+    let full_path = if path.starts_with("/plugin-api/") {
+        format!("/v1{}", path)
+    } else if path.starts_with("/v1/plugin-api/") {
+        path.to_string()
+    } else {
+        // Fallback for unexpected paths
+        format!("/v1/plugin-api{}", path)
+    };
+
+    println!("[plugin-proxy] Received request: {} {} (reconstructed: {})", req.method(), path, full_path);
+
+    // Find plugin socket for this path
+    let socket_path = match app_state.plugin_registry.find_socket(&full_path).await {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                format!("No plugin registered for path: {}", full_path),
+            ).into_response();
+        }
+    };
+
+    // Strip /plugin-api/{plugin_name} prefix from path before forwarding to plugin
+    // Router sends: /plugin-api/notifications/notifications
+    // We need to forward: /notifications (strip first 2 segments)
+    let forwarded_path = path
+        .strip_prefix("/plugin-api/")
+        .and_then(|remaining| {
+            // remaining is "notifications/notifications"
+            // Split on first '/' to get plugin_name and actual_path
+            remaining.split_once('/').map(|(_, rest)| format!("/{}", rest))
+        })
+        .unwrap_or_else(|| path.to_string());
+
+    println!("[plugin-proxy] DEBUG - Forwarded path to plugin: {}", forwarded_path);
+    println!("[plugin-proxy] Proxying {} -> {} (socket: {})",
+             full_path, forwarded_path, socket_path.display());
+
+    // Connect to Unix socket
+    let stream = match tokio::net::UnixStream::connect(&socket_path).await {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("[plugin-proxy] Failed to connect to socket {}: {}", socket_path.display(), e);
+            return (
+                StatusCode::BAD_GATEWAY,
+                format!("Plugin unreachable: {}", e),
+            ).into_response();
+        }
+    };
+
+    // Build new request with forwarded path
+    let (parts, body) = req.into_parts();
+    let mut new_uri_parts = parts.uri.into_parts();
+    new_uri_parts.path_and_query = Some(
+        forwarded_path.parse().unwrap_or_else(|_| "/".parse().unwrap())
+    );
+    let new_uri = Uri::from_parts(new_uri_parts).unwrap();
+
+    let forwarded_req = hyper::Request::builder()
+        .method(parts.method)
+        .uri(new_uri)
+        .version(parts.version);
+
+    // Copy headers
+    let mut forwarded_req = parts.headers.iter().fold(
+        forwarded_req,
+        |builder, (name, value)| builder.header(name, value)
+    );
+
+    // Attach body
+    let body_bytes = match body.collect().await {
+        Ok(collected) => collected.to_bytes(),
+        Err(e) => {
+            eprintln!("[plugin-proxy] Failed to read request body: {}", e);
+            return (StatusCode::BAD_REQUEST, "Failed to read request body").into_response();
+        }
+    };
+
+    let forwarded_req = forwarded_req
+        .body(Full::new(body_bytes))
+        .unwrap();
+
+    // Send request via Unix socket using hyper client
+    let io = TokioIo::new(stream);
+
+    let (mut sender, conn) = match hyper::client::conn::http1::handshake(io).await {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("[plugin-proxy] HTTP handshake failed: {}", e);
+            return (StatusCode::BAD_GATEWAY, "Plugin handshake failed").into_response();
+        }
+    };
+
+    // Spawn connection task
+    tokio::spawn(async move {
+        if let Err(e) = conn.await {
+            eprintln!("[plugin-proxy] Connection error: {}", e);
+        }
+    });
+
+    // Send request to plugin
+    let plugin_response = match sender.send_request(forwarded_req).await {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("[plugin-proxy] Failed to send request to plugin: {}", e);
+            return (StatusCode::BAD_GATEWAY, "Plugin request failed").into_response();
+        }
+    };
+
+    // Convert plugin response to axum response
+    let (parts, body) = plugin_response.into_parts();
+    let body_bytes = match body.collect().await {
+        Ok(collected) => collected.to_bytes(),
+        Err(e) => {
+            eprintln!("[plugin-proxy] Failed to read plugin response: {}", e);
+            return (StatusCode::BAD_GATEWAY, "Failed to read plugin response").into_response();
+        }
+    };
+
+    let mut response = Response::builder()
+        .status(parts.status)
+        .version(parts.version);
+
+    // Copy response headers
+    for (name, value) in parts.headers.iter() {
+        response = response.header(name, value);
+    }
+
+    response.body(Body::from(body_bytes)).unwrap()
+}
+
+/// HTTP handler for plugin registration endpoint
+/// POST /v1/plugins/register
+pub async fn handle_plugin_registration(
+    State(app_state): State<crate::http::AppState>,
+    Json(registration): Json<PluginRegistration>,
+) -> impl IntoResponse {
+    println!("[plugin-proxy] Registration request received for plugin: {}", registration.name);
+
+    match app_state.plugin_registry.register_plugin(registration).await {
+        Ok(_) => {
+            (StatusCode::OK, Json(serde_json::json!({
+                "status": "registered",
+                "message": "Plugin registered successfully"
+            }))).into_response()
+        }
+        Err(e) => {
+            eprintln!("[plugin-proxy] Registration failed: {}", e);
+            (StatusCode::BAD_REQUEST, Json(serde_json::json!({
+                "status": "error",
+                "message": format!("Registration failed: {}", e)
+            }))).into_response()
+        }
+    }
+}
+
+/// HTTP handler for listing all registered plugins
+/// GET /v1/plugins
+pub async fn handle_list_plugins(
+    State(app_state): State<crate::http::AppState>,
+) -> impl IntoResponse {
+    let plugins = app_state.plugin_registry.list_plugins().await;
+    (StatusCode::OK, Json(serde_json::json!({
+        "plugins": plugins
+    }))).into_response()
+}

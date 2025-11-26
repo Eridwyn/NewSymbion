@@ -13,6 +13,12 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::sleep;
 use uuid::Uuid;
+use axum::{
+    extract::State,
+    routing::{get, post},
+    Json, Router,
+};
+use symbion_plugin_common::PluginHttpServer;
 
 /// Notification complète avec métadonnées
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -330,6 +336,87 @@ impl NotificationManager {
     }
 }
 
+// ============================================================================
+// HTTP API Handlers
+// ============================================================================
+
+/// GET /notifications - List all notifications
+async fn list_notifications(State(manager): State<Arc<NotificationManager>>) -> Json<serde_json::Value> {
+    let notifications = manager.list_all();
+    Json(serde_json::json!({
+        "notifications": notifications,
+        "timestamp": time::OffsetDateTime::now_utc().unix_timestamp()
+    }))
+}
+
+/// POST /notifications - Send a new notification
+async fn send_notification(
+    State(manager): State<Arc<NotificationManager>>,
+    Json(notif): Json<Notification>,
+) -> Json<serde_json::Value> {
+    match manager.send(notif.clone()).await {
+        Ok(_) => Json(serde_json::json!({
+            "status": "sent",
+            "notification_id": notif.id
+        })),
+        Err(e) => Json(serde_json::json!({
+            "status": "error",
+            "error": e.to_string()
+        })),
+    }
+}
+
+/// POST /notifications/:id/acknowledge - Acknowledge a notification
+#[derive(Deserialize)]
+struct AcknowledgeRequest {
+    notification_id: String,
+}
+
+async fn acknowledge_notification(
+    State(manager): State<Arc<NotificationManager>>,
+    Json(req): Json<AcknowledgeRequest>,
+) -> Json<serde_json::Value> {
+    match manager.acknowledge(&req.notification_id) {
+        Ok(_) => Json(serde_json::json!({
+            "status": "acknowledged",
+            "notification_id": req.notification_id
+        })),
+        Err(e) => Json(serde_json::json!({
+            "status": "error",
+            "error": format!("{}", e)
+        })),
+    }
+}
+
+/// POST /fcm/register - Register FCM token
+#[derive(Deserialize)]
+struct RegisterFcmRequest {
+    user_id: String,
+    token: String,
+    device_name: Option<String>,
+}
+
+async fn register_fcm(
+    State(manager): State<Arc<NotificationManager>>,
+    Json(req): Json<RegisterFcmRequest>,
+) -> Json<serde_json::Value> {
+    manager.register_fcm_token(req.user_id.clone(), req.token, req.device_name);
+    Json(serde_json::json!({
+        "status": "registered",
+        "user_id": req.user_id
+    }))
+}
+
+/// Build HTTP router for plugin API
+fn build_router(manager: Arc<NotificationManager>) -> Router {
+    Router::new()
+        .route("/notifications", get(list_notifications))
+        .route("/notifications", post(send_notification))
+        .route("/notifications/acknowledge", post(acknowledge_notification))
+        .route("/fcm/register", post(register_fcm))
+        .with_state(manager)
+}
+
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
@@ -363,6 +450,59 @@ async fn main() {
 
     let manager = Arc::new(NotificationManager::new(client.clone()));
 
+    // Build HTTP router and start Unix socket server
+    let router = build_router(manager.clone());
+    let socket_path = "/tmp/symbion-plugin-notifications.sock";
+    let http_server = PluginHttpServer::new(socket_path, router);
+
+    println!("[notifications-plugin] starting HTTP server on Unix socket: {}", socket_path);
+
+    // Wait for socket to be created before registering (server will create it in serve())
+    // We'll register in parallel with server startup
+    let socket_path_clone = socket_path.to_string();
+    tokio::spawn(async move {
+        // Give server time to create socket
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        // Register with kernel using Service Discovery
+        use symbion_plugin_common::PluginRegistrationBuilder;
+
+        match PluginRegistrationBuilder::new("notifications", &socket_path_clone)
+            .route("/notifications")
+            .route("/notifications/send")
+            .route("/notifications/acknowledge")
+            .route("/fcm/register")
+            .version("1.0.0")
+            .description("Push notifications plugin with FCM + Email support")
+            .register()
+            .await
+        {
+            Ok(_) => println!("[notifications-plugin] ✅ Registered with kernel via Service Discovery"),
+            Err(e) => eprintln!("[notifications-plugin] ❌ Failed to register with kernel: {}", e),
+        }
+    });
+
+    // Run MQTT event loop and HTTP server concurrently
+    let mqtt_handle = tokio::spawn(async move {
+        mqtt_event_loop(eventloop, manager, client).await;
+    });
+
+    let http_handle = tokio::spawn(async move {
+        if let Err(e) = http_server.serve().await {
+            eprintln!("[notifications-plugin] HTTP server error: {}", e);
+        }
+    });
+
+    // Wait for both tasks (they should run forever)
+    let _ = tokio::join!(mqtt_handle, http_handle);
+}
+
+/// MQTT event loop - separated for concurrency
+async fn mqtt_event_loop(
+    mut eventloop: rumqttc::EventLoop,
+    manager: Arc<NotificationManager>,
+    client: AsyncClient,
+) {
     loop {
         match eventloop.poll().await {
             Ok(Event::Incoming(Incoming::Publish(p))) => {

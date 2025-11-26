@@ -35,6 +35,7 @@ mod dew_point_alerts;  // F1: Physics-based humidity alerts (Magnus dew point fo
 mod sensors;  // F1: Sensor registry for scalable IoT sensors
 mod environment_http;  // F1: API endpoints for environment monitoring
 // F4: Mobile API removed - now part of symbion-plugin-notifications
+mod plugin_proxy;  // Dynamic plugin routing via Unix sockets
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -308,6 +309,12 @@ async fn main() {
 
     println!("[kernel] initialized Decision Engine PR3");
 
+    // Dynamic Plugin Registry - découverte automatique des plugins Unix sockets
+    let plugin_registry = crate::plugin_proxy::PluginRegistry::new();
+    if let Err(e) = plugin_registry.discover_plugins().await {
+        eprintln!("[kernel] failed to discover plugins: {}", e);
+    }
+
     // fabrique l'état unique pour Axum
     let app_state = AppState {
         states,
@@ -332,6 +339,7 @@ async fn main() {
         decision_agent_health_manager,
         decision_metrics,
         sensors: sensor_registry,
+        plugin_registry,
     };
 
     // HTTPS avec TLS (PWA + mTLS)
