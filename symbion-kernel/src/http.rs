@@ -181,6 +181,8 @@ pub struct AppState {
     pub decision_metrics: std::sync::Arc<crate::decision::DecisionMetrics>,
     // F1: Environment Monitoring
     pub sensors: crate::sensors::SharedSensorRegistry,
+    // Dynamic Plugin Routing
+    pub plugin_registry: crate::plugin_proxy::PluginRegistry,
 }
 
 #[derive(Debug, Deserialize)]
@@ -207,6 +209,11 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/auth/webauthn/authenticate-start", post(webauthn_authenticate_start))
         .route("/auth/webauthn/authenticate-discoverable-start", post(webauthn_authenticate_discoverable_start))
         .route("/auth/webauthn/authenticate-finish", post(webauthn_authenticate_finish))
+        .with_state(app_state.clone());
+
+    // Route publique pour plugin service discovery (no auth - plugins register at startup)
+    let plugin_registration_route = Router::new()
+        .route("/plugins/register", post(crate::plugin_proxy::handle_plugin_registration))
         .with_state(app_state.clone());
 
     // Routes d'authentification protégées (nécessitent JWT valide)
@@ -268,7 +275,7 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/ports", get(list_ports))
         .route("/ports/memo", get(handle_memo_list).post(handle_memo_create))
         .route("/ports/{port_name}", get(read_from_port).post(write_to_port))
-        .route("/plugins", get(list_plugins_endpoint))
+        .route("/plugins", get(crate::plugin_proxy::handle_list_plugins))
         .route("/agents", get(list_agents_endpoint))
         .route("/agents/{id}", get(get_agent_endpoint))
         .route("/agents/{id}/processes", get(agent_processes_endpoint))
@@ -306,15 +313,23 @@ pub fn build_router(app_state: AppState) -> Router {
     let environment_routes = crate::environment_http::build_environment_routes(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
 
+    // Dynamic Plugin Routing - fallback handler with auth middleware
+    let plugin_router = Router::new()
+        .fallback(crate::plugin_proxy::proxy_to_plugin)
+        .layer(middleware::from_fn_with_state(app_state.clone(), require_auth))
+        .with_state(app_state.clone());
+
     // Combine all v1 API routes
     let v1_api_routes = Router::new()
         .merge(login_route)
+        .merge(plugin_registration_route)
         .merge(protected_auth_routes)
         .merge(api_routes)
         .merge(csrf_protected_routes)
         .merge(decision_csrf_routes)
         .merge(websocket_routes)
-        .nest("/environment", environment_routes);
+        .nest("/environment", environment_routes)
+        .merge(plugin_router);
 
     // Router principal avec versioning
     Router::new()
