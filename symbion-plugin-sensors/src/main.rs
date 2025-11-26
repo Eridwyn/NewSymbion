@@ -11,12 +11,21 @@
  */
 
 use parking_lot::RwLock;
-use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet, Publish, QoS};
+use rumqttc::{AsyncClient, Event, MqttOptions, Packet, Publish, QoS};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use time::OffsetDateTime;
+
+// HTTP server imports
+use axum::{
+    extract::{Path as AxumPath, State},
+    http::StatusCode,
+    routing::get,
+    Json, Router,
+};
+use symbion_plugin_common::{PluginHttpServer, PluginRegistrationBuilder};
 
 /// Sensor metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -259,12 +268,83 @@ impl SensorRegistry {
     }
 }
 
+// ========== HTTP REST API Handlers ==========
+
+/// GET /sensors - Liste tous les sensors enregistrés
+async fn list_sensors_http(
+    State(registry): State<Arc<SensorRegistry>>,
+) -> Json<serde_json::Value> {
+    let sensors = registry.list_sensors();
+    Json(serde_json::json!({
+        "sensors": sensors,
+        "count": sensors.len()
+    }))
+}
+
+/// GET /environment/:room_id - Récupère l'état environnemental d'une pièce
+async fn get_environment_http(
+    State(registry): State<Arc<SensorRegistry>>,
+    AxumPath(room_id): AxumPath<String>,
+) -> Result<Json<RoomEnvironmentState>, (StatusCode, String)> {
+    match registry.get_environment(&room_id) {
+        Some(env) => Ok(Json(env)),
+        None => Err((
+            StatusCode::NOT_FOUND,
+            format!("No environment data for room '{}'", room_id),
+        )),
+    }
+}
+
+/// Construit le router HTTP pour le plugin sensors
+fn build_router(registry: Arc<SensorRegistry>) -> Router {
+    Router::new()
+        .route("/sensors", get(list_sensors_http))
+        .route("/environment/:room_id", get(get_environment_http))
+        .with_state(registry)
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("[sensors-plugin] Symbion Environment Sensors Plugin v0.1.0");
     println!("[sensors-plugin] Starting...");
 
     let registry = Arc::new(SensorRegistry::new());
+
+    // Unix socket path
+    let socket_path = "/tmp/symbion-plugin-sensors.sock";
+
+    // Construire le router HTTP
+    let app = build_router(registry.clone());
+
+    // Démarrer le serveur HTTP en arrière-plan
+    let socket_path_clone = socket_path.to_string();
+    tokio::spawn(async move {
+        println!("[sensors-plugin] Starting HTTP server on Unix socket: {}", socket_path_clone);
+        if let Err(e) = PluginHttpServer::new(&socket_path_clone, app).serve().await {
+            eprintln!("[sensors-plugin] HTTP server error: {:?}", e);
+        }
+    });
+
+    // Attendre que le socket soit créé
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // Service Discovery: Auto-registration avec le kernel
+    let socket_path_clone = socket_path.to_string();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        match PluginRegistrationBuilder::new("sensors", &socket_path_clone)
+            .route("/sensors")
+            .route("/environment/:room_id")
+            .version("1.0.0")
+            .description("Environment sensors plugin with MQTT and HTTP API")
+            .register()
+            .await
+        {
+            Ok(_) => println!("[sensors-plugin] ✅ Registered with kernel via Service Discovery"),
+            Err(e) => eprintln!("[sensors-plugin] ❌ Failed to register with kernel: {}", e),
+        }
+    });
 
     // MQTT setup
     let mut mqttoptions = MqttOptions::new("symbion-plugin-sensors", "127.0.0.1", 1883);

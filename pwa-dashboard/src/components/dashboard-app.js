@@ -853,8 +853,9 @@ class DashboardApp extends LitElement {
       this.systemHealth = { ...health } // Force new reference
 
       // Charger les plugins
-      const plugins = await this.apiService.getPlugins()
-      this.plugins = Array.isArray(plugins) ? [...plugins] : [] // Force new array reference
+      const response = await this.apiService.getPlugins()
+      // API returns {"plugins": [...]} so extract the array
+      this.plugins = Array.isArray(response?.plugins) ? [...response.plugins] : []
 
       // Charger les agents
       const agents = await this.apiService.request('/v1/agents')
@@ -887,8 +888,9 @@ class DashboardApp extends LitElement {
           // Note: MQTT status is managed by mqtt-service via 'status-change' event
           // Don't override it from API health to avoid stale/incorrect status
 
-          const plugins = await this.apiService.getPlugins()
-          this.plugins = Array.isArray(plugins) ? [...plugins] : [] // Force new array reference
+          const response = await this.apiService.getPlugins()
+          // API returns {"plugins": [...]} so extract the array
+          this.plugins = Array.isArray(response?.plugins) ? [...response.plugins] : []
 
           const agents = await this.apiService.request('/v1/agents')
           this.agents = Array.isArray(agents) ? [...agents] : [] // Force new array reference
