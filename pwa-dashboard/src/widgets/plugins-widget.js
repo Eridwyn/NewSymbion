@@ -238,13 +238,15 @@ class PluginsWidget extends LitElement {
   }
   
   // Normalize status (can be string "Running" or object {"Failed": "..."})
+  // Registered plugins (with registered_at timestamp) are assumed to be running
   normalizeStatus(status) {
     if (typeof status === 'string') {
       return status
     } else if (typeof status === 'object' && status.Failed) {
       return 'failed'
     }
-    return 'unknown'
+    // If no status provided, assume plugin is running (it's registered)
+    return 'running'
   }
 
   getStatusLabel(status) {

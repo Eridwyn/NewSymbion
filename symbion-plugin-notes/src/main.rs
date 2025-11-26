@@ -27,10 +27,18 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use time::OffsetDateTime;
-use tokio::time::{sleep, Duration};
+use tokio::time::Duration;
 use uuid::Uuid;
 use parking_lot::Mutex;
 use std::sync::Arc;
+use axum::{
+    extract::State,
+    http::StatusCode,
+    response::Json,
+    routing::get,
+    Router,
+};
+use symbion_plugin_common::{PluginHttpServer, PluginRegistrationBuilder};
 
 /// Structure des données de note (identique au kernel)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -294,15 +302,108 @@ impl NotesStorage {
     }
 }
 
+// ===== HTTP Handlers =====
+
+/// GET /notes - Liste toutes les notes
+async fn list_notes_http(
+    State(storage): State<Arc<NotesStorage>>,
+) -> Json<serde_json::Value> {
+    let notes = storage.list_notes(None);
+    Json(serde_json::json!({
+        "notes": notes,
+        "count": notes.len()
+    }))
+}
+
+/// POST /notes - Crée une nouvelle note
+async fn create_note_http(
+    State(storage): State<Arc<NotesStorage>>,
+    Json(content): Json<NoteContent>,
+) -> Result<Json<Note>, (StatusCode, String)> {
+    match storage.create_note(content) {
+        Ok(note) => Ok(Json(note)),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+/// DELETE /notes/:id - Supprime une note
+async fn delete_note_http(
+    State(storage): State<Arc<NotesStorage>>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    match storage.delete_note(&id) {
+        Ok(true) => Ok(Json(serde_json::json!({"deleted": true, "id": id}))),
+        Ok(false) => Err((StatusCode::NOT_FOUND, "Note not found".to_string())),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+/// PUT /notes/:id - Met à jour une note
+async fn update_note_http(
+    State(storage): State<Arc<NotesStorage>>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(content): Json<NoteContent>,
+) -> Result<Json<Note>, (StatusCode, String)> {
+    match storage.update_note(&id, content) {
+        Ok(Some(note)) => Ok(Json(note)),
+        Ok(None) => Err((StatusCode::NOT_FOUND, "Note not found".to_string())),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+/// Construit le router HTTP pour le plugin
+fn build_router(storage: Arc<NotesStorage>) -> Router {
+    Router::new()
+        .route("/notes", get(list_notes_http).post(create_note_http))
+        .route("/notes/:id", axum::routing::delete(delete_note_http).put(update_note_http))
+        .with_state(storage)
+}
+
 /// Point d'entrée principal du plugin
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("[notes] symbion plugin notes starting...");
-    
+
     // Initialisation du stockage
     let storage = NotesStorage::new("./notes.json")?;
     let storage = Arc::new(storage);
-    
+
+    // Unix socket path
+    let socket_path = "/tmp/symbion-plugin-notes.sock";
+
+    // Construire le router HTTP
+    let app = build_router(storage.clone());
+
+    // Démarrer le serveur HTTP en arrière-plan
+    let socket_path_clone = socket_path.to_string();
+    tokio::spawn(async move {
+        eprintln!("[notes] starting HTTP server on Unix socket: {}", socket_path_clone);
+        if let Err(e) = PluginHttpServer::new(&socket_path_clone, app).serve().await {
+            eprintln!("[notes] HTTP server error: {:?}", e);
+        }
+    });
+
+    // Attendre que le socket soit créé
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // Service Discovery: Auto-registration avec le kernel
+    let socket_path_clone = socket_path.to_string();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        match PluginRegistrationBuilder::new("notes", &socket_path_clone)
+            .route("/notes")
+            .route("/notes/:id")
+            .version("1.0.0")
+            .description("Notes plugin with MQTT streaming and HTTP API")
+            .register()
+            .await
+        {
+            Ok(_) => eprintln!("[notes] ✅ Registered with kernel via Service Discovery"),
+            Err(e) => eprintln!("[notes] ❌ Failed to register with kernel: {}", e),
+        }
+    });
+
     // Configuration MQTT
     let mut mqttopts = MqttOptions::new("symbion-plugin-notes", "localhost", 1883);
     mqttopts.set_keep_alive(Duration::from_secs(30));
@@ -311,12 +412,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Buffer de 200 messages pour supporter le streaming de notes sans deadlock
     let (client, mut eventloop) = AsyncClient::new(mqttopts, 200);
-    
+
     // S'abonner aux topics de commandes
     client.subscribe("symbion/notes/command@v1", QoS::AtLeastOnce).await?;
-    
+
     eprintln!("[notes] connected to MQTT, listening for commands...");
-    
+
     // Boucle principale de traitement des messages
     loop {
         match eventloop.poll().await {
