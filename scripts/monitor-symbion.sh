@@ -294,12 +294,12 @@ check_plugins() {
 
                 # Test fonctionnel : vérifier que l'API notes répond
                 local notes_count
-                notes_count=$(curl $CURL_OPTS -s -H "x-api-key: $API_KEY" "$KERNEL_URL/ports/memo" 2>/dev/null | jq 'length' 2>/dev/null)
+                notes_count=$(curl $CURL_OPTS -s -H "x-api-key: $API_KEY" "$KERNEL_URL/v1/plugin-api/notes/notes" 2>/dev/null | jq '.notes | length' 2>/dev/null)
 
                 if [ -z "$notes_count" ] || [ "$notes_count" == "null" ]; then
-                    error "Plugin $name ne répond pas à l'API /ports/memo (timeout ou erreur)"
-                    send_alert "plugin_notes_api_failed" "Plugin Notes API Failed" "Le plugin notes-manager est Running mais l'API /ports/memo ne répond pas.\n\nUptime: ${uptime}s\nRestart count: $restart_count\n\nLe bridge MQTT ou le plugin est probablement bloqué."
-                    warn "Vérifier: curl -H 'x-api-key: $API_KEY' $KERNEL_URL/ports/memo"
+                    error "Plugin $name ne répond pas à l'API /v1/plugin-api/notes/notes (timeout ou erreur)"
+                    send_alert "plugin_notes_api_failed" "Plugin Notes API Failed" "Le plugin notes-manager est Running mais l'API /v1/plugin-api/notes/notes ne répond pas.\n\nUptime: ${uptime}s\nRestart count: $restart_count\n\nLe plugin ou le reverse proxy est probablement bloqué."
+                    warn "Vérifier: curl -H 'x-api-key: $API_KEY' $KERNEL_URL/v1/plugin-api/notes/notes"
                 else
                     clear_error "plugin_notes_api_failed"
                     # Vérification simple du nombre de notes
