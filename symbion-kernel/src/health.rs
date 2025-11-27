@@ -55,12 +55,6 @@ pub struct KernelHealth {
     pub mqtt_status: String,
     /// Compteur total des reconnexions MQTT depuis démarrage
     pub mqtt_reconnects: u32,
-    /// Nombre total de plugins découverts
-    pub plugins_total: u32,
-    /// Nombre de plugins actuellement actifs (Running)
-    pub plugins_active: u32,
-    /// Nombre de plugins en échec
-    pub plugins_failed: u32,
     /// Messages MQTT par minute (activité temps réel)
     pub mqtt_messages_per_minute: f32,
     /// Total des messages MQTT depuis le démarrage
@@ -119,7 +113,7 @@ impl HealthTracker {
         timestamps.push(now);
     }
 
-    pub fn get_health(&self, contracts: &ContractRegistry, agents: &crate::agents::SharedAgentRegistry, plugins: &Shared<crate::plugins::PluginManager>) -> KernelHealth {
+    pub fn get_health(&self, contracts: &ContractRegistry, agents: &crate::agents::SharedAgentRegistry) -> KernelHealth {
         let uptime = self.start_time.elapsed().as_secs();
         let contracts_count = contracts.list_contracts().len() as u32;
         let agents_count = agents.agents_count();
@@ -146,20 +140,6 @@ impl HealthTracker {
             .count();
         let messages_per_minute = recent_messages as f32;
 
-        // Statistiques des plugins - Clone snapshot pour libérer lock rapidement
-        let plugin_infos = {
-            let plugins_guard = plugins.lock();
-            plugins_guard.list_plugins()
-        }; // Lock libéré immédiatement
-
-        let plugins_total = plugin_infos.len() as u32;
-        let plugins_active = plugin_infos.iter()
-            .filter(|p| matches!(p.status, crate::plugins::PluginStatus::Running))
-            .count() as u32;
-        let plugins_failed = plugin_infos.iter()
-            .filter(|p| matches!(p.status, crate::plugins::PluginStatus::Failed(_)))
-            .count() as u32;
-
         KernelHealth {
             uptime_seconds: uptime,
             contracts_loaded: contracts_count,
@@ -167,9 +147,6 @@ impl HealthTracker {
             memory_usage_mb: memory_mb,
             mqtt_status,
             mqtt_reconnects: reconnects,
-            plugins_total,
-            plugins_active,
-            plugins_failed,
             mqtt_messages_per_minute: messages_per_minute,
             mqtt_messages_total: total_messages,
         }
@@ -181,7 +158,6 @@ impl HealthTracker {
         config: Shared<HostsConfig>,
         contracts: ContractRegistry,
         agents: crate::agents::SharedAgentRegistry,
-        plugins: Shared<crate::plugins::PluginManager>,
         dashboard_events: crate::dashboard_events::DashboardEventPublisher,
     ) {
         let health_tracker = self.clone();
@@ -206,7 +182,7 @@ impl HealthTracker {
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
-                        let health = health_tracker.get_health(&contracts, &agents, &plugins);
+                        let health = health_tracker.get_health(&contracts, &agents);
                         if let Ok(payload) = serde_json::to_string(&health) {
                             if let Err(e) = client.publish("symbion/kernel/health@v1", QoS::AtLeastOnce, false, payload).await {
                                 eprintln!("[health] failed to publish: {:?}", e);

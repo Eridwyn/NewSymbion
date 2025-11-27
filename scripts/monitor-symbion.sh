@@ -254,120 +254,53 @@ check_agents() {
     return 0
 }
 
-# Vérifier les plugins (Service Discovery)
+# Vérifier les plugins via systemd
 check_plugins() {
-    local plugins_json
-    plugins_json=$(curl $CURL_OPTS -s -H "x-api-key: $API_KEY" "$KERNEL_URL/v1/plugins" 2>/dev/null)
+    log "🔌 Checking plugins via systemd..."
 
-    if [ -z "$plugins_json" ]; then
-        error "Impossible de récupérer la liste des plugins"
+    local plugins_ok=0
+    local plugins_total=0
+    local all_ok=true
+
+    # Liste des plugins à vérifier
+    local plugins=("notes" "notifications" "sensors")
+
+    for plugin in "${plugins[@]}"; do
+        plugins_total=$((plugins_total + 1))
+
+        if systemctl --user is-active --quiet "symbion-plugin-$plugin" 2>/dev/null; then
+            plugins_ok=$((plugins_ok + 1))
+            success "Plugin $plugin: running"
+            clear_error "plugin_${plugin}_stopped"
+        else
+            error "Plugin $plugin: stopped or not installed"
+            send_alert "plugin_${plugin}_stopped" "Plugin $plugin Stopped" "Le plugin $plugin n'est pas actif (systemctl --user status symbion-plugin-$plugin)
+
+Actions recommandées:
+- Vérifier les logs: journalctl --user -u symbion-plugin-$plugin
+- Redémarrer: systemctl --user restart symbion-plugin-$plugin
+- Vérifier la configuration: systemctl --user status symbion-plugin-$plugin"
+            all_ok=false
+        fi
+    done
+
+    log "   📊 Résumé plugins: $plugins_ok/$plugins_total running"
+
+    if [ "$plugins_ok" -eq 0 ]; then
+        error "Aucun plugin actif!"
+        send_alert "all_plugins_stopped" "All Plugins Stopped" "Aucun plugin n'est actuellement actif via systemd.
+
+Vérifier:
+- systemctl --user list-units 'symbion-plugin-*'
+- journalctl --user -xe"
         return 1
     fi
 
-    if ! command -v jq &> /dev/null; then
-        echo "$plugins_json"
+    if $all_ok; then
+        clear_error "all_plugins_stopped"
         return 0
-    fi
-
-    local plugin_count=$(echo "$plugins_json" | jq '.plugins | length')
-    log "🔌 $plugin_count plugin(s) enregistré(s) (Service Discovery)"
-
-    # Check si au moins les 3 plugins critiques sont présents
-    local has_notes=$(echo "$plugins_json" | jq '.plugins[] | select(.name == "notes")' | wc -l)
-    local has_sensors=$(echo "$plugins_json" | jq '.plugins[] | select(.name == "sensors")' | wc -l)
-    local has_notifications=$(echo "$plugins_json" | jq '.plugins[] | select(.name == "notifications")' | wc -l)
-
-    if [ "$has_notes" -eq 0 ]; then
-        error "Plugin 'notes' non enregistré"
-        send_alert "plugin_notes_missing" "Plugin Notes Missing" "Le plugin notes n'est pas enregistré dans Service Discovery.\n\nVérifier:\n- Socket /tmp/symbion-plugin-notes.sock existe\n- Plugin démarre correctement\n- Logs: tail -f /tmp/symbion-plugin-notes.log"
     else
-        clear_error "plugin_notes_missing"
-
-        # Test fonctionnel : vérifier que l'API notes répond
-        local notes_count
-        notes_count=$(curl $CURL_OPTS -s -m 3 -H "x-api-key: $API_KEY" "$KERNEL_URL/v1/plugin-api/notes/notes" 2>/dev/null | jq '.notes | length' 2>/dev/null)
-
-        if [ -z "$notes_count" ] || [ "$notes_count" == "null" ]; then
-            error "Plugin notes ne répond pas à l'API /v1/plugin-api/notes/notes"
-            send_alert "plugin_notes_api_failed" "Plugin Notes API Failed" "Le plugin notes est enregistré mais l'API ne répond pas.\n\nVérifier:\n- curl -k -H 'x-api-key: s3cr3t-42' https://localhost:8443/v1/plugin-api/notes/notes\n- Socket permissions: ls -lh /tmp/symbion-plugin-notes.sock\n- Plugin logs: tail -f /tmp/symbion-plugin-notes.log"
-        else
-            clear_error "plugin_notes_api_failed"
-            success "Plugin notes: OK (API répond, $notes_count note(s))"
-        fi
-    fi
-
-    if [ "$has_sensors" -eq 0 ]; then
-        error "Plugin 'sensors' non enregistré"
-        send_alert "plugin_sensors_missing" "Plugin Sensors Missing" "Le plugin sensors n'est pas enregistré dans Service Discovery."
-    else
-        clear_error "plugin_sensors_missing"
-        # Test fonctionnel sensors
-        local sensors_count
-        sensors_count=$(curl $CURL_OPTS -s -m 3 -H "x-api-key: $API_KEY" "$KERNEL_URL/v1/plugin-api/sensors/sensors" 2>/dev/null | jq '.count // 0' 2>/dev/null)
-        if [ -z "$sensors_count" ] || [ "$sensors_count" == "null" ]; then
-            error "Plugin sensors ne répond pas"
-            send_alert "plugin_sensors_api_failed" "Plugin Sensors API Failed" "Le plugin sensors est enregistré mais l'API ne répond pas."
-        else
-            clear_error "plugin_sensors_api_failed"
-            success "Plugin sensors: OK (API répond, $sensors_count sensor(s))"
-        fi
-    fi
-
-    if [ "$has_notifications" -eq 0 ]; then
-        error "Plugin 'notifications' non enregistré"
-        send_alert "plugin_notifications_missing" "Plugin Notifications Missing" "Le plugin notifications n'est pas enregistré dans Service Discovery."
-    else
-        clear_error "plugin_notifications_missing"
-        # Test fonctionnel notifications
-        local notif_status
-        notif_status=$(curl $CURL_OPTS -s -m 3 -H "x-api-key: $API_KEY" "$KERNEL_URL/v1/plugin-api/notifications/notifications" 2>/dev/null | jq '.notifications // []' | wc -l)
-        if [ "$notif_status" -eq 0 ]; then
-            # C'est peut-être juste qu'il n'y a pas de notifications
-            success "Plugin notifications: OK (API répond)"
-        else
-            success "Plugin notifications: OK (API répond, notifications présentes)"
-        fi
-        clear_error "plugin_notifications_api_failed"
-    fi
-
-    return 0
-}
-
-# Sauvegarder le restart_count d'un plugin
-save_plugin_restart_count() {
-    local plugin_name="$1"
-    local restart_count="$2"
-    local restart_file="/tmp/symbion-plugin-${plugin_name}.restarts"
-    echo "$restart_count" > "$restart_file"
-}
-
-# Récupérer le dernier restart_count connu
-get_plugin_restart_count() {
-    local plugin_name="$1"
-    local restart_file="/tmp/symbion-plugin-${plugin_name}.restarts"
-    if [ -f "$restart_file" ]; then
-        cat "$restart_file"
-    else
-        echo "unknown"
-    fi
-}
-
-# Sauvegarder le notes_count d'un plugin
-save_plugin_notes_count() {
-    local plugin_name="$1"
-    local notes_count="$2"
-    local notes_file="/tmp/symbion-plugin-${plugin_name}.notes"
-    echo "$notes_count" > "$notes_file"
-}
-
-# Récupérer le dernier notes_count connu
-get_plugin_notes_count() {
-    local plugin_name="$1"
-    local notes_file="/tmp/symbion-plugin-${plugin_name}.notes"
-    if [ -f "$notes_file" ]; then
-        cat "$notes_file"
-    else
-        echo "unknown"
+        return 1
     fi
 }
 

@@ -1,0 +1,20 @@
+[Unit]
+Description=Symbion Notes Plugin
+Documentation=https://github.com/Eridwyn/NewSymbion
+After=symbion-kernel.service
+Requires=symbion-kernel.service
+
+[Service]
+Type=simple
+User=eridwyn
+WorkingDirectory=/home/eridwyn/RustroverProjects/NewSymbion
+Environment="SYMBION_MQTT_BROKER=127.0.0.1:1883"
+ExecStart=/bin/bash -c 'source ~/.cargo/env && ./target/release/symbion-plugin-notes'
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=symbion-plugin-notes
+
+[Install]
+WantedBy=default.target

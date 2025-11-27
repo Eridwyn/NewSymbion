@@ -16,7 +16,6 @@ mod config;
 mod wol;
 mod contracts;
 mod health;
-mod plugins;
 mod notes_bridge;
 mod notes_ws;
 mod agents;
@@ -42,7 +41,6 @@ use crate::config::{load_config, HostsConfig};
 use crate::http::AppState;
 use crate::contracts::ContractRegistry;
 use crate::health::HealthTracker;
-use crate::plugins::PluginManager;
 use crate::notes_bridge::{NotesBridge, SharedNotesBridge};
 use crate::agents::{AgentRegistry, SharedAgentRegistry};
 use crate::auth::AuthManager;
@@ -164,23 +162,6 @@ async fn main() {
     };
     println!("[kernel] initialized Device Trust manager");
 
-    // plugin manager
-    std::fs::create_dir_all("./plugins").unwrap_or_else(|e| {
-        eprintln!("[kernel] warning: failed to create plugins dir: {}", e);
-    });
-    
-    let mut plugin_manager = PluginManager::new("./plugins");
-    match plugin_manager.discover_plugins().await {
-        Ok(discovered) => {
-            println!("[kernel] discovered {} plugins", discovered.len());
-            plugin_manager.auto_start_plugins();
-        }
-        Err(e) => {
-            eprintln!("[kernel] failed to discover plugins: {}", e);
-        }
-    }
-    let plugins = new_state(plugin_manager);
-
     // Client MQTT partagé pour le kernel et bridge notes
     let mqtt_client = match mqtt::create_mqtt_client(&cfg_loaded) {
         Ok(client) => client,
@@ -215,9 +196,6 @@ async fn main() {
     // MQTT remplit les states + agents + sensors (F1)
     mqtt::spawn_mqtt_listener(states.clone(), cfg.clone(), notes_bridge.clone(), Some(agents.clone()), Some(sensor_registry.clone()), Some(health_tracker.clone()), Some(dashboard_events.clone()));
 
-    // démarre le healthcheck périodique des plugins
-    plugins::spawn_plugin_health_monitor(plugins.clone());
-    
     // démarre le monitoring des agents (timeout 2min)
     AgentRegistry::start_agent_monitoring(agents.clone(), 2);
 
@@ -231,7 +209,7 @@ async fn main() {
     crate::sensors::SensorRegistry::start_periodic_monitoring(sensor_registry.clone());
 
     // démarre la publication auto du health
-    health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), agents.clone(), plugins.clone(), dashboard_events.clone());
+    health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), agents.clone(), dashboard_events.clone());
 
     // démarre le monitoring contextuel (détection mode toutes les 30s)
     context::ContextEngine::spawn_context_monitor(context_engine.clone(), agents.clone(), mqtt_client.clone(), dashboard_events.clone());
@@ -308,7 +286,6 @@ async fn main() {
         csrf_manager,
         device_trust_manager,
         webauthn_manager,
-        plugins,
         notes_bridge,
         agents: agents.clone(),
         context_engine: context_engine.clone(),

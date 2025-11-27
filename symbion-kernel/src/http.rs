@@ -166,7 +166,6 @@ pub struct AppState {
     pub csrf_manager: std::sync::Arc<crate::csrf::CsrfManager>,
     pub device_trust_manager: std::sync::Arc<crate::device_trust::DeviceTrustManager>,
     pub webauthn_manager: std::sync::Arc<crate::webauthn::WebAuthnManager>,
-    pub plugins: Shared<crate::plugins::PluginManager>,
     pub notes_bridge: Option<SharedNotesBridge>,
     pub agents: crate::agents::SharedAgentRegistry,
     pub context_engine: std::sync::Arc<crate::context::ContextEngine>,
@@ -245,9 +244,10 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/v1/users", post(create_user))
         .route("/v1/users/{username}", axum::routing::delete(delete_user))
         .route("/v1/users/{username}/password", axum::routing::put(update_user_password))
-        .route("/plugins/{name}/start", post(start_plugin_endpoint))
-        .route("/plugins/{name}/stop", post(stop_plugin_endpoint))
-        .route("/plugins/{name}/restart", post(restart_plugin_endpoint))
+        // Plugin systemctl control routes
+        .route("/v1/plugins/:name/start", post(start_plugin_systemctl))
+        .route("/v1/plugins/:name/stop", post(stop_plugin_systemctl))
+        .route("/v1/plugins/:name/restart", post(restart_plugin_systemctl))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_csrf));
 
@@ -270,6 +270,7 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/contracts", get(list_contracts))
         .route("/contracts/{name}", get(get_contract))
         .route("/plugins", get(crate::plugin_proxy::handle_list_plugins))
+        .route("/v1/plugins/:name/status", get(get_plugin_systemctl_status))
         .route("/agents", get(list_agents_endpoint))
         .route("/agents/{id}", get(get_agent_endpoint))
         .route("/agents/{id}/processes", get(agent_processes_endpoint))
@@ -562,7 +563,7 @@ async fn get_contract(
 
 // GET /system/health (état infrastructure)
 async fn get_system_health(State(app): State<AppState>) -> Json<crate::health::KernelHealth> {
-    let health = app.health_tracker.get_health(&app.contracts, &app.agents, &app.plugins);
+    let health = app.health_tracker.get_health(&app.contracts, &app.agents);
     Json(health)
 }
 
@@ -634,110 +635,7 @@ async fn get_context_productivity(State(app): State<AppState>) -> Json<Vec<crate
     Json(app.context_engine.calculate_productivity())
 }
 
-// GET /plugins (liste des plugins avec leur état)
-async fn list_plugins_endpoint(State(app): State<AppState>) -> Result<Json<Vec<crate::plugins::PluginInfo>>, StatusCode> {
-    // Utiliser try_lock pour éviter deadlock avec health publisher
-    let plugin_info = {
-        let plugins = match app.plugins.try_lock() {
-            Some(plugins) => plugins,
-            None => {
-                eprintln!("[http] plugin manager busy, try again later");
-                return Err(StatusCode::SERVICE_UNAVAILABLE);
-            }
-        };
-        plugins.list_plugins()
-    }; // Lock libéré immédiatement
-
-    Ok(Json(plugin_info))
-}
-
-// POST /plugins/{name}/start (démarre un plugin)
-async fn start_plugin_endpoint(
-    State(app): State<AppState>,
-    Path(name): Path<String>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    // Tentative de verrou non-bloquant avec timeout via try_lock
-    let result = {
-        let mut plugins = match app.plugins.try_lock() {
-            Some(plugins) => plugins,
-            None => {
-                eprintln!("[http] plugin manager busy, try again later");
-                return Err(StatusCode::SERVICE_UNAVAILABLE);
-            }
-        };
-        plugins.start_plugin(&name)
-    }; // Verrou libéré immédiatement
-    
-    match result {
-        Ok(()) => Ok(Json(serde_json::json!({
-            "plugin": name,
-            "action": "start",
-            "status": "success"
-        }))),
-        Err(e) => {
-            eprintln!("[http] failed to start plugin {}: {}", name, e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
-
-// POST /plugins/{name}/stop (arrête un plugin)
-async fn stop_plugin_endpoint(
-    State(app): State<AppState>,
-    Path(name): Path<String>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    let result = {
-        let mut plugins = match app.plugins.try_lock() {
-            Some(plugins) => plugins,
-            None => {
-                eprintln!("[http] plugin manager busy, try again later");
-                return Err(StatusCode::SERVICE_UNAVAILABLE);
-            }
-        };
-        plugins.stop_plugin(&name)
-    };
-    
-    match result {
-        Ok(()) => Ok(Json(serde_json::json!({
-            "plugin": name,
-            "action": "stop",
-            "status": "success"
-        }))),
-        Err(e) => {
-            eprintln!("[http] failed to stop plugin {}: {}", name, e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
-
-// POST /plugins/{name}/restart (redémarre un plugin)
-async fn restart_plugin_endpoint(
-    State(app): State<AppState>,
-    Path(name): Path<String>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    let result = {
-        let mut plugins = match app.plugins.try_lock() {
-            Some(plugins) => plugins,
-            None => {
-                eprintln!("[http] plugin manager busy, try again later");
-                return Err(StatusCode::SERVICE_UNAVAILABLE);
-            }
-        };
-        plugins.restart_plugin(&name)
-    };
-    
-    match result {
-        Ok(()) => Ok(Json(serde_json::json!({
-            "plugin": name,
-            "action": "restart", 
-            "status": "success"
-        }))),
-        Err(e) => {
-            eprintln!("[http] failed to restart plugin {}: {}", name, e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
+// GET /plugins - now handled by plugin_proxy module
 
 // ============ MEMO HANDLERS (Plugin Bridge Only) ============
 
@@ -1202,6 +1100,126 @@ async fn command_status_endpoint(
         }))),
         None => Err(StatusCode::NOT_FOUND),
     }
+}
+
+// =============== PLUGIN SYSTEMCTL ENDPOINTS ===============
+
+/// POST /v1/plugins/:name/start - Start plugin via systemctl --user start
+async fn start_plugin_systemctl(
+    Path(name): Path<String>,
+    State(_state): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Validate plugin name (alphanumeric + hyphens only)
+    if !name.chars().all(|c| c.is_alphanumeric() || c == '-') {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let service_name = format!("symbion-plugin-{}", name);
+
+    let output = tokio::process::Command::new("systemctl")
+        .args(&["--user", "start", &service_name])
+        .output()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if output.status.success() {
+        Ok(Json(serde_json::json!({
+            "status": "success",
+            "message": format!("Plugin {} started", name),
+            "service": service_name
+        })))
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("[kernel] failed to start plugin {}: {}", name, stderr);
+        Err(StatusCode::INTERNAL_SERVER_ERROR)
+    }
+}
+
+/// POST /v1/plugins/:name/stop - Stop plugin via systemctl --user stop
+async fn stop_plugin_systemctl(
+    Path(name): Path<String>,
+    State(_state): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !name.chars().all(|c| c.is_alphanumeric() || c == '-') {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let service_name = format!("symbion-plugin-{}", name);
+
+    let output = tokio::process::Command::new("systemctl")
+        .args(&["--user", "stop", &service_name])
+        .output()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if output.status.success() {
+        Ok(Json(serde_json::json!({
+            "status": "success",
+            "message": format!("Plugin {} stopped", name),
+            "service": service_name
+        })))
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("[kernel] failed to stop plugin {}: {}", name, stderr);
+        Err(StatusCode::INTERNAL_SERVER_ERROR)
+    }
+}
+
+/// POST /v1/plugins/:name/restart - Restart plugin via systemctl --user restart
+async fn restart_plugin_systemctl(
+    Path(name): Path<String>,
+    State(_state): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !name.chars().all(|c| c.is_alphanumeric() || c == '-') {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let service_name = format!("symbion-plugin-{}", name);
+
+    let output = tokio::process::Command::new("systemctl")
+        .args(&["--user", "restart", &service_name])
+        .output()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if output.status.success() {
+        Ok(Json(serde_json::json!({
+            "status": "success",
+            "message": format!("Plugin {} restarted", name),
+            "service": service_name
+        })))
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("[kernel] failed to restart plugin {}: {}", name, stderr);
+        Err(StatusCode::INTERNAL_SERVER_ERROR)
+    }
+}
+
+/// GET /v1/plugins/:name/status - Get plugin status via systemctl --user is-active
+async fn get_plugin_systemctl_status(
+    Path(name): Path<String>,
+    State(_state): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !name.chars().all(|c| c.is_alphanumeric() || c == '-') {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let service_name = format!("symbion-plugin-{}", name);
+
+    let output = tokio::process::Command::new("systemctl")
+        .args(&["--user", "is-active", &service_name])
+        .output()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let status = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let is_active = output.status.success();
+
+    Ok(Json(serde_json::json!({
+        "service": service_name,
+        "status": status,
+        "is_active": is_active
+    })))
 }
 
 // =============== AUTH ENDPOINTS ===============
@@ -2524,7 +2542,7 @@ async fn get_metrics_system(
     State(app): State<AppState>,
 ) -> Json<SystemMetrics> {
     // Get kernel health
-    let kernel_health = app.health_tracker.get_health(&app.contracts, &app.agents, &app.plugins);
+    let kernel_health = app.health_tracker.get_health(&app.contracts, &app.agents);
 
     // Get agent summary
     let agents_map = app.agents.list_agents().await;
@@ -2574,9 +2592,9 @@ async fn get_metrics_system(
             offline: total_agents - online_agents,
         },
         plugins: PluginsMetrics {
-            total: kernel_health.plugins_total,
-            running: kernel_health.plugins_active,
-            failed: kernel_health.plugins_failed,
+            total: 0, // Legacy plugin system removed - now using plugin_proxy
+            running: 0,
+            failed: 0,
         },
         context: ContextMetrics {
             current_mode: mode_name,
@@ -2624,7 +2642,7 @@ async fn prometheus_metrics_endpoint(
 
     // ========== System Metrics ==========
     // Get kernel health for MQTT status
-    let kernel_health = app.health_tracker.get_health(&app.contracts, &app.agents, &app.plugins);
+    let kernel_health = app.health_tracker.get_health(&app.contracts, &app.agents);
 
     // MQTT Connection Status
     let mqtt_connected = if kernel_health.mqtt_status == "connected" { 1 } else { 0 };
@@ -2681,18 +2699,18 @@ async fn prometheus_metrics_endpoint(
         output.push_str(&format!("symbion_context_confidence {:.2}\n", context_state.confidence));
     }
 
-    // Plugin Metrics (already computed in kernel_health)
-    output.push_str("# HELP symbion_plugins_total Total number of registered plugins\n");
+    // Plugin Metrics - Legacy system removed, now using plugin_proxy
+    output.push_str("# HELP symbion_plugins_total Total number of registered plugins (legacy - always 0)\n");
     output.push_str("# TYPE symbion_plugins_total gauge\n");
-    output.push_str(&format!("symbion_plugins_total {}\n", kernel_health.plugins_total));
+    output.push_str("symbion_plugins_total 0\n");
 
-    output.push_str("# HELP symbion_plugins_running Number of plugins currently running\n");
+    output.push_str("# HELP symbion_plugins_running Number of plugins currently running (legacy - always 0)\n");
     output.push_str("# TYPE symbion_plugins_running gauge\n");
-    output.push_str(&format!("symbion_plugins_running {}\n", kernel_health.plugins_active));
+    output.push_str("symbion_plugins_running 0\n");
 
-    output.push_str("# HELP symbion_plugins_failed Number of plugins in failed state\n");
+    output.push_str("# HELP symbion_plugins_failed Number of plugins in failed state (legacy - always 0)\n");
     output.push_str("# TYPE symbion_plugins_failed gauge\n");
-    output.push_str(&format!("symbion_plugins_failed {}\n", kernel_health.plugins_failed));
+    output.push_str("symbion_plugins_failed 0\n");
 
     // Kernel Runtime Metrics
     output.push_str("# HELP symbion_kernel_uptime_seconds Kernel uptime in seconds since startup\n");
