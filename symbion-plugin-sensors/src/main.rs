@@ -26,6 +26,8 @@ use axum::{
     Json, Router,
 };
 use symbion_plugin_common::{PluginHttpServer, PluginRegistrationBuilder};
+use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::broadcast;
 
 /// Sensor metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -311,7 +313,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let registry = Arc::new(SensorRegistry::new());
 
     // Unix socket path
-    let socket_path = "/tmp/symbion-plugin-sensors.sock";
+    let socket_path = "/run/symbion-plugins/sensors.sock";
+
+    // Cleanup old socket at startup (triple safety net)
+    if std::path::Path::new(socket_path).exists() {
+        eprintln!("[sensors] cleaning up old socket at startup");
+        let _ = std::fs::remove_file(socket_path);
+    }
+
+    // Create shutdown channel for graceful termination
+    let (shutdown_tx, mut shutdown_rx) = broadcast::channel::<()>(1);
 
     // Construire le router HTTP
     let app = build_router(registry.clone());
@@ -364,20 +375,60 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("[sensors-plugin] MQTT subscriptions active");
     println!("[sensors-plugin] Waiting for sensor data...");
 
+    // Signal handlers for graceful shutdown (SIGTERM from systemd, SIGINT from Ctrl+C)
+    let socket_path_for_cleanup = socket_path.to_string();
+    let shutdown_tx_clone = shutdown_tx.clone();
+    tokio::spawn(async move {
+        let mut sigterm = signal(SignalKind::terminate()).expect("failed to install SIGTERM handler");
+        let mut sigint = signal(SignalKind::interrupt()).expect("failed to install SIGINT handler");
+
+        tokio::select! {
+            _ = sigterm.recv() => {
+                eprintln!("[sensors] received SIGTERM, shutting down gracefully...");
+            }
+            _ = sigint.recv() => {
+                eprintln!("[sensors] received SIGINT (Ctrl+C), shutting down gracefully...");
+            }
+        }
+
+        // Cleanup socket
+        if std::path::Path::new(&socket_path_for_cleanup).exists() {
+            eprintln!("[sensors] cleaning up socket: {}", socket_path_for_cleanup);
+            let _ = std::fs::remove_file(&socket_path_for_cleanup);
+        }
+
+        // Signal main loop to exit
+        let _ = shutdown_tx_clone.send(());
+    });
+
     // Main event loop
     loop {
-        match eventloop.poll().await {
-            Ok(Event::Incoming(Packet::Publish(publish))) => {
-                handle_mqtt_message(&registry, &client, publish).await;
+        tokio::select! {
+            // Check for shutdown signal
+            _ = shutdown_rx.recv() => {
+                eprintln!("[sensors] shutdown signal received, exiting main loop");
+                break;
             }
-            Ok(Event::Incoming(_)) => {}
-            Ok(Event::Outgoing(_)) => {}
-            Err(e) => {
-                eprintln!("[sensors-plugin] MQTT error: {:?}", e);
-                tokio::time::sleep(Duration::from_secs(1)).await;
+            // Process MQTT events
+            event = eventloop.poll() => {
+                match event {
+                    Ok(Event::Incoming(Packet::Publish(publish))) => {
+                        handle_mqtt_message(&registry, &client, publish).await;
+                    }
+                    Ok(Event::Incoming(_)) => {}
+                    Ok(Event::Outgoing(_)) => {}
+                    Err(e) => {
+                        eprintln!("[sensors-plugin] MQTT error: {:?}", e);
+                        eprintln!("[sensors-plugin] Fatal error - exiting to allow restart");
+                        break;
+                    }
+                }
             }
         }
     }
+
+    eprintln!("[sensors] exited main loop, performing final cleanup");
+    Ok(())
 }
 
 async fn handle_mqtt_message(

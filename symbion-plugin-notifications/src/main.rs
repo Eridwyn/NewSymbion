@@ -19,6 +19,8 @@ use axum::{
     Json, Router,
 };
 use symbion_plugin_common::PluginHttpServer;
+use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::broadcast;
 
 /// Notification complète avec métadonnées
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -418,7 +420,7 @@ fn build_router(manager: Arc<NotificationManager>) -> Router {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
 
     let mqtt_broker = std::env::var("SYMBION_MQTT_BROKER").unwrap_or("127.0.0.1:1883".to_string());
@@ -441,10 +443,10 @@ async fn main() {
     println!("[notifications-plugin] MQTT broker: {}", mqtt_broker);
 
     // Subscribe aux topics
-    client.subscribe("symbion/notifications/send@v1", QoS::AtLeastOnce).await.unwrap();
-    client.subscribe("symbion/notifications/acknowledge@v1", QoS::AtLeastOnce).await.unwrap();
-    client.subscribe("symbion/notifications/register_fcm@v1", QoS::AtLeastOnce).await.unwrap();
-    client.subscribe("symbion/notifications/list@v1", QoS::AtLeastOnce).await.unwrap();
+    client.subscribe("symbion/notifications/send@v1", QoS::AtLeastOnce).await?;
+    client.subscribe("symbion/notifications/acknowledge@v1", QoS::AtLeastOnce).await?;
+    client.subscribe("symbion/notifications/register_fcm@v1", QoS::AtLeastOnce).await?;
+    client.subscribe("symbion/notifications/list@v1", QoS::AtLeastOnce).await?;
 
     println!("[notifications-plugin] subscribed to MQTT topics");
 
@@ -452,7 +454,17 @@ async fn main() {
 
     // Build HTTP router and start Unix socket server
     let router = build_router(manager.clone());
-    let socket_path = "/tmp/symbion-plugin-notifications.sock";
+    let socket_path = "/run/symbion-plugins/notifications.sock";
+
+    // Cleanup old socket at startup (triple safety net)
+    if std::path::Path::new(socket_path).exists() {
+        eprintln!("[notifications] cleaning up old socket at startup");
+        let _ = std::fs::remove_file(socket_path);
+    }
+
+    // Create shutdown channel for graceful termination
+    let (shutdown_tx, mut shutdown_rx) = broadcast::channel::<()>(1);
+
     let http_server = PluginHttpServer::new(socket_path, router);
 
     println!("[notifications-plugin] starting HTTP server on Unix socket: {}", socket_path);
@@ -482,9 +494,35 @@ async fn main() {
         }
     });
 
+    // Signal handlers for graceful shutdown (SIGTERM from systemd, SIGINT from Ctrl+C)
+    let socket_path_for_cleanup = socket_path.to_string();
+    let shutdown_tx_clone = shutdown_tx.clone();
+    tokio::spawn(async move {
+        let mut sigterm = signal(SignalKind::terminate()).expect("failed to install SIGTERM handler");
+        let mut sigint = signal(SignalKind::interrupt()).expect("failed to install SIGINT handler");
+
+        tokio::select! {
+            _ = sigterm.recv() => {
+                eprintln!("[notifications] received SIGTERM, shutting down gracefully...");
+            }
+            _ = sigint.recv() => {
+                eprintln!("[notifications] received SIGINT (Ctrl+C), shutting down gracefully...");
+            }
+        }
+
+        // Cleanup socket
+        if std::path::Path::new(&socket_path_for_cleanup).exists() {
+            eprintln!("[notifications] cleaning up socket: {}", socket_path_for_cleanup);
+            let _ = std::fs::remove_file(&socket_path_for_cleanup);
+        }
+
+        // Signal main loop to exit
+        let _ = shutdown_tx_clone.send(());
+    });
+
     // Run MQTT event loop and HTTP server concurrently
     let mqtt_handle = tokio::spawn(async move {
-        mqtt_event_loop(eventloop, manager, client).await;
+        mqtt_event_loop(eventloop, manager, client, shutdown_rx).await;
     });
 
     let http_handle = tokio::spawn(async move {
@@ -495,6 +533,9 @@ async fn main() {
 
     // Wait for both tasks (they should run forever)
     let _ = tokio::join!(mqtt_handle, http_handle);
+
+    eprintln!("[notifications] exited main loop, performing final cleanup");
+    Ok(())
 }
 
 /// MQTT event loop - separated for concurrency
@@ -502,60 +543,72 @@ async fn mqtt_event_loop(
     mut eventloop: rumqttc::EventLoop,
     manager: Arc<NotificationManager>,
     client: AsyncClient,
+    mut shutdown_rx: broadcast::Receiver<()>,
 ) {
     loop {
-        match eventloop.poll().await {
-            Ok(Event::Incoming(Incoming::Publish(p))) => {
-                let topic = &p.topic;
-                let payload = String::from_utf8_lossy(&p.payload);
+        tokio::select! {
+            // Check for shutdown signal
+            _ = shutdown_rx.recv() => {
+                eprintln!("[notifications] shutdown signal received, exiting MQTT loop");
+                break;
+            }
+            // Process MQTT events
+            event = eventloop.poll() => {
+                match event {
+                    Ok(Event::Incoming(Incoming::Publish(p))) => {
+                        let topic = &p.topic;
+                        let payload = String::from_utf8_lossy(&p.payload);
 
-                match topic.as_str() {
-                    "symbion/notifications/send@v1" => {
-                        if let Ok(notif) = serde_json::from_str::<Notification>(&payload) {
-                            let mgr = manager.clone();
-                            tokio::spawn(async move {
-                                if let Err(e) = mgr.send(notif).await {
-                                    eprintln!("[notifications-plugin] send error: {}", e);
+                        match topic.as_str() {
+                            "symbion/notifications/send@v1" => {
+                                if let Ok(notif) = serde_json::from_str::<Notification>(&payload) {
+                                    let mgr = manager.clone();
+                                    tokio::spawn(async move {
+                                        if let Err(e) = mgr.send(notif).await {
+                                            eprintln!("[notifications-plugin] send error: {}", e);
+                                        }
+                                    });
                                 }
-                            });
-                        }
-                    }
-                    "symbion/notifications/acknowledge@v1" => {
-                        if let Ok(req) = serde_json::from_str::<serde_json::Value>(&payload) {
-                            if let Some(id) = req.get("notification_id").and_then(|v| v.as_str()) {
-                                let _ = manager.acknowledge(id);
                             }
+                            "symbion/notifications/acknowledge@v1" => {
+                                if let Ok(req) = serde_json::from_str::<serde_json::Value>(&payload) {
+                                    if let Some(id) = req.get("notification_id").and_then(|v| v.as_str()) {
+                                        let _ = manager.acknowledge(id);
+                                    }
+                                }
+                            }
+                            "symbion/notifications/register_fcm@v1" => {
+                                if let Ok(req) = serde_json::from_str::<serde_json::Value>(&payload) {
+                                    let user_id = req.get("user_id").and_then(|v| v.as_str()).unwrap_or("default");
+                                    let token = req.get("token").and_then(|v| v.as_str()).unwrap_or("");
+                                    let device_name = req.get("device_name").and_then(|v| v.as_str()).map(String::from);
+                                    manager.register_fcm_token(user_id.to_string(), token.to_string(), device_name);
+                                }
+                            }
+                            "symbion/notifications/list@v1" => {
+                                let notifications = manager.list_all();
+                                let response = serde_json::json!({
+                                    "notifications": notifications,
+                                    "timestamp": time::OffsetDateTime::now_utc().unix_timestamp()
+                                });
+                                let _ = client.publish(
+                                    "symbion/notifications/listed@v1",
+                                    QoS::AtLeastOnce,
+                                    false,
+                                    serde_json::to_string(&response).unwrap()
+                                ).await;
+                            }
+                            _ => {}
                         }
                     }
-                    "symbion/notifications/register_fcm@v1" => {
-                        if let Ok(req) = serde_json::from_str::<serde_json::Value>(&payload) {
-                            let user_id = req.get("user_id").and_then(|v| v.as_str()).unwrap_or("default");
-                            let token = req.get("token").and_then(|v| v.as_str()).unwrap_or("");
-                            let device_name = req.get("device_name").and_then(|v| v.as_str()).map(String::from);
-                            manager.register_fcm_token(user_id.to_string(), token.to_string(), device_name);
-                        }
-                    }
-                    "symbion/notifications/list@v1" => {
-                        let notifications = manager.list_all();
-                        let response = serde_json::json!({
-                            "notifications": notifications,
-                            "timestamp": time::OffsetDateTime::now_utc().unix_timestamp()
-                        });
-                        let _ = client.publish(
-                            "symbion/notifications/listed@v1",
-                            QoS::AtLeastOnce,
-                            false,
-                            serde_json::to_string(&response).unwrap()
-                        ).await;
+                    Err(e) => {
+                        eprintln!("[notifications-plugin] MQTT error: {}", e);
+                        eprintln!("[notifications-plugin] Fatal error - exiting to allow restart");
+                        break;
                     }
                     _ => {}
                 }
             }
-            Err(e) => {
-                eprintln!("[notifications-plugin] MQTT error: {}", e);
-                sleep(Duration::from_secs(1)).await;
-            }
-            _ => {}
         }
     }
 }
