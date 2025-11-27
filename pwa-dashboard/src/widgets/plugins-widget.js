@@ -1,10 +1,12 @@
 /**
- * Widget Gestion des Plugins
- * 
- * Interface pour gérer les plugins Symbion:
+ * Widget Affichage des Plugins
+ *
+ * Interface de contrôle et visualisation des plugins Symbion:
  * - État et statut des plugins
- * - Actions start/stop/restart
- * - Monitoring en temps réel
+ * - Routes enregistrées
+ * - Informations d'enregistrement
+ * - Contrôle systemctl (start/stop/restart)
+ * - Plugins autonomes gérés via systemd/processus
  */
 
 import { LitElement, html, css } from 'lit'
@@ -103,43 +105,84 @@ class PluginsWidget extends LitElement {
       margin-bottom: 1rem;
     }
     
+    .plugin-info {
+      margin-top: 0.8rem;
+      font-size: 0.8em;
+      opacity: 0.6;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.4rem;
+    }
+
+    .info-label {
+      font-weight: 500;
+      opacity: 0.8;
+    }
+
+    .info-value {
+      font-family: monospace;
+      opacity: 0.9;
+    }
+
+    .readonly-notice {
+      background: rgba(76, 175, 80, 0.1);
+      border: 1px solid rgba(76, 175, 80, 0.2);
+      border-radius: 6px;
+      padding: 0.8rem;
+      margin-bottom: 1rem;
+      font-size: 0.85em;
+      color: #4caf50;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
     .plugin-actions {
       display: flex;
       gap: 0.5rem;
+      margin-top: 0.8rem;
     }
-    
+
     .action-btn {
-      background: rgba(0, 122, 204, 0.2);
-      border: 1px solid rgba(0, 122, 204, 0.3);
-      color: #007acc;
       padding: 0.4rem 0.8rem;
-      border-radius: 6px;
-      font-size: 0.8em;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.75em;
+      font-weight: 500;
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all 0.2s ease;
     }
-    
+
+    .action-btn.success {
+      background: rgba(76, 175, 80, 0.2);
+      color: #4caf50;
+      border: 1px solid rgba(76, 175, 80, 0.3);
+    }
+
+    .action-btn.danger {
+      background: rgba(244, 67, 54, 0.2);
+      color: #f44336;
+      border: 1px solid rgba(244, 67, 54, 0.3);
+    }
+
+    .action-btn.warning {
+      background: rgba(255, 152, 0, 0.2);
+      color: #ff9800;
+      border: 1px solid rgba(255, 152, 0, 0.3);
+    }
+
     .action-btn:hover {
-      background: rgba(0, 122, 204, 0.3);
-      border-color: rgba(0, 122, 204, 0.5);
+      filter: brightness(1.2);
     }
-    
+
     .action-btn:disabled {
-      opacity: 0.4;
+      opacity: 0.5;
       cursor: not-allowed;
     }
-    
-    .action-btn.danger {
-      background: rgba(255, 107, 107, 0.2);
-      border-color: rgba(255, 107, 107, 0.3);
-      color: #ff6b6b;
-    }
-    
-    .action-btn.danger:hover {
-      background: rgba(255, 107, 107, 0.3);
-      border-color: rgba(255, 107, 107, 0.5);
-    }
-    
+
     .plugin-contracts {
       margin-top: 0.8rem;
       font-size: 0.8em;
@@ -191,52 +234,6 @@ class PluginsWidget extends LitElement {
     this.error = null
   }
   
-  async handlePluginAction(pluginName, action) {
-    if (!this.apiService) {
-      console.error('❌ API service not available')
-      return
-    }
-    
-    this.loading = true
-    this.error = null
-    
-    try {
-      console.log(`🔧 ${action} plugin: ${pluginName}`)
-      
-      let result
-      switch (action) {
-        case 'start':
-          result = await this.apiService.startPlugin(pluginName)
-          break
-        case 'stop':
-          result = await this.apiService.stopPlugin(pluginName)
-          break
-        case 'restart':
-          result = await this.apiService.restartPlugin(pluginName)
-          break
-        default:
-          throw new Error(`Unknown action: ${action}`)
-      }
-      
-      console.log(`✅ Plugin ${action} result:`, result)
-      
-      // Recharger la liste des plugins après l'action
-      setTimeout(async () => {
-        try {
-          this.plugins = await this.apiService.getPlugins()
-        } catch (error) {
-          console.error('❌ Failed to reload plugins:', error)
-        }
-      }, 1000)
-      
-    } catch (error) {
-      console.error(`❌ Plugin ${action} failed:`, error)
-      this.error = `Erreur ${action} ${pluginName}: ${error.message}`
-    } finally {
-      this.loading = false
-    }
-  }
-  
   // Normalize status (can be string "Running" or object {"Failed": "..."})
   // Registered plugins (with registered_at timestamp) are assumed to be running
   normalizeStatus(status) {
@@ -252,7 +249,7 @@ class PluginsWidget extends LitElement {
   getStatusLabel(status) {
     const normalized = this.normalizeStatus(status)
     const labels = {
-      'running': 'En cours',
+      'running': 'Actif',
       'stopped': 'Arrêté',
       'starting': 'Démarrage',
       'stopping': 'Arrêt',
@@ -260,6 +257,56 @@ class PluginsWidget extends LitElement {
       'error': 'Erreur'
     }
     return labels[normalized.toLowerCase()] || normalized
+  }
+
+  formatTimestamp(timestamp) {
+    if (!timestamp) return 'N/A'
+    try {
+      const date = new Date(timestamp)
+      return date.toLocaleString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    } catch {
+      return timestamp
+    }
+  }
+
+  async handlePluginAction(pluginName, action) {
+    if (!this.apiService) return
+
+    this.loading = true
+    this.error = null
+
+    try {
+      const url = `${this.apiService.baseUrl}/v1/plugins/${encodeURIComponent(pluginName)}/${action}`
+      const response = await this.apiService.csrfService.fetchWithCsrf(url, {
+        method: action === 'status' ? 'GET' : 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+
+      const result = await response.json()
+      console.log(`[plugins-widget] ${action} ${pluginName}:`, result)
+
+      // Refresh plugin list after action
+      if (action !== 'status') {
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('refresh-plugins'))
+        }, 1000)
+      }
+    } catch (err) {
+      console.error(`[plugins-widget] Failed to ${action} plugin ${pluginName}:`, err)
+      this.error = `Failed to ${action} plugin: ${err.message}`
+    } finally {
+      this.loading = false
+    }
   }
   
   render() {
@@ -286,11 +333,15 @@ class PluginsWidget extends LitElement {
           ${runningCount}/${this.plugins.length} actifs
         </span>
       </div>
-      
+
+      <div class="readonly-notice">
+        ⚙️ Plugins gérés via systemd - contrôle direct disponible
+      </div>
+
       ${this.error ? html`
         <div class="error">❌ ${this.error}</div>
       ` : ''}
-      
+
       <div class="plugins-list">
         ${this.plugins.map(plugin => html`
           <div class="plugin-card">
@@ -303,40 +354,31 @@ class PluginsWidget extends LitElement {
                 ${this.getStatusLabel(plugin.status)}
               </span>
             </div>
-            
+
             ${plugin.description ? html`
               <div class="plugin-description">
                 ${plugin.description}
               </div>
             ` : ''}
-            
-            <div class="plugin-actions">
-              ${this.normalizeStatus(plugin.status).toLowerCase() === 'running' ? html`
-                <button 
-                  class="action-btn danger"
-                  @click="${() => this.handlePluginAction(plugin.name, 'stop')}"
-                  ?disabled="${this.loading}">
-                  ⏹️ Arrêter
-                </button>
-                <button 
-                  class="action-btn"
-                  @click="${() => this.handlePluginAction(plugin.name, 'restart')}"
-                  ?disabled="${this.loading}">
-                  🔄 Redémarrer
-                </button>
-              ` : html`
-                <button 
-                  class="action-btn"
-                  @click="${() => this.handlePluginAction(plugin.name, 'start')}"
-                  ?disabled="${this.loading}">
-                  ▶️ Démarrer
-                </button>
-              `}
+
+            <div class="plugin-info">
+              ${plugin.socket_path ? html`
+                <div class="info-row">
+                  <span class="info-label">Socket:</span>
+                  <span class="info-value">${plugin.socket_path}</span>
+                </div>
+              ` : ''}
+              ${plugin.registered_at ? html`
+                <div class="info-row">
+                  <span class="info-label">Enregistré le:</span>
+                  <span class="info-value">${this.formatTimestamp(plugin.registered_at)}</span>
+                </div>
+              ` : ''}
             </div>
-            
+
             ${plugin.contracts && plugin.contracts.length > 0 ? html`
               <div class="plugin-contracts">
-                <div>Contrats:</div>
+                <div>Routes enregistrées:</div>
                 <div class="contracts-list">
                   ${plugin.contracts.map(contract => html`
                     <span class="contract-tag">${contract}</span>
@@ -344,6 +386,30 @@ class PluginsWidget extends LitElement {
                 </div>
               </div>
             ` : ''}
+
+            <div class="plugin-actions">
+              <button
+                class="action-btn success"
+                @click=${() => this.handlePluginAction(plugin.name, 'start')}
+                ?disabled=${this.loading || this.normalizeStatus(plugin.status).toLowerCase() === 'running'}
+              >
+                ▶ Start
+              </button>
+              <button
+                class="action-btn danger"
+                @click=${() => this.handlePluginAction(plugin.name, 'stop')}
+                ?disabled=${this.loading || this.normalizeStatus(plugin.status).toLowerCase() !== 'running'}
+              >
+                ■ Stop
+              </button>
+              <button
+                class="action-btn warning"
+                @click=${() => this.handlePluginAction(plugin.name, 'restart')}
+                ?disabled=${this.loading}
+              >
+                ↻ Restart
+              </button>
+            </div>
           </div>
         `)}
       </div>
