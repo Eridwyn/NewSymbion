@@ -39,6 +39,8 @@ use axum::{
     Router,
 };
 use symbion_plugin_common::{PluginHttpServer, PluginRegistrationBuilder};
+use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::broadcast;
 
 /// Structure des données de note (identique au kernel)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -368,8 +370,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let storage = NotesStorage::new("./notes.json")?;
     let storage = Arc::new(storage);
 
-    // Unix socket path
-    let socket_path = "/tmp/symbion-plugin-notes.sock";
+    // Unix socket path (systemd RuntimeDirectory)
+    let socket_path = "/run/symbion-plugins/notes.sock";
+
+    // Cleanup old socket at startup (triple safety net)
+    if std::path::Path::new(socket_path).exists() {
+        eprintln!("[notes] cleaning up old socket at startup");
+        let _ = std::fs::remove_file(socket_path);
+    }
+
+    // Create shutdown channel for graceful termination
+    let (shutdown_tx, mut shutdown_rx) = broadcast::channel::<()>(1);
 
     // Construire le router HTTP
     let app = build_router(storage.clone());
@@ -418,31 +429,70 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     eprintln!("[notes] connected to MQTT, listening for commands...");
 
+    // Signal handlers for graceful shutdown (SIGTERM from systemd, SIGINT from Ctrl+C)
+    let socket_path_for_cleanup = socket_path.to_string();
+    let shutdown_tx_clone = shutdown_tx.clone();
+    tokio::spawn(async move {
+        let mut sigterm = signal(SignalKind::terminate()).expect("failed to install SIGTERM handler");
+        let mut sigint = signal(SignalKind::interrupt()).expect("failed to install SIGINT handler");
+
+        tokio::select! {
+            _ = sigterm.recv() => {
+                eprintln!("[notes] received SIGTERM, shutting down gracefully...");
+            }
+            _ = sigint.recv() => {
+                eprintln!("[notes] received SIGINT (Ctrl+C), shutting down gracefully...");
+            }
+        }
+
+        // Cleanup socket
+        if std::path::Path::new(&socket_path_for_cleanup).exists() {
+            eprintln!("[notes] cleaning up socket: {}", socket_path_for_cleanup);
+            let _ = std::fs::remove_file(&socket_path_for_cleanup);
+        }
+
+        // Signal main loop to exit
+        let _ = shutdown_tx_clone.send(());
+    });
+
     // Boucle principale de traitement des messages
     loop {
-        match eventloop.poll().await {
-            Ok(Event::Incoming(Incoming::Publish(publish))) => {
-                if publish.topic == "symbion/notes/command@v1" {
-                    // IMPORTANT: Spawner dans une task séparée pour ne PAS bloquer l'eventloop
-                    // Sinon deadlock quand handle_command fait client.publish().await
-                    let client_clone = client.clone();
-                    let storage_clone = storage.clone();
-                    let payload = publish.payload.to_vec();
-                    tokio::spawn(async move {
-                        handle_command(&client_clone, &storage_clone, &payload).await;
-                    });
+        tokio::select! {
+            // Check for shutdown signal
+            _ = shutdown_rx.recv() => {
+                eprintln!("[notes] shutdown signal received, exiting main loop");
+                break;
+            }
+            // Process MQTT events
+            event = eventloop.poll() => {
+                match event {
+                    Ok(Event::Incoming(Incoming::Publish(publish))) => {
+                        if publish.topic == "symbion/notes/command@v1" {
+                            // IMPORTANT: Spawner dans une task séparée pour ne PAS bloquer l'eventloop
+                            // Sinon deadlock quand handle_command fait client.publish().await
+                            let client_clone = client.clone();
+                            let storage_clone = storage.clone();
+                            let payload = publish.payload.to_vec();
+                            tokio::spawn(async move {
+                                handle_command(&client_clone, &storage_clone, &payload).await;
+                            });
+                        }
+                    }
+                    Ok(_) => {
+                        // Autres événements MQTT ignorés
+                    }
+                    Err(e) => {
+                        eprintln!("[notes] MQTT error: {:?}", e);
+                        eprintln!("[notes] Fatal error - exiting to allow restart");
+                        break;
+                    }
                 }
-            }
-            Ok(_) => {
-                // Autres événements MQTT ignorés
-            }
-            Err(e) => {
-                eprintln!("[notes] MQTT error: {:?}", e);
-                eprintln!("[notes] Fatal error - exiting to allow restart");
-                std::process::exit(1); // Exit proprement pour que le kernel relance
             }
         }
     }
+
+    eprintln!("[notes] exited main loop, performing final cleanup");
+    Ok(())
 }
 
 /// Traite une commande MQTT reçue
