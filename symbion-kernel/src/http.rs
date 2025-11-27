@@ -245,9 +245,9 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/v1/users/{username}", axum::routing::delete(delete_user))
         .route("/v1/users/{username}/password", axum::routing::put(update_user_password))
         // Plugin systemctl control routes
-        .route("/v1/plugins/:name/start", post(start_plugin_systemctl))
-        .route("/v1/plugins/:name/stop", post(stop_plugin_systemctl))
-        .route("/v1/plugins/:name/restart", post(restart_plugin_systemctl))
+        .route("/v1/plugins/{name}/start", post(start_plugin_systemctl))
+        .route("/v1/plugins/{name}/stop", post(stop_plugin_systemctl))
+        .route("/v1/plugins/{name}/restart", post(restart_plugin_systemctl))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_csrf));
 
@@ -270,7 +270,7 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/contracts", get(list_contracts))
         .route("/contracts/{name}", get(get_contract))
         .route("/plugins", get(crate::plugin_proxy::handle_list_plugins))
-        .route("/v1/plugins/:name/status", get(get_plugin_systemctl_status))
+        .route("/v1/plugins/{name}/status", get(get_plugin_systemctl_status))
         .route("/agents", get(list_agents_endpoint))
         .route("/agents/{id}", get(get_agent_endpoint))
         .route("/agents/{id}/processes", get(agent_processes_endpoint))
