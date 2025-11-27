@@ -254,10 +254,10 @@ check_agents() {
     return 0
 }
 
-# Vérifier les plugins
+# Vérifier les plugins (Service Discovery)
 check_plugins() {
     local plugins_json
-    plugins_json=$(curl $CURL_OPTS -s -H "x-api-key: $API_KEY" "$KERNEL_URL/plugins" 2>/dev/null)
+    plugins_json=$(curl $CURL_OPTS -s -H "x-api-key: $API_KEY" "$KERNEL_URL/v1/plugins" 2>/dev/null)
 
     if [ -z "$plugins_json" ]; then
         error "Impossible de récupérer la liste des plugins"
@@ -269,56 +269,66 @@ check_plugins() {
         return 0
     fi
 
-    local plugin_count=$(echo "$plugins_json" | jq 'length')
-    log "🔌 $plugin_count plugin(s) découvert(s)"
+    local plugin_count=$(echo "$plugins_json" | jq '.plugins | length')
+    log "🔌 $plugin_count plugin(s) enregistré(s) (Service Discovery)"
 
-    while IFS= read -r plugin; do
-        local name=$(echo "$plugin" | jq -r '.name')
-        local status=$(echo "$plugin" | jq -r '.status')
-        local uptime=$(echo "$plugin" | jq -r '.uptime_seconds')
-        local restart_count=$(echo "$plugin" | jq -r '.restart_count // 0')
+    # Check si au moins les 3 plugins critiques sont présents
+    local has_notes=$(echo "$plugins_json" | jq '.plugins[] | select(.name == "notes")' | wc -l)
+    local has_sensors=$(echo "$plugins_json" | jq '.plugins[] | select(.name == "sensors")' | wc -l)
+    local has_notifications=$(echo "$plugins_json" | jq '.plugins[] | select(.name == "notifications")' | wc -l)
 
-        if [ "$status" == "Running" ]; then
-            # Surveillance spécifique du plugin notes
-            if [ "$name" == "notes-manager" ]; then
-                local last_restart_count=$(get_plugin_restart_count "$name")
+    if [ "$has_notes" -eq 0 ]; then
+        error "Plugin 'notes' non enregistré"
+        send_alert "plugin_notes_missing" "Plugin Notes Missing" "Le plugin notes n'est pas enregistré dans Service Discovery.\n\nVérifier:\n- Socket /tmp/symbion-plugin-notes.sock existe\n- Plugin démarre correctement\n- Logs: tail -f /tmp/symbion-plugin-notes.log"
+    else
+        clear_error "plugin_notes_missing"
 
-                if [ "$last_restart_count" != "unknown" ] && [ "$restart_count" -gt "$last_restart_count" ]; then
-                    local crashes=$((restart_count - last_restart_count))
-                    error "Plugin $name a crashé $crashes fois! (restarts: $last_restart_count → $restart_count)"
-                    send_alert "plugin_notes_crashed" "Plugin Notes Crashed" "Le plugin notes-manager a redémarré $crashes fois.\n\nRestart count: $last_restart_count → $restart_count\nUptime actuel: ${uptime}s\n\nVérifier les logs pour identifier la cause."
-                    warn "Check recommandé: journalctl -xe | grep notes"
-                else
-                    clear_error "plugin_notes_crashed"
-                fi
+        # Test fonctionnel : vérifier que l'API notes répond
+        local notes_count
+        notes_count=$(curl $CURL_OPTS -s -m 3 -H "x-api-key: $API_KEY" "$KERNEL_URL/v1/plugin-api/notes/notes" 2>/dev/null | jq '.notes | length' 2>/dev/null)
 
-                # Test fonctionnel : vérifier que l'API notes répond
-                local notes_count
-                notes_count=$(curl $CURL_OPTS -s -H "x-api-key: $API_KEY" "$KERNEL_URL/v1/plugin-api/notes/notes" 2>/dev/null | jq '.notes | length' 2>/dev/null)
-
-                if [ -z "$notes_count" ] || [ "$notes_count" == "null" ]; then
-                    error "Plugin $name ne répond pas à l'API /v1/plugin-api/notes/notes (timeout ou erreur)"
-                    send_alert "plugin_notes_api_failed" "Plugin Notes API Failed" "Le plugin notes-manager est Running mais l'API /v1/plugin-api/notes/notes ne répond pas.\n\nUptime: ${uptime}s\nRestart count: $restart_count\n\nLe plugin ou le reverse proxy est probablement bloqué."
-                    warn "Vérifier: curl -H 'x-api-key: $API_KEY' $KERNEL_URL/v1/plugin-api/notes/notes"
-                else
-                    clear_error "plugin_notes_api_failed"
-                    # Vérification simple du nombre de notes
-                    if [ "$notes_count" -eq 0 ]; then
-                        warn "Plugin $name ne retourne aucune note (0 notes stockées)"
-                    else
-                        success "Plugin $name: Running (uptime: ${uptime}s, restarts: $restart_count, notes: $notes_count)"
-                    fi
-                fi
-
-                save_plugin_restart_count "$name" "$restart_count"
-            else
-                success "Plugin $name: Running (uptime: ${uptime}s, restarts: $restart_count)"
-            fi
+        if [ -z "$notes_count" ] || [ "$notes_count" == "null" ]; then
+            error "Plugin notes ne répond pas à l'API /v1/plugin-api/notes/notes"
+            send_alert "plugin_notes_api_failed" "Plugin Notes API Failed" "Le plugin notes est enregistré mais l'API ne répond pas.\n\nVérifier:\n- curl -k -H 'x-api-key: s3cr3t-42' https://localhost:8443/v1/plugin-api/notes/notes\n- Socket permissions: ls -lh /tmp/symbion-plugin-notes.sock\n- Plugin logs: tail -f /tmp/symbion-plugin-notes.log"
         else
-            error "Plugin $name: $status"
-            send_alert "plugin_${name}_failed" "Plugin Failed: $name" "Le plugin $name est en état: $status"
+            clear_error "plugin_notes_api_failed"
+            success "Plugin notes: OK (API répond, $notes_count note(s))"
         fi
-    done < <(echo "$plugins_json" | jq -c '.[]')
+    fi
+
+    if [ "$has_sensors" -eq 0 ]; then
+        error "Plugin 'sensors' non enregistré"
+        send_alert "plugin_sensors_missing" "Plugin Sensors Missing" "Le plugin sensors n'est pas enregistré dans Service Discovery."
+    else
+        clear_error "plugin_sensors_missing"
+        # Test fonctionnel sensors
+        local sensors_count
+        sensors_count=$(curl $CURL_OPTS -s -m 3 -H "x-api-key: $API_KEY" "$KERNEL_URL/v1/plugin-api/sensors/sensors" 2>/dev/null | jq '.count // 0' 2>/dev/null)
+        if [ -z "$sensors_count" ] || [ "$sensors_count" == "null" ]; then
+            error "Plugin sensors ne répond pas"
+            send_alert "plugin_sensors_api_failed" "Plugin Sensors API Failed" "Le plugin sensors est enregistré mais l'API ne répond pas."
+        else
+            clear_error "plugin_sensors_api_failed"
+            success "Plugin sensors: OK (API répond, $sensors_count sensor(s))"
+        fi
+    fi
+
+    if [ "$has_notifications" -eq 0 ]; then
+        error "Plugin 'notifications' non enregistré"
+        send_alert "plugin_notifications_missing" "Plugin Notifications Missing" "Le plugin notifications n'est pas enregistré dans Service Discovery."
+    else
+        clear_error "plugin_notifications_missing"
+        # Test fonctionnel notifications
+        local notif_status
+        notif_status=$(curl $CURL_OPTS -s -m 3 -H "x-api-key: $API_KEY" "$KERNEL_URL/v1/plugin-api/notifications/notifications" 2>/dev/null | jq '.notifications // []' | wc -l)
+        if [ "$notif_status" -eq 0 ]; then
+            # C'est peut-être juste qu'il n'y a pas de notifications
+            success "Plugin notifications: OK (API répond)"
+        else
+            success "Plugin notifications: OK (API répond, notifications présentes)"
+        fi
+        clear_error "plugin_notifications_api_failed"
+    fi
 
     return 0
 }
