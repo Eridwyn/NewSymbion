@@ -217,13 +217,24 @@ class PluginsWidget extends LitElement {
       border: 1px solid rgba(255, 107, 107, 0.3);
       border-radius: 6px;
     }
+
+    .success {
+      text-align: center;
+      padding: 1rem;
+      color: #4caf50;
+      background: rgba(76, 175, 80, 0.1);
+      border: 1px solid rgba(76, 175, 80, 0.3);
+      border-radius: 6px;
+      margin-bottom: 1rem;
+    }
   `
   
   static properties = {
     plugins: { type: Array },
     apiService: { type: Object },
     loading: { type: Boolean },
-    error: { type: String }
+    error: { type: String },
+    successMessage: { type: String }
   }
   
   constructor() {
@@ -232,6 +243,7 @@ class PluginsWidget extends LitElement {
     this.apiService = null
     this.loading = false
     this.error = null
+    this.successMessage = null
   }
   
   // Normalize status (can be string "Running" or object {"Failed": "..."})
@@ -280,26 +292,50 @@ class PluginsWidget extends LitElement {
 
     this.loading = true
     this.error = null
+    this.successMessage = null
 
     try {
-      const url = `${this.apiService.baseUrl}/v1/plugins/${encodeURIComponent(pluginName)}/${action}`
-      const response = await this.apiService.csrfService.fetchWithCsrf(url, {
-        method: action === 'status' ? 'GET' : 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      })
+      let result
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
+      // Use dedicated apiService methods instead of direct csrfService access
+      switch (action) {
+        case 'start':
+          result = await this.apiService.startPlugin(pluginName)
+          break
+        case 'stop':
+          result = await this.apiService.stopPlugin(pluginName)
+          break
+        case 'restart':
+          result = await this.apiService.restartPlugin(pluginName)
+          break
+        case 'status':
+          result = await this.apiService.getPlugin(pluginName)
+          break
+        default:
+          throw new Error(`Unknown action: ${action}`)
       }
 
-      const result = await response.json()
       console.log(`[plugins-widget] ${action} ${pluginName}:`, result)
+
+      // Show success message
+      const actionLabel = {
+        start: 'Démarrage',
+        stop: 'Arrêt',
+        restart: 'Redémarrage'
+      }[action] || action
+
+      this.successMessage = `${actionLabel} de ${pluginName} en cours... (vérifiez dans 2-3s)`
+
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        this.successMessage = null
+      }, 5000)
 
       // Refresh plugin list after action
       if (action !== 'status') {
         setTimeout(() => {
           window.dispatchEvent(new CustomEvent('refresh-plugins'))
-        }, 1000)
+        }, 2000)
       }
     } catch (err) {
       console.error(`[plugins-widget] Failed to ${action} plugin ${pluginName}:`, err)
@@ -337,6 +373,10 @@ class PluginsWidget extends LitElement {
       <div class="readonly-notice">
         ⚙️ Plugins gérés via systemd - contrôle direct disponible
       </div>
+
+      ${this.successMessage ? html`
+        <div class="success">✅ ${this.successMessage}</div>
+      ` : ''}
 
       ${this.error ? html`
         <div class="error">❌ ${this.error}</div>

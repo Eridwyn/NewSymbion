@@ -264,11 +264,11 @@ class ApiService extends LitElement {
 
     const query = params.toString() ? `?${params.toString()}` : ''
     // Timeout de 30s pour les grandes collections de notes
-    return await this.request(`/ports/memo${query}`, { timeout: 30000 })
+    return await this.request(`/v1/plugin-api/notes/notes${query}`, { timeout: 30000 })
   }
-  
+
   async createNote(note) {
-    const url = `${this.baseUrl}/v1/ports/memo`
+    const url = `${this.baseUrl}/v1/plugin-api/notes/notes`
     const response = await csrfService.fetchWithCsrf(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -277,9 +277,9 @@ class ApiService extends LitElement {
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     return await response.json()
   }
-  
+
   async updateNote(id, updates) {
-    const url = `${this.baseUrl}/v1/ports/memo/${encodeURIComponent(id)}`
+    const url = `${this.baseUrl}/v1/plugin-api/notes/notes/${encodeURIComponent(id)}`
     const response = await csrfService.fetchWithCsrf(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -290,7 +290,7 @@ class ApiService extends LitElement {
   }
 
   async deleteNote(id) {
-    const url = `${this.baseUrl}/v1/ports/memo/${encodeURIComponent(id)}`
+    const url = `${this.baseUrl}/v1/plugin-api/notes/notes/${encodeURIComponent(id)}`
     const response = await csrfService.fetchWithCsrf(url, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' }

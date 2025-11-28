@@ -355,11 +355,29 @@ pub async fn handle_plugin_registration(
 
 /// HTTP handler for listing all registered plugins
 /// GET /v1/plugins
+/// Adds dynamic "status" field based on socket existence (Running/Stopped)
 pub async fn handle_list_plugins(
     State(app_state): State<crate::http::AppState>,
 ) -> impl IntoResponse {
     let plugins = app_state.plugin_registry.list_plugins().await;
+
+    // Add dynamic status based on socket existence
+    let plugins_with_status: Vec<serde_json::Value> = plugins.into_iter().map(|plugin| {
+        let socket_exists = plugin.socket_path.exists();
+        let status = if socket_exists { "Running" } else { "Stopped" };
+
+        serde_json::json!({
+            "name": plugin.name,
+            "socket_path": plugin.socket_path,
+            "routes": plugin.routes,
+            "version": plugin.version,
+            "description": plugin.description,
+            "registered_at": plugin.registered_at,
+            "status": status
+        })
+    }).collect();
+
     (StatusCode::OK, Json(serde_json::json!({
-        "plugins": plugins
+        "plugins": plugins_with_status
     }))).into_response()
 }
