@@ -34,11 +34,11 @@
 
     /**
      * MQTT WebSocket Broker
-     * - Via Nginx: wss://hostname/ws/mqtt (même port 443, path /ws/mqtt)
+     * - Via Nginx: wss://hostname:8444 (Nginx MQTT proxy dédié)
      * - Dev direct: wss://hostname:9001 (direct Mosquitto)
      */
     MQTT_BROKER: viaProxy
-      ? (protocol === 'https:' ? 'wss://' : 'ws://') + hostname + '/ws/mqtt'
+      ? (protocol === 'https:' ? 'wss://' : 'ws://') + hostname + ':8444'
       : (protocol === 'https:' ? 'wss://' : 'ws://') + hostname + ':9001'
   };
 
