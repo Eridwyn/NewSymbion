@@ -186,3 +186,18 @@ document.addEventListener('visibilitychange', async () => {
 if (document.visibilityState === 'visible') {
   requestWakeLock()
 }
+
+// ============================================================================
+// Authentication Expiration Handler - Force reload to login
+// ============================================================================
+
+import authService from './services/auth-service.js'
+
+// Écouter les événements d'expiration de session
+authService.addEventListener('auth:expired', () => {
+  console.log('[lifecycle] 🔐 Authentication expired - reloading to login')
+  // Clear sessionStorage pour forcer retour au boot terminal
+  sessionStorage.clear()
+  // Reload page pour retourner au login
+  window.location.reload()
+})

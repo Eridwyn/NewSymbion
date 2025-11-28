@@ -1104,7 +1104,7 @@ async fn command_status_endpoint(
 
 // =============== PLUGIN SYSTEMCTL ENDPOINTS ===============
 
-/// POST /v1/plugins/:name/start - Start plugin via systemctl --user start
+/// POST /v1/plugins/:name/start - Start plugin via sudo systemctl start (async, returns immediately)
 async fn start_plugin_systemctl(
     Path(name): Path<String>,
     State(_state): State<AppState>,
@@ -1115,84 +1115,119 @@ async fn start_plugin_systemctl(
     }
 
     let service_name = format!("symbion-plugin-{}", name);
+    let service_name_clone = service_name.clone();
 
-    let output = tokio::process::Command::new("systemctl")
-        .args(&["--user", "start", &service_name])
-        .output()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // Spawn systemctl in background (don't wait for completion to avoid timeout)
+    tokio::spawn(async move {
+        let result = tokio::process::Command::new("sudo")
+            .args(&["systemctl", "start", &service_name_clone])
+            .output()
+            .await;
 
-    if output.status.success() {
-        Ok(Json(serde_json::json!({
-            "status": "success",
-            "message": format!("Plugin {} started", name),
-            "service": service_name
-        })))
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        eprintln!("[kernel] failed to start plugin {}: {}", name, stderr);
-        Err(StatusCode::INTERNAL_SERVER_ERROR)
-    }
+        match result {
+            Ok(output) if output.status.success() => {
+                eprintln!("[kernel] plugin {} start command succeeded", service_name_clone);
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                eprintln!("[kernel] failed to start plugin {}: {}", service_name_clone, stderr);
+            }
+            Err(e) => {
+                eprintln!("[kernel] failed to execute systemctl start {}: {}", service_name_clone, e);
+            }
+        }
+    });
+
+    // Return immediately (systemctl runs in background)
+    Ok(Json(serde_json::json!({
+        "status": "accepted",
+        "message": format!("Start command sent for plugin {}", name),
+        "service": service_name
+    })))
 }
 
-/// POST /v1/plugins/:name/stop - Stop plugin via systemctl --user stop
+/// POST /v1/plugins/:name/stop - Stop plugin via sudo systemctl stop (async, returns immediately)
 async fn stop_plugin_systemctl(
     Path(name): Path<String>,
     State(_state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Validate plugin name (alphanumeric + hyphens only)
     if !name.chars().all(|c| c.is_alphanumeric() || c == '-') {
         return Err(StatusCode::BAD_REQUEST);
     }
 
     let service_name = format!("symbion-plugin-{}", name);
+    let service_name_clone = service_name.clone();
 
-    let output = tokio::process::Command::new("systemctl")
-        .args(&["--user", "stop", &service_name])
-        .output()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // Spawn systemctl in background (don't wait for completion to avoid timeout)
+    tokio::spawn(async move {
+        let result = tokio::process::Command::new("sudo")
+            .args(&["systemctl", "stop", &service_name_clone])
+            .output()
+            .await;
 
-    if output.status.success() {
-        Ok(Json(serde_json::json!({
-            "status": "success",
-            "message": format!("Plugin {} stopped", name),
-            "service": service_name
-        })))
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        eprintln!("[kernel] failed to stop plugin {}: {}", name, stderr);
-        Err(StatusCode::INTERNAL_SERVER_ERROR)
-    }
+        match result {
+            Ok(output) if output.status.success() => {
+                eprintln!("[kernel] plugin {} stop command succeeded", service_name_clone);
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                eprintln!("[kernel] failed to stop plugin {}: {}", service_name_clone, stderr);
+            }
+            Err(e) => {
+                eprintln!("[kernel] failed to execute systemctl stop {}: {}", service_name_clone, e);
+            }
+        }
+    });
+
+    // Return immediately (systemctl runs in background)
+    Ok(Json(serde_json::json!({
+        "status": "accepted",
+        "message": format!("Stop command sent for plugin {}", name),
+        "service": service_name
+    })))
 }
 
-/// POST /v1/plugins/:name/restart - Restart plugin via systemctl --user restart
+/// POST /v1/plugins/:name/restart - Restart plugin via sudo systemctl restart (async, returns immediately)
 async fn restart_plugin_systemctl(
     Path(name): Path<String>,
     State(_state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Validate plugin name (alphanumeric + hyphens only)
     if !name.chars().all(|c| c.is_alphanumeric() || c == '-') {
         return Err(StatusCode::BAD_REQUEST);
     }
 
     let service_name = format!("symbion-plugin-{}", name);
+    let service_name_clone = service_name.clone();
 
-    let output = tokio::process::Command::new("systemctl")
-        .args(&["--user", "restart", &service_name])
-        .output()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // Spawn systemctl in background (don't wait for completion to avoid timeout)
+    tokio::spawn(async move {
+        let result = tokio::process::Command::new("sudo")
+            .args(&["systemctl", "restart", &service_name_clone])
+            .output()
+            .await;
 
-    if output.status.success() {
-        Ok(Json(serde_json::json!({
-            "status": "success",
-            "message": format!("Plugin {} restarted", name),
-            "service": service_name
-        })))
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        eprintln!("[kernel] failed to restart plugin {}: {}", name, stderr);
-        Err(StatusCode::INTERNAL_SERVER_ERROR)
-    }
+        match result {
+            Ok(output) if output.status.success() => {
+                eprintln!("[kernel] plugin {} restart command succeeded", service_name_clone);
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                eprintln!("[kernel] failed to restart plugin {}: {}", service_name_clone, stderr);
+            }
+            Err(e) => {
+                eprintln!("[kernel] failed to execute systemctl restart {}: {}", service_name_clone, e);
+            }
+        }
+    });
+
+    // Return immediately (systemctl runs in background)
+    Ok(Json(serde_json::json!({
+        "status": "accepted",
+        "message": format!("Restart command sent for plugin {}", name),
+        "service": service_name
+    })))
 }
 
 /// GET /v1/plugins/:name/status - Get plugin status via systemctl --user is-active

@@ -348,10 +348,10 @@ main() {
         all_ok=false
     fi
 
-    # Check 4: Plugins
-    if ! check_plugins; then
-        all_ok=false
-    fi
+    # Check 4: Plugins (TEMPORAIREMENT DÉSACTIVÉ - plugins non configurés en systemd)
+    # if ! check_plugins; then
+    #     all_ok=false
+    # fi
 
     # Envoyer l'email groupé avec toutes les erreurs confirmées
     send_batch_alert
