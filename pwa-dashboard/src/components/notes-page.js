@@ -1405,7 +1405,7 @@ class NotesPage extends LitElement {
                   name="context"
                   id="context"
                   placeholder="cravate, intime, neutre..."
-                  .value="${this.contextFilterEnabled ? this.currentContext : ''}">
+                  .value="${this.currentContext || 'neutre'}">
               </div>
 
               <div class="form-field">
