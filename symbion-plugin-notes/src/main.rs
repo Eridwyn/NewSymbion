@@ -192,17 +192,22 @@ impl NotesStorage {
     }
     
     /// Crée une nouvelle note
-    pub fn create_note(&self, content: NoteContent) -> Result<Note, Box<dyn std::error::Error>> {
+    pub fn create_note(&self, mut content: NoteContent) -> Result<Note, Box<dyn std::error::Error>> {
+        // Normalize tags to lowercase for case-insensitive comparison
+        if let Some(tags) = content.tags.as_mut() {
+            *tags = tags.iter().map(|t| t.to_lowercase()).collect();
+        }
+
         let note = Note {
             id: Uuid::new_v4().to_string(),
             timestamp: OffsetDateTime::now_utc(),
             data: content,
             metadata: HashMap::new(),
         };
-        
+
         self.notes.lock().push(note.clone());
         self.save_to_disk()?;
-        
+
         eprintln!("[notes] created note {}", note.id);
         Ok(note)
     }
@@ -243,18 +248,23 @@ impl NotesStorage {
     }
     
     /// Met à jour une note existante
-    pub fn update_note(&self, id: &str, new_content: NoteContent) -> Result<Option<Note>, Box<dyn std::error::Error>> {
+    pub fn update_note(&self, id: &str, mut new_content: NoteContent) -> Result<Option<Note>, Box<dyn std::error::Error>> {
+        // Normalize tags to lowercase for case-insensitive comparison
+        if let Some(tags) = new_content.tags.as_mut() {
+            *tags = tags.iter().map(|t| t.to_lowercase()).collect();
+        }
+
         let mut notes = self.notes.lock();
-        
+
         if let Some(note) = notes.iter_mut().find(|note| note.id == id) {
             note.data = new_content;
             // Garder timestamp original mais pouvoir ajouter last_modified
-            note.metadata.insert("last_modified".to_string(), 
+            note.metadata.insert("last_modified".to_string(),
                 serde_json::to_value(OffsetDateTime::now_utc())?);
-            
+
             let updated_note = note.clone();
             drop(notes); // Libérer le verrou
-            
+
             self.save_to_disk()?;
             eprintln!("[notes] updated note {}", id);
             Ok(Some(updated_note))
@@ -288,8 +298,10 @@ impl NotesStorage {
                 "tags" => {
                     if let Some(tags) = &note.data.tags {
                         if let Ok(filter_tags) = serde_json::from_value::<Vec<String>>(value.clone()) {
-                            // Vérifie que tous les tags du filtre sont présents
-                            if !filter_tags.iter().all(|tag| tags.contains(tag)) {
+                            // Normalize filter tags to lowercase for case-insensitive comparison
+                            let filter_tags_lower: Vec<String> = filter_tags.iter().map(|t| t.to_lowercase()).collect();
+                            // Vérifie que tous les tags du filtre sont présents (case-insensitive)
+                            if !filter_tags_lower.iter().all(|tag| tags.contains(tag)) {
                                 return false;
                             }
                         }

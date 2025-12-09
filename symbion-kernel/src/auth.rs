@@ -100,10 +100,10 @@ impl AuthManager {
 
     fn load_users() -> Result<HashMap<String, User>> {
         if !Path::new(USERS_FILE).exists() {
-            // Create default admin user: Mark / Sourire951
+            // Create default admin user: mark / Sourire951 (username normalized to lowercase)
             println!("[auth] Creating default admin user...");
             let default_user = User {
-                username: "Mark".to_string(),
+                username: "mark".to_string(),
                 password_hash: hash("Sourire951", 12)
                     .context("Failed to hash default password")?,
                 role: "admin".to_string(),
@@ -120,7 +120,7 @@ impl AuthManager {
             fs::write(USERS_FILE, json)
                 .context("Failed to write default users file")?;
 
-            println!("[auth] Default user 'Mark' created");
+            println!("[auth] Default user 'mark' created (case-insensitive)");
             return Ok(users);
         }
 
@@ -148,8 +148,10 @@ impl AuthManager {
         let mut attempts = self.login_attempts.write();
         let now = OffsetDateTime::now_utc().unix_timestamp();
 
+        // Normalize username to lowercase for case-insensitive rate limiting
+        let username_lower = username.to_lowercase();
         // Get attempts for this username
-        let user_attempts = attempts.entry(username.to_string()).or_insert_with(Vec::new);
+        let user_attempts = attempts.entry(username_lower).or_insert_with(Vec::new);
 
         // Remove old attempts (outside the 15-minute window)
         user_attempts.retain(|&timestamp| now - timestamp < RATE_LIMIT_WINDOW_SECS);
@@ -175,27 +177,32 @@ impl AuthManager {
         let mut attempts = self.login_attempts.write();
         let now = OffsetDateTime::now_utc().unix_timestamp();
 
-        let user_attempts = attempts.entry(username.to_string()).or_insert_with(Vec::new);
+        // Normalize username to lowercase for case-insensitive tracking
+        let username_lower = username.to_lowercase();
+        let user_attempts = attempts.entry(username_lower.clone()).or_insert_with(Vec::new);
         user_attempts.push(now);
 
         println!("[auth] Login attempt recorded for '{}' ({} attempts in window)",
-                 username, user_attempts.len());
+                 username_lower, user_attempts.len());
     }
 
     pub fn authenticate(&self, username: &str, password: &str, totp_code: Option<&str>, trusted_device: bool) -> Result<LoginResponse> {
+        // Normalize username to lowercase for case-insensitive authentication
+        let username_lower = username.to_lowercase();
+
         // Check rate limit BEFORE doing anything else
-        self.check_rate_limit(username)?;
+        self.check_rate_limit(&username_lower)?;
 
         // Record attempt immediately (even if user doesn't exist)
         // This prevents brute-force attacks with non-existent usernames
-        self.record_attempt(username);
+        self.record_attempt(&username_lower);
 
         // Clone user data we'll need later (before any lock drops)
         let (user_username, user_role, requires_mfa) = {
             let users = self.users.read();
 
             let user = users
-                .get(username)
+                .get(&username_lower)
                 .context("Invalid username or password")?;
 
             // Verify password
@@ -226,7 +233,7 @@ impl AuthManager {
                 // Check backup codes first (single-use)
                 let is_backup_code = {
                     let users = self.users.read();
-                    users.get(username)
+                    users.get(&username_lower)
                         .and_then(|u| u.mfa_config.as_ref())
                         .map(|mfa| mfa.backup_codes.contains(&totp_code.to_string()))
                         .unwrap_or(false)
@@ -235,7 +242,7 @@ impl AuthManager {
                 if is_backup_code {
                     // Backup code trouvé : le retirer et sauvegarder
                     let mut users_write = self.users.write();
-                    if let Some(user_mut) = users_write.get_mut(username) {
+                    if let Some(user_mut) = users_write.get_mut(&username_lower) {
                         if let Some(ref mut mfa_mut) = user_mut.mfa_config {
                             if let Some(index) = mfa_mut.backup_codes.iter().position(|c| c == totp_code) {
                                 mfa_mut.backup_codes.remove(index);
@@ -253,7 +260,7 @@ impl AuthManager {
                                 }
 
                                 println!("[auth] User '{}' authenticated with MFA backup code (remaining: {})",
-                                    username, remaining);
+                                    username_lower, remaining);
                             }
                         }
                     }
@@ -263,7 +270,7 @@ impl AuthManager {
 
                     let secret = {
                         let users = self.users.read();
-                        users.get(username)
+                        users.get(&username_lower)
                             .and_then(|u| u.mfa_config.as_ref())
                             .map(|mfa| mfa.secret_base32.clone())
                             .context("MFA config not found")?
@@ -276,14 +283,14 @@ impl AuthManager {
                         anyhow::bail!("Invalid TOTP code");
                     }
 
-                    println!("[auth] User '{}' authenticated with MFA TOTP successfully", username);
+                    println!("[auth] User '{}' authenticated with MFA TOTP successfully", username_lower);
                 }
             } else {
                 // Device de confiance: bypass MFA
-                println!("[auth] User '{}' authenticated with MFA bypassed (trusted device)", username);
+                println!("[auth] User '{}' authenticated with MFA bypassed (trusted device)", username_lower);
             }
         } else {
-            println!("[auth] User '{}' authenticated successfully (no MFA)", username);
+            println!("[auth] User '{}' authenticated successfully (no MFA)", username_lower);
         }
 
         // Generate JWT après vérification MFA
@@ -358,24 +365,26 @@ impl AuthManager {
     }
 
     pub fn create_user(&self, username: &str, password: &str, role: &str) -> Result<()> {
+        // Normalize username to lowercase for case-insensitive storage
+        let username_lower = username.to_lowercase();
         let mut users = self.users.write();
 
-        if users.contains_key(username) {
-            anyhow::bail!("User '{}' already exists", username);
+        if users.contains_key(&username_lower) {
+            anyhow::bail!("User '{}' already exists", username_lower);
         }
 
         let password_hash = hash(password, 12)
             .context("Failed to hash password")?;
 
         let user = User {
-            username: username.to_string(),
+            username: username_lower.clone(),
             password_hash,
             role: role.to_string(),
             created_at: OffsetDateTime::now_utc().unix_timestamp(),
             mfa_config: None,
         };
 
-        users.insert(username.to_string(), user);
+        users.insert(username_lower.clone(), user);
 
         // Save to file
         let json = serde_json::to_string_pretty(&*users)
@@ -383,22 +392,26 @@ impl AuthManager {
         fs::write(USERS_FILE, json)
             .context("Failed to write users file")?;
 
-        println!("[auth] User '{}' created with role '{}'", username, role);
+        println!("[auth] User '{}' created with role '{}'", username_lower, role);
         Ok(())
     }
 
     /// Récupère un utilisateur par son nom
     pub fn get_user(&self, username: &str) -> Option<User> {
+        // Normalize username to lowercase for case-insensitive lookup
+        let username_lower = username.to_lowercase();
         let users = self.users.read();
-        users.get(username).cloned()
+        users.get(&username_lower).cloned()
     }
 
     /// Met à jour la configuration MFA d'un utilisateur
     pub fn update_user_mfa(&self, username: &str, mfa_config: Option<crate::mfa::MfaConfig>) -> Result<()> {
+        // Normalize username to lowercase for case-insensitive lookup
+        let username_lower = username.to_lowercase();
         let mut users = self.users.write();
 
-        let user = users.get_mut(username)
-            .context(format!("User '{}' not found", username))?;
+        let user = users.get_mut(&username_lower)
+            .context(format!("User '{}' not found", username_lower))?;
 
         user.mfa_config = mfa_config;
 
@@ -408,16 +421,18 @@ impl AuthManager {
         fs::write(USERS_FILE, json)
             .context("Failed to write users file")?;
 
-        println!("[auth] MFA config updated for user '{}'", username);
+        println!("[auth] MFA config updated for user '{}'", username_lower);
         Ok(())
     }
 
     /// Vérifie le mot de passe d'un utilisateur (sans rate limiting)
     pub fn verify_password(&self, username: &str, password: &str) -> Result<bool> {
+        // Normalize username to lowercase for case-insensitive lookup
+        let username_lower = username.to_lowercase();
         let users = self.users.read();
 
-        let user = users.get(username)
-            .context(format!("User '{}' not found", username))?;
+        let user = users.get(&username_lower)
+            .context(format!("User '{}' not found", username_lower))?;
 
         let valid = verify(password, &user.password_hash)
             .context("Failed to verify password")?;
@@ -427,10 +442,12 @@ impl AuthManager {
 
     /// Met à jour le mot de passe d'un utilisateur
     pub fn update_password(&self, username: &str, new_password: &str) -> Result<()> {
+        // Normalize username to lowercase for case-insensitive lookup
+        let username_lower = username.to_lowercase();
         let mut users = self.users.write();
 
-        let user = users.get_mut(username)
-            .context(format!("User '{}' not found", username))?;
+        let user = users.get_mut(&username_lower)
+            .context(format!("User '{}' not found", username_lower))?;
 
         // Hash du nouveau mot de passe
         let password_hash = hash(new_password, 12)
@@ -444,7 +461,7 @@ impl AuthManager {
         fs::write(USERS_FILE, json)
             .context("Failed to write users file")?;
 
-        println!("[auth] Password updated for user '{}'", username);
+        println!("[auth] Password updated for user '{}'", username_lower);
         Ok(())
     }
 
@@ -461,13 +478,15 @@ impl AuthManager {
 
     /// Supprime un utilisateur
     pub fn delete_user(&self, username: &str) -> Result<()> {
+        // Normalize username to lowercase for case-insensitive lookup
+        let username_lower = username.to_lowercase();
         let mut users = self.users.write();
 
-        if !users.contains_key(username) {
-            anyhow::bail!("User '{}' not found", username);
+        if !users.contains_key(&username_lower) {
+            anyhow::bail!("User '{}' not found", username_lower);
         }
 
-        users.remove(username);
+        users.remove(&username_lower);
 
         // Sauvegarder dans le fichier
         let json = serde_json::to_string_pretty(&*users)
@@ -475,7 +494,7 @@ impl AuthManager {
         fs::write(USERS_FILE, json)
             .context("Failed to write users file")?;
 
-        println!("[auth] User '{}' deleted", username);
+        println!("[auth] User '{}' deleted", username_lower);
         Ok(())
     }
 
