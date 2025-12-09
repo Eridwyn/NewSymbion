@@ -34,6 +34,7 @@ mod sensors;  // F1: Sensor registry for scalable IoT sensors
 mod environment_http;  // F1: API endpoints for environment monitoring
 // F4: Mobile API removed - now part of symbion-plugin-notifications
 mod plugin_proxy;  // Dynamic plugin routing via Unix sockets
+mod plugin_health;  // Plugin health monitoring and auto-recovery
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -208,8 +209,11 @@ async fn main() {
     // démarre le monitoring périodique des sensors (toutes les 10s : stale data + offline sensors)
     crate::sensors::SensorRegistry::start_periodic_monitoring(sensor_registry.clone());
 
+    // Dynamic Plugin Registry - création anticipée pour le health tracking
+    let plugin_registry = crate::plugin_proxy::PluginRegistry::new();
+
     // démarre la publication auto du health
-    health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), agents.clone(), dashboard_events.clone());
+    health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), agents.clone(), plugin_registry.clone(), dashboard_events.clone());
 
     // démarre le monitoring contextuel (détection mode toutes les 30s)
     context::ContextEngine::spawn_context_monitor(context_engine.clone(), agents.clone(), mqtt_client.clone(), dashboard_events.clone());
@@ -270,10 +274,13 @@ async fn main() {
     println!("[kernel] initialized Decision Engine PR3");
 
     // Dynamic Plugin Registry - découverte automatique des plugins Unix sockets
-    let plugin_registry = crate::plugin_proxy::PluginRegistry::new();
     if let Err(e) = plugin_registry.discover_plugins().await {
         eprintln!("[kernel] failed to discover plugins: {}", e);
     }
+
+    // Plugin Health Monitor - surveillance automatique et auto-recovery
+    let plugin_health_monitor = crate::plugin_health::PluginHealthMonitor::new();
+    plugin_health_monitor.spawn_health_monitor(plugin_registry.clone());
 
     // fabrique l'état unique pour Axum
     let app_state = AppState {

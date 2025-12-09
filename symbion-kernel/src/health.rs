@@ -59,6 +59,8 @@ pub struct KernelHealth {
     pub mqtt_messages_per_minute: f32,
     /// Total des messages MQTT depuis le démarrage
     pub mqtt_messages_total: u64,
+    /// Nombre de plugins actuellement actifs
+    pub plugins_active: u32,
 }
 
 /// Tracker persistent des métriques de santé kernel
@@ -113,11 +115,24 @@ impl HealthTracker {
         timestamps.push(now);
     }
 
-    pub fn get_health(&self, contracts: &ContractRegistry, agents: &crate::agents::SharedAgentRegistry) -> KernelHealth {
+    pub fn get_health(
+        &self,
+        contracts: &ContractRegistry,
+        agents: &crate::agents::SharedAgentRegistry,
+        plugins: &crate::plugin_proxy::PluginRegistry,
+    ) -> KernelHealth {
         let uptime = self.start_time.elapsed().as_secs();
         let contracts_count = contracts.list_contracts().len() as u32;
         let agents_count = agents.agents_count();
         let memory_mb = get_memory_usage_mb();
+
+        // Count active plugins (async call needs to be handled)
+        // For now, we'll use a blocking approach since we're in a sync function
+        let plugins_count = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                plugins.list_plugins().await.len() as u32
+            })
+        });
 
         // Clone immédiatement pour libérer le lock rapidement
         let mqtt_status = {
@@ -149,6 +164,7 @@ impl HealthTracker {
             mqtt_reconnects: reconnects,
             mqtt_messages_per_minute: messages_per_minute,
             mqtt_messages_total: total_messages,
+            plugins_active: plugins_count,
         }
     }
 
@@ -158,6 +174,7 @@ impl HealthTracker {
         config: Shared<HostsConfig>,
         contracts: ContractRegistry,
         agents: crate::agents::SharedAgentRegistry,
+        plugins: crate::plugin_proxy::PluginRegistry,
         dashboard_events: crate::dashboard_events::DashboardEventPublisher,
     ) {
         let health_tracker = self.clone();
@@ -182,7 +199,7 @@ impl HealthTracker {
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
-                        let health = health_tracker.get_health(&contracts, &agents);
+                        let health = health_tracker.get_health(&contracts, &agents, &plugins);
                         if let Ok(payload) = serde_json::to_string(&health) {
                             if let Err(e) = client.publish("symbion/kernel/health@v1", QoS::AtLeastOnce, false, payload).await {
                                 eprintln!("[health] failed to publish: {:?}", e);

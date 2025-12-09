@@ -34,12 +34,12 @@
 
     /**
      * MQTT WebSocket Broker
-     * - Via Nginx: wss://hostname:8444 (Nginx MQTT proxy dédié)
-     * - Dev direct: wss://hostname:9001 (direct Mosquitto)
+     * - Via Nginx (production): wss://hostname/ws/mqtt
+     * - Dev direct (port 3000): ws://localhost:9001
      */
     MQTT_BROKER: viaProxy
-      ? (protocol === 'https:' ? 'wss://' : 'ws://') + hostname + ':8444'
-      : (protocol === 'https:' ? 'wss://' : 'ws://') + hostname + ':9001'
+      ? (protocol === 'https:' ? 'wss://' : 'ws://') + hostname + '/ws/mqtt'
+      : 'ws://localhost:9001'
   };
 
   console.log('[config] Detected environment:', {

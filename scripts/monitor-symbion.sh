@@ -4,6 +4,9 @@
 
 set -euo pipefail
 
+# Forcer un PATH complet pour les binaires système (important dans le contexte cron)
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
 # Configuration
 KERNEL_URL="${KERNEL_URL:-https://localhost:8443}"
 API_KEY="${SYMBION_API_KEY:-s3cr3t-42}"
@@ -64,7 +67,10 @@ send_alert() {
 
 # Fonction pour envoyer un seul email groupé avec toutes les erreurs
 send_batch_alert() {
+    # Compter les erreurs confirmées (désactiver set -u temporairement)
+    set +u
     local error_count="${#CONFIRMED_ERRORS_SUBJECTS[@]}"
+    set -u
 
     if [ "$error_count" -eq 0 ]; then
         # Aucune erreur confirmée
@@ -117,7 +123,15 @@ Ce rapport groupe toutes les erreurs confirmées (détectées lors de 2 checks c
         echo "$body" | mail -s "$subject" "$ALERT_EMAIL"
         log "📧 Email groupé envoyé à $ALERT_EMAIL ($error_count erreur(s))"
     elif command -v msmtp &> /dev/null; then
-        echo -e "Subject: $subject\n\n$body" | msmtp "$ALERT_EMAIL"
+        # RFC 2822 compliant headers pour msmtp
+        cat <<EOF | msmtp "$ALERT_EMAIL"
+From: symbion@$(hostname)
+To: $ALERT_EMAIL
+Subject: $subject
+Date: $(date -R)
+
+$body
+EOF
         log "📧 Email groupé envoyé à $ALERT_EMAIL via msmtp ($error_count erreur(s))"
     else
         error "Aucun client mail trouvé (mail ou msmtp)"
@@ -168,10 +182,8 @@ check_system_health() {
     local mqtt_status=$(echo "$health_json" | jq -r '.mqtt_status')
     local agents_count=$(echo "$health_json" | jq -r '.agents_count')
     local uptime=$(echo "$health_json" | jq -r '.uptime_seconds')
-    local plugins_active=$(echo "$health_json" | jq -r '.plugins_active')
-    local plugins_failed=$(echo "$health_json" | jq -r '.plugins_failed')
 
-    log "📊 Health: MQTT=$mqtt_status, Agents=$agents_count, Uptime=${uptime}s, Plugins=$plugins_active/$plugins_failed"
+    log "📊 Health: MQTT=$mqtt_status, Agents=$agents_count, Uptime=${uptime}s"
 
     # Alertes
     if [ "$mqtt_status" != "connected" ]; then
@@ -180,13 +192,6 @@ check_system_health() {
         return 1
     fi
     clear_error "mqtt_disconnected"
-
-    if [ "$plugins_failed" != "0" ]; then
-        warn "$plugins_failed plugin(s) en échec"
-        send_alert "plugins_failed" "Plugins Failed" "$plugins_failed plugin(s) en état d'échec"
-    else
-        clear_error "plugins_failed"
-    fi
 
     return 0
 }
@@ -268,18 +273,18 @@ check_plugins() {
     for plugin in "${plugins[@]}"; do
         plugins_total=$((plugins_total + 1))
 
-        if systemctl --user is-active --quiet "symbion-plugin-$plugin" 2>/dev/null; then
+        if sudo systemctl is-active --quiet "symbion-plugin-$plugin" 2>/dev/null; then
             plugins_ok=$((plugins_ok + 1))
             success "Plugin $plugin: running"
             clear_error "plugin_${plugin}_stopped"
         else
             error "Plugin $plugin: stopped or not installed"
-            send_alert "plugin_${plugin}_stopped" "Plugin $plugin Stopped" "Le plugin $plugin n'est pas actif (systemctl --user status symbion-plugin-$plugin)
+            send_alert "plugin_${plugin}_stopped" "Plugin $plugin Stopped" "Le plugin $plugin n'est pas actif (sudo systemctl status symbion-plugin-$plugin)
 
 Actions recommandées:
-- Vérifier les logs: journalctl --user -u symbion-plugin-$plugin
-- Redémarrer: systemctl --user restart symbion-plugin-$plugin
-- Vérifier la configuration: systemctl --user status symbion-plugin-$plugin"
+- Vérifier les logs: sudo journalctl -u symbion-plugin-$plugin
+- Redémarrer: sudo systemctl restart symbion-plugin-$plugin
+- Vérifier la configuration: sudo systemctl status symbion-plugin-$plugin"
             all_ok=false
         fi
     done
@@ -291,8 +296,8 @@ Actions recommandées:
         send_alert "all_plugins_stopped" "All Plugins Stopped" "Aucun plugin n'est actuellement actif via systemd.
 
 Vérifier:
-- systemctl --user list-units 'symbion-plugin-*'
-- journalctl --user -xe"
+- sudo systemctl list-units 'symbion-plugin-*'
+- sudo journalctl -xe"
         return 1
     fi
 
@@ -307,7 +312,11 @@ Vérifier:
 # Sauvegarder l'état pour comparaison
 save_state() {
     local state="$1"
-    echo "$state" > "$STATE_FILE"
+    # Tenter d'écrire le state, ignorer les erreurs de permissions
+    echo "$state" > "$STATE_FILE" 2>/dev/null || {
+        warn "Impossible de sauvegarder l'état (permissions?), continuant..."
+        return 0  # Ne pas crasher le script
+    }
 }
 
 get_last_state() {
@@ -348,7 +357,7 @@ main() {
         all_ok=false
     fi
 
-    # Check 4: Plugins (TEMPORAIREMENT DÉSACTIVÉ - plugins non configurés en systemd)
+    # Check 4: Plugins systemd status (DISABLED - false positives)
     # if ! check_plugins; then
     #     all_ok=false
     # fi
@@ -378,7 +387,15 @@ Les erreurs précédentes ont été résolues."
                 echo "$body" | mail -s "[Symbion] ✅ Système rétabli" "$ALERT_EMAIL"
                 log "📧 Email de récupération envoyé"
             elif command -v msmtp &> /dev/null; then
-                echo -e "Subject: [Symbion] ✅ Système rétabli\n\n$body" | msmtp "$ALERT_EMAIL"
+                # RFC 2822 compliant headers pour msmtp
+                cat <<EOF | msmtp "$ALERT_EMAIL"
+From: symbion@$(hostname)
+To: $ALERT_EMAIL
+Subject: [Symbion] ✅ Système rétabli
+Date: $(date -R)
+
+$body
+EOF
                 log "📧 Email de récupération envoyé via msmtp"
             fi
         fi

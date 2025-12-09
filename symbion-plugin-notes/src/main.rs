@@ -353,9 +353,25 @@ async fn update_note_http(
     }
 }
 
+/// Health check endpoint
+async fn health_check() -> Json<serde_json::Value> {
+    use std::sync::OnceLock;
+    static START_TIME: OnceLock<std::time::Instant> = OnceLock::new();
+    let start = START_TIME.get_or_init(std::time::Instant::now);
+    let uptime_secs = start.elapsed().as_secs();
+
+    Json(serde_json::json!({
+        "status": "healthy",
+        "plugin": "notes",
+        "version": "0.1.0",
+        "uptime_seconds": uptime_secs
+    }))
+}
+
 /// Construit le router HTTP pour le plugin
 fn build_router(storage: Arc<NotesStorage>) -> Router {
     Router::new()
+        .route("/health", get(health_check))
         .route("/notes", get(list_notes_http).post(create_note_http))
         .route("/notes/:id", axum::routing::delete(delete_note_http).put(update_note_http))
         .with_state(storage)
@@ -405,6 +421,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match PluginRegistrationBuilder::new("notes", &socket_path_clone)
             .route("/notes")
             .route("/notes/:id")
+            .route("/health")
             .version("1.0.0")
             .description("Notes plugin with MQTT streaming and HTTP API")
             .register()

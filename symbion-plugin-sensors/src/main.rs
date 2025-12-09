@@ -297,9 +297,25 @@ async fn get_environment_http(
     }
 }
 
+/// Health check endpoint
+async fn health_check() -> Json<serde_json::Value> {
+    use std::sync::OnceLock;
+    static START_TIME: OnceLock<std::time::Instant> = OnceLock::new();
+    let start = START_TIME.get_or_init(std::time::Instant::now);
+    let uptime_secs = start.elapsed().as_secs();
+
+    Json(serde_json::json!({
+        "status": "healthy",
+        "plugin": "sensors",
+        "version": "0.1.0",
+        "uptime_seconds": uptime_secs
+    }))
+}
+
 /// Construit le router HTTP pour le plugin sensors
 fn build_router(registry: Arc<SensorRegistry>) -> Router {
     Router::new()
+        .route("/health", get(health_check))
         .route("/sensors", get(list_sensors_http))
         .route("/environment/:room_id", get(get_environment_http))
         .with_state(registry)
@@ -347,6 +363,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match PluginRegistrationBuilder::new("sensors", &socket_path_clone)
             .route("/sensors")
             .route("/environment/:room_id")
+            .route("/health")
             .version("1.0.0")
             .description("Environment sensors plugin with MQTT and HTTP API")
             .register()
