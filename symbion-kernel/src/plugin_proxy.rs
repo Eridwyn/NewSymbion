@@ -19,6 +19,7 @@ use hyper::body::{Incoming, Bytes};
 use hyper_util::rt::TokioIo;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::os::unix::fs::FileTypeExt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -111,12 +112,143 @@ impl PluginRegistry {
         unique_plugins.into_values().collect()
     }
 
-    /// Scan /tmp for plugin Unix sockets and register them (startup discovery)
+    /// Scan /run/symbion-plugins/ for Unix sockets and auto-register plugins
     pub async fn discover_plugins(&self) -> anyhow::Result<()> {
-        // Note: With service discovery, this becomes optional
-        // Plugins can self-register via POST /v1/plugins/register
-        println!("[plugin-proxy] Startup discovery disabled - plugins will self-register");
+        println!("[plugin-proxy] Starting plugin discovery in /run/symbion-plugins/...");
+
+        let socket_dir = Path::new("/run/symbion-plugins");
+
+        if !socket_dir.exists() {
+            println!("[plugin-proxy] Plugin directory does not exist, skipping discovery");
+            return Ok(());
+        }
+
+        let mut discovered_count = 0;
+
+        // Scan directory for symbion-plugin-*.sock files
+        let entries = match std::fs::read_dir(socket_dir) {
+            Ok(entries) => entries,
+            Err(e) => {
+                eprintln!("[plugin-proxy] Failed to read plugin directory: {}", e);
+                return Ok(());
+            }
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+
+            // Check if file is a socket matching pattern symbion-plugin-*.sock
+            let is_socket = match path.metadata() {
+                Ok(metadata) => metadata.file_type().is_socket(),
+                Err(_) => false,
+            };
+
+            if !is_socket {
+                continue;
+            }
+
+            let filename = match path.file_name().and_then(|n| n.to_str()) {
+                Some(name) => name,
+                None => continue,
+            };
+
+            // Accept both patterns: symbion-plugin-NAME.sock OR NAME.sock
+            if !filename.ends_with(".sock") {
+                continue;
+            }
+
+            // Extract plugin name from filename
+            let plugin_name = if filename.starts_with("symbion-plugin-") {
+                // symbion-plugin-NAME.sock → NAME
+                filename
+                    .trim_start_matches("symbion-plugin-")
+                    .trim_end_matches(".sock")
+            } else {
+                // NAME.sock → NAME
+                filename.trim_end_matches(".sock")
+            };
+
+            println!("[plugin-proxy] Discovered socket: {} (plugin: {})", filename, plugin_name);
+
+            // Query /health endpoint to get plugin info
+            match self.query_plugin_health(&path, plugin_name).await {
+                Ok((version, description)) => {
+                    // Auto-register with standard route convention
+                    let routes = vec![
+                        format!("/{}", plugin_name),  // /notes, /notifications, /sensors
+                    ];
+
+                    let registration = PluginRegistration {
+                        name: plugin_name.to_string(),
+                        socket_path: path.to_string_lossy().to_string(),
+                        routes,
+                        version: Some(version),
+                        description,
+                    };
+
+                    if let Err(e) = self.register_plugin(registration).await {
+                        eprintln!("[plugin-proxy] Failed to register {}: {}", plugin_name, e);
+                    } else {
+                        discovered_count += 1;
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[plugin-proxy] Failed to query health for {}: {}", plugin_name, e);
+                }
+            }
+        }
+
+        println!("[plugin-proxy] Discovery complete: {} plugins registered", discovered_count);
         Ok(())
+    }
+
+    /// Query plugin /health endpoint via Unix socket
+    async fn query_plugin_health(&self, socket_path: &Path, plugin_name: &str) -> anyhow::Result<(String, Option<String>)> {
+        use hyper::body::Incoming;
+        use hyper_util::client::legacy::connect::HttpConnector;
+        use tower::ServiceExt;
+
+        // Connect to Unix socket
+        let stream = tokio::net::UnixStream::connect(socket_path).await?;
+        let io = TokioIo::new(stream);
+
+        // Build HTTP request
+        let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await?;
+
+        tokio::spawn(async move {
+            if let Err(e) = conn.await {
+                eprintln!("[plugin-proxy] Connection error: {}", e);
+            }
+        });
+
+        let req = hyper::Request::builder()
+            .uri("/health")
+            .header("Host", "localhost")
+            .body(Empty::<Bytes>::new())?;
+
+        let res = sender.send_request(req).await?;
+
+        if res.status() != StatusCode::OK {
+            anyhow::bail!("Health endpoint returned {}", res.status());
+        }
+
+        // Read response body
+        let body_bytes = res.into_body().collect().await?.to_bytes();
+
+        // Parse JSON response
+        #[derive(serde::Deserialize)]
+        struct HealthResponse {
+            plugin: String,
+            version: String,
+            #[serde(default)]
+            description: Option<String>,
+        }
+
+        let health: HealthResponse = serde_json::from_slice(&body_bytes)?;
+
+        println!("[plugin-proxy] Health check OK: {} v{}", health.plugin, health.version);
+
+        Ok((health.version, health.description))
     }
 
     /// Find Unix socket for a given path

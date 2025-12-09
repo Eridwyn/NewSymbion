@@ -563,7 +563,7 @@ async fn get_contract(
 
 // GET /system/health (état infrastructure)
 async fn get_system_health(State(app): State<AppState>) -> Json<crate::health::KernelHealth> {
-    let health = app.health_tracker.get_health(&app.contracts, &app.agents);
+    let health = app.health_tracker.get_health(&app.contracts, &app.agents, &app.plugin_registry);
     Json(health)
 }
 
@@ -2577,7 +2577,7 @@ async fn get_metrics_system(
     State(app): State<AppState>,
 ) -> Json<SystemMetrics> {
     // Get kernel health
-    let kernel_health = app.health_tracker.get_health(&app.contracts, &app.agents);
+    let kernel_health = app.health_tracker.get_health(&app.contracts, &app.agents, &app.plugin_registry);
 
     // Get agent summary
     let agents_map = app.agents.list_agents().await;
@@ -2677,7 +2677,7 @@ async fn prometheus_metrics_endpoint(
 
     // ========== System Metrics ==========
     // Get kernel health for MQTT status
-    let kernel_health = app.health_tracker.get_health(&app.contracts, &app.agents);
+    let kernel_health = app.health_tracker.get_health(&app.contracts, &app.agents, &app.plugin_registry);
 
     // MQTT Connection Status
     let mqtt_connected = if kernel_health.mqtt_status == "connected" { 1 } else { 0 };

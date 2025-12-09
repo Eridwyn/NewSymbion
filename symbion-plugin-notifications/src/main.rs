@@ -409,9 +409,25 @@ async fn register_fcm(
     }))
 }
 
+/// Health check endpoint
+async fn health_check() -> Json<serde_json::Value> {
+    use std::sync::OnceLock;
+    static START_TIME: OnceLock<std::time::Instant> = OnceLock::new();
+    let start = START_TIME.get_or_init(std::time::Instant::now);
+    let uptime_secs = start.elapsed().as_secs();
+
+    Json(serde_json::json!({
+        "status": "healthy",
+        "plugin": "notifications",
+        "version": "0.1.0",
+        "uptime_seconds": uptime_secs
+    }))
+}
+
 /// Build HTTP router for plugin API
 fn build_router(manager: Arc<NotificationManager>) -> Router {
     Router::new()
+        .route("/health", get(health_check))
         .route("/notifications", get(list_notifications))
         .route("/notifications", post(send_notification))
         .route("/notifications/acknowledge", post(acknowledge_notification))
@@ -484,6 +500,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .route("/notifications/send")
             .route("/notifications/acknowledge")
             .route("/fcm/register")
+            .route("/health")
             .version("1.0.0")
             .description("Push notifications plugin with FCM + Email support")
             .register()
