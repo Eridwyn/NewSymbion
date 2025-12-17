@@ -284,33 +284,36 @@ impl PluginRegistry {
         best_match.map(|(_, info)| info.socket_path.clone())
     }
 
-    /// Check if a path matches a route pattern (supports :param segments)
+    /// Check if a path matches a route pattern (supports :param segments and prefix matching)
     ///
     /// Examples:
     /// - `/v1/plugin-api/notes/notes` matches `/v1/plugin-api/notes/notes`
     /// - `/v1/plugin-api/notes/123` matches `/v1/plugin-api/notes/:id`
     /// - `/v1/plugin-api/sensors/environment/chambre` matches `/v1/plugin-api/sensors/environment/:room_id`
+    /// - `/v1/plugin-api/notes/notes/uuid-123` matches `/v1/plugin-api/notes/notes` (prefix match for REST path parameters)
     fn route_matches(pattern: &str, path: &str) -> bool {
         let pattern_segments: Vec<&str> = pattern.split('/').collect();
         let path_segments: Vec<&str> = path.split('/').collect();
 
-        // Must have same number of segments
-        if pattern_segments.len() != path_segments.len() {
+        // Path must have at least as many segments as pattern
+        // Allow more segments for REST path parameters (e.g., /notes/notes/:id)
+        if path_segments.len() < pattern_segments.len() {
             return false;
         }
 
-        // Check each segment
-        for (pattern_seg, path_seg) in pattern_segments.iter().zip(path_segments.iter()) {
+        // Check each segment in pattern against path
+        for (i, pattern_seg) in pattern_segments.iter().enumerate() {
             // If pattern segment starts with ':', it's a parameter - matches anything
             if pattern_seg.starts_with(':') {
                 continue;
             }
             // Otherwise must be exact match
-            if pattern_seg != path_seg {
+            if pattern_seg != &path_segments[i] {
                 return false;
             }
         }
 
+        // Pattern matches! Extra path segments are treated as path parameters
         true
     }
 }
@@ -333,6 +336,9 @@ pub async fn proxy_to_plugin(
         format!("/v1{}", path)
     } else if path.starts_with("/v1/plugin-api/") {
         path.to_string()
+    } else if path.starts_with("/plugins/") {
+        // Handle legacy /v1/plugins/* routes by converting to /v1/plugin-api/*
+        path.replace("/plugins/", "/v1/plugin-api/")
     } else {
         // Fallback for unexpected paths
         format!("/v1/plugin-api{}", path)
