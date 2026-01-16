@@ -142,45 +142,68 @@ class PluginsWidget extends LitElement {
 
     .plugin-actions {
       display: flex;
-      gap: 0.5rem;
-      margin-top: 0.8rem;
+      gap: 0.75rem;
+      margin-top: 1rem;
     }
 
     .action-btn {
-      padding: 0.4rem 0.8rem;
-      border: none;
-      border-radius: 4px;
-      font-size: 0.75em;
-      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: 50%;
+      font-size: 1em;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all 0.25s cubic-bezier(0, 0, 0.2, 1);
     }
 
     .action-btn.success {
-      background: rgba(76, 175, 80, 0.2);
-      color: #4caf50;
-      border: 1px solid rgba(76, 175, 80, 0.3);
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border-color: rgba(16, 185, 129, 0.25);
+    }
+
+    .action-btn.success:hover:not(:disabled) {
+      background: rgba(16, 185, 129, 0.25);
+      border-color: rgba(16, 185, 129, 0.4);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
     }
 
     .action-btn.danger {
-      background: rgba(244, 67, 54, 0.2);
-      color: #f44336;
-      border: 1px solid rgba(244, 67, 54, 0.3);
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+      border-color: rgba(239, 68, 68, 0.25);
+    }
+
+    .action-btn.danger:hover:not(:disabled) {
+      background: rgba(239, 68, 68, 0.25);
+      border-color: rgba(239, 68, 68, 0.4);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
     }
 
     .action-btn.warning {
-      background: rgba(255, 152, 0, 0.2);
-      color: #ff9800;
-      border: 1px solid rgba(255, 152, 0, 0.3);
+      background: rgba(245, 158, 11, 0.15);
+      color: #f59e0b;
+      border-color: rgba(245, 158, 11, 0.25);
     }
 
-    .action-btn:hover {
-      filter: brightness(1.2);
+    .action-btn.warning:hover:not(:disabled) {
+      background: rgba(245, 158, 11, 0.25);
+      border-color: rgba(245, 158, 11, 0.4);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
     }
 
     .action-btn:disabled {
-      opacity: 0.5;
+      opacity: 0.4;
       cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
     }
 
     .plugin-contracts {
@@ -432,23 +455,20 @@ class PluginsWidget extends LitElement {
                 class="action-btn success"
                 @click=${() => this.handlePluginAction(plugin.name, 'start')}
                 ?disabled=${this.loading || this.normalizeStatus(plugin.status).toLowerCase() === 'running'}
-              >
-                ▶ Start
-              </button>
+                title="Démarrer"
+              >▶</button>
               <button
                 class="action-btn danger"
                 @click=${() => this.handlePluginAction(plugin.name, 'stop')}
                 ?disabled=${this.loading || this.normalizeStatus(plugin.status).toLowerCase() !== 'running'}
-              >
-                ■ Stop
-              </button>
+                title="Arrêter"
+              >■</button>
               <button
                 class="action-btn warning"
                 @click=${() => this.handlePluginAction(plugin.name, 'restart')}
                 ?disabled=${this.loading}
-              >
-                ↻ Restart
-              </button>
+                title="Redémarrer"
+              >↻</button>
             </div>
           </div>
         `)}
