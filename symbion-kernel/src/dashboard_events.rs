@@ -47,8 +47,19 @@ impl DashboardEventPublisher {
     }
 
     /// Événement: Changement état agents
+    /// Publie chaque agent sur son topic individuel pour réduire la taille des messages
     pub async fn publish_agents_update(&self, agents: &Vec<crate::agents::Agent>) -> Result<(), String> {
-        self.publish("symbion/dashboard/agents@v1", agents).await
+        // NOUVEAU: Publication individuelle par agent
+        for agent in agents {
+            let topic = format!("symbion/dashboard/agents/{}@v1", agent.agent_id);
+            if let Err(e) = self.publish(&topic, agent).await {
+                eprintln!("[dashboard-events] Failed to publish agent {}: {}", agent.agent_id, e);
+            }
+        }
+        Ok(())
+
+        // ANCIEN SYSTÈME (commenté - tous les agents dans un seul message)
+        // self.publish("symbion/dashboard/agents@v1", agents).await
     }
 
     /// Événement: Health système

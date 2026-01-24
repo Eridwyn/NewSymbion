@@ -111,12 +111,16 @@ class MqttService extends LitElement {
       'symbion/hosts/wake@v1',
       'symbion/notes/response@v1',
       'symbion/dashboard/context@v1',
-      'symbion/dashboard/agents@v1',
+      'symbion/dashboard/agents/+@v1',  // NOUVEAU: wildcard pour topics individuels par agent
+      // 'symbion/dashboard/agents@v1', // ANCIEN: tous les agents dans un seul message
       'symbion/dashboard/health@v1',
       'symbion/dashboard/notes@v1',
       'symbion/dashboard/stats@v1',
       'symbion/dashboard/pattern@v1'
     ]
+
+    // Storage pour agréger les agents reçus individuellement
+    this.agentsCache = this.agentsCache || {}
     
     topics.forEach(topic => {
       this.client.subscribe(topic, (error) => {
@@ -130,6 +134,14 @@ class MqttService extends LitElement {
   }
   
   routeMessage(topic, payload) {
+    // NOUVEAU: Gestion des topics individuels par agent (wildcard)
+    const agentTopicMatch = topic.match(/^symbion\/dashboard\/agents\/([^@]+)@v1$/)
+    if (agentTopicMatch) {
+      const agentId = agentTopicMatch[1]
+      this.handleIndividualAgent(agentId, payload)
+      return
+    }
+
     // Router les messages vers les composants appropriés
     switch (topic) {
       case 'symbion/kernel/health@v1':
@@ -153,9 +165,10 @@ class MqttService extends LitElement {
         this.handleDashboardContext(payload)
         break
 
-      case 'symbion/dashboard/agents@v1':
-        this.handleDashboardAgents(payload)
-        break
+      // ANCIEN: tous les agents dans un seul message
+      // case 'symbion/dashboard/agents@v1':
+      //   this.handleDashboardAgents(payload)
+      //   break
 
       case 'symbion/dashboard/health@v1':
         this.handleDashboardHealth(payload)
@@ -217,6 +230,23 @@ class MqttService extends LitElement {
     }))
   }
 
+  // NOUVEAU: Gestion des agents individuels (topics séparés)
+  handleIndividualAgent(agentId, agent) {
+    // Stocker/mettre à jour l'agent dans le cache
+    this.agentsCache = this.agentsCache || {}
+    this.agentsCache[agentId] = agent
+
+    // Convertir le cache en array et dispatcher (même format qu'avant)
+    const agents = Object.values(this.agentsCache)
+    console.log(`📨 Agent update: ${agentId} (total: ${agents.length})`)
+    this.dispatchEvent(new CustomEvent('dashboard-agents', {
+      detail: { agents },
+      bubbles: true,
+      composed: true
+    }))
+  }
+
+  // ANCIEN: tous les agents dans un seul message
   handleDashboardAgents(agents) {
     console.log('📨 Dashboard agents update:', agents)
     this.dispatchEvent(new CustomEvent('dashboard-agents', {
