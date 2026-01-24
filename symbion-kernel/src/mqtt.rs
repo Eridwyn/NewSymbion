@@ -14,9 +14,17 @@ use crate::config::HostsConfig;
 use crate::notes_bridge::{SharedNotesBridge, NoteResponse};
 use crate::agents::{SharedAgentRegistry, AgentRegistrationMessage, AgentHeartbeatMessage, AgentResponse};
 use crate::sensors::{SharedSensorRegistry, SensorRegistrationMessage, SensorEnvMessage};
+use crate::wol::trigger_wol_udp;
 use rumqttc::{AsyncClient, Event, MqttOptions, QoS};
+use serde::Deserialize;
 use time::OffsetDateTime;
 use tokio::task;
+
+/// Message Wake-on-LAN via MQTT
+#[derive(Debug, Deserialize)]
+struct WakeRequest {
+    agent_id: String,
+}
 
 /// Crée un client MQTT configuré pour le kernel avec son eventloop
 pub fn create_mqtt_client(config: &HostsConfig) -> Result<AsyncClient, Box<dyn std::error::Error + Send + Sync>> {
@@ -46,9 +54,9 @@ pub fn create_mqtt_client(config: &HostsConfig) -> Result<AsyncClient, Box<dyn s
 pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>, notes_bridge: Option<SharedNotesBridge>, agents: Option<SharedAgentRegistry>, sensors: Option<SharedSensorRegistry>, health_tracker: Option<crate::health::HealthTracker>, dashboard_events: Option<crate::dashboard_events::DashboardEventPublisher>) {
     task::spawn(async move {
         let cfg = config.lock().clone();
-        let mqtt_cfg = cfg.mqtt.unwrap_or_else(|| crate::config::MqttConf { 
-            host: "localhost".into(), 
-            port: 1883 
+        let mqtt_cfg = cfg.mqtt.clone().unwrap_or_else(|| crate::config::MqttConf {
+            host: "localhost".into(),
+            port: 1883
         });
         
         let mut opts = MqttOptions::new("symbion-kernel-listener", &mqtt_cfg.host, mqtt_cfg.port);
@@ -78,6 +86,10 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
             }
             if let Err(e) = client.subscribe("symbion/agents/response@v1", QoS::AtLeastOnce).await {
                 eprintln!("[kernel] subscribe agents response failed: {e:?}");
+            }
+            // Wake-on-LAN via MQTT
+            if let Err(e) = client.subscribe("symbion/agents/wake@v1", QoS::AtLeastOnce).await {
+                eprintln!("[kernel] subscribe agents wake failed: {e:?}");
             }
         }
 
@@ -219,6 +231,22 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                                 }
                                 Err(e) => eprintln!("[kernel] sensor env JSON invalide: {txt}, error: {}", e),
                             }
+                        }
+                    }
+                } else if p.topic == "symbion/agents/wake@v1" {
+                    // Wake-on-LAN via MQTT
+                    if let Ok(txt) = String::from_utf8(p.payload.to_vec()) {
+                        println!("[kernel] received wake request MQTT: {}", txt);
+                        match serde_json::from_str::<WakeRequest>(&txt) {
+                            Ok(req) => {
+                                let (status, msg) = trigger_wol_udp(&cfg, &req.agent_id).await;
+                                if status.is_success() {
+                                    println!("[kernel] WoL sent successfully for agent: {}", req.agent_id);
+                                } else {
+                                    eprintln!("[kernel] WoL failed for agent {}: {}", req.agent_id, msg);
+                                }
+                            }
+                            Err(e) => eprintln!("[kernel] wake request JSON invalide: {txt}, error: {}", e),
                         }
                     }
                 }
