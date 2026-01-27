@@ -21,6 +21,11 @@ use axum::{
 use symbion_plugin_common::PluginHttpServer;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::broadcast;
+use lettre::{
+    message::header::ContentType,
+    transport::smtp::authentication::Credentials,
+    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
+};
 
 /// Notification complète avec métadonnées
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -295,7 +300,34 @@ impl NotificationManager {
         if let Some(smtp) = &self.smtp_config {
             println!("[notifications-plugin] EMAIL escalation P0: {}", notif.title);
             println!("  From: {} To: {}", smtp.from_email, smtp.to_email);
-            // TODO: intégration lettre crate
+
+            // Construire le message email
+            let email = Message::builder()
+                .from(smtp.from_email.parse()?)
+                .to(smtp.to_email.parse()?)
+                .subject(format!("[SYMBION P0] {}", notif.title))
+                .header(ContentType::TEXT_PLAIN)
+                .body(format!(
+                    "{}\n\n---\nPriorité: {:?}\nSource: {}\nID: {}\n\nEnvoyé par Symbion Notifications",
+                    notif.body,
+                    notif.priority,
+                    notif.source,
+                    notif.id
+                ))?;
+
+            // Configurer le transport SMTP
+            let creds = Credentials::new(smtp.username.clone(), smtp.password.clone());
+            let mailer: AsyncSmtpTransport<Tokio1Executor> =
+                AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&smtp.server)?
+                    .port(smtp.port)
+                    .credentials(creds)
+                    .build();
+
+            // Envoyer l'email
+            match mailer.send(email).await {
+                Ok(_) => println!("[notifications-plugin] ✅ Email sent successfully"),
+                Err(e) => eprintln!("[notifications-plugin] ❌ Email send failed: {}", e),
+            }
         }
         Ok(())
     }
