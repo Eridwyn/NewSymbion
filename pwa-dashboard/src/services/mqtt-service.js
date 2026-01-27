@@ -116,7 +116,8 @@ class MqttService extends LitElement {
       'symbion/dashboard/health@v1',
       'symbion/dashboard/notes@v1',
       'symbion/dashboard/stats@v1',
-      'symbion/dashboard/pattern@v1'
+      'symbion/dashboard/pattern@v1',
+      'symbion/notifications/send@v1'  // Notifications push pour toasts PWA
     ]
 
     // Storage pour agréger les agents reçus individuellement
@@ -184,6 +185,10 @@ class MqttService extends LitElement {
 
       case 'symbion/dashboard/pattern@v1':
         this.handleDashboardPattern(payload)
+        break
+
+      case 'symbion/notifications/send@v1':
+        this.handleNotificationReceived(payload)
         break
 
       default:
@@ -287,6 +292,15 @@ class MqttService extends LitElement {
     console.log('📨 Dashboard pattern detected:', pattern)
     this.dispatchEvent(new CustomEvent('dashboard-pattern', {
       detail: { pattern },
+      bubbles: true,
+      composed: true
+    }))
+  }
+
+  handleNotificationReceived(notification) {
+    console.log('🔔 Notification received:', notification)
+    this.dispatchEvent(new CustomEvent('notification-received', {
+      detail: { notification },
       bubbles: true,
       composed: true
     }))

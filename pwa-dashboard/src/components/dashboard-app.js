@@ -24,6 +24,8 @@ import '../widgets/context-settings-widget.js'
 import '../widgets/environment-widget.js'
 import './user-settings-page.js'
 import './notes-page.js'
+import './toast-notifications.js'
+import './notification-center.js'
 
 class DashboardApp extends LitElement {
   static styles = css`
@@ -954,6 +956,9 @@ class DashboardApp extends LitElement {
           <span>${this.currentTime}</span>
         </div>
 
+        <!-- Notification Center -->
+        <notification-center></notification-center>
+
         ${this.currentUser ? html`
           <div class="user-menu">
             <button class="user-button" @click="${this.toggleUserMenu}">
@@ -1131,6 +1136,9 @@ class DashboardApp extends LitElement {
           <notes-page @close="${this.handleCloseNotesPage}"></notes-page>
         ` : ''}
       </div>
+
+      <!-- Toast Notifications (position fixe) -->
+      <toast-notifications></toast-notifications>
     `
   }
   

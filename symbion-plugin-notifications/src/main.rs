@@ -93,6 +93,9 @@ pub struct SmtpConfig {
     pub to_email: String,
 }
 
+/// Chemin du fichier de persistance
+const NOTIFICATIONS_FILE: &str = "/var/lib/symbion/notifications.json";
+
 /// Manager de notifications
 pub struct NotificationManager {
     fcm_tokens: Arc<Mutex<HashMap<String, FcmToken>>>,
@@ -100,6 +103,12 @@ pub struct NotificationManager {
     history: Arc<Mutex<Vec<Notification>>>,
     fcm_server_key: Option<String>,
     smtp_config: Option<SmtpConfig>,
+    /// TEMPORAIRE: ntfy.sh en attendant l'app Symbion native
+    ntfy_topic: Option<String>,
+    /// URL externe Symbion pour les callbacks ntfy (ex: https://symbion.local:8443)
+    external_url: Option<String>,
+    /// API key pour les callbacks ntfy
+    api_key: Option<String>,
     mqtt_client: AsyncClient,
 }
 
@@ -134,13 +143,71 @@ impl NotificationManager {
             None
         };
 
-        Self {
+        // TEMPORAIRE: ntfy.sh en attendant l'app Symbion native
+        let ntfy_topic = std::env::var("SYMBION_NTFY_TOPIC").ok();
+        if let Some(ref topic) = ntfy_topic {
+            println!("[notifications-plugin] ntfy.sh enabled - topic: {}", topic);
+        }
+
+        // URL externe et API key pour les boutons d'action ntfy
+        let external_url = std::env::var("SYMBION_EXTERNAL_URL").ok();
+        let api_key = std::env::var("SYMBION_API_KEY").ok();
+        if external_url.is_some() && api_key.is_some() {
+            println!("[notifications-plugin] ntfy.sh action buttons enabled");
+        }
+
+        // Charger les notifications persistées
+        let history = Self::load_from_file();
+        let history_count = history.len();
+
+        let manager = Self {
             fcm_tokens: Arc::new(Mutex::new(HashMap::new())),
             active_notifications: Arc::new(Mutex::new(HashMap::new())),
-            history: Arc::new(Mutex::new(Vec::new())),
+            history: Arc::new(Mutex::new(history)),
             fcm_server_key,
             smtp_config,
+            ntfy_topic,
+            external_url,
+            api_key,
             mqtt_client,
+        };
+
+        if history_count > 0 {
+            println!("[notifications-plugin] Loaded {} notifications from disk", history_count);
+        }
+
+        manager
+    }
+
+    /// Charge les notifications depuis le fichier JSON
+    fn load_from_file() -> Vec<Notification> {
+        match std::fs::read_to_string(NOTIFICATIONS_FILE) {
+            Ok(content) => {
+                serde_json::from_str(&content).unwrap_or_else(|e| {
+                    eprintln!("[notifications-plugin] Failed to parse {}: {}", NOTIFICATIONS_FILE, e);
+                    Vec::new()
+                })
+            }
+            Err(_) => Vec::new(), // Fichier n'existe pas encore
+        }
+    }
+
+    /// Sauvegarde les notifications dans le fichier JSON
+    fn save_to_file(&self) {
+        let history = self.history.lock().unwrap();
+
+        // Créer le répertoire si nécessaire
+        if let Some(parent) = std::path::Path::new(NOTIFICATIONS_FILE).parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+
+        match serde_json::to_string_pretty(&*history) {
+            Ok(json) => {
+                if let Err(e) = std::fs::write(NOTIFICATIONS_FILE, json) {
+                    eprintln!("[notifications-plugin] Failed to save notifications: {}", e);
+                }
+            }
+            Err(e) => eprintln!("[notifications-plugin] Failed to serialize notifications: {}", e),
         }
     }
 
@@ -176,11 +243,21 @@ impl NotificationManager {
             }
         }
 
+        // Persister sur disque
+        self.save_to_file();
+
         println!("[notifications-plugin] sending: {} (priority: {:?})", notif.title, notif.priority);
 
         // Envoyer via FCM
         if let Err(e) = self.send_fcm(&notif).await {
             eprintln!("[notifications-plugin] FCM failed: {}", e);
+        }
+
+        // TEMPORAIRE: Envoyer P0/P1 vers ntfy.sh en attendant l'app Symbion native
+        if notif.priority == NotificationPriority::P0 || notif.priority == NotificationPriority::P1 {
+            if let Err(e) = self.send_ntfy(&notif).await {
+                eprintln!("[notifications-plugin] ntfy.sh failed: {}", e);
+            }
         }
 
         // Publish confirmation MQTT
@@ -237,6 +314,9 @@ impl NotificationManager {
             history: self.history.clone(),
             fcm_server_key: self.fcm_server_key.clone(),
             smtp_config: self.smtp_config.clone(),
+            ntfy_topic: self.ntfy_topic.clone(),
+            external_url: self.external_url.clone(),
+            api_key: self.api_key.clone(),
             mqtt_client: self.mqtt_client.clone(),
         })
     }
@@ -332,6 +412,61 @@ impl NotificationManager {
         Ok(())
     }
 
+    /// TEMPORAIRE: Envoi vers ntfy.sh en attendant l'app Symbion native
+    /// Simple HTTP POST vers https://ntfy.sh/{topic}
+    async fn send_ntfy(&self, notif: &Notification) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(topic) = &self.ntfy_topic {
+            let priority_label = match notif.priority {
+                NotificationPriority::P0 => "🔴 P0 CRITIQUE",
+                NotificationPriority::P1 => "🟠 P1 Important",
+                NotificationPriority::P2 => "🟢 P2 Normal",
+            };
+
+            let ntfy_priority = match notif.priority {
+                NotificationPriority::P0 => "5", // urgent
+                NotificationPriority::P1 => "4", // high
+                NotificationPriority::P2 => "3", // default
+            };
+
+            let url = format!("https://ntfy.sh/{}", topic);
+            println!("[notifications-plugin] NTFY push: {} → {}", notif.title, url);
+
+            let client = reqwest::Client::new();
+            let mut request = client
+                .post(&url)
+                .header("Title", format!("[SYMBION] {}", notif.title))
+                .header("Priority", ntfy_priority)
+                .header("Tags", format!("symbion,{}", priority_label));
+
+            // Ajouter bouton d'action "Vu" si URL externe et API key configurés
+            if let (Some(ext_url), Some(api_key)) = (&self.external_url, &self.api_key) {
+                let ack_url = format!(
+                    "{}/v1/plugin-api/notifications/notifications/acknowledge",
+                    ext_url
+                );
+                // Format ntfy Actions: http, <label>, <url>, method=POST, headers.X=Y, body=json
+                let action = format!(
+                    "http, ✅ Vu, {}, method=POST, headers.Content-Type=application/json, headers.X-API-Key={}, body={{\"notification_id\":\"{}\"}}",
+                    ack_url, api_key, notif.id
+                );
+                request = request.header("Actions", action);
+            }
+
+            let response = request
+                .body(format!("{}\n\n---\n{} | Source: {}", notif.body, priority_label, notif.source))
+                .timeout(Duration::from_secs(10))
+                .send()
+                .await?;
+
+            if response.status().is_success() {
+                println!("[notifications-plugin] ✅ ntfy.sh sent successfully");
+            } else {
+                eprintln!("[notifications-plugin] ❌ ntfy.sh failed: {}", response.status());
+            }
+        }
+        Ok(())
+    }
+
     pub fn is_acknowledged(&self, notification_id: &str) -> bool {
         self.active_notifications
             .lock()
@@ -342,15 +477,55 @@ impl NotificationManager {
     }
 
     pub fn acknowledge(&self, notification_id: &str) -> Result<(), String> {
-        let mut active = self.active_notifications.lock().unwrap();
-        if let Some(notif) = active.get_mut(notification_id) {
-            notif.acknowledged = true;
-            notif.acknowledged_at = Some(time::OffsetDateTime::now_utc().unix_timestamp());
-            println!("[notifications-plugin] acknowledged: {}", notification_id);
-            Ok(())
-        } else {
-            Err("Notification not found".to_string())
+        let ack_time = time::OffsetDateTime::now_utc().unix_timestamp();
+
+        // Mettre à jour dans active_notifications
+        {
+            let mut active = self.active_notifications.lock().unwrap();
+            if let Some(notif) = active.get_mut(notification_id) {
+                notif.acknowledged = true;
+                notif.acknowledged_at = Some(ack_time);
+            }
         }
+
+        // Mettre à jour aussi dans history
+        {
+            let mut history = self.history.lock().unwrap();
+            if let Some(notif) = history.iter_mut().find(|n| n.id == notification_id) {
+                notif.acknowledged = true;
+                notif.acknowledged_at = Some(ack_time);
+                println!("[notifications-plugin] acknowledged: {}", notification_id);
+                drop(history); // Libérer le lock avant save
+                self.save_to_file();
+                return Ok(());
+            }
+        }
+
+        Err("Notification not found".to_string())
+    }
+
+    /// Supprime une notification
+    pub fn delete(&self, notification_id: &str) -> Result<(), String> {
+        // Supprimer de active_notifications
+        {
+            let mut active = self.active_notifications.lock().unwrap();
+            active.remove(notification_id);
+        }
+
+        // Supprimer de history
+        {
+            let mut history = self.history.lock().unwrap();
+            let len_before = history.len();
+            history.retain(|n| n.id != notification_id);
+            if history.len() < len_before {
+                println!("[notifications-plugin] deleted: {}", notification_id);
+                drop(history);
+                self.save_to_file();
+                return Ok(());
+            }
+        }
+
+        Err("Notification not found".to_string())
     }
 
     pub fn list_active(&self) -> Vec<Notification> {
@@ -400,9 +575,15 @@ async fn send_notification(
     }
 }
 
-/// POST /notifications/:id/acknowledge - Acknowledge a notification
+/// POST /notifications/acknowledge - Acknowledge a notification
 #[derive(Deserialize)]
 struct AcknowledgeRequest {
+    notification_id: String,
+}
+
+/// DELETE /notifications/:id - Delete a notification
+#[derive(Deserialize)]
+struct DeleteRequest {
     notification_id: String,
 }
 
@@ -413,6 +594,23 @@ async fn acknowledge_notification(
     match manager.acknowledge(&req.notification_id) {
         Ok(_) => Json(serde_json::json!({
             "status": "acknowledged",
+            "notification_id": req.notification_id
+        })),
+        Err(e) => Json(serde_json::json!({
+            "status": "error",
+            "error": format!("{}", e)
+        })),
+    }
+}
+
+/// POST /notifications/delete - Delete a notification
+async fn delete_notification(
+    State(manager): State<Arc<NotificationManager>>,
+    Json(req): Json<DeleteRequest>,
+) -> Json<serde_json::Value> {
+    match manager.delete(&req.notification_id) {
+        Ok(_) => Json(serde_json::json!({
+            "status": "deleted",
             "notification_id": req.notification_id
         })),
         Err(e) => Json(serde_json::json!({
@@ -463,6 +661,7 @@ fn build_router(manager: Arc<NotificationManager>) -> Router {
         .route("/notifications", get(list_notifications))
         .route("/notifications", post(send_notification))
         .route("/notifications/acknowledge", post(acknowledge_notification))
+        .route("/notifications/delete", post(delete_notification))
         .route("/fcm/register", post(register_fcm))
         .with_state(manager)
 }
@@ -531,10 +730,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .route("/notifications")
             .route("/notifications/send")
             .route("/notifications/acknowledge")
+            .route("/notifications/delete")
             .route("/fcm/register")
             .route("/health")
             .version("1.0.0")
-            .description("Push notifications plugin with FCM + Email support")
+            .description("Push notifications plugin with FCM + Email + persistence support")
             .register()
             .await
         {
