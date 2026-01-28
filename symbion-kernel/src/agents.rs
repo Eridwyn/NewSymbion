@@ -69,6 +69,10 @@ pub struct Agent {
     pub status: AgentStatus,
     pub last_seen: OffsetDateTime,
     pub registration_time: OffsetDateTime,
+    /// Timestamp Unix de soft-delete (None = actif, Some = supprimé)
+    /// Purge automatique après 7 jours
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -326,6 +330,7 @@ impl AgentRegistry {
             },
             last_seen: now,
             registration_time: now,
+            deleted_at: None,
         };
 
         let hostname = agent.hostname.clone();
@@ -369,19 +374,73 @@ impl AgentRegistry {
         Ok(())
     }
 
-    /// Liste tous les agents
+    /// Liste tous les agents actifs (exclut les soft-deleted)
     pub async fn list_agents(&self) -> AgentsMap {
-        self.agents.read().await.clone()
+        self.agents.read().await
+            .iter()
+            .filter(|(_, agent)| agent.deleted_at.is_none())
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
     }
 
-    /// Obtient le nombre d'agents de façon synchrone (pour health check)
+    /// Obtient le nombre d'agents actifs de façon synchrone (pour health check)
     pub fn agents_count(&self) -> u32 {
-        self.agents.try_read().map(|agents| agents.len() as u32).unwrap_or(0)
+        self.agents.try_read()
+            .map(|agents| agents.values().filter(|a| a.deleted_at.is_none()).count() as u32)
+            .unwrap_or(0)
     }
 
-    /// Récupère un agent spécifique
+    /// Récupère un agent spécifique (même si soft-deleted pour afficher info)
     pub async fn get_agent(&self, agent_id: &str) -> Option<Agent> {
         self.agents.read().await.get(agent_id).cloned()
+    }
+
+    /// Soft-delete un agent (sera purgé après 7 jours)
+    pub async fn soft_delete_agent(&self, agent_id: &str) -> Result<bool> {
+        let deleted = {
+            let mut agents_map = self.agents.write().await;
+            if let Some(agent) = agents_map.get_mut(agent_id) {
+                if agent.deleted_at.is_some() {
+                    return Ok(false); // Déjà supprimé
+                }
+                agent.deleted_at = Some(OffsetDateTime::now_utc().unix_timestamp());
+                true
+            } else {
+                false
+            }
+        };
+
+        if deleted {
+            self.dirty.store(true, std::sync::atomic::Ordering::Relaxed);
+            println!("[agents] soft-deleted agent {} (will be purged in 7 days)", agent_id);
+        }
+        Ok(deleted)
+    }
+
+    /// Purge les agents soft-deleted depuis plus de 7 jours
+    pub async fn purge_deleted_agents(&self) -> usize {
+        let now = OffsetDateTime::now_utc().unix_timestamp();
+        let seven_days_secs = 7 * 24 * 60 * 60; // 7 jours en secondes
+
+        let mut agents_map = self.agents.write().await;
+        let initial_count = agents_map.len();
+
+        agents_map.retain(|agent_id, agent| {
+            if let Some(deleted_at) = agent.deleted_at {
+                if now - deleted_at > seven_days_secs {
+                    println!("[agents] purging agent {} (deleted {} days ago)",
+                        agent_id, (now - deleted_at) / 86400);
+                    return false;
+                }
+            }
+            true
+        });
+
+        let purged = initial_count - agents_map.len();
+        if purged > 0 {
+            self.dirty.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        purged
     }
 
     /// Envoie une commande à un agent via MQTT
@@ -610,9 +669,11 @@ impl AgentRegistry {
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(60)); // Check toutes les minutes
+            let mut purge_counter = 0u32; // Compteur pour purge horaire
 
             loop {
                 interval.tick().await;
+                purge_counter += 1;
 
                 let now = OffsetDateTime::now_utc();
                 let timeout_threshold = now - time::Duration::minutes(timeout_minutes);
@@ -622,6 +683,10 @@ impl AgentRegistry {
                 {
                     let agents_map = registry.agents.read().await;
                     for (agent_id, agent) in agents_map.iter() {
+                        // Ignorer les agents soft-deleted
+                        if agent.deleted_at.is_some() {
+                            continue;
+                        }
                         if agent.status.status == "online" && agent.last_seen < timeout_threshold {
                             agents_to_mark_offline.push(agent_id.clone());
                         }
@@ -631,6 +696,15 @@ impl AgentRegistry {
                 // Marquer les agents timeout comme offline (déjà optimisé avec scope interne)
                 for agent_id in agents_to_mark_offline {
                     registry.mark_agent_offline(&agent_id).await;
+                }
+
+                // Purge des agents soft-deleted après 7 jours (toutes les heures = 60 ticks)
+                if purge_counter >= 60 {
+                    purge_counter = 0;
+                    let purged = registry.purge_deleted_agents().await;
+                    if purged > 0 {
+                        println!("[agents] purged {} agents older than 7 days", purged);
+                    }
                 }
 
                 // Sauvegarder les changements SANS tenir de lock

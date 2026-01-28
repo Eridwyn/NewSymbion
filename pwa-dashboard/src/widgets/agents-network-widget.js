@@ -332,6 +332,21 @@ class AgentsNetworkWidget extends LitElement {
       box-shadow: 0 4px 16px rgba(0, 212, 170, 0.35);
     }
 
+    .action-btn.delete {
+      background: linear-gradient(135deg, rgba(156, 163, 175, 0.2) 0%, rgba(107, 114, 128, 0.15) 100%);
+      color: #9ca3af;
+      border: 1px solid rgba(156, 163, 175, 0.3);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .action-btn.delete:hover:not(:disabled) {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.2) 100%);
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #fca5a5;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(239, 68, 68, 0.25);
+    }
+
     .status-indicator {
       width: 10px;
       height: 10px;
@@ -564,6 +579,37 @@ class AgentsNetworkWidget extends LitElement {
     document.dispatchEvent(event)
   }
 
+  async confirmDeleteAgent(agent, event) {
+    event.stopPropagation()
+
+    // Protection: empêcher la suppression de l'agent hôte
+    const hostAgentIP = window.SYMBION_CONFIG?.HOST_AGENT_IP
+    if (hostAgentIP && agent.primary_ip === hostAgentIP) {
+      alert(`⚠️ Impossible de supprimer l'agent hôte (${agent.hostname}) - cela désactiverait le dashboard !`)
+      return
+    }
+
+    const confirmMsg = `Supprimer l'agent "${agent.hostname}" ?\n\n` +
+      `L'agent sera marqué comme supprimé et définitivement effacé après 7 jours.\n\n` +
+      `S'il se reconnecte pendant cette période, il sera réactivé automatiquement.`
+
+    if (!confirm(confirmMsg)) {
+      return
+    }
+
+    try {
+      await this.agentsService.deleteAgent(agent.agent_id)
+      alert(`✅ Agent "${agent.hostname}" supprimé (purge dans 7 jours)`)
+
+      // Refresh la liste
+      await this.loadAgents()
+
+    } catch (error) {
+      console.error(`[agents-network-widget] Failed to delete agent:`, error)
+      alert(`❌ Erreur lors de la suppression: ${error.message}`)
+    }
+  }
+
   renderAgent(agent) {
     const isOnline = agent.status === 'online'
     const lastSeen = this.agentsService?.formatLastSeen(agent) || 'Unknown'
@@ -606,37 +652,49 @@ class AgentsNetworkWidget extends LitElement {
         <div class="agent-actions">
           ${isOnline ? html`
             <!-- Actions pour agents online -->
-            <button 
+            <button
               class="action-btn power"
               @click="${(e) => this.executeAction(agent.agent_id, 'shutdown', e)}"
               title="Shutdown system">
               🔴 Shutdown
             </button>
-            <button 
+            <button
               class="action-btn power"
               @click="${(e) => this.executeAction(agent.agent_id, 'reboot', e)}"
               title="Reboot system">
               🔄 Reboot
             </button>
-            <button 
+            <button
               class="action-btn control"
               @click="${(e) => this.executeAction(agent.agent_id, 'control', e)}"
               title="Detailed control">
               🛠️ Control
             </button>
+            <button
+              class="action-btn delete"
+              @click="${(e) => this.confirmDeleteAgent(agent, e)}"
+              title="Supprimer l'agent (purge après 7 jours)">
+              🗑️
+            </button>
           ` : html`
             <!-- Actions pour agents offline -->
-            <button 
+            <button
               class="action-btn wake"
               @click="${(e) => this.executeAction(agent.agent_id, 'wake', e)}"
               title="Wake-on-LAN - Power on remotely">
               🌟 Wake Up
             </button>
-            <button 
+            <button
               class="action-btn control"
               @click="${(e) => this.executeAction(agent.agent_id, 'control', e)}"
               title="View system information">
               📊 Info
+            </button>
+            <button
+              class="action-btn delete"
+              @click="${(e) => this.confirmDeleteAgent(agent, e)}"
+              title="Supprimer l'agent (purge après 7 jours)">
+              🗑️
             </button>
           `}
         </div>

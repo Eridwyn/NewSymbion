@@ -12,6 +12,7 @@
 import { LitElement, html, css } from 'lit'
 import '../components/organic-loader.js'
 import { Chart, registerables } from 'chart.js'
+import csrfService from '../services/csrf-service.js'
 
 // Register Chart.js components
 Chart.register(...registerables)
@@ -261,6 +262,26 @@ class EnvironmentWidget extends LitElement {
     .signal-icon {
       width: 16px;
       height: 16px;
+    }
+
+    .sensor-delete-btn {
+      background: rgba(156, 163, 175, 0.15);
+      border: 1px solid rgba(156, 163, 175, 0.25);
+      color: #9ca3af;
+      padding: 4px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .sensor-delete-btn:hover {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
     }
 
     .empty-state {
@@ -988,13 +1009,58 @@ class EnvironmentWidget extends LitElement {
         ${sensor ? html`
           <div class="sensor-info">
             <span class="sensor-type">${sensor.sensor_type}</span>
-            ${status !== 'n_a' ? html`
-              <span class="sensor-signal">${this.formatSignalStrength(sensor.signal_rssi)}</span>
-            ` : ''}
+            <div style="display: flex; align-items: center; gap: 8px;">
+              ${status !== 'n_a' ? html`
+                <span class="sensor-signal">${this.formatSignalStrength(sensor.signal_rssi)}</span>
+              ` : ''}
+              <button
+                class="sensor-delete-btn"
+                @click="${(e) => this.confirmDeleteSensor(e, sensor)}"
+                title="Supprimer le capteur (purge après 7 jours)">
+                🗑️
+              </button>
+            </div>
           </div>
         ` : ''}
       </div>
     `
+  }
+
+  async confirmDeleteSensor(event, sensor) {
+    event.stopPropagation() // Empêche l'ouverture du modal
+
+    const confirmMsg = `Supprimer le capteur "${sensor.sensor_id}" (${sensor.room_id}) ?\n\n` +
+      `Le capteur sera marqué comme supprimé et définitivement effacé après 7 jours.\n\n` +
+      `S'il se reconnecte pendant cette période, il sera réactivé automatiquement.`
+
+    if (!confirm(confirmMsg)) {
+      return
+    }
+
+    try {
+      const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+      const url = `${API_BASE}/v1/environment/sensors/${encodeURIComponent(sensor.sensor_id)}`
+
+      const response = await csrfService.fetchWithCsrf(url, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+      }
+
+      alert(`✅ Capteur "${sensor.sensor_id}" supprimé (purge dans 7 jours)`)
+
+      // Refresh la liste
+      await this.loadEnvironmentData()
+
+    } catch (error) {
+      console.error(`[environment-widget] Failed to delete sensor:`, error)
+      alert(`❌ Erreur lors de la suppression: ${error.message}`)
+    }
   }
 
 }
