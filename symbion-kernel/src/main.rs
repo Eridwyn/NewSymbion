@@ -35,6 +35,8 @@ mod environment_http;  // F1: API endpoints for environment monitoring
 // F4: Mobile API removed - now part of symbion-plugin-notifications
 mod plugin_proxy;  // Dynamic plugin routing via Unix sockets
 mod plugin_health;  // Plugin health monitoring and auto-recovery
+mod notification_client;  // Safe notification client (checks plugin availability)
+mod environment_alerts;  // Environment alert monitor with notifications
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -278,9 +280,24 @@ async fn main() {
         eprintln!("[kernel] failed to discover plugins: {}", e);
     }
 
+    // Notification Client - interface sécurisée (vérifie si plugin dispo)
+    let notification_client = notification_client::NotificationClient::new(
+        mqtt_client.clone(),
+        plugin_registry.clone(),
+    );
+    println!("[kernel] notification client initialized (plugin-aware)");
+
     // Plugin Health Monitor - surveillance automatique et auto-recovery
     let plugin_health_monitor = crate::plugin_health::PluginHealthMonitor::new();
-    plugin_health_monitor.spawn_health_monitor(plugin_registry.clone());
+    plugin_health_monitor.spawn_health_monitor(plugin_registry.clone(), notification_client.clone());
+
+    // Environment Alert Monitor - surveillance alertes moisissure avec notifications
+    let env_alert_monitor = environment_alerts::EnvironmentAlertMonitor::new(
+        sensor_registry.clone(),
+        notification_client.clone(),
+    );
+    env_alert_monitor.spawn_monitor();
+    println!("[kernel] environment alert monitor started");
 
     // fabrique l'état unique pour Axum
     let app_state = AppState {
@@ -305,6 +322,7 @@ async fn main() {
         decision_metrics,
         sensors: sensor_registry,
         plugin_registry,
+        notification_client,
     };
 
     // HTTPS avec TLS (PWA + mTLS)

@@ -456,6 +456,32 @@ class NotificationCenter extends LitElement {
           font-weight: 600;
           color: #f8f9fa;
         }
+        .notif-header-actions {
+          display: flex;
+          gap: 0.5rem;
+          align-items: center;
+        }
+        .notif-header-btn {
+          background: rgba(255,255,255,0.08);
+          border: 1px solid rgba(255,255,255,0.15);
+          color: #adb5bd;
+          padding: 0.35rem 0.6rem;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 0.7rem;
+          transition: all 0.2s;
+        }
+        .notif-header-btn:hover {
+          background: rgba(255,255,255,0.15);
+          color: #fff;
+        }
+        .notif-header-btn.danger {
+          border-color: rgba(239,68,68,0.3);
+        }
+        .notif-header-btn.danger:hover {
+          background: rgba(239,68,68,0.2);
+          color: #ef4444;
+        }
         .notif-close {
           background: rgba(255,255,255,0.1);
           border: none;
@@ -551,6 +577,10 @@ class NotificationCenter extends LitElement {
       <div id="notification-modal">
         <div class="notif-header">
           <span class="notif-title">Notifications</span>
+          <div class="notif-header-actions">
+            <button class="notif-header-btn" id="mark-all-read-btn">✓ Tout lu</button>
+            <button class="notif-header-btn danger" id="delete-all-btn">🗑 Tout suppr.</button>
+          </div>
           <button class="notif-close">✕</button>
         </div>
         <div class="notif-content"></div>
@@ -561,6 +591,8 @@ class NotificationCenter extends LitElement {
     // Event listeners
     this._modalContainer.querySelector('#notification-modal-overlay').addEventListener('click', () => this.closePanel())
     this._modalContainer.querySelector('.notif-close').addEventListener('click', () => this.closePanel())
+    this._modalContainer.querySelector('#mark-all-read-btn').addEventListener('click', () => this.markAllAsRead())
+    this._modalContainer.querySelector('#delete-all-btn').addEventListener('click', () => this.deleteAllNotifications())
   }
 
   _removeModalContainer() {
@@ -746,6 +778,34 @@ class NotificationCenter extends LitElement {
     this.notifications.filter(n => !n.acknowledged).forEach(n => {
       this.acknowledgeNotification(n)
     })
+  }
+
+  async deleteAllNotifications() {
+    if (this.notifications.length === 0) return
+
+    console.log('[notification-center] Deleting all notifications')
+
+    // Supprimer chaque notification via l'API
+    for (const notif of this.notifications) {
+      try {
+        await fetch('/v1/plugin-api/notifications/notifications/delete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': window.SYMBION_CONFIG?.API_KEY || ''
+          },
+          body: JSON.stringify({ notification_id: notif.id })
+        })
+      } catch (e) {
+        console.error('[notification-center] Delete failed for:', notif.id, e)
+      }
+    }
+
+    // Vider localement
+    this.notifications = []
+    this._updateModalContent()
+    this.requestUpdate()
+    console.log('[notification-center] All notifications deleted')
   }
 
   hasActions(notif) {
