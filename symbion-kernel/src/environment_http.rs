@@ -50,10 +50,11 @@ fn default_hours() -> u32 {
 }
 
 /// Build environment routes
+/// Note: DELETE /sensors/{sensor_id} is handled in http.rs with CSRF protection
 pub fn build_environment_routes(state: AppState) -> Router {
     Router::new()
         .route("/sensors", get(list_sensors))
-        .route("/sensors/{sensor_id}", get(get_sensor).delete(unregister_sensor))
+        .route("/sensors/{sensor_id}", get(get_sensor))
         .route("/sensors/{sensor_id}/history", get(get_sensor_history))
         .route("/{room_id}", get(get_room_environment))
         .route("/{room_id}/history", get(get_room_history))
@@ -112,19 +113,6 @@ async fn get_sensor_history(
     // For now, return full state (client can filter by timestamp)
 
     Ok(Json(environment))
-}
-
-/// DELETE /v1/environment/sensors/:sensor_id
-/// Unregister a sensor (manual removal)
-async fn unregister_sensor(
-    State(app): State<AppState>,
-    Path(sensor_id): Path<String>,
-) -> Result<StatusCode, StatusCode> {
-    app.sensors
-        .unregister_sensor(&sensor_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(StatusCode::NO_CONTENT)
 }
 
 /// GET /v1/environment/:room_id

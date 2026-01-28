@@ -240,6 +240,7 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/agents/{id}/hibernate", post(agent_hibernate_endpoint))
         .route("/v1/agents/{id}/reconnect", post(agent_reconnect_endpoint))
         .route("/agents/{id}/processes/{pid}/kill", post(agent_kill_process_endpoint))
+        .route("/v1/agents/{id}", axum::routing::delete(delete_agent_endpoint))
         .route("/context/override", post(set_context_override))
         .route("/context/clear", post(clear_context_override))
         .route("/auth/reload", post(auth_reload_users))
@@ -250,6 +251,8 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/v1/plugins/{name}/start", post(start_plugin_systemctl))
         .route("/v1/plugins/{name}/stop", post(stop_plugin_systemctl))
         .route("/v1/plugins/{name}/restart", post(restart_plugin_systemctl))
+        // Sensor delete (soft delete, CSRF protected)
+        .route("/environment/sensors/{sensor_id}", axum::routing::delete(delete_sensor_endpoint))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_csrf));
 
@@ -822,6 +825,49 @@ async fn get_agent_endpoint(
     match app.agents.get_agent(&id).await {
         Some(agent) => Ok(Json(agent)),
         None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+// DELETE /v1/agents/{id} - Suppression agent (soft delete, purge après 7 jours)
+async fn delete_agent_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, (StatusCode, Json<serde_json::Value>)> {
+    match app.agents.soft_delete_agent(&id).await {
+        Ok(true) => {
+            println!("[http] agent {} soft-deleted (will be purged in 7 days)", id);
+            Ok(StatusCode::NO_CONTENT)
+        }
+        Ok(false) => {
+            Err((StatusCode::NOT_FOUND, Json(serde_json::json!({
+                "error": "Agent not found or already deleted"
+            }))))
+        }
+        Err(e) => {
+            eprintln!("[http] failed to delete agent {}: {}", id, e);
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
+                "error": format!("Failed to delete agent: {}", e)
+            }))))
+        }
+    }
+}
+
+// DELETE /v1/environment/sensors/{sensor_id} - Suppression capteur (soft delete, purge après 7 jours)
+async fn delete_sensor_endpoint(
+    State(app): State<AppState>,
+    Path(sensor_id): Path<String>,
+) -> Result<StatusCode, (StatusCode, Json<serde_json::Value>)> {
+    match app.sensors.unregister_sensor(&sensor_id) {
+        Ok(()) => {
+            println!("[http] sensor {} soft-deleted (will be purged in 7 days)", sensor_id);
+            Ok(StatusCode::NO_CONTENT)
+        }
+        Err(e) => {
+            eprintln!("[http] failed to delete sensor {}: {}", sensor_id, e);
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
+                "error": format!("Failed to delete sensor: {}", e)
+            }))))
+        }
     }
 }
 

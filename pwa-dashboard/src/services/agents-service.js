@@ -125,7 +125,31 @@ class AgentsService extends LitElement {
 
     return await response.json()
   }
-  
+
+  // ===== Agent Deletion (soft delete, purge after 7 days) =====
+
+  async deleteAgent(agentId) {
+    console.log(`[agents-service] deleteAgent called: agentId=${agentId}`)
+
+    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+    const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}`
+
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`HTTP ${response.status}: ${errorText}`)
+    }
+
+    console.log(`[agents-service] Agent ${agentId} deleted successfully`)
+    return true
+  }
+
   // ===== Process Control =====
   
   async getAgentProcesses(agentId) {

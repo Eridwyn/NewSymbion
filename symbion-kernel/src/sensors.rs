@@ -87,6 +87,11 @@ pub struct Sensor {
 
     /// WiFi RSSI signal strength (optional)
     pub signal_rssi: Option<i16>,
+
+    /// Timestamp Unix de soft-delete (None = actif, Some = supprimé)
+    /// Purge automatique après 7 jours
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<i64>,
 }
 
 /// Sensor status enum
@@ -195,12 +200,12 @@ impl SensorRegistry {
     /// Get environment state by room_id (merges data from all sensors in that room)
     /// Returns the most recent reading across all sensors for that room
     pub fn get_environment_by_room(&self, room_id: &str) -> Option<RoomEnvironmentState> {
-        // Find all sensors for this room
+        // Find all sensors for this room (exclut les soft-deleted)
         let sensors_in_room: Vec<String> = self
             .sensors
             .read()
             .values()
-            .filter(|s| s.room_id == room_id)
+            .filter(|s| s.room_id == room_id && s.deleted_at.is_none())
             .map(|s| s.sensor_id.clone())
             .collect();
 
@@ -225,28 +230,98 @@ impl SensorRegistry {
             .max_by_key(|env| env.current.timestamp)
     }
 
-    /// List all registered sensors
+    /// List all registered sensors (exclut les soft-deleted)
     pub fn list_sensors(&self) -> Vec<Sensor> {
-        self.sensors.read().values().cloned().collect()
+        self.sensors.read()
+            .values()
+            .filter(|s| s.deleted_at.is_none())
+            .cloned()
+            .collect()
     }
 
-    /// List all environment states
+    /// List all environment states (exclut les soft-deleted)
     pub fn list_environments(&self) -> HashMap<String, RoomEnvironmentState> {
-        self.environments.read().clone()
+        let deleted_sensors: Vec<String> = self.sensors.read()
+            .iter()
+            .filter(|(_, s)| s.deleted_at.is_some())
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        self.environments.read()
+            .iter()
+            .filter(|(id, _)| !deleted_sensors.contains(id))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
     }
 
-    /// Unregister sensor (manual removal)
+    /// Soft-delete sensor (sera purgé après 7 jours)
     pub fn unregister_sensor(&self, sensor_id: &str) -> Result<()> {
-        self.sensors.write().remove(sensor_id);
-        self.environments.write().remove(sensor_id);
-        self.save_to_disk()?;
+        let should_save = {
+            let mut sensors = self.sensors.write();
+            if let Some(sensor) = sensors.get_mut(sensor_id) {
+                if sensor.deleted_at.is_some() {
+                    return Ok(()); // Déjà supprimé
+                }
+                sensor.deleted_at = Some(Utc::now().timestamp());
+                println!("[sensors] soft-deleted sensor {} (will be purged in 7 days)", sensor_id);
+                true
+            } else {
+                false
+            }
+        }; // Write lock libéré ici AVANT save_to_disk()
+
+        if should_save {
+            self.save_to_disk()?;
+        }
         Ok(())
+    }
+
+    /// Purge les capteurs soft-deleted depuis plus de 7 jours
+    pub fn purge_deleted_sensors(&self) -> usize {
+        let now = Utc::now().timestamp();
+        let seven_days_secs = 7 * 24 * 60 * 60; // 7 jours en secondes
+
+        let sensors_to_purge: Vec<String> = self.sensors.read()
+            .iter()
+            .filter_map(|(id, sensor)| {
+                if let Some(deleted_at) = sensor.deleted_at {
+                    if now - deleted_at > seven_days_secs {
+                        return Some(id.clone());
+                    }
+                }
+                None
+            })
+            .collect();
+
+        let count = sensors_to_purge.len();
+        if count > 0 {
+            let mut sensors = self.sensors.write();
+            let mut environments = self.environments.write();
+            for sensor_id in &sensors_to_purge {
+                println!("[sensors] purging sensor {} (deleted > 7 days ago)", sensor_id);
+                sensors.remove(sensor_id);
+                environments.remove(sensor_id);
+            }
+            drop(sensors);
+            drop(environments);
+            let _ = self.save_to_disk();
+        }
+        count
     }
 
     /// Update sensor status
     pub fn update_status(&self, sensor_id: &str, status: SensorStatus) -> Result<()> {
-        if let Some(sensor) = self.sensors.write().get_mut(sensor_id) {
-            sensor.status = status;
+        let found = {
+            let mut sensors = self.sensors.write();
+            if let Some(sensor) = sensors.get_mut(sensor_id) {
+                sensor.status = status;
+                true
+            } else {
+                false
+            }
+        }; // Write lock libéré ici
+
+        if found {
             self.save_to_disk()?;
             Ok(())
         } else {
@@ -377,17 +452,20 @@ impl SensorRegistry {
         Ok(())
     }
 
-    /// Get count of registered sensors
+    /// Get count of registered sensors (exclut les soft-deleted)
     pub fn sensor_count(&self) -> usize {
-        self.sensors.read().len()
+        self.sensors.read()
+            .values()
+            .filter(|s| s.deleted_at.is_none())
+            .count()
     }
 
-    /// Get count of online sensors
+    /// Get count of online sensors (exclut les soft-deleted)
     pub fn online_sensor_count(&self) -> usize {
         self.sensors
             .read()
             .values()
-            .filter(|s| s.status == SensorStatus::Online)
+            .filter(|s| s.status == SensorStatus::Online && s.deleted_at.is_none())
             .count()
     }
 
@@ -403,6 +481,7 @@ impl SensorRegistry {
             status: SensorStatus::Online,
             battery_pct: None,
             signal_rssi: None,
+            deleted_at: None,
         };
 
         self.register_sensor(sensor)?;
@@ -461,19 +540,31 @@ impl SensorRegistry {
     /// Checks for:
     /// - Stale environment data (>30 sec) → status N/A
     /// - Offline sensors (>90 sec = 3 missed readings) → status Offline
+    /// - Purge soft-deleted sensors after 7 days (hourly check)
     ///
     /// Call this once during kernel initialization.
     pub fn start_periodic_monitoring(registry: SharedSensorRegistry) {
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10)); // 10 sec
+            let mut purge_counter = 0u32; // Compteur pour purge horaire (360 ticks = 1h)
             loop {
                 interval.tick().await;
+                purge_counter += 1;
 
                 // Update environment statuses (stale data → N/A)
                 registry.update_stale_environment_statuses();
 
                 // Check for offline sensors (>90 sec)
                 registry.check_offline_sensors();
+
+                // Purge des capteurs soft-deleted après 7 jours (toutes les heures = 360 ticks de 10s)
+                if purge_counter >= 360 {
+                    purge_counter = 0;
+                    let purged = registry.purge_deleted_sensors();
+                    if purged > 0 {
+                        println!("[sensors] purged {} sensors older than 7 days", purged);
+                    }
+                }
             }
         });
         println!("[sensors] started periodic monitoring task (10 sec interval)");
@@ -501,6 +592,7 @@ mod tests {
             status: SensorStatus::Online,
             battery_pct: None,
             signal_rssi: Some(-45),
+            deleted_at: None,
         };
 
         registry.register_sensor(sensor.clone()).unwrap();
@@ -528,6 +620,7 @@ mod tests {
             status: SensorStatus::Online,
             battery_pct: Some(85),
             signal_rssi: None,
+            deleted_at: None,
         };
         registry.register_sensor(sensor).unwrap();
 
@@ -566,6 +659,7 @@ mod tests {
                 status: SensorStatus::Online,
                 battery_pct: None,
                 signal_rssi: None,
+                deleted_at: None,
             };
             registry.register_sensor(sensor).unwrap();
         }
@@ -591,13 +685,17 @@ mod tests {
             status: SensorStatus::Online,
             battery_pct: None,
             signal_rssi: None,
+            deleted_at: None,
         };
         registry.register_sensor(sensor).unwrap();
         assert_eq!(registry.sensor_count(), 1);
 
+        // Soft delete - le capteur existe toujours mais est filtré
         registry.unregister_sensor("esp32-remove-me").unwrap();
-        assert_eq!(registry.sensor_count(), 0);
-        assert!(registry.get_sensor("esp32-remove-me").is_none());
+        assert_eq!(registry.sensor_count(), 0); // Filtré de la liste
+        // Le capteur existe encore (soft delete) mais avec deleted_at set
+        let deleted_sensor = registry.get_sensor("esp32-remove-me").unwrap();
+        assert!(deleted_sensor.deleted_at.is_some());
     }
 
     #[test]
@@ -618,6 +716,7 @@ mod tests {
                 status: SensorStatus::Online,
                 battery_pct: Some(90),
                 signal_rssi: Some(-50),
+                deleted_at: None,
             };
             registry.register_sensor(sensor).unwrap();
         }
