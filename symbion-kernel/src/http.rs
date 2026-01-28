@@ -181,6 +181,8 @@ pub struct AppState {
     pub sensors: crate::sensors::SharedSensorRegistry,
     // Dynamic Plugin Routing
     pub plugin_registry: crate::plugin_proxy::PluginRegistry,
+    // Notification Client (safe - vérifie si plugin dispo)
+    pub notification_client: crate::notification_client::NotificationClient,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1346,6 +1348,35 @@ async fn auth_login(
         Err(e) => {
             let error_msg = e.to_string();
             eprintln!("[auth] login failed for '{}': {}", payload.username, error_msg);
+
+            // Notification sécurité selon type d'échec
+            let is_rate_limited = error_msg.contains("Too many login attempts");
+            let notification = if is_rate_limited {
+                // P0 : Attaque brute-force détectée
+                crate::notification_client::NotificationPayload::new(
+                    crate::notification_client::NotificationPriority::P0,
+                    format!("🚨 Attaque bloquée - {}", payload.username),
+                    format!("Trop de tentatives de connexion pour '{}'. L'accès a été temporairement bloqué. {}",
+                        payload.username, error_msg),
+                    "auth-security",
+                )
+            } else {
+                // P1 : Tentative échouée (credentials invalides)
+                crate::notification_client::NotificationPayload::new(
+                    crate::notification_client::NotificationPriority::P1,
+                    format!("🔐 Échec login - {}", payload.username),
+                    format!("Tentative de connexion échouée pour '{}': {}",
+                        payload.username, error_msg),
+                    "auth-security",
+                )
+            };
+
+            // Envoi async (ne bloque pas la réponse)
+            let notif_client = app.notification_client.clone();
+            tokio::spawn(async move {
+                let _ = notif_client.send(notification).await;
+            });
+
             Err((
                 StatusCode::UNAUTHORIZED,
                 Json(serde_json::json!({ "error": error_msg }))

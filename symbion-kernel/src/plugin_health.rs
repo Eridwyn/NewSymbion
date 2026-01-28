@@ -34,6 +34,7 @@ use tokio::sync::RwLock;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use http_body_util::BodyExt;
+use crate::notification_client::{NotificationClient, NotificationPayload, NotificationPriority};
 
 /// Health status d'un plugin à un instant T
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -180,8 +181,10 @@ impl PluginHealthMonitor {
     pub fn spawn_health_monitor(
         self,
         plugin_registry: crate::plugin_proxy::PluginRegistry,
+        notification_client: NotificationClient,
     ) {
         let monitor = Arc::new(self);
+        let notif_client = Arc::new(notification_client);
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(30));
@@ -232,8 +235,26 @@ impl PluginHealthMonitor {
                             println!("[plugin-health] 🚨 Plugin '{}' has {} consecutive failures, attempting recovery...",
                                     plugin_name, failures);
 
+                            // Notification P1 : tentative de recovery
+                            let notif = NotificationPayload::new(
+                                NotificationPriority::P1,
+                                format!("🔄 Plugin {} - Recovery", plugin_name),
+                                format!("Le plugin {} est injoignable ({} échecs). Tentative de redémarrage automatique...", plugin_name, failures),
+                                "plugin-health",
+                            );
+                            let _ = notif_client.send(notif).await;
+
                             if let Err(e) = monitor.attempt_recovery(&plugin_name).await {
                                 eprintln!("[plugin-health] ❌ Recovery failed for '{}': {}", plugin_name, e);
+
+                                // Notification P0 : recovery échouée
+                                let notif = NotificationPayload::new(
+                                    NotificationPriority::P0,
+                                    format!("❌ Plugin {} - Échec recovery", plugin_name),
+                                    format!("Le redémarrage automatique du plugin {} a échoué: {}", plugin_name, e),
+                                    "plugin-health",
+                                );
+                                let _ = notif_client.send(notif).await;
                             } else {
                                 // Reset compteur échecs et incrémenter recovery count
                                 let mut states = monitor.health_states.write().await;
@@ -241,6 +262,15 @@ impl PluginHealthMonitor {
                                     entry.consecutive_failures = 0;
                                     entry.auto_recovery_count += 1;
                                 }
+
+                                // Notification P2 : recovery réussie
+                                let notif = NotificationPayload::new(
+                                    NotificationPriority::P2,
+                                    format!("✅ Plugin {} - Redémarré", plugin_name),
+                                    format!("Le plugin {} a été redémarré automatiquement avec succès.", plugin_name),
+                                    "plugin-health",
+                                );
+                                let _ = notif_client.send(notif).await;
                             }
                         }
 
@@ -289,8 +319,26 @@ impl PluginHealthMonitor {
                                 println!("[plugin-health] 🚨 Plugin '{}' has {} consecutive failures, attempting recovery...",
                                         plugin_name, failures);
 
+                                // Notification P1 : tentative de recovery
+                                let notif = NotificationPayload::new(
+                                    NotificationPriority::P1,
+                                    format!("🔄 Plugin {} - Recovery", plugin_name),
+                                    format!("Le plugin {} ne répond plus ({} échecs). Tentative de redémarrage automatique...", plugin_name, failures),
+                                    "plugin-health",
+                                );
+                                let _ = notif_client.send(notif).await;
+
                                 if let Err(e) = monitor.attempt_recovery(&plugin_name).await {
                                     eprintln!("[plugin-health] ❌ Recovery failed for '{}': {}", plugin_name, e);
+
+                                    // Notification P0 : recovery échouée
+                                    let notif = NotificationPayload::new(
+                                        NotificationPriority::P0,
+                                        format!("❌ Plugin {} - Échec recovery", plugin_name),
+                                        format!("Le redémarrage automatique du plugin {} a échoué: {}", plugin_name, e),
+                                        "plugin-health",
+                                    );
+                                    let _ = notif_client.send(notif).await;
                                 } else {
                                     // Reset compteur échecs et incrémenter recovery count
                                     let mut states = monitor.health_states.write().await;
@@ -298,6 +346,15 @@ impl PluginHealthMonitor {
                                         entry.consecutive_failures = 0;
                                         entry.auto_recovery_count += 1;
                                     }
+
+                                    // Notification P2 : recovery réussie
+                                    let notif = NotificationPayload::new(
+                                        NotificationPriority::P2,
+                                        format!("✅ Plugin {} - Redémarré", plugin_name),
+                                        format!("Le plugin {} a été redémarré automatiquement avec succès.", plugin_name),
+                                        "plugin-health",
+                                    );
+                                    let _ = notif_client.send(notif).await;
                                 }
                             }
                         }
