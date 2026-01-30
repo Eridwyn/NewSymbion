@@ -795,7 +795,7 @@ class ContextEnginePage extends LitElement {
         body: JSON.stringify({
           mode,
           duration_minutes: this.selectedDuration,
-          reason: 'Override manuel via Context Engine'
+          reason: 'Override manuel via Decision Engine'
         })
       })
       if (res.ok) {
@@ -970,7 +970,7 @@ class ContextEnginePage extends LitElement {
     return html`
       <div class="page" @click="${e => e.stopPropagation()}">
         <div class="header">
-          <span class="header-title">🧠 Context Engine</span>
+          <span class="header-title">🧠 Decision Engine</span>
           <button class="close-btn" @click="${this.close}">✕</button>
         </div>
 
