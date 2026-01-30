@@ -5,13 +5,14 @@ use crate::decision::{
     Action, DecisionConfig, DecisionContext, DecisionOutcome, DecisionResult,
     GuardsEvaluator, TrustCalculator, ImpactLevel, GuardWarning,
 };
+use std::sync::RwLock;
 use uuid::Uuid;
 
 /// Decision Engine principal
 pub struct DecisionEngine {
     guards_evaluator: GuardsEvaluator,
     trust_calculator: TrustCalculator,
-    config: DecisionConfig,
+    config: RwLock<DecisionConfig>,
 }
 
 impl DecisionEngine {
@@ -23,7 +24,7 @@ impl DecisionEngine {
         Self {
             guards_evaluator,
             trust_calculator,
-            config,
+            config: RwLock::new(config),
         }
     }
 
@@ -172,22 +173,25 @@ impl DecisionEngine {
 
     /// Obtenir le seuil selon impact level
     fn get_threshold(&self, impact_level: &ImpactLevel) -> f32 {
+        let config = self.config.read().unwrap();
         match impact_level {
-            ImpactLevel::Low => self.config.impact_thresholds.low,
-            ImpactLevel::Medium => self.config.impact_thresholds.medium,
-            ImpactLevel::High => self.config.impact_thresholds.high,
-            ImpactLevel::VeryHigh => self.config.impact_thresholds.very_high,
+            ImpactLevel::Low => config.impact_thresholds.low,
+            ImpactLevel::Medium => config.impact_thresholds.medium,
+            ImpactLevel::High => config.impact_thresholds.high,
+            ImpactLevel::VeryHigh => config.impact_thresholds.very_high,
         }
     }
 
     /// Mettre à jour la configuration
-    pub fn update_config(&mut self, config: DecisionConfig) {
-        self.config = config;
+    pub fn update_config(&self, config: DecisionConfig) {
+        let mut current = self.config.write().unwrap();
+        *current = config;
+        eprintln!("[decision-engine] Config updated: {:?}", current.impact_thresholds);
     }
 
     /// Obtenir la configuration actuelle
-    pub fn config(&self) -> &DecisionConfig {
-        &self.config
+    pub fn config(&self) -> DecisionConfig {
+        self.config.read().unwrap().clone()
     }
 }
 

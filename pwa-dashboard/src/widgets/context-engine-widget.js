@@ -353,7 +353,7 @@ class ContextEngineWidget extends LitElement {
         <div class="widget">
           <div class="header">
             <span class="header-icon">🧠</span>
-            <span class="header-title">Context Engine</span>
+            <span class="header-title">Decision Engine</span>
           </div>
           <div class="loading">Chargement...</div>
         </div>
@@ -368,7 +368,7 @@ class ContextEngineWidget extends LitElement {
       <div class="widget">
         <div class="header">
           <span class="header-icon">🧠</span>
-          <span class="header-title">Context Engine</span>
+          <span class="header-title">Decision Engine</span>
         </div>
 
         <div class="content">

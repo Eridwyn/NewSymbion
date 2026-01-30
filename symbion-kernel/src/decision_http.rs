@@ -254,7 +254,16 @@ pub async fn get_config(
     State(state): State<DecisionEngineState>,
 ) -> Json<crate::decision::DecisionConfig> {
     let config = state.engine.config();
-    Json(config.clone())
+    Json(config)
+}
+
+/// PUT /v1/decision/config - Mettre à jour configuration
+pub async fn update_config(
+    State(state): State<DecisionEngineState>,
+    Json(config): Json<crate::decision::DecisionConfig>,
+) -> StatusCode {
+    state.engine.update_config(config);
+    StatusCode::OK
 }
 
 /// GET /v1/decision/agent-health - États santé agents
@@ -303,7 +312,7 @@ pub fn build_decision_routes(state: DecisionEngineState) -> axum::Router {
         .route("/override", post(create_override))
         .route("/overrides/active", get(list_active_overrides))
         .route("/override/:id", delete(revoke_override))
-        .route("/config", get(get_config))
+        .route("/config", get(get_config).put(update_config))
         .route("/agent-health", get(get_agent_health))
         .route("/stats", get(get_stats))
         .with_state(state)

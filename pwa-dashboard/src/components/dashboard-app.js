@@ -1029,7 +1029,7 @@ class DashboardApp extends LitElement {
                 </div>
                 <button class="context-engine-button" @click="${this.handleOpenContextEngine}">
                   <span>🧠</span>
-                  <span>Context Engine</span>
+                  <span>Decision Engine</span>
                 </button>
                 <button class="settings-button" @click="${this.handleOpenSettings}">
                   <span>⚙️</span>
