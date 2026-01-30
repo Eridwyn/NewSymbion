@@ -239,6 +239,20 @@ impl SensorRegistry {
             .collect()
     }
 
+    /// List all unique room IDs (for automations schema)
+    pub fn list_rooms(&self) -> Vec<String> {
+        let mut rooms: Vec<String> = self
+            .sensors
+            .read()
+            .values()
+            .filter(|s| s.deleted_at.is_none())
+            .map(|s| s.room_id.clone())
+            .collect();
+        rooms.sort();
+        rooms.dedup();
+        rooms
+    }
+
     /// List all environment states (exclut les soft-deleted)
     pub fn list_environments(&self) -> HashMap<String, RoomEnvironmentState> {
         let deleted_sensors: Vec<String> = self.sensors.read()

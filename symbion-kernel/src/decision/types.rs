@@ -73,6 +73,8 @@ pub enum DecisionOutcome {
         auto: bool,
     },
     RequireValidation {
+        trust_score: f32,
+        threshold: f32,
         reasons: Vec<String>,
         explanation_codes: Vec<String>,
         human_reasons: Vec<String>,

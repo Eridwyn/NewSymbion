@@ -84,9 +84,15 @@ impl DecisionEngine {
                 .map(|r| r.human_reason.clone())
                 .collect();
 
+            // Calculate trust for the response even when guards require validation
+            let trust_score = self.trust_calculator.calculate(action, context);
+            let threshold = self.get_threshold(&action.impact_level);
+
             return DecisionResult {
                 decision_id,
                 outcome: DecisionOutcome::RequireValidation {
+                    trust_score: trust_score.score,
+                    threshold,
                     reasons,
                     explanation_codes,
                     human_reasons,
@@ -118,6 +124,8 @@ impl DecisionEngine {
             DecisionResult {
                 decision_id,
                 outcome: DecisionOutcome::RequireValidation {
+                    trust_score: trust_score.score,
+                    threshold,
                     reasons: vec![format!(
                         "Trust score {:.2} below threshold {:.2}",
                         trust_score.score, threshold

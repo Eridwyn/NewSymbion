@@ -13,7 +13,7 @@ class ToastNotifications extends LitElement {
       position: fixed;
       bottom: var(--space-6, 1.5rem);
       right: var(--space-6, 1.5rem);
-      z-index: var(--z-toast, 1300);
+      z-index: 100001; /* Au dessus de tous les modals (9999) et boot-terminal (100000) */
       display: flex;
       flex-direction: column-reverse;
       gap: var(--space-3, 0.75rem);

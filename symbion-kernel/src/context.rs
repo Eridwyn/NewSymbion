@@ -403,6 +403,18 @@ impl ContextEngine {
         self.state.lock().ok().map(|s| s.clone())
     }
 
+    /// Retourne le mode actuel en string lowercase (pour automations)
+    pub fn current_mode_str(&self) -> String {
+        self.get_state()
+            .map(|s| match s.mode {
+                Mode::Cravate => "cravate",
+                Mode::Intime => "intime",
+                Mode::Neutre => "neutre",
+            })
+            .unwrap_or("neutre")
+            .to_string()
+    }
+
     /// Ajoute une entrée à l'historique et sauvegarde
     fn add_to_history(&self, mode: Mode, reason: String, was_manual: bool) {
         if let Ok(mut history) = self.history.lock() {
@@ -427,6 +439,15 @@ impl ContextEngine {
     /// Récupère l'historique complet
     pub fn get_history(&self) -> Vec<ModeHistoryEntry> {
         self.history.lock().ok().map(|h| h.clone()).unwrap_or_default()
+    }
+
+    /// Retourne la liste des modes disponibles (pour schema automations)
+    pub fn get_available_modes(&self) -> Vec<String> {
+        vec![
+            "cravate".to_string(),
+            "intime".to_string(),
+            "neutre".to_string(),
+        ]
     }
 
     /// Force un mode manuellement (override temporaire)
@@ -685,6 +706,7 @@ impl ContextEngine {
         agents: SharedAgentRegistry,
         mqtt_client: AsyncClient,
         dashboard_events: crate::dashboard_events::DashboardEventPublisher,
+        automation_dispatcher: Option<crate::automations::EventDispatcher>,
     ) {
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
@@ -696,6 +718,9 @@ impl ContextEngine {
                 let agents_map = agents.list_agents().await;
                 let agents_list: Vec<Agent> = agents_map.values().cloned().collect();
 
+                // Capturer le mode actuel AVANT update
+                let old_mode = engine.get_state().map(|s| format!("{:?}", s.mode).to_lowercase());
+
                 // Mettre à jour le contexte
                 if let Some(new_state) = engine.update(&agents_list) {
                     // Un changement de mode est détecté, publier sur MQTT legacy topic
@@ -706,6 +731,8 @@ impl ContextEngine {
                             continue;
                         }
                     };
+
+                    let new_mode = format!("{:?}", new_state.mode).to_lowercase();
 
                     println!("[context] Publishing mode change: {:?} ({})",
                         new_state.mode, new_state.reason);
@@ -722,6 +749,12 @@ impl ContextEngine {
                     // Publier sur dashboard topic
                     if let Err(e) = dashboard_events.publish_context_change(&new_state).await {
                         eprintln!("[context] failed to publish to dashboard: {}", e);
+                    }
+
+                    // Dispatcher événement pour automations
+                    if let Some(ref dispatcher) = automation_dispatcher {
+                        let from_mode = old_mode.unwrap_or_else(|| "unknown".to_string());
+                        dispatcher.dispatch_mode_change(&from_mode, &new_mode, &new_state.reason);
                     }
                 }
             }

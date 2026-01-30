@@ -27,6 +27,7 @@ use axum::{extract::{Query, State}, routing::{get, post}, Json, Router};
 use axum::http::{StatusCode, Method};
 use tower_http::cors::CorsLayer;
 use tower_http::timeout::TimeoutLayer;
+use std::sync::Arc;
 use crate::models::{HostState, HostsMap};
 use crate::state::Shared;
 use crate::config::HostsConfig;
@@ -183,6 +184,11 @@ pub struct AppState {
     pub plugin_registry: crate::plugin_proxy::PluginRegistry,
     // Notification Client (safe - vérifie si plugin dispo)
     pub notification_client: crate::notification_client::NotificationClient,
+    // Automations Engine
+    pub automations: Arc<crate::automations::AutomationStore>,
+    pub automation_dispatcher: crate::automations::EventDispatcher,
+    // Pending Action Registry for post-approval execution
+    pub pending_action_registry: crate::automations::SharedPendingActionRegistry,
 }
 
 #[derive(Debug, Deserialize)]
@@ -253,6 +259,12 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/v1/plugins/{name}/restart", post(restart_plugin_systemctl))
         // Sensor delete (soft delete, CSRF protected)
         .route("/environment/sensors/{sensor_id}", axum::routing::delete(delete_sensor_endpoint))
+        // Automations CRUD (CSRF protected)
+        .route("/automations", post(crate::automations_http::create_automation))
+        .route("/automations/{automation_id}", axum::routing::put(crate::automations_http::update_automation))
+        .route("/automations/{automation_id}", axum::routing::delete(crate::automations_http::delete_automation))
+        .route("/automations/{automation_id}/enable", axum::routing::patch(crate::automations_http::toggle_automation))
+        .route("/automations/{automation_id}/test", post(crate::automations_http::test_automation))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_csrf));
 
@@ -299,6 +311,11 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/decision/config", get(decision_get_config))
         .route("/decision/agent-health", get(decision_get_agent_health))
         .route("/decision/stats", get(decision_get_stats))
+        // Automations API (read-only endpoints)
+        .route("/automations", get(crate::automations_http::list_automations))
+        .route("/automations/schema", get(crate::automations_http::get_automations_schema))
+        .route("/automations/history", get(crate::automations_http::get_automations_history))
+        .route("/automations/{automation_id}", get(crate::automations_http::get_automation))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
         // NOTE: Rate limiting tower_governor désactivé (incompatibilité localhost)
@@ -352,7 +369,7 @@ pub fn build_router(app_state: AppState) -> Router {
                     "https://192.168.1.14".parse().unwrap(), // Via Nginx reverse proxy (local)
                     "https://localhost".parse().unwrap(), // Via Nginx reverse proxy (localhost)
                 ])
-                .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT, Method::OPTIONS])
+                .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT, Method::PATCH, Method::OPTIONS])
                 .allow_headers([
                     axum::http::header::CONTENT_TYPE,
                     axum::http::header::AUTHORIZATION,
@@ -603,9 +620,30 @@ async fn set_context_override(
 
     let reason = req.reason.unwrap_or_else(|| "Override manuel".to_string());
 
-    match app.context_engine.set_override(mode, req.duration_minutes, reason) {
-        Some(state) => Ok(Json(state)),
+    // Get current mode before override
+    let old_mode = app.context_engine.get_state()
+        .map(|s| mode_to_str(&s.mode))
+        .unwrap_or_else(|| "unknown".to_string());
+
+    match app.context_engine.set_override(mode, req.duration_minutes, reason.clone()) {
+        Some(state) => {
+            // Dispatch mode change event for automations (set_override doesn't do it)
+            let new_mode = mode_to_str(&state.mode);
+            if old_mode != new_mode {
+                app.automation_dispatcher.dispatch_mode_change(&old_mode, &new_mode, &reason);
+            }
+            Ok(Json(state))
+        }
         None => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+fn mode_to_str(mode: &crate::context::Mode) -> String {
+    use crate::context::Mode;
+    match mode {
+        Mode::Cravate => "cravate".to_string(),
+        Mode::Intime => "intime".to_string(),
+        Mode::Neutre => "neutre".to_string(),
     }
 }
 
@@ -2044,7 +2082,234 @@ async fn decision_resolve_validation(
         agent_health_manager: app.decision_agent_health_manager.clone(),
         metrics: app.decision_metrics.clone(),
     };
-    crate::decision_http::resolve_validation(State(state), Path(validation_id), Json(req)).await
+
+    // Resolve the validation first
+    let result = crate::decision_http::resolve_validation(
+        State(state),
+        Path(validation_id.clone()),
+        Json(req.clone()),
+    ).await?;
+
+    // If approved, execute the pending action
+    if req.approved {
+        if let Some(pending) = app.pending_action_registry.take(&validation_id) {
+            eprintln!(
+                "[http] Executing pending action for approved validation {} (automation: {})",
+                validation_id, pending.automation_name
+            );
+
+            // Execute the action directly
+            let exec_result = execute_pending_action(
+                &pending.action,
+                &app.agents,
+                &app.context_engine,
+                &app.notification_client,
+            ).await;
+
+            match &exec_result {
+                Ok(_) => {
+                    eprintln!(
+                        "[http] ✅ Pending action executed successfully for validation {}",
+                        validation_id
+                    );
+
+                    // Add success record to history
+                    let action_result = crate::automations::ActionResult {
+                        action_type: format!("{:?}", pending.action).split('{').next().unwrap_or("unknown").trim().to_string(),
+                        success: true,
+                        error: None,
+                        duration_ms: 0,
+                        decision_id: Some(validation_id.clone()),
+                        trust_score: Some(pending.trust_score),
+                        decision_outcome: Some("approved_post_validation".to_string()),
+                        blocked_reasons: None,
+                    };
+
+                    let record = crate::automations::ExecutionRecord {
+                        automation_id: pending.automation_id.clone(),
+                        automation_name: pending.automation_name.clone(),
+                        executed_at: time::OffsetDateTime::now_utc(),
+                        trigger_event: "validation_approved".to_string(),
+                        conditions_met: true,
+                        actions_executed: vec![action_result],
+                        success: true,
+                        error: None,
+                        trust_score: Some(pending.trust_score),
+                        decision_outcome: Some("approved".to_string()),
+                    };
+
+                    if let Err(e) = app.automations.add_history(record) {
+                        eprintln!("[http] Failed to add success record to history: {}", e);
+                    }
+                }
+                Err(e) => {
+                    eprintln!(
+                        "[http] ❌ Pending action failed for validation {}: {}",
+                        validation_id, e
+                    );
+
+                    // Add failure record to history
+                    let action_result = crate::automations::ActionResult {
+                        action_type: format!("{:?}", pending.action).split('{').next().unwrap_or("unknown").trim().to_string(),
+                        success: false,
+                        error: Some(e.clone()),
+                        duration_ms: 0,
+                        decision_id: Some(validation_id.clone()),
+                        trust_score: Some(pending.trust_score),
+                        decision_outcome: Some("approved_but_failed".to_string()),
+                        blocked_reasons: None,
+                    };
+
+                    let record = crate::automations::ExecutionRecord {
+                        automation_id: pending.automation_id.clone(),
+                        automation_name: pending.automation_name.clone(),
+                        executed_at: time::OffsetDateTime::now_utc(),
+                        trigger_event: "validation_approved".to_string(),
+                        conditions_met: true,
+                        actions_executed: vec![action_result],
+                        success: false,
+                        error: Some(e.clone()),
+                        trust_score: Some(pending.trust_score),
+                        decision_outcome: Some("approved_but_failed".to_string()),
+                    };
+
+                    if let Err(e) = app.automations.add_history(record) {
+                        eprintln!("[http] Failed to add failure record to history: {}", e);
+                    }
+                }
+            }
+        } else {
+            eprintln!(
+                "[http] No pending action found for validation {} (may have expired)",
+                validation_id
+            );
+        }
+    } else {
+        // Validation denied - create rejection record in history
+        if let Some(pending) = app.pending_action_registry.take(&validation_id) {
+            eprintln!(
+                "[http] ❌ Validation {} rejected for automation '{}'",
+                validation_id, pending.automation_name
+            );
+
+            let action_result = crate::automations::ActionResult {
+                action_type: format!("{:?}", pending.action).split('{').next().unwrap_or("unknown").trim().to_string(),
+                success: false,
+                error: Some("Rejected by user".to_string()),
+                duration_ms: 0,
+                decision_id: Some(validation_id.clone()),
+                trust_score: Some(pending.trust_score),
+                decision_outcome: Some("rejected".to_string()),
+                blocked_reasons: None,
+            };
+
+            let record = crate::automations::ExecutionRecord {
+                automation_id: pending.automation_id.clone(),
+                automation_name: pending.automation_name.clone(),
+                executed_at: time::OffsetDateTime::now_utc(),
+                trigger_event: "validation_rejected".to_string(),
+                conditions_met: true,
+                actions_executed: vec![action_result],
+                success: false,
+                error: Some("Rejected by user".to_string()),
+                trust_score: Some(pending.trust_score),
+                decision_outcome: Some("rejected".to_string()),
+            };
+
+            if let Err(e) = app.automations.add_history(record) {
+                eprintln!("[http] Failed to add rejection record to history: {}", e);
+            }
+        }
+    }
+
+    Ok(result)
+}
+
+/// Execute a pending action after validation approval
+async fn execute_pending_action(
+    action: &crate::automations::ActionDefinition,
+    agents: &crate::agents::SharedAgentRegistry,
+    context_engine: &std::sync::Arc<crate::context::ContextEngine>,
+    notification_client: &crate::notification_client::NotificationClient,
+) -> Result<(), String> {
+    use crate::automations::ActionDefinition;
+    use crate::context::Mode;
+
+    match action {
+        ActionDefinition::SendNotification { priority, title, body, .. } => {
+            notification_client
+                .send_notification(priority, title, body)
+                .await
+                .map_err(|e| format!("Notification failed: {}", e))?;
+            eprintln!("[pending_action] ✉️ Notification sent: {}", title);
+            Ok(())
+        }
+
+        ActionDefinition::ForceMode { mode, duration_minutes, reason, .. } => {
+            let target_mode = match mode.to_lowercase().as_str() {
+                "cravate" | "work" | "professional" => Mode::Cravate,
+                "intime" | "home" | "domestic" => Mode::Intime,
+                "neutre" | "neutral" | "eco" => Mode::Neutre,
+                _ => return Err(format!("Unknown mode: {}", mode)),
+            };
+
+            let duration = duration_minutes.unwrap_or(60);
+            context_engine
+                .set_override(target_mode, duration, reason.clone())
+                .ok_or_else(|| "Failed to set mode override".to_string())?;
+            eprintln!(
+                "[pending_action] 🎯 Forced mode '{}' for {} minutes",
+                mode, duration
+            );
+            Ok(())
+        }
+
+        ActionDefinition::AgentCommand { agent_id, command_type, parameters, .. } => {
+            // Special handling for "wake" command - use WoL magic packet
+            if command_type == "wake" {
+                // Convert agent_id to MAC address format
+                if agent_id.len() == 12 {
+                    let mac_str = format!("{}:{}:{}:{}:{}:{}",
+                        &agent_id[0..2], &agent_id[2..4], &agent_id[4..6],
+                        &agent_id[6..8], &agent_id[8..10], &agent_id[10..12]
+                    );
+                    let (status, _) = send_magic_packet(&mac_str).await;
+                    if status == hyper::StatusCode::OK {
+                        eprintln!("[pending_action] 📤 WoL magic packet sent to agent '{}' (MAC: {})", agent_id, mac_str);
+                        return Ok(());
+                    } else {
+                        return Err(format!("Failed to send WoL magic packet to {}", agent_id));
+                    }
+                } else {
+                    return Err(format!("Invalid agent_id for WoL: {} (expected 12 hex chars)", agent_id));
+                }
+            }
+
+            // For other commands, send via MQTT
+            agents
+                .send_command(agent_id, command_type, parameters.clone())
+                .await
+                .map_err(|e| format!("Agent command failed: {}", e))?;
+            eprintln!(
+                "[pending_action] 📤 Command '{}' sent to agent '{}'",
+                command_type, agent_id
+            );
+            Ok(())
+        }
+
+        ActionDefinition::Delay { seconds } => {
+            eprintln!("[pending_action] ⏳ Waiting {} seconds", seconds);
+            tokio::time::sleep(tokio::time::Duration::from_secs(*seconds as u64)).await;
+            Ok(())
+        }
+
+        ActionDefinition::Custom { plugin_name, action_type, .. } => {
+            Err(format!(
+                "Custom action {}/{} not implemented",
+                plugin_name, action_type
+            ))
+        }
+    }
 }
 
 async fn decision_create_override(

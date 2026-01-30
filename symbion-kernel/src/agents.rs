@@ -260,6 +260,8 @@ pub struct AgentRegistry {
     mqtt_client: Option<AsyncClient>,
     pending_commands: Arc<RwLock<HashMap<String, PendingCommand>>>,
     dirty: Arc<std::sync::atomic::AtomicBool>,
+    /// Dispatcher pour événements automations
+    automation_dispatcher: Arc<tokio::sync::RwLock<Option<crate::automations::EventDispatcher>>>,
 }
 
 impl AgentRegistry {
@@ -270,12 +272,20 @@ impl AgentRegistry {
             mqtt_client: None,
             pending_commands: Arc::new(RwLock::new(HashMap::new())),
             dirty: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            automation_dispatcher: Arc::new(tokio::sync::RwLock::new(None)),
         }
     }
 
     pub fn with_mqtt_client(mut self, client: AsyncClient) -> Self {
         self.mqtt_client = Some(client);
         self
+    }
+
+    /// Set automation dispatcher for event dispatching
+    pub async fn set_automation_dispatcher(&self, dispatcher: crate::automations::EventDispatcher) {
+        let mut d = self.automation_dispatcher.write().await;
+        *d = Some(dispatcher);
+        eprintln!("[agents] automation dispatcher attached");
     }
 
     /// Charge les agents depuis le fichier JSON de persistance
@@ -351,12 +361,23 @@ impl AgentRegistry {
     /// Traite un message de heartbeat d'agent
     pub async fn handle_agent_heartbeat(&self, msg: AgentHeartbeatMessage) -> Result<()> {
         let now = OffsetDateTime::now_utc();
+        let mut status_changed_to_online = false;
+        let mut previous_status: Option<String> = None;
 
         {
             let mut agents_map = self.agents.write().await;
             if let Some(agent) = agents_map.get_mut(&msg.agent_id) {
                 println!("[agents] updating heartbeat for agent {} - status: {}", msg.agent_id, msg.status);
-                agent.status.status = msg.status;
+
+                // Détecter si l'agent passe de offline à online
+                if agent.status.status != msg.status {
+                    previous_status = Some(agent.status.status.clone());
+                    if agent.status.status == "offline" && msg.status == "online" {
+                        status_changed_to_online = true;
+                    }
+                }
+
+                agent.status.status = msg.status.clone();
                 agent.status.last_heartbeat = Some(now);
                 agent.status.system = Some(msg.system);
                 agent.status.processes = msg.processes;
@@ -371,6 +392,15 @@ impl AgentRegistry {
 
         // Marquer comme dirty pour sauvegarde périodique
         self.dirty.store(true, std::sync::atomic::Ordering::Relaxed);
+
+        // Dispatcher événement pour automations si status a changé vers online
+        if status_changed_to_online {
+            let dispatcher = self.automation_dispatcher.read().await;
+            if let Some(ref d) = *dispatcher {
+                d.dispatch_agent_status(&msg.agent_id, "online", previous_status.as_deref());
+            }
+        }
+
         Ok(())
     }
 
@@ -393,6 +423,18 @@ impl AgentRegistry {
     /// Récupère un agent spécifique (même si soft-deleted pour afficher info)
     pub async fn get_agent(&self, agent_id: &str) -> Option<Agent> {
         self.agents.read().await.get(agent_id).cloned()
+    }
+
+    /// Vérifie si un agent est online (sync, pour automations)
+    pub fn is_agent_online(&self, agent_id: &str) -> bool {
+        // Use try_read to avoid blocking - if lock unavailable, assume offline
+        match self.agents.try_read() {
+            Ok(agents) => agents
+                .get(agent_id)
+                .map(|a| a.status.status == "online" && a.deleted_at.is_none())
+                .unwrap_or(false),
+            Err(_) => false,
+        }
     }
 
     /// Soft-delete un agent (sera purgé après 7 jours)
@@ -608,13 +650,25 @@ impl AgentRegistry {
 
     /// Marque un agent comme offline après timeout
     pub async fn mark_agent_offline(&self, agent_id: &str) {
-        {
+        let was_online = {
             let mut agents_map = self.agents.write().await;
             if let Some(agent) = agents_map.get_mut(agent_id) {
+                let previous_status = agent.status.status.clone();
                 agent.status.status = "offline".to_string();
                 println!("[agents] marked agent {} as offline", agent_id);
+                previous_status == "online"
+            } else {
+                false
             }
-        } // Libère le write lock AVANT toute opération I/O
+        }; // Libère le write lock AVANT toute opération I/O
+
+        // Dispatcher événement pour automations si status a changé
+        if was_online {
+            let dispatcher = self.automation_dispatcher.read().await;
+            if let Some(ref d) = *dispatcher {
+                d.dispatch_agent_status(agent_id, "offline", Some("online"));
+            }
+        }
     }
 
     /// Supprime les agents qui n'ont pas donné signe de vie depuis trop longtemps

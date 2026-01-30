@@ -380,6 +380,8 @@ mod tests {
         let metrics = DecisionMetrics::new();
 
         let outcome = DecisionOutcome::RequireValidation {
+            trust_score: 0.5,
+            threshold: 0.7,
             reasons: vec!["test".into()],
             explanation_codes: vec!["TEST".into()],
             human_reasons: vec!["Human reason".into()],

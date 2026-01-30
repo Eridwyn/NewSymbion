@@ -26,19 +26,26 @@ pub struct EnvironmentAlertMonitor {
     /// Track le timestamp de la dernière notification par room (anti-spam)
     last_notification_time: Arc<RwLock<HashMap<String, i64>>>,
     calculator: DewPointCalculator,
+    /// Dispatcher pour événements automations
+    automation_dispatcher: Option<crate::automations::EventDispatcher>,
 }
 
 /// Délai minimum entre deux notifications pour la même room (5 minutes)
 const MIN_NOTIFICATION_INTERVAL_SECS: i64 = 300;
 
 impl EnvironmentAlertMonitor {
-    pub fn new(sensors: SharedSensorRegistry, notification_client: NotificationClient) -> Self {
+    pub fn new(
+        sensors: SharedSensorRegistry,
+        notification_client: NotificationClient,
+        automation_dispatcher: Option<crate::automations::EventDispatcher>,
+    ) -> Self {
         Self {
             sensors,
             notification_client,
             last_alert_levels: Arc::new(RwLock::new(HashMap::new())),
             last_notification_time: Arc::new(RwLock::new(HashMap::new())),
             calculator: DewPointCalculator::default(),
+            automation_dispatcher,
         }
     }
 
@@ -87,6 +94,21 @@ impl EnvironmentAlertMonitor {
                 {
                     let mut levels = self.last_alert_levels.write().await;
                     levels.insert(room_id.clone(), current_level);
+                }
+
+                // Dispatcher événement pour automations (toujours, pas de délai)
+                if let Some(ref dispatcher) = self.automation_dispatcher {
+                    let alert_level_str = format!("{:?}", current_level).to_lowercase();
+                    let previous_level_str = format!("{:?}", last_level).to_lowercase();
+                    // room_id est le sensor_id dans ce contexte
+                    dispatcher.dispatch_sensor_alert(
+                        &env_state.room_id,
+                        &room_id,
+                        &alert_level_str,
+                        Some(&previous_level_str),
+                        env_state.current.temperature_c,
+                        env_state.current.humidity_pct,
+                    );
                 }
 
                 // Ne notifier que si délai respecté

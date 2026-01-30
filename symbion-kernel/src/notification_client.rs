@@ -158,6 +158,16 @@ impl NotificationClient {
     pub async fn send_info(&self, title: impl Into<String>, body: impl Into<String>, source: impl Into<String>) -> Result<bool, String> {
         self.send(NotificationPayload::new(NotificationPriority::P2, title, body, source)).await
     }
+
+    /// Envoie une notification avec priorité en string (pour automations)
+    pub async fn send_notification(&self, priority: &str, title: &str, body: &str) -> Result<bool, String> {
+        let prio = match priority.to_uppercase().as_str() {
+            "P0" | "CRITICAL" => NotificationPriority::P0,
+            "P1" | "IMPORTANT" => NotificationPriority::P1,
+            _ => NotificationPriority::P2, // P2, P3, INFO, LOW all map to P2
+        };
+        self.send(NotificationPayload::new(prio, title, body, "automation")).await
+    }
 }
 
 /// Helper pour créer des notifications depuis n'importe quel module

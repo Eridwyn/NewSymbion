@@ -37,6 +37,8 @@ mod plugin_proxy;  // Dynamic plugin routing via Unix sockets
 mod plugin_health;  // Plugin health monitoring and auto-recovery
 mod notification_client;  // Safe notification client (checks plugin availability)
 mod environment_alerts;  // Environment alert monitor with notifications
+mod automations;  // Automation rules engine
+mod automations_http;  // Automation API endpoints
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -55,9 +57,14 @@ use crate::webauthn::WebAuthnManager;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::io::Write;
 
 #[tokio::main]
 async fn main() {
+    // Force line-buffered stdout for systemd journal capture
+    // Sans ça, certains println! sont perdus dans le buffering
+    let _ = std::io::stdout().flush();
+
     // Charger les variables d'environnement depuis .env (si présent)
     dotenvy::dotenv().ok(); // Ok si .env n'existe pas
 
@@ -196,6 +203,21 @@ async fn main() {
     let sensor_registry = Arc::new(sensor_registry_instance);
     println!("[kernel] initialized Sensor Registry (F1 Environment)");
 
+    // Automations Store
+    let automations_store = Arc::new(
+        crate::automations::AutomationStore::new(std::path::PathBuf::from("./data"))
+            .expect("Failed to initialize automations store")
+    );
+    eprintln!("[kernel] initialized Automations Store");
+
+    // Automations Event Dispatcher (broadcast channel for triggers)
+    // Note: Le listener sera spawné après la création du notification_client
+    let (automation_dispatcher, automation_receiver) = crate::automations::EventDispatcher::new();
+    eprintln!("[kernel] initialized Automations Event Dispatcher");
+
+    // Connecter le dispatcher aux agents pour événements status
+    agents.set_automation_dispatcher(automation_dispatcher.clone()).await;
+
     // MQTT remplit les states + agents + sensors (F1)
     mqtt::spawn_mqtt_listener(states.clone(), cfg.clone(), notes_bridge.clone(), Some(agents.clone()), Some(sensor_registry.clone()), Some(health_tracker.clone()), Some(dashboard_events.clone()));
 
@@ -218,7 +240,7 @@ async fn main() {
     health_tracker.spawn_health_publisher(cfg.clone(), contracts.clone(), agents.clone(), plugin_registry.clone(), dashboard_events.clone());
 
     // démarre le monitoring contextuel (détection mode toutes les 30s)
-    context::ContextEngine::spawn_context_monitor(context_engine.clone(), agents.clone(), mqtt_client.clone(), dashboard_events.clone());
+    context::ContextEngine::spawn_context_monitor(context_engine.clone(), agents.clone(), mqtt_client.clone(), dashboard_events.clone(), Some(automation_dispatcher.clone()));
 
     // Decision Engine PR3 - Initialisation
     let decision_clock = Arc::new(crate::decision::SystemClock);
@@ -275,6 +297,14 @@ async fn main() {
 
     println!("[kernel] initialized Decision Engine PR3");
 
+    // Trust Tracker for evolving trust statistics (Phase 7)
+    let trust_tracker = Arc::new(crate::decision::TrustTracker::new("./data"));
+    println!("[kernel] initialized Trust Tracker (evolving statistics)");
+
+    // Pending Action Registry for post-approval execution
+    let pending_action_registry = Arc::new(crate::automations::PendingActionRegistry::new());
+    println!("[kernel] initialized Pending Action Registry");
+
     // Dynamic Plugin Registry - découverte automatique des plugins Unix sockets
     if let Err(e) = plugin_registry.discover_plugins().await {
         eprintln!("[kernel] failed to discover plugins: {}", e);
@@ -285,7 +315,22 @@ async fn main() {
         mqtt_client.clone(),
         plugin_registry.clone(),
     );
-    println!("[kernel] notification client initialized (plugin-aware)");
+    eprintln!("[kernel] notification client initialized (plugin-aware)");
+
+    // Spawn automation listener with Decision Engine + Trust Tracker (Phase 7)
+    crate::automations::spawn_automation_listener(
+        automations_store.clone(),
+        context_engine.clone(),
+        agents.clone(),
+        sensor_registry.clone(),
+        notification_client.clone(),
+        automation_receiver,
+        Some(decision_engine.clone()), // Decision Engine for trust evaluation
+        Some(trust_tracker.clone()),   // Trust Tracker for evolving statistics
+        Some(decision_validation_manager.clone()), // Validation Manager for pending approvals
+        Some(pending_action_registry.clone()), // Pending Action Registry for post-approval execution
+    );
+    eprintln!("[kernel] started Automations Event Listener (with DecisionEngine + TrustTracker + ValidationManager + PendingActionRegistry)");
 
     // Plugin Health Monitor - surveillance automatique et auto-recovery
     let plugin_health_monitor = crate::plugin_health::PluginHealthMonitor::new();
@@ -295,6 +340,7 @@ async fn main() {
     let env_alert_monitor = environment_alerts::EnvironmentAlertMonitor::new(
         sensor_registry.clone(),
         notification_client.clone(),
+        Some(automation_dispatcher.clone()),
     );
     env_alert_monitor.spawn_monitor();
     println!("[kernel] environment alert monitor started");
@@ -323,6 +369,9 @@ async fn main() {
         sensors: sensor_registry,
         plugin_registry,
         notification_client,
+        automations: automations_store,
+        automation_dispatcher: automation_dispatcher.clone(),
+        pending_action_registry,
     };
 
     // HTTPS avec TLS (PWA + mTLS)

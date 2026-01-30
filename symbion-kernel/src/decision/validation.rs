@@ -324,6 +324,8 @@ mod tests {
         DecisionResult {
             decision_id: Uuid::new_v4().to_string(),
             outcome: DecisionOutcome::RequireValidation {
+                trust_score: 0.5,
+                threshold: 0.7,
                 reasons: vec!["Test reason".into()],
                 explanation_codes: vec!["TEST.CODE".into()],
                 human_reasons: vec!["Human reason".into()],

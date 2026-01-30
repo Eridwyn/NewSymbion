@@ -45,6 +45,7 @@ reqwest = { version = "0.12", features = ["json"] }  # HTTP client for FCM API
 
 # Dynamic Plugin Routing (Unix Socket Reverse Proxy)
 hyper = "1.0"
+async-trait = "0.1"  # Async trait support for automations executors
 hyper-util = { version = "0.1", features = ["tokio", "client", "client-legacy", "http1"] }
 http-body-util = "0.1"
 
