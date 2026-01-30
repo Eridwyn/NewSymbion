@@ -41,6 +41,20 @@ class ContextService extends LitElement {
       }
     })
 
+    // Listen for external context-change events (from context-engine-page)
+    this._externalContextHandler = (event) => {
+      if (event.detail?.context) {
+        console.log('[context-service] External context change received:', event.detail.context.mode)
+        this.currentMode = event.detail.context.mode
+        this.contextState = event.detail.context
+        // Apply theme immediately
+        if (event.detail.context.theme) {
+          this.applyTheme(event.detail.context.theme)
+        }
+      }
+    }
+    document.body.addEventListener('context-change', this._externalContextHandler)
+
     // Check if already logged in (use authService to verify)
     if (authService.isAuthenticated()) {
       console.log('[context-service] User already authenticated, fetching context...')
@@ -60,6 +74,9 @@ class ContextService extends LitElement {
     if (this.pollInterval) {
       clearInterval(this.pollInterval)
       this.pollInterval = null
+    }
+    if (this._externalContextHandler) {
+      document.body.removeEventListener('context-change', this._externalContextHandler)
     }
   }
 

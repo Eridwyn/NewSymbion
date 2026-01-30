@@ -176,9 +176,17 @@ class CsrfService extends EventTarget {
       headers['Authorization'] = `Bearer ${this.authService.getToken()}`
     }
 
+    // Construire URL complète si relative
+    const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`
+
+    // Ajouter Content-Type si body JSON
+    if (options.body && typeof options.body === 'string') {
+      headers['Content-Type'] = 'application/json'
+    }
+
     // Effectuer la requête
     try {
-      const response = await fetch(url, {
+      const response = await fetch(fullUrl, {
         ...options,
         headers
       })

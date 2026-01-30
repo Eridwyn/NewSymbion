@@ -152,7 +152,7 @@ pub async fn delete_all_expired_validations(
 }
 
 /// POST /v1/decision/validation/:id/resolve - Résoudre validation
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ResolveValidationRequest {
     pub approved: bool,
     pub username: String,

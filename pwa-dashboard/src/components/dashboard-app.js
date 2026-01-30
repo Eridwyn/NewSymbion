@@ -18,14 +18,14 @@ import '../widgets/plugins-widget.js'
 import '../widgets/notes-widget.js'
 import '../widgets/agents-network-widget.js'
 import '../widgets/agent-control-widget.js'
-import '../widgets/context-widget.js'
-import '../widgets/context-stats-widget.js'
-import '../widgets/context-settings-widget.js'
 import '../widgets/environment-widget.js'
+import '../widgets/context-engine-widget.js'
 import './user-settings-page.js'
 import './notes-page.js'
+import './context-engine-page.js'
 import './toast-notifications.js'
 import './notification-center.js'
+import automationsService from '../services/automations-service.js'
 
 class DashboardApp extends LitElement {
   static styles = css`
@@ -421,6 +421,37 @@ class DashboardApp extends LitElement {
                   0 0 24px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
     }
 
+    /* Bouton Context Engine - Style distinctif */
+    .context-engine-button {
+      width: 100%;
+      background: linear-gradient(135deg,
+        rgba(147, 51, 234, 0.15) 0%,
+        rgba(147, 51, 234, 0.08) 100%);
+      border: 1px solid rgba(147, 51, 234, 0.35);
+      color: #a855f7;
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-md);
+      font-size: var(--text-sm);
+      font-weight: var(--font-semibold);
+      cursor: pointer;
+      transition: all var(--duration-base) var(--ease-out);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      margin-bottom: var(--space-3);
+    }
+
+    .context-engine-button:hover {
+      background: linear-gradient(135deg,
+        rgba(147, 51, 234, 0.25) 0%,
+        rgba(147, 51, 234, 0.15) 100%);
+      border-color: rgba(147, 51, 234, 0.5);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(147, 51, 234, 0.2),
+                  0 0 24px rgba(147, 51, 234, 0.15);
+    }
+
     /* Bouton Déconnexion - Style danger mais élégant */
     .logout-button {
       width: 100%;
@@ -722,6 +753,7 @@ class DashboardApp extends LitElement {
     showUserMenu: { type: Boolean },
     showSettingsPage: { type: Boolean },
     showNotesPage: { type: Boolean },
+    showContextEnginePage: { type: Boolean },
     currentUser: { type: Object },
     activeTab: { type: String },
     currentTime: { type: String },
@@ -740,6 +772,7 @@ class DashboardApp extends LitElement {
     this.showUserMenu = false
     this.showSettingsPage = false
     this.showNotesPage = false
+    this.showContextEnginePage = false
     this.currentUser = authService.getCurrentUser()
     // Restaurer le dernier onglet actif depuis sessionStorage (persiste aux reloads, reset à la fermeture du navigateur)
     this.activeTab = sessionStorage.getItem('dashboardTab') || 'controle'
@@ -776,6 +809,9 @@ class DashboardApp extends LitElement {
     // Écouter les événements du notes-widget
     this.addEventListener('open-notes-page', this.handleOpenNotesPage.bind(this))
     this.addEventListener('create-note', this.handleCreateNote.bind(this))
+
+    // Écouter les événements du context-engine-widget
+    this.addEventListener('open-context-engine', this.handleOpenContextEngine.bind(this))
 
     // Écouter les changements de contexte pour adapter le logo
     window.addEventListener('context-change', (e) => {
@@ -821,29 +857,47 @@ class DashboardApp extends LitElement {
   async initializeServices() {
     console.log('🔧 Initializing services...')
 
-    // Service API
-    this.apiService = document.createElement('api-service')
+    // Service API - réutiliser si existant (créé par main.js)
+    this.apiService = document.querySelector('api-service')
+    if (!this.apiService) {
+      this.apiService = document.createElement('api-service')
+      document.body.appendChild(this.apiService)
+    }
     this.apiService.addEventListener('status-change', this.handleApiStatus.bind(this))
 
-    // Service MQTT
-    this.mqttService = document.createElement('mqtt-service')
+    // Service MQTT - réutiliser si existant (créé par main.js)
+    this.mqttService = document.querySelector('mqtt-service')
+    if (!this.mqttService) {
+      this.mqttService = document.createElement('mqtt-service')
+      document.body.appendChild(this.mqttService)
+    }
     this.mqttService.addEventListener('status-change', this.handleMqttStatus.bind(this))
     this.mqttService.addEventListener('system-health', this.handleSystemHealth.bind(this))
 
-    // Service Agents
-    this.agentsService = document.createElement('agents-service')
+    // Service Agents - réutiliser si existant
+    this.agentsService = document.querySelector('agents-service')
+    if (!this.agentsService) {
+      this.agentsService = document.createElement('agents-service')
+      document.body.appendChild(this.agentsService)
+    }
 
-    // Service Context
-    this.contextService = document.createElement('context-service')
+    // Service Context - réutiliser si existant
+    this.contextService = document.querySelector('context-service')
+    if (!this.contextService) {
+      this.contextService = document.createElement('context-service')
+      document.body.appendChild(this.contextService)
+    }
 
     // Initialiser CSRF service avec authService
     csrfService.setAuthService(authService)
     console.log('🔐 CSRF service initialized with authService')
 
-    document.body.appendChild(this.apiService)
-    document.body.appendChild(this.mqttService)
-    document.body.appendChild(this.agentsService)
-    document.body.appendChild(this.contextService)
+    // Attendre que apiService soit prêt (connectedCallback exécuté)
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    // Initialiser Automations service APRÈS que apiService soit dans le DOM
+    automationsService.init(this.apiService, csrfService)
+    console.log('🤖 Automations service initialized')
   }
   
   async loadInitialData() {
@@ -973,6 +1027,10 @@ class DashboardApp extends LitElement {
                   <div class="user-role">${this.currentUser.role}</div>
                   <div class="user-session">${this.getSessionDuration()}</div>
                 </div>
+                <button class="context-engine-button" @click="${this.handleOpenContextEngine}">
+                  <span>🧠</span>
+                  <span>Context Engine</span>
+                </button>
                 <button class="settings-button" @click="${this.handleOpenSettings}">
                   <span>⚙️</span>
                   <span>Paramètres</span>
@@ -1014,7 +1072,7 @@ class DashboardApp extends LitElement {
           <!-- Contenu tab Contrôle -->
           <div class="tab-content ${this.activeTab === 'controle' ? 'active' : ''}">
             <div class="widget-container">
-              <context-widget></context-widget>
+              <context-engine-widget></context-engine-widget>
             </div>
             <div class="widget-container">
               <agents-network-widget
@@ -1031,9 +1089,6 @@ class DashboardApp extends LitElement {
                 .health="${this.systemHealth}"
                 .connected="${this.connected}">
               </system-health-widget>
-            </div>
-            <div class="widget-container">
-              <context-settings-widget></context-settings-widget>
             </div>
             <div class="widget-container">
               <plugins-widget
@@ -1054,17 +1109,14 @@ class DashboardApp extends LitElement {
                 .connected="${this.connected}">
               </notes-widget>
             </div>
-            <div class="widget-container">
-              <context-stats-widget></context-stats-widget>
-            </div>
           </div>
         </div>
 
         <!-- Grille desktop complète -->
         <div class="widgets-grid">
-          <!-- Widget contexte -->
+          <!-- Widget Context Engine (Mode + Automations résumé) -->
           <div class="widget-container">
-            <context-widget></context-widget>
+            <context-engine-widget></context-engine-widget>
           </div>
 
           <!-- Widget environnement (F1) -->
@@ -1087,39 +1139,21 @@ class DashboardApp extends LitElement {
               .apiService="${this.apiService}">
             </plugins-widget>
           </div>
-          
-          <!-- Widget hosts DEPRECATED: remplacé par agents-network-widget -->
-          <!-- <div class="widget-container">
-            <hosts-widget 
-              .connected="${this.connected}"
-              .apiService="${this.apiService}">
-            </hosts-widget>
-          </div> -->
-          
+
           <!-- Widget notes -->
           <div class="widget-container">
-            <notes-widget 
+            <notes-widget
               .apiService="${this.apiService}"
               .connected="${this.connected}">
             </notes-widget>
           </div>
-          
+
           <!-- Widget agents network -->
           <div class="widget-container">
             <agents-network-widget
               .connected="${this.connected}"
               .agents="${this.agents}">
             </agents-network-widget>
-          </div>
-
-          <!-- Widget statistiques contextuelles -->
-          <div class="widget-container">
-            <context-stats-widget></context-stats-widget>
-          </div>
-
-          <!-- Widget paramètres contexte -->
-          <div class="widget-container">
-            <context-settings-widget></context-settings-widget>
           </div>
         </div>
         
@@ -1134,6 +1168,11 @@ class DashboardApp extends LitElement {
         <!-- Page Gestion Notes -->
         ${this.showNotesPage ? html`
           <notes-page @close="${this.handleCloseNotesPage}"></notes-page>
+        ` : ''}
+
+        <!-- Page Context Engine (Mode + Automations + Validations + Stats + Config) -->
+        ${this.showContextEnginePage ? html`
+          <context-engine-page @close="${this.handleCloseContextEngine}"></context-engine-page>
         ` : ''}
       </div>
 
@@ -1167,6 +1206,16 @@ class DashboardApp extends LitElement {
 
   handleCloseNotesPage() {
     this.showNotesPage = false
+  }
+
+  handleOpenContextEngine() {
+    console.log('[dashboard] Opening Context Engine page')
+    this.showContextEnginePage = true
+    this.showUserMenu = false // Fermer le menu dropdown
+  }
+
+  handleCloseContextEngine() {
+    this.showContextEnginePage = false
   }
 
   handleCreateNote(event) {
