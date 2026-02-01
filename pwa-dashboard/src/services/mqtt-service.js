@@ -117,7 +117,7 @@ class MqttService extends LitElement {
       'symbion/dashboard/notes@v1',
       'symbion/dashboard/stats@v1',
       'symbion/dashboard/pattern@v1',
-      'symbion/notifications/send@v1'  // Notifications push pour toasts PWA
+      'symbion/notifications/sent@v1'  // Notifications push pour toasts PWA (kernel publie ici)
     ]
 
     // Storage pour agréger les agents reçus individuellement
@@ -187,7 +187,7 @@ class MqttService extends LitElement {
         this.handleDashboardPattern(payload)
         break
 
-      case 'symbion/notifications/send@v1':
+      case 'symbion/notifications/sent@v1':
         this.handleNotificationReceived(payload)
         break
 
@@ -297,13 +297,17 @@ class MqttService extends LitElement {
     }))
   }
 
-  handleNotificationReceived(notification) {
-    console.log('🔔 Notification received:', notification)
-    this.dispatchEvent(new CustomEvent('notification-received', {
+  handleNotificationReceived(payload) {
+    // Le kernel envoie { notification: {...}, timestamp } - extraire la notification
+    const notification = payload.notification || payload
+    console.log('🔔 Notification received from MQTT:', notification)
+    const event = new CustomEvent('notification-received', {
       detail: { notification },
       bubbles: true,
       composed: true
-    }))
+    })
+    console.log('🔔 Dispatching notification-received event to document.body')
+    this.dispatchEvent(event)
   }
 
   updateStatus(status) {

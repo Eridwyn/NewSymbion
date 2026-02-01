@@ -20,6 +20,6 @@
 # cargo run -p symbion-kernel   # Lancer le kernel principal
 
 [workspace]
-members = ["symbion-kernel","symbion-plugin-notes","symbion-plugin-sensors","symbion-plugin-notifications","symbion-plugin-common","devkit","symbion-agent-host"]
+members = ["symbion-kernel","symbion-plugin-notes","symbion-plugin-sensors","symbion-plugin-common","devkit","symbion-agent-host"]
 exclude = ["test-*"]  # Exclure tests temporaires
 resolver = "2"        # Resolver moderne pour édition 2021

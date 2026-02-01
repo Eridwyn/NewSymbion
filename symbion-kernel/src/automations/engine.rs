@@ -13,7 +13,7 @@
 use crate::agents::SharedAgentRegistry;
 use crate::context::{ContextEngine, Mode};
 use crate::decision::{DecisionEngine, DecisionContext, DecisionOutcome, SharedTrustTracker, ValidationManager};
-use crate::notification_client::NotificationClient;
+use crate::notifications::SharedNotificationManager;
 use crate::sensors::SensorRegistry;
 
 use super::decision_bridge::{action_to_decision, action_description};
@@ -30,7 +30,7 @@ pub struct ExecutionContext {
     pub context_engine: Arc<ContextEngine>,
     pub agents: SharedAgentRegistry,
     pub sensors: Arc<SensorRegistry>,
-    pub notification_client: NotificationClient,
+    pub notifications_manager: SharedNotificationManager,
     pub event: AutomationEvent,
     /// Decision Engine for trust evaluation (Phase 7)
     pub decision_engine: Option<Arc<DecisionEngine>>,
@@ -149,6 +149,37 @@ impl AutomationEngine {
                 )
             }
 
+            Condition::DayOfMonth { days } => {
+                let now = OffsetDateTime::now_utc();
+                let current_day = now.day();
+                // Get last day of current month using Month::length
+                let last_day = now.month().length(now.year());
+                // Check if current day matches any in list
+                // Special case: 31 = last day of month (whatever that is)
+                let matches = days.iter().any(|&d| {
+                    if d == 31 {
+                        // 31 means "last day of month" regardless of actual day count
+                        current_day == last_day
+                    } else {
+                        current_day == d
+                    }
+                });
+                (
+                    matches,
+                    format!("day of month {} (last={}) in {:?}: {}", current_day, last_day, days, matches),
+                )
+            }
+
+            Condition::Month { months } => {
+                let now = OffsetDateTime::now_utc();
+                let current_month = now.month() as u8; // 1-12
+                let matches = months.contains(&current_month);
+                (
+                    matches,
+                    format!("month {} in {:?}: {}", current_month, months, matches),
+                )
+            }
+
             Condition::SensorValue { room_id, metric, operator, value } => {
                 // Get sensor data for room
                 if let Some(env) = ctx.sensors.get_environment_by_room(room_id) {
@@ -212,10 +243,44 @@ impl AutomationEngine {
     ) -> Vec<ActionResult> {
         let mut results = Vec::new();
 
-        // Build decision context if we have a decision engine
-        let decision_ctx = ctx.decision_engine.as_ref().map(|_| Self::build_decision_context(ctx));
+        // Check if automation is trusted (bypasses Decision Engine)
+        let is_trusted = automation.trusted.unwrap_or(false);
+
+        // Build decision context if we have a decision engine AND automation is not trusted
+        let decision_ctx = if is_trusted {
+            None // Bypass Decision Engine for trusted automations
+        } else {
+            ctx.decision_engine.as_ref().map(|_| Self::build_decision_context(ctx))
+        };
+
+        if is_trusted {
+            eprintln!("[automations] 🛡️  Automation '{}' is TRUSTED - bypassing Decision Engine", automation.name);
+        }
 
         for action in &automation.actions {
+            // Check skip_if_same_mode for ForceMode actions
+            if automation.skip_if_same_mode.unwrap_or(false) {
+                if let ActionDefinition::ForceMode { mode, .. } = action {
+                    let current_mode = ctx.context_engine.current_mode_str();
+                    if current_mode.eq_ignore_ascii_case(mode) {
+                        eprintln!(
+                            "[automations] ⏭️  Skipping ForceMode '{}' - already in mode '{}' (skip_if_same_mode=true)",
+                            automation.name, current_mode
+                        );
+                        results.push(ActionResult {
+                            action_type: Self::action_type_name(action),
+                            success: true,
+                            error: None,
+                            duration_ms: 0,
+                            decision_id: None,
+                            trust_score: Some(1.0),
+                            decision_outcome: Some("skipped".to_string()),
+                            blocked_reasons: None,
+                        });
+                        continue;
+                    }
+                }
+            }
             let start = Instant::now();
 
             // If we have a DecisionEngine, evaluate trust before executing
@@ -321,11 +386,21 @@ impl AutomationEngine {
                         validation_id.as_ref().unwrap_or(&"N/A".to_string())
                     );
 
-                    if let Err(e) = ctx.notification_client.send_notification(
-                        "P1",
-                        &notif_title,
-                        &notif_body,
-                    ).await {
+                    // Send validation request notification via notifications manager
+                    let validation_notif = crate::notifications::Notification {
+                        id: String::new(),
+                        priority: crate::notifications::NotificationPriority::P1,
+                        title: notif_title.clone(),
+                        body: notif_body,
+                        source: "automation-validation".to_string(),
+                        timestamp: time::OffsetDateTime::now_utc(),
+                        acknowledged: false,
+                        acknowledged_at: None,
+                        actions: vec![],
+                        data: validation_id.as_ref().map(|id| serde_json::json!({"validation_id": id})),
+                    };
+
+                    if let Err(e) = ctx.notifications_manager.send(validation_notif).await {
                         eprintln!("[automations] Failed to send validation notification: {}", e);
                     }
 
@@ -466,8 +541,28 @@ impl AutomationEngine {
     async fn execute_action(action: &ActionDefinition, ctx: &ExecutionContext) -> (bool, Option<String>) {
         match action {
             ActionDefinition::SendNotification { priority, title, body, .. } => {
-                match ctx.notification_client.send_notification(priority, title, body).await {
-                    Ok(_) => {
+                // Parse priority string to enum
+                let prio = match priority.to_uppercase().as_str() {
+                    "P0" | "CRITICAL" => crate::notifications::NotificationPriority::P0,
+                    "P1" | "IMPORTANT" => crate::notifications::NotificationPriority::P1,
+                    _ => crate::notifications::NotificationPriority::P2,
+                };
+
+                let notification = crate::notifications::Notification {
+                    id: String::new(), // Will be assigned by manager
+                    priority: prio,
+                    title: title.clone(),
+                    body: body.clone(),
+                    source: "automation".to_string(),
+                    timestamp: time::OffsetDateTime::now_utc(),
+                    acknowledged: false,
+                    acknowledged_at: None,
+                    actions: vec![],
+                    data: None,
+                };
+
+                match ctx.notifications_manager.send(notification).await {
+                    Ok(()) => {
                         eprintln!("[automations] ✉️  notification sent: {}", title);
                         (true, None)
                     }
@@ -475,29 +570,46 @@ impl AutomationEngine {
                 }
             }
 
-            ActionDefinition::ForceMode { mode, duration_minutes, reason, .. } => {
-                // Parse mode string to Mode enum
-                let target_mode = match mode.to_lowercase().as_str() {
-                    "cravate" | "work" | "professional" => Mode::Cravate,
-                    "intime" | "home" | "domestic" => Mode::Intime,
-                    "neutre" | "neutral" | "eco" => Mode::Neutre,
+            ActionDefinition::ForceMode { mode, duration_minutes, reason, use_override, .. } => {
+                // Parse mode string to Mode enum and get slug
+                let (target_mode, mode_slug) = match mode.to_lowercase().as_str() {
+                    "cravate" | "work" | "professional" | "pro" => (Mode::Cravate, "pro".to_string()),
+                    "intime" | "home" | "domestic" | "maison" => (Mode::Intime, "maison".to_string()),
+                    "neutre" | "neutral" | "eco" | "veille" => (Mode::Neutre, "veille".to_string()),
                     _ => {
                         return (false, Some(format!("unknown mode: {}", mode)));
                     }
                 };
 
-                // Default to 60 minutes if not specified
-                let duration = duration_minutes.unwrap_or(60);
+                // Determine if we should use override (temporary) or natural (permanent until next change)
+                let should_use_override = use_override.unwrap_or(false);
 
-                match ctx.context_engine.set_override(target_mode, duration, reason.clone()) {
-                    Some(_state) => {
-                        eprintln!(
-                            "[automations] 🎯 forced mode '{}' for {} minutes (reason: {})",
-                            mode, duration, reason
-                        );
-                        (true, None)
+                if should_use_override {
+                    // Use override (temporary, with expiration)
+                    let duration = duration_minutes.unwrap_or(60);
+                    match ctx.context_engine.set_override(target_mode, duration, reason.clone()) {
+                        Some(_state) => {
+                            eprintln!(
+                                "[automations] 🎯 forced mode '{}' for {} minutes (override - reason: {})",
+                                mode_slug, duration, reason
+                            );
+                            (true, None)
+                        }
+                        None => (false, Some("failed to set mode override".to_string())),
                     }
-                    None => (false, Some("failed to set mode override".to_string())),
+                } else {
+                    // Use natural mode change (no expiration, system can continue to evolve)
+                    let theme = target_mode.theme();
+                    match ctx.context_engine.set_mode_natural(mode_slug.clone(), theme, reason.clone()) {
+                        Some(_state) => {
+                            eprintln!(
+                                "[automations] 🌿 set natural mode '{}' (reason: {})",
+                                mode_slug, reason
+                            );
+                            (true, None)
+                        }
+                        None => (false, Some("failed to set natural mode".to_string())),
+                    }
                 }
             }
 
@@ -534,6 +646,8 @@ impl AutomationEngine {
             Condition::CurrentMode { .. } => "current_mode".to_string(),
             Condition::TimeRange { .. } => "time_range".to_string(),
             Condition::DayOfWeek { .. } => "day_of_week".to_string(),
+            Condition::DayOfMonth { .. } => "day_of_month".to_string(),
+            Condition::Month { .. } => "month".to_string(),
             Condition::SensorValue { .. } => "sensor_value".to_string(),
             Condition::AgentOnline { .. } => "agent_online".to_string(),
             Condition::Group(_) => "group".to_string(),

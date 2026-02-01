@@ -11,6 +11,7 @@
  * - engine.rs         : Condition evaluation + action execution (Phase 3)
  * - registry.rs       : Schema for PWA + plugin registration (Phase 5)
  * - decision_bridge.rs: Bridge to DecisionEngine for trust evaluation (Phase 7)
+ * - scheduler.rs      : Periodic polling for scheduled triggers
  */
 
 mod types;
@@ -22,6 +23,7 @@ mod registry;
 mod executors;
 mod decision_bridge;
 mod pending_actions;
+mod scheduler;
 
 pub use types::*;
 pub use persistence::AutomationStore;
@@ -36,3 +38,4 @@ pub use executors::{
 };
 pub use decision_bridge::{action_to_decision, action_to_decision_dry_run, action_description};
 pub use pending_actions::{PendingAction, PendingActionRegistry, SharedPendingActionRegistry};
+pub use scheduler::AutomationScheduler;

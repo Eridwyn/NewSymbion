@@ -100,14 +100,15 @@ class ContextService extends LitElement {
 
       const context = await apiService.request('/context/current')
 
-      if (context && context.mode) {
+      if (context && (context.mode_slug || context.mode)) {
         const previousMode = this.currentMode
         const previousState = this.contextState
-        this.currentMode = context.mode
+        // Prefer mode_slug (dynamic) over mode (legacy enum)
+        this.currentMode = context.mode_slug || context.mode?.toLowerCase()
         this.contextState = context
         this.status = 'ready'
 
-        console.log(`[context-service] Mode: ${context.mode} (${context.reason})`)
+        console.log(`[context-service] Mode: ${this.currentMode} (${context.reason})`)
 
         // Apply theme (always, even on first load)
         this.applyTheme(context.theme)
@@ -160,18 +161,30 @@ class ContextService extends LitElement {
 
   getModeIcon() {
     const icons = {
+      // Legacy modes
       'cravate': '👔',
       'intime': '🏡',
-      'neutre': '🌱'
+      'neutre': '🌱',
+      // New dynamic modes
+      'pro': '👔',
+      'focus': '🎯',
+      'maison': '🏡',
+      'veille': '🌱'
     }
     return icons[this.currentMode] || '🤔'
   }
 
   getModeName() {
     const names = {
+      // Legacy modes
       'cravate': 'Focus Pro',
       'intime': 'Maison',
-      'neutre': 'Veille'
+      'neutre': 'Veille',
+      // New dynamic modes
+      'pro': 'Pro',
+      'focus': 'Focus',
+      'maison': 'Maison',
+      'veille': 'Veille'
     }
     return names[this.currentMode] || 'Inconnu'
   }

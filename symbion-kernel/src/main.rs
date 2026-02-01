@@ -32,13 +32,17 @@ mod environment;
 mod dew_point_alerts;  // F1: Physics-based humidity alerts (Magnus dew point formula)
 mod sensors;  // F1: Sensor registry for scalable IoT sensors
 mod environment_http;  // F1: API endpoints for environment monitoring
-// F4: Mobile API removed - now part of symbion-plugin-notifications
 mod plugin_proxy;  // Dynamic plugin routing via Unix sockets
 mod plugin_health;  // Plugin health monitoring and auto-recovery
-mod notification_client;  // Safe notification client (checks plugin availability)
 mod environment_alerts;  // Environment alert monitor with notifications
 mod automations;  // Automation rules engine
 mod automations_http;  // Automation API endpoints
+mod modes;  // Dynamic modes with custom themes
+mod schedule;  // Time-based scheduling for modes
+mod notifications;  // Notification manager with FCM, SMTP, ntfy.sh
+mod notification_config;  // Notification configuration (enable/disable, templates)
+mod context_intelligence;  // Intelligent context adaptation system
+mod intelligence_http;  // Intelligence API endpoints
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -203,15 +207,46 @@ async fn main() {
     let sensor_registry = Arc::new(sensor_registry_instance);
     println!("[kernel] initialized Sensor Registry (F1 Environment)");
 
+    // Mode Registry pour modes dynamiques
+    let mode_registry = crate::modes::create_shared_registry(std::path::PathBuf::from("./data"));
+    eprintln!("[kernel] initialized Mode Registry ({} modes)", mode_registry.count());
+
+    // Context Intelligence Engine - Intelligent autonomous context adaptation
+    let context_intelligence = Arc::new(crate::context_intelligence::ContextIntelligence::new(
+        context_engine.clone(),
+        agents.clone(),
+        sensor_registry.clone(),
+    ));
+    // Initialize patterns from historical data
+    context_intelligence.init_patterns_from_history();
+    eprintln!("[kernel] initialized Context Intelligence Engine");
+
+    // Schedule Registry pour planning horaire
+    let schedule_registry = crate::schedule::create_shared_registry(std::path::PathBuf::from("./data"));
+    eprintln!("[kernel] initialized Schedule Registry ({} rules)", schedule_registry.count_rules());
+
+    // Notifications Manager (FCM, SMTP, ntfy.sh, MQTT for PWA)
+    let notifications_manager = crate::notifications::create_shared_manager(Some(mqtt_client.clone()));
+    eprintln!("[kernel] initialized Notifications Manager");
+
+    // Notification Configuration Manager
+    let notification_config = crate::notification_config::create_shared_config_manager();
+    eprintln!("[kernel] initialized Notification Config Manager ({} types)", notification_config.list_all().len());
+
     // Automations Store
     let automations_store = Arc::new(
         crate::automations::AutomationStore::new(std::path::PathBuf::from("./data"))
             .expect("Failed to initialize automations store")
     );
+    // Create default system automations if needed (environment alerts, plugin health)
+    match automations_store.ensure_system_defaults() {
+        Ok(count) if count > 0 => eprintln!("[kernel] created {} default system automations", count),
+        Ok(_) => {}
+        Err(e) => eprintln!("[kernel] warning: failed to create system automations: {}", e),
+    }
     eprintln!("[kernel] initialized Automations Store");
 
     // Automations Event Dispatcher (broadcast channel for triggers)
-    // Note: Le listener sera spawné après la création du notification_client
     let (automation_dispatcher, automation_receiver) = crate::automations::EventDispatcher::new();
     eprintln!("[kernel] initialized Automations Event Dispatcher");
 
@@ -310,40 +345,50 @@ async fn main() {
         eprintln!("[kernel] failed to discover plugins: {}", e);
     }
 
-    // Notification Client - interface sécurisée (vérifie si plugin dispo)
-    let notification_client = notification_client::NotificationClient::new(
-        mqtt_client.clone(),
-        plugin_registry.clone(),
-    );
-    eprintln!("[kernel] notification client initialized (plugin-aware)");
-
     // Spawn automation listener with Decision Engine + Trust Tracker (Phase 7)
     crate::automations::spawn_automation_listener(
         automations_store.clone(),
         context_engine.clone(),
         agents.clone(),
         sensor_registry.clone(),
-        notification_client.clone(),
+        notifications_manager.clone(), // Direct NotificationManager (no plugin wrapper)
         automation_receiver,
         Some(decision_engine.clone()), // Decision Engine for trust evaluation
         Some(trust_tracker.clone()),   // Trust Tracker for evolving statistics
         Some(decision_validation_manager.clone()), // Validation Manager for pending approvals
         Some(pending_action_registry.clone()), // Pending Action Registry for post-approval execution
     );
-    eprintln!("[kernel] started Automations Event Listener (with DecisionEngine + TrustTracker + ValidationManager + PendingActionRegistry)");
+    eprintln!("[kernel] started Automations Event Listener (with DecisionEngine + TrustTracker + ValidationManager + PendingActionRegistry + NotificationsManager)");
+
+    // Automation Scheduler - polling for scheduled triggers
+    let automation_scheduler = crate::automations::AutomationScheduler::new(
+        automations_store.clone(),
+        automation_dispatcher.clone(),
+    );
+    automation_scheduler.spawn();
 
     // Plugin Health Monitor - surveillance automatique et auto-recovery
+    // Dispatches events to automation system (which handles notifications via configured automations)
     let plugin_health_monitor = crate::plugin_health::PluginHealthMonitor::new();
-    plugin_health_monitor.spawn_health_monitor(plugin_registry.clone(), notification_client.clone());
+    plugin_health_monitor.spawn_health_monitor(plugin_registry.clone(), automation_dispatcher.clone());
 
     // Environment Alert Monitor - surveillance alertes moisissure avec notifications
     let env_alert_monitor = environment_alerts::EnvironmentAlertMonitor::new(
         sensor_registry.clone(),
-        notification_client.clone(),
+        notifications_manager.clone(),
+        notification_config.clone(),
         Some(automation_dispatcher.clone()),
     );
     env_alert_monitor.spawn_monitor();
     println!("[kernel] environment alert monitor started");
+
+    // Context Intelligence Monitor - autonomous mode prediction and adaptation
+    crate::context_intelligence::ContextIntelligence::spawn_intelligence_monitor(
+        context_intelligence.clone(),
+        mode_registry.clone(),
+        notifications_manager.clone(),
+    );
+    println!("[kernel] context intelligence monitor started");
 
     // fabrique l'état unique pour Axum
     let app_state = AppState {
@@ -368,10 +413,14 @@ async fn main() {
         decision_metrics,
         sensors: sensor_registry,
         plugin_registry,
-        notification_client,
         automations: automations_store,
         automation_dispatcher: automation_dispatcher.clone(),
         pending_action_registry,
+        mode_registry,
+        schedule_registry,
+        notifications_manager,
+        notification_config,
+        context_intelligence: context_intelligence.clone(),
     };
 
     // HTTPS avec TLS (PWA + mTLS)
@@ -408,8 +457,6 @@ async fn main() {
     // Serveur HTTP simple pour redirection vers HTTPS
     let redirect_app = http::build_redirect_router(https_port);
     println!("[kernel] 🔄 HTTP redirect enabled - listening on http://{} → https://localhost:{}", http_addr, https_port);
-
-    // F4: Mobile API removed - now part of symbion-plugin-notifications (port 8445)
 
     // Lancer les deux serveurs en parallèle
     let https_server = axum_server::bind_rustls(https_addr, tls_config)

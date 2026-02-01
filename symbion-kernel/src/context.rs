@@ -70,6 +70,9 @@ pub struct Theme {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextState {
     pub mode: Mode,
+    /// Slug du mode dynamique (si utilisant mode_registry)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode_slug: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub changed_at: OffsetDateTime,
     pub reason: String,
@@ -82,6 +85,9 @@ pub struct ContextState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ManualOverride {
     pub mode: Mode,
+    /// Slug du mode dynamique (si utilisant mode_registry)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode_slug: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub until: OffsetDateTime,
     pub reason: String,
@@ -91,22 +97,16 @@ pub struct ManualOverride {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModeHistoryEntry {
     pub mode: Mode,
+    /// Slug du mode dynamique (si utilisant mode_registry)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode_slug: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub timestamp: OffsetDateTime,
     pub reason: String,
     pub was_manual: bool,
 }
 
-/// Pattern détecté dans les changements de mode
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DetectedPattern {
-    pub mode: Mode,
-    pub day_of_week: u8, // 1=lundi, 7=dimanche
-    pub hour: u8,
-    pub occurrences: u32,
-    pub confidence: f32,
-    pub last_seen: String,
-}
+// Note: DetectedPattern removed - use LearnedPattern from context_intelligence.rs instead
 
 /// Statistiques par mode
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -141,12 +141,14 @@ pub struct ContextEngine {
     state: Arc<Mutex<ContextState>>,
     history: Arc<Mutex<Vec<ModeHistoryEntry>>>,
     history_path: PathBuf,
+    state_path: PathBuf,
     pending_change: Arc<RwLock<Option<PendingChange>>>,  // Hystérésis 120s
 }
 
 impl ContextEngine {
     pub fn new() -> Self {
         let history_path = PathBuf::from("context-history.json");
+        let state_path = PathBuf::from("context-state.json");
 
         // Charger l'historique depuis le fichier s'il existe
         let history = if history_path.exists() {
@@ -173,95 +175,94 @@ impl ContextEngine {
             Vec::new()
         };
 
-        let initial_state = ContextState {
-            mode: Mode::Neutre,
-            changed_at: OffsetDateTime::now_utc(),
-            reason: "Initialisation système".to_string(),
-            confidence: 1.0,
-            theme: Mode::Neutre.theme(),
-            manual_override: None,
+        // Charger l'état persisté ou utiliser l'état par défaut
+        let initial_state = if state_path.exists() {
+            match std::fs::read_to_string(&state_path) {
+                Ok(content) => {
+                    match serde_json::from_str::<ContextState>(&content) {
+                        Ok(mut state) => {
+                            // Clear any expired manual override
+                            if let Some(ref override_info) = state.manual_override {
+                                if override_info.until < OffsetDateTime::now_utc() {
+                                    state.manual_override = None;
+                                }
+                            }
+                            println!("[context] Loaded persisted state: mode={:?}, slug={:?}",
+                                state.mode, state.mode_slug);
+                            state
+                        }
+                        Err(e) => {
+                            eprintln!("[context] Failed to parse state file: {}", e);
+                            Self::default_state()
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[context] Failed to read state file: {}", e);
+                    Self::default_state()
+                }
+            }
+        } else {
+            println!("[context] No state file found, using default");
+            Self::default_state()
         };
 
         Self {
             state: Arc::new(Mutex::new(initial_state)),
             history: Arc::new(Mutex::new(history)),
             history_path,
+            state_path,
             pending_change: Arc::new(RwLock::new(None)),
         }
     }
 
-    /// Détecte le mode contextuel basé sur les données agent
-    pub fn detect_mode(&self, agents: &[Agent]) -> Option<(Mode, String, f32)> {
-        // Utiliser timezone IANA Europe/Zurich (gère UTC+1/UTC+2 automatiquement)
-        use time_tz::{timezones, OffsetDateTimeExt};
-        let tz = timezones::db::europe::ZURICH;
-        let now_local = OffsetDateTime::now_utc().to_timezone(tz);
-        let hour = now_local.hour();
-        let weekday = now_local.weekday();
+    fn default_state() -> ContextState {
+        ContextState {
+            mode: Mode::Neutre,
+            mode_slug: Some("veille".to_string()),
+            changed_at: OffsetDateTime::now_utc(),
+            reason: "Initialisation système".to_string(),
+            confidence: 1.0,
+            theme: Mode::Neutre.theme(),
+            manual_override: None,
+        }
+    }
 
+    /// Persiste l'état actuel sur disque
+    fn save_state(&self) {
+        let state = match self.state.lock() {
+            Ok(s) => s.clone(),
+            Err(e) => {
+                eprintln!("[context] Failed to lock state for saving: {}", e);
+                return;
+            }
+        };
+        match serde_json::to_string_pretty(&state) {
+            Ok(json) => {
+                if let Err(e) = std::fs::write(&self.state_path, json) {
+                    eprintln!("[context] Failed to save state: {}", e);
+                }
+            }
+            Err(e) => {
+                eprintln!("[context] Failed to serialize state: {}", e);
+            }
+        }
+    }
+
+    /// Détecte le mode contextuel basé sur les données agent
+    ///
+    /// Note: La détection temporelle est gérée par les automations (force_mode).
+    /// Cette méthode ne gère que la détection basée sur les agents.
+    pub fn detect_mode(&self, agents: &[Agent]) -> Option<(Mode, String, f32)> {
         // Pas d'agents = mode neutre
         if agents.is_empty() {
             return Some((Mode::Neutre, "Aucun agent actif".to_string(), 1.0));
         }
 
-        // Règle 1: Nuit (23h-7h) = Mode Neutre
-        if hour >= 23 || hour < 7 {
-            return Some((
-                Mode::Neutre,
-                format!("Heure nocturne ({}h)", hour),
-                0.95,
-            ));
-        }
-
-        // Règle 2: Week-end (samedi/dimanche) = Mode Intime
-        use time::Weekday;
-        if weekday == Weekday::Saturday || weekday == Weekday::Sunday {
-            return Some((
-                Mode::Intime,
-                format!("Week-end ({})", match weekday {
-                    Weekday::Saturday => "samedi",
-                    Weekday::Sunday => "dimanche",
-                    _ => "week-end"
-                }),
-                0.90,
-            ));
-        }
-
-        // Règle 3: Horaires professionnels (lundi-vendredi) = Mode Cravate
-        // Lundi-jeudi : 8h-17h
-        // Vendredi : 8h-16h
-        let is_workday = matches!(weekday,
-            Weekday::Monday | Weekday::Tuesday | Weekday::Wednesday | Weekday::Thursday | Weekday::Friday
-        );
-
-        if is_workday {
-            let end_hour = if weekday == Weekday::Friday { 16 } else { 17 };
-
-            if hour >= 8 && hour < end_hour {
-                return Some((
-                    Mode::Cravate,
-                    format!("Horaires professionnels ({}h, {})",
-                        hour,
-                        match weekday {
-                            Weekday::Monday => "lundi",
-                            Weekday::Tuesday => "mardi",
-                            Weekday::Wednesday => "mercredi",
-                            Weekday::Thursday => "jeudi",
-                            Weekday::Friday => "vendredi",
-                            _ => "semaine"
-                        }
-                    ),
-                    0.85,
-                ));
-            }
-        }
-
-        // Règle 4: Journée en semaine hors horaires pro = Mode Intime
-        Some((
-            Mode::Intime,
-            format!("Journée à la maison ({}h)", hour),
-            0.80,
-        ))
+        // La détection temporelle est gérée par les automations avec force_mode
+        // Ici on retourne None pour laisser le mode actuel inchangé
+        // Les automations scheduled + time_range + day_of_week gèrent les changements
+        None
     }
 
     /// Met à jour le contexte si le mode a changé (avec hystérésis 120s)
@@ -308,7 +309,9 @@ impl ContextEngine {
             }
 
             // Appliquer changement immédiatement
+            let slug = Self::mode_to_slug(candidate_mode);
             state.mode = candidate_mode;
+            state.mode_slug = Some(slug.clone());
             state.changed_at = OffsetDateTime::now_utc();
             state.reason = reason.clone();
             state.confidence = confidence;
@@ -317,7 +320,8 @@ impl ContextEngine {
             let result = state.clone();
             drop(state);
 
-            self.add_to_history(candidate_mode, reason, false);
+            self.add_to_history(candidate_mode, Some(slug), reason, false);
+            self.save_state();
 
             return Some(result);
         }
@@ -337,7 +341,9 @@ impl ContextEngine {
                         format!("{:?}", candidate_mode).to_lowercase(),
                         reason);
 
+                    let slug = Self::mode_to_slug(candidate_mode);
                     state.mode = candidate_mode;
+                    state.mode_slug = Some(slug.clone());
                     state.changed_at = OffsetDateTime::now_utc();
                     state.reason = reason.clone();
                     state.confidence = confidence;
@@ -351,7 +357,8 @@ impl ContextEngine {
                     drop(pending);
                     drop(state);
 
-                    self.add_to_history(candidate_mode, reason, false);
+                    self.add_to_history(candidate_mode, Some(slug), reason, false);
+                    self.save_state();
 
                     return Some(result);
                 } else {
@@ -404,22 +411,28 @@ impl ContextEngine {
     }
 
     /// Retourne le mode actuel en string lowercase (pour automations)
+    /// Préfère mode_slug si disponible, sinon utilise l'enum Mode
     pub fn current_mode_str(&self) -> String {
         self.get_state()
-            .map(|s| match s.mode {
-                Mode::Cravate => "cravate",
-                Mode::Intime => "intime",
-                Mode::Neutre => "neutre",
+            .map(|s| {
+                // Préférer le slug dynamique s'il existe
+                s.mode_slug.unwrap_or_else(|| {
+                    match s.mode {
+                        Mode::Cravate => "pro".to_string(),
+                        Mode::Intime => "maison".to_string(),
+                        Mode::Neutre => "veille".to_string(),
+                    }
+                })
             })
-            .unwrap_or("neutre")
-            .to_string()
+            .unwrap_or_else(|| "veille".to_string())
     }
 
     /// Ajoute une entrée à l'historique et sauvegarde
-    fn add_to_history(&self, mode: Mode, reason: String, was_manual: bool) {
+    fn add_to_history(&self, mode: Mode, mode_slug: Option<String>, reason: String, was_manual: bool) {
         if let Ok(mut history) = self.history.lock() {
             let entry = ModeHistoryEntry {
                 mode,
+                mode_slug,
                 timestamp: OffsetDateTime::now_utc(),
                 reason,
                 was_manual,
@@ -450,23 +463,61 @@ impl ContextEngine {
         ]
     }
 
-    /// Force un mode manuellement (override temporaire)
+    /// Convertit un Mode enum vers son slug correspondant
+    fn mode_to_slug(mode: Mode) -> String {
+        match mode {
+            Mode::Cravate => "pro".to_string(),
+            Mode::Intime => "maison".to_string(),
+            Mode::Neutre => "veille".to_string(),
+        }
+    }
+
+    /// Convertit un slug vers le Mode enum correspondant (pour compatibilité)
+    pub fn slug_to_mode(slug: &str) -> Mode {
+        match slug.to_lowercase().as_str() {
+            "pro" | "cravate" | "work" | "professional" => Mode::Cravate,
+            "focus" => Mode::Cravate,  // Focus maps to Cravate for legacy compat
+            "maison" | "intime" | "home" | "domestic" => Mode::Intime,
+            "veille" | "neutre" | "neutral" | "eco" => Mode::Neutre,
+            _ => Mode::Neutre,  // Default to Neutre for unknown slugs
+        }
+    }
+
+    /// Force un mode manuellement (override temporaire) - méthode legacy
     pub fn set_override(&self, mode: Mode, duration_minutes: i64, reason: String) -> Option<ContextState> {
+        let slug = Self::mode_to_slug(mode);
+        self.set_override_dynamic(slug, mode.theme(), duration_minutes, reason)
+    }
+
+    /// Force un mode manuellement avec support des modes dynamiques
+    /// Accepte le slug du mode et son thème (récupérés depuis mode_registry)
+    pub fn set_override_dynamic(
+        &self,
+        mode_slug: String,
+        theme: Theme,
+        duration_minutes: i64,
+        reason: String,
+    ) -> Option<ContextState> {
         let mut state = self.state.lock().ok()?;
 
         let until = OffsetDateTime::now_utc() + time::Duration::minutes(duration_minutes);
 
-        println!("[context] Override manuel: {:?} pendant {} minutes (raison: {})",
-            mode, duration_minutes, reason);
+        // Map slug to legacy Mode enum for backward compatibility
+        let mode = Self::slug_to_mode(&mode_slug);
+
+        println!("[context] Override manuel: {} ({:?}) pendant {} minutes (raison: {})",
+            mode_slug, mode, duration_minutes, reason);
 
         state.mode = mode;
+        state.mode_slug = Some(mode_slug.clone());
         state.changed_at = OffsetDateTime::now_utc();
         let full_reason = format!("Override manuel: {}", reason);
         state.reason = full_reason.clone();
         state.confidence = 1.0;
-        state.theme = mode.theme();
+        state.theme = theme;
         state.manual_override = Some(ManualOverride {
             mode,
+            mode_slug: Some(mode_slug.clone()),
             until,
             reason,
         });
@@ -477,7 +528,51 @@ impl ContextEngine {
         drop(state);
 
         // Ajouter à l'historique (marqué comme manuel)
-        self.add_to_history(mode, full_reason, true);
+        self.add_to_history(mode, Some(mode_slug), full_reason, true);
+
+        // Persister l'état
+        self.save_state();
+
+        Some(result)
+    }
+
+    /// Change le mode de manière "naturelle" (sans override temporaire)
+    /// Utilisé par les automations intelligentes qui ne veulent pas bloquer le système
+    /// Le mode reste actif jusqu'au prochain changement (manuel ou automatique)
+    pub fn set_mode_natural(
+        &self,
+        mode_slug: String,
+        theme: Theme,
+        reason: String,
+    ) -> Option<ContextState> {
+        let mut state = self.state.lock().ok()?;
+
+        // Map slug to legacy Mode enum for backward compatibility
+        let mode = Self::slug_to_mode(&mode_slug);
+
+        println!("[context] Mode naturel: {} ({:?}) - raison: {}",
+            mode_slug, mode, reason);
+
+        // Annuler tout override existant (le mode naturel prend le relais)
+        state.manual_override = None;
+
+        state.mode = mode;
+        state.mode_slug = Some(mode_slug.clone());
+        state.changed_at = OffsetDateTime::now_utc();
+        state.reason = reason.clone();
+        state.confidence = 1.0;
+        state.theme = theme;
+
+        let result = state.clone();
+
+        // Libérer le lock avant d'appeler add_to_history
+        drop(state);
+
+        // Ajouter à l'historique (marqué comme automatique, pas manuel)
+        self.add_to_history(mode, Some(mode_slug), reason, false);
+
+        // Persister l'état
+        self.save_state();
 
         Some(result)
     }
@@ -492,14 +587,30 @@ impl ContextEngine {
 
             // Re-détecter le mode automatiquement
             if let Some((new_mode, reason, confidence)) = self.detect_mode(agents) {
+                let slug = Self::mode_to_slug(new_mode);
                 state.mode = new_mode;
+                state.mode_slug = Some(slug);
                 state.changed_at = OffsetDateTime::now_utc();
                 state.reason = reason;
                 state.confidence = confidence;
                 state.theme = new_mode.theme();
+            } else {
+                // Fallback: mode veille si détection échoue
+                state.mode = Mode::Neutre;
+                state.mode_slug = Some("veille".to_string());
+                state.changed_at = OffsetDateTime::now_utc();
+                state.reason = "Override annulé, mode par défaut".to_string();
+                state.confidence = 0.5;
+                state.theme = Mode::Neutre.theme();
             }
 
-            Some(state.clone())
+            let result = state.clone();
+            drop(state);
+
+            // Persister l'état
+            self.save_state();
+
+            Some(result)
         } else {
             None
         }
@@ -551,63 +662,7 @@ impl ContextEngine {
         stats
     }
 
-    /// Détecte les patterns récurrents dans les changements de mode manuels
-    pub fn detect_patterns(&self) -> Vec<DetectedPattern> {
-        let history = self.get_history();
-
-        // Ne considérer que les changements manuels
-        let manual_changes: Vec<&ModeHistoryEntry> = history
-            .iter()
-            .filter(|entry| entry.was_manual)
-            .collect();
-
-        if manual_changes.len() < 2 {
-            return Vec::new();
-        }
-
-        // Grouper par (mode, jour de la semaine, heure)
-        let mut pattern_map: HashMap<(Mode, u8, u8), Vec<String>> = HashMap::new();
-
-        for entry in manual_changes {
-            let weekday = entry.timestamp.weekday().number_from_monday();
-            let hour = entry.timestamp.hour();
-            let key = (entry.mode, weekday, hour);
-
-            pattern_map
-                .entry(key)
-                .or_insert_with(Vec::new)
-                .push(entry.timestamp.to_string());
-        }
-
-        // Créer les patterns détectés (au moins 2 occurrences)
-        let mut patterns: Vec<DetectedPattern> = pattern_map
-            .iter()
-            .filter(|(_, occurrences)| occurrences.len() >= 2)
-            .map(|((mode, day, hour), timestamps)| {
-                let count = timestamps.len() as u32;
-                // Confiance basée sur le nombre d'occurrences (max 1.0)
-                let confidence = (count as f32 / 10.0).min(1.0);
-
-                DetectedPattern {
-                    mode: *mode,
-                    day_of_week: *day,
-                    hour: *hour,
-                    occurrences: count,
-                    confidence,
-                    last_seen: timestamps.last().cloned().unwrap_or_default(),
-                }
-            })
-            .collect();
-
-        // Trier par confiance décroissante
-        patterns.sort_by(|a, b| {
-            b.confidence
-                .partial_cmp(&a.confidence)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-
-        patterns
-    }
+    // Note: detect_patterns() removed - use ContextIntelligence::get_patterns() instead
 
     /// Calcule les métriques de productivité par mode
     pub fn calculate_productivity(&self) -> Vec<ProductivityMetrics> {

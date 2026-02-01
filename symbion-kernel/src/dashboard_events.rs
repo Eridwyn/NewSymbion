@@ -88,8 +88,5 @@ impl DashboardEventPublisher {
         self.publish("symbion/dashboard/stats@v1", stats).await
     }
 
-    /// Événement: Nouveau pattern détecté
-    pub async fn publish_pattern_detected(&self, pattern: &crate::context::DetectedPattern) -> Result<(), String> {
-        self.publish("symbion/dashboard/pattern@v1", pattern).await
-    }
+    // Note: publish_pattern_detected removed - patterns now managed by Intelligence Engine
 }

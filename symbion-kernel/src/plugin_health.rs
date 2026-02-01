@@ -34,7 +34,7 @@ use tokio::sync::RwLock;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use http_body_util::BodyExt;
-use crate::notification_client::{NotificationClient, NotificationPayload, NotificationPriority};
+use crate::automations::EventDispatcher;
 
 /// Health status d'un plugin à un instant T
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -181,10 +181,10 @@ impl PluginHealthMonitor {
     pub fn spawn_health_monitor(
         self,
         plugin_registry: crate::plugin_proxy::PluginRegistry,
-        notification_client: NotificationClient,
+        automation_dispatcher: EventDispatcher,
     ) {
         let monitor = Arc::new(self);
-        let notif_client = Arc::new(notification_client);
+        let dispatcher = automation_dispatcher;
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(30));
@@ -230,31 +230,22 @@ impl PluginHealthMonitor {
                         let recovery_count = entry.auto_recovery_count;
                         drop(states); // Release lock avant recovery
 
+                        // Dispatch unhealthy event (triggers automations)
+                        dispatcher.dispatch_plugin_health(&plugin_name, "unhealthy", None);
+
                         // Tenter recovery après 3 échecs (et max 3 tentatives de recovery)
                         if failures >= 3 && recovery_count < 3 {
                             println!("[plugin-health] 🚨 Plugin '{}' has {} consecutive failures, attempting recovery...",
                                     plugin_name, failures);
 
-                            // Notification P1 : tentative de recovery
-                            let notif = NotificationPayload::new(
-                                NotificationPriority::P1,
-                                format!("🔄 Plugin {} - Recovery", plugin_name),
-                                format!("Le plugin {} est injoignable ({} échecs). Tentative de redémarrage automatique...", plugin_name, failures),
-                                "plugin-health",
-                            );
-                            let _ = notif_client.send(notif).await;
+                            // Dispatch recovery attempt event
+                            dispatcher.dispatch_plugin_health(&plugin_name, "recovery_attempt", Some("unhealthy"));
 
                             if let Err(e) = monitor.attempt_recovery(&plugin_name).await {
                                 eprintln!("[plugin-health] ❌ Recovery failed for '{}': {}", plugin_name, e);
 
-                                // Notification P0 : recovery échouée
-                                let notif = NotificationPayload::new(
-                                    NotificationPriority::P0,
-                                    format!("❌ Plugin {} - Échec recovery", plugin_name),
-                                    format!("Le redémarrage automatique du plugin {} a échoué: {}", plugin_name, e),
-                                    "plugin-health",
-                                );
-                                let _ = notif_client.send(notif).await;
+                                // Dispatch recovery failed event
+                                dispatcher.dispatch_plugin_health(&plugin_name, "recovery_failed", Some("recovery_attempt"));
                             } else {
                                 // Reset compteur échecs et incrémenter recovery count
                                 let mut states = monitor.health_states.write().await;
@@ -263,14 +254,8 @@ impl PluginHealthMonitor {
                                     entry.auto_recovery_count += 1;
                                 }
 
-                                // Notification P2 : recovery réussie
-                                let notif = NotificationPayload::new(
-                                    NotificationPriority::P2,
-                                    format!("✅ Plugin {} - Redémarré", plugin_name),
-                                    format!("Le plugin {} a été redémarré automatiquement avec succès.", plugin_name),
-                                    "plugin-health",
-                                );
-                                let _ = notif_client.send(notif).await;
+                                // Dispatch recovery success event
+                                dispatcher.dispatch_plugin_health(&plugin_name, "recovery_success", Some("recovery_attempt"));
                             }
                         }
 
@@ -314,31 +299,22 @@ impl PluginHealthMonitor {
                             let recovery_count = entry.auto_recovery_count;
                             drop(states); // Release lock avant recovery
 
+                            // Dispatch unhealthy event (triggers automations)
+                            dispatcher.dispatch_plugin_health(&plugin_name, "unhealthy", None);
+
                             // Tenter recovery après 3 échecs (et max 3 tentatives de recovery)
                             if failures >= 3 && recovery_count < 3 {
                                 println!("[plugin-health] 🚨 Plugin '{}' has {} consecutive failures, attempting recovery...",
                                         plugin_name, failures);
 
-                                // Notification P1 : tentative de recovery
-                                let notif = NotificationPayload::new(
-                                    NotificationPriority::P1,
-                                    format!("🔄 Plugin {} - Recovery", plugin_name),
-                                    format!("Le plugin {} ne répond plus ({} échecs). Tentative de redémarrage automatique...", plugin_name, failures),
-                                    "plugin-health",
-                                );
-                                let _ = notif_client.send(notif).await;
+                                // Dispatch recovery attempt event
+                                dispatcher.dispatch_plugin_health(&plugin_name, "recovery_attempt", Some("unhealthy"));
 
                                 if let Err(e) = monitor.attempt_recovery(&plugin_name).await {
                                     eprintln!("[plugin-health] ❌ Recovery failed for '{}': {}", plugin_name, e);
 
-                                    // Notification P0 : recovery échouée
-                                    let notif = NotificationPayload::new(
-                                        NotificationPriority::P0,
-                                        format!("❌ Plugin {} - Échec recovery", plugin_name),
-                                        format!("Le redémarrage automatique du plugin {} a échoué: {}", plugin_name, e),
-                                        "plugin-health",
-                                    );
-                                    let _ = notif_client.send(notif).await;
+                                    // Dispatch recovery failed event
+                                    dispatcher.dispatch_plugin_health(&plugin_name, "recovery_failed", Some("recovery_attempt"));
                                 } else {
                                     // Reset compteur échecs et incrémenter recovery count
                                     let mut states = monitor.health_states.write().await;
@@ -347,14 +323,8 @@ impl PluginHealthMonitor {
                                         entry.auto_recovery_count += 1;
                                     }
 
-                                    // Notification P2 : recovery réussie
-                                    let notif = NotificationPayload::new(
-                                        NotificationPriority::P2,
-                                        format!("✅ Plugin {} - Redémarré", plugin_name),
-                                        format!("Le plugin {} a été redémarré automatiquement avec succès.", plugin_name),
-                                        "plugin-health",
-                                    );
-                                    let _ = notif_client.send(notif).await;
+                                    // Dispatch recovery success event
+                                    dispatcher.dispatch_plugin_health(&plugin_name, "recovery_success", Some("recovery_attempt"));
                                 }
                             }
                         }

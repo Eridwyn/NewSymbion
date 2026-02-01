@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use time::OffsetDateTime;
+use uuid::Uuid;
 
 /// Niveau d'impact d'une action
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -26,6 +27,15 @@ pub struct Action {
     pub dry_run: bool,                          // Evaluation sans execution
     pub expected_mode: Option<String>,          // Mode contextuel attendu
     pub expected_ssid: Option<String>,          // SSID attendu
+}
+
+impl Action {
+    /// Ensure trace_id is valid (generate UUID if empty)
+    pub fn ensure_trace_id(&mut self) {
+        if self.trace_id.is_empty() {
+            self.trace_id = Uuid::new_v4().to_string();
+        }
+    }
 }
 
 /// Contexte de decision

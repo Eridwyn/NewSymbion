@@ -21,7 +21,7 @@
 
 use crate::agents::SharedAgentRegistry;
 use crate::context::{ContextEngine, Mode};
-use crate::notification_client::NotificationClient;
+use crate::notifications::{SharedNotificationManager, Notification, NotificationPriority};
 use crate::plugin_proxy::PluginRegistry;
 use crate::sensors::SensorRegistry;
 
@@ -70,7 +70,7 @@ pub struct ExecutorContext {
     pub context_engine: Arc<ContextEngine>,
     pub agents: SharedAgentRegistry,
     pub sensors: Arc<SensorRegistry>,
-    pub notification_client: NotificationClient,
+    pub notifications_manager: SharedNotificationManager,
     pub plugin_registry: Option<PluginRegistry>,
     pub event: AutomationEvent,
 }
@@ -80,14 +80,14 @@ impl ExecutorContext {
         context_engine: Arc<ContextEngine>,
         agents: SharedAgentRegistry,
         sensors: Arc<SensorRegistry>,
-        notification_client: NotificationClient,
+        notifications_manager: SharedNotificationManager,
         event: AutomationEvent,
     ) -> Self {
         Self {
             context_engine,
             agents,
             sensors,
-            notification_client,
+            notifications_manager,
             plugin_registry: None,
             event,
         }
@@ -143,16 +143,30 @@ impl SendNotificationExecutor {
 #[async_trait]
 impl ActionExecutor for SendNotificationExecutor {
     async fn execute(&self, ctx: &ExecutorContext) -> Result<(), ActionError> {
-        match ctx.notification_client.send_notification(&self.priority, &self.title, &self.body).await {
-            Ok(sent) => {
-                if sent {
-                    eprintln!("[executors] notification sent: {} ({})", self.title, self.priority);
-                    Ok(())
-                } else {
-                    // Plugin not available but not an error per se
-                    eprintln!("[executors] notification plugin unavailable, skipped: {}", self.title);
-                    Ok(())
-                }
+        // Parse priority string to enum
+        let priority = match self.priority.to_uppercase().as_str() {
+            "P0" | "CRITICAL" => NotificationPriority::P0,
+            "P1" | "IMPORTANT" => NotificationPriority::P1,
+            _ => NotificationPriority::P2,
+        };
+
+        let notification = Notification {
+            id: String::new(), // Will be assigned by manager
+            priority,
+            title: self.title.clone(),
+            body: self.body.clone(),
+            source: "automation".to_string(),
+            timestamp: time::OffsetDateTime::now_utc(),
+            acknowledged: false,
+            acknowledged_at: None,
+            actions: vec![],
+            data: None,
+        };
+
+        match ctx.notifications_manager.send(notification).await {
+            Ok(()) => {
+                eprintln!("[executors] notification sent: {} ({})", self.title, self.priority);
+                Ok(())
             }
             Err(e) => Err(ActionError::recoverable(format!("notification failed: {}", e))),
         }

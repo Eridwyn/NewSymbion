@@ -9,6 +9,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import csrfService from '../services/csrf-service.js'
 
 class NotificationCenter extends LitElement {
   static styles = css`
@@ -613,16 +614,16 @@ class NotificationCenter extends LitElement {
     content.innerHTML = this.notifications.map(n => `
       <div class="notif-item ${n.acknowledged ? '' : 'unread'}">
         <div class="notif-item-header">
-          <span class="notif-item-title">${n.title}</span>
-          <span class="notif-priority ${n.priority}">${n.priority}</span>
+          <span class="notif-item-title">${this.escapeHtml(n.title)}</span>
+          <span class="notif-priority ${this.escapeHtml(n.priority)}">${this.escapeHtml(n.priority)}</span>
         </div>
-        <div class="notif-body">${n.body}</div>
-        <div class="notif-meta">${n.source} • ${this.formatTime(n.timestamp)}</div>
+        <div class="notif-body">${this.escapeHtml(n.body)}</div>
+        <div class="notif-meta">${this.escapeHtml(n.source)} • ${this.formatTime(n.timestamp)}</div>
         <div class="notif-actions">
           ${!n.acknowledged ? `
-            <button class="notif-btn notif-btn-ack" data-id="${n.id}">✓ Lu</button>
+            <button class="notif-btn notif-btn-ack" data-id="${this.escapeHtml(n.id)}">✓ Lu</button>
           ` : ''}
-          <button class="notif-btn notif-btn-delete" data-id="${n.id}">🗑 Supprimer</button>
+          <button class="notif-btn notif-btn-delete" data-id="${this.escapeHtml(n.id)}">🗑 Supprimer</button>
         </div>
       </div>
     `).join('')
@@ -648,14 +649,16 @@ class NotificationCenter extends LitElement {
   async loadNotifications() {
     this.isLoading = true
     try {
-      const response = await fetch('/v1/plugin-api/notifications/notifications', {
+      // Utilise le nouvel endpoint kernel (intégré)
+      const response = await fetch('/notifications', {
         headers: {
           'X-API-Key': window.SYMBION_CONFIG?.API_KEY || ''
         }
       })
       if (response.ok) {
+        // Le kernel retourne directement un array (pas {notifications: []})
         const data = await response.json()
-        this.notifications = data.notifications || []
+        this.notifications = Array.isArray(data) ? data : (data.notifications || [])
         this._updateModalContent()
       }
     } catch (e) {
@@ -666,8 +669,10 @@ class NotificationCenter extends LitElement {
 
   setupMqttListener() {
     this._notificationHandler = (e) => {
+      console.log('[notification-center] MQTT notification received:', e.detail)
       const notification = e.detail?.notification
       if (notification) {
+        console.log('[notification-center] Adding notification:', notification.title)
         // Ajouter au début de la liste
         this.notifications = [notification, ...this.notifications.filter(n => n.id !== notification.id)]
         this._updateModalContent()
@@ -675,6 +680,7 @@ class NotificationCenter extends LitElement {
       }
     }
     document.body.addEventListener('notification-received', this._notificationHandler)
+    console.log('[notification-center] MQTT listener registered on document.body')
   }
 
   get unreadCount() {
@@ -709,18 +715,21 @@ class NotificationCenter extends LitElement {
     return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
   }
 
+  // Escape HTML to prevent XSS attacks
+  escapeHtml(text) {
+    if (!text) return ''
+    const div = document.createElement('div')
+    div.textContent = String(text)
+    return div.innerHTML
+  }
+
   async acknowledgeNotification(notif) {
     console.log('[notification-center] Acknowledging:', notif.id)
 
-    // Appeler l'API HTTP directement (plus fiable que MQTT)
+    // Appeler le nouvel endpoint kernel (avec CSRF)
     try {
-      const response = await fetch('/v1/plugin-api/notifications/notifications/acknowledge', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': window.SYMBION_CONFIG?.API_KEY || ''
-        },
-        body: JSON.stringify({ notification_id: notif.id })
+      const response = await csrfService.fetchWithCsrf(`/notifications/${notif.id}/acknowledge`, {
+        method: 'POST'
       })
       if (response.ok) {
         console.log('[notification-center] Acknowledged successfully')
@@ -740,13 +749,8 @@ class NotificationCenter extends LitElement {
     console.log('[notification-center] Deleting:', notificationId)
 
     try {
-      const response = await fetch('/v1/plugin-api/notifications/notifications/delete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': window.SYMBION_CONFIG?.API_KEY || ''
-        },
-        body: JSON.stringify({ notification_id: notificationId })
+      const response = await csrfService.fetchWithCsrf(`/notifications/${notificationId}`, {
+        method: 'DELETE'
       })
       if (response.ok) {
         console.log('[notification-center] Deleted successfully')
@@ -786,20 +790,11 @@ class NotificationCenter extends LitElement {
     console.log('[notification-center] Deleting all notifications')
 
     // Supprimer chaque notification via l'API
-    for (const notif of this.notifications) {
-      try {
-        await fetch('/v1/plugin-api/notifications/notifications/delete', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': window.SYMBION_CONFIG?.API_KEY || ''
-          },
-          body: JSON.stringify({ notification_id: notif.id })
-        })
-      } catch (e) {
-        console.error('[notification-center] Delete failed for:', notif.id, e)
-      }
-    }
+    const deletePromises = this.notifications.map(notif =>
+      csrfService.fetchWithCsrf(`/notifications/${notif.id}`, { method: 'DELETE' })
+        .catch(e => console.error('[notification-center] Delete failed for:', notif.id, e))
+    )
+    await Promise.all(deletePromises)
 
     // Vider localement
     this.notifications = []

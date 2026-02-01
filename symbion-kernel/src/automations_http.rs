@@ -17,6 +17,7 @@
  * - DELETE /v1/automations/{id}         → Soft-delete automation
  * - PATCH  /v1/automations/{id}/enable  → Toggle enabled
  * - POST   /v1/automations/{id}/test    → Dry-run test
+ * - POST   /v1/automations/{id}/run     → Execute automation manually
  */
 
 use axum::{
@@ -26,9 +27,11 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use time::OffsetDateTime;
 
 use crate::automations::{
-    Automation, AutomationRequest, AutomationSchema, AutomationsListResponse, ExecutionRecord,
+    Automation, AutomationEvent, AutomationRequest, AutomationSchema, AutomationsListResponse,
+    ExecutionContext, ExecutionRecord, AutomationEngine,
     SchemaRegistry, SensorInfo, ToggleRequest,
 };
 use crate::http::AppState;
@@ -112,8 +115,16 @@ pub async fn get_automations_schema(
         })
         .collect();
 
+    // Collect modes from mode registry (dynamic modes)
+    let modes: Vec<(String, String, String)> = app
+        .mode_registry
+        .list_all()
+        .into_iter()
+        .map(|m| (m.slug, format!("{} {}", m.icon, m.name), m.name))
+        .collect();
+
     // Use SchemaRegistry to build typed schema
-    Json(SchemaRegistry::get_schema(&agents, &rooms, &sensors))
+    Json(SchemaRegistry::get_schema(&agents, &rooms, &sensors, &modes))
 }
 
 /// GET /v1/automations/history - Get execution history
@@ -255,3 +266,127 @@ pub async fn test_automation(
         "trigger": automation.trigger
     })))
 }
+
+/// POST /v1/automations/{id}/run - Execute automation manually
+pub async fn run_automation(
+    State(app): State<AppState>,
+    Path(automation_id): Path<String>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let automation = app.automations
+        .get(&automation_id)
+        .ok_or((StatusCode::NOT_FOUND, error_response("Automation not found")))?;
+
+    // Check if automation is enabled
+    if !automation.enabled {
+        return Err((StatusCode::BAD_REQUEST, error_response("Automation is disabled")));
+    }
+
+    // Check cooldown (but allow manual override with warning)
+    let was_in_cooldown = automation.is_in_cooldown();
+    if was_in_cooldown {
+        eprintln!(
+            "[automations] ⚠️  Manual run of '{}' ignoring cooldown",
+            automation.name
+        );
+    }
+
+    eprintln!(
+        "[automations] 🚀 Manual execution of '{}' (id: {})",
+        automation.name, automation_id
+    );
+
+    // Create execution context for manual trigger
+    let ctx = ExecutionContext {
+        context_engine: app.context_engine.clone(),
+        agents: app.agents.clone(),
+        sensors: app.sensors.clone(),
+        notifications_manager: app.notifications_manager.clone(),
+        event: AutomationEvent::Manual {
+            automation_id: automation_id.clone(),
+            triggered_by: None, // Manual via API
+            timestamp: OffsetDateTime::now_utc(),
+        },
+        decision_engine: Some(app.decision_engine.clone()),
+        trust_tracker: None, // Not available in HTTP context
+        validation_manager: Some(app.decision_validation_manager.clone()),
+        pending_action_registry: Some(app.pending_action_registry.clone()),
+    };
+
+    // Execute actions
+    let action_results = AutomationEngine::execute_actions(&automation, &ctx).await;
+
+    // Check overall success
+    let all_success = action_results.iter().all(|r| r.success);
+    let error_msg = if all_success {
+        None
+    } else {
+        Some(action_results.iter()
+            .filter(|r| !r.success)
+            .filter_map(|r| r.error.as_ref())
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("; "))
+    };
+
+    // Extract trust info
+    let (overall_trust_score, overall_decision_outcome) = action_results.iter()
+        .find(|r| r.trust_score.is_some())
+        .map(|r| (r.trust_score, r.decision_outcome.clone()))
+        .unwrap_or((None, None));
+
+    // Check if all actions pending validation
+    let all_pending_validation = action_results.iter().all(|r| {
+        r.decision_outcome.as_ref().map(|o| o == "require_validation").unwrap_or(false)
+    });
+
+    // Record execution in history (unless all pending)
+    if !all_pending_validation {
+        let record = ExecutionRecord {
+            automation_id: automation_id.clone(),
+            automation_name: automation.name.clone(),
+            executed_at: OffsetDateTime::now_utc(),
+            trigger_event: "manual".to_string(),
+            conditions_met: true,
+            actions_executed: action_results.clone(),
+            success: all_success,
+            error: error_msg.clone(),
+            trust_score: overall_trust_score,
+            decision_outcome: overall_decision_outcome.clone(),
+        };
+        let _ = app.automations.add_history(record);
+
+        // Update execution tracking (for cooldown)
+        if let Err(e) = app.automations.record_execution(&automation_id) {
+            eprintln!(
+                "[automations] Failed to record execution for '{}': {}",
+                automation.name, e
+            );
+        }
+    }
+
+    // Build response
+    let actions_summary: Vec<Value> = action_results.iter().map(|r| {
+        json!({
+            "action_type": r.action_type,
+            "success": r.success,
+            "error": r.error,
+            "duration_ms": r.duration_ms,
+            "decision_outcome": r.decision_outcome
+        })
+    }).collect();
+
+    Ok(Json(json!({
+        "automation_id": automation_id,
+        "automation_name": automation.name,
+        "executed": true,
+        "success": all_success,
+        "error": error_msg,
+        "actions_count": action_results.len(),
+        "actions": actions_summary,
+        "trust_score": overall_trust_score,
+        "decision_outcome": overall_decision_outcome,
+        "was_in_cooldown": was_in_cooldown,
+        "pending_validation": all_pending_validation
+    })))
+}
+

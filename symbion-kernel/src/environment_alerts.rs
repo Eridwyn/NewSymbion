@@ -5,11 +5,12 @@
  *        quand le niveau d'alerte change (évite le spam)
  *
  * ARCHITECTURE : Task async qui vérifie toutes les 30s, track le dernier niveau par room
- * UTILITÉ : Alertes moisissure P0/P1 envoyées au plugin notifications si dispo
+ * UTILITÉ : Alertes moisissure P0/P1 envoyées via NotificationManager (kernel intégré)
  */
 
 use crate::dew_point_alerts::{DewPointCalculator, DewPointAlertLevel};
-use crate::notification_client::{NotificationClient, NotificationPayload, NotificationPriority};
+use crate::notifications::{SharedNotificationManager, Notification, NotificationPriority};
+use crate::notification_config::SharedNotificationConfigManager;
 use crate::sensors::SharedSensorRegistry;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -20,7 +21,8 @@ use tokio::time::{interval, Duration};
 /// Moniteur d'alertes environnement
 pub struct EnvironmentAlertMonitor {
     sensors: SharedSensorRegistry,
-    notification_client: NotificationClient,
+    notifications_manager: SharedNotificationManager,
+    notification_config: SharedNotificationConfigManager,
     /// Track le dernier niveau d'alerte par room pour éviter le spam
     last_alert_levels: Arc<RwLock<HashMap<String, DewPointAlertLevel>>>,
     /// Track le timestamp de la dernière notification par room (anti-spam)
@@ -36,12 +38,14 @@ const MIN_NOTIFICATION_INTERVAL_SECS: i64 = 300;
 impl EnvironmentAlertMonitor {
     pub fn new(
         sensors: SharedSensorRegistry,
-        notification_client: NotificationClient,
+        notifications_manager: SharedNotificationManager,
+        notification_config: SharedNotificationConfigManager,
         automation_dispatcher: Option<crate::automations::EventDispatcher>,
     ) -> Self {
         Self {
             sensors,
-            notification_client,
+            notifications_manager,
+            notification_config,
             last_alert_levels: Arc::new(RwLock::new(HashMap::new())),
             last_notification_time: Arc::new(RwLock::new(HashMap::new())),
             calculator: DewPointCalculator::default(),
@@ -137,64 +141,55 @@ impl EnvironmentAlertMonitor {
         room_id: &str,
         evaluation: &crate::dew_point_alerts::DewPointEvaluation,
     ) {
-        let (priority, title, body) = match evaluation.level {
-            DewPointAlertLevel::Danger => (
-                NotificationPriority::P0,
-                format!("🚨 DANGER - {}", room_id),
-                format!(
-                    "Condensation certaine! {}\nAction: {}",
-                    self.format_diagnostics(evaluation),
-                    evaluation.level.suggestion()
-                ),
-            ),
-            DewPointAlertLevel::Critical => (
-                NotificationPriority::P0,
-                format!("⚠️ CRITIQUE - {}", room_id),
-                format!(
-                    "Condensation très probable! {}\nAction: {}",
-                    self.format_diagnostics(evaluation),
-                    evaluation.level.suggestion()
-                ),
-            ),
-            DewPointAlertLevel::Strong => (
-                NotificationPriority::P1,
-                format!("🟠 Risque condensation - {}", room_id),
-                format!(
-                    "Risque de condensation détecté. {}\nAction: {}",
-                    self.format_diagnostics(evaluation),
-                    evaluation.level.suggestion()
-                ),
-            ),
-            DewPointAlertLevel::Moderate => (
-                NotificationPriority::P1,
-                format!("🟡 Humidité excessive - {}", room_id),
-                format!(
-                    "Humidité excessive prolongée. {}\nAction: {}",
-                    self.format_diagnostics(evaluation),
-                    evaluation.level.suggestion()
-                ),
-            ),
-            DewPointAlertLevel::Weak => (
-                NotificationPriority::P2,
-                format!("💧 Humidité haute - {}", room_id),
-                format!(
-                    "Humidité en tendance haute. {}\nAction: {}",
-                    self.format_diagnostics(evaluation),
-                    evaluation.level.suggestion()
-                ),
-            ),
+        // Déterminer le type_id de la notification selon le niveau
+        let type_id = match evaluation.level {
+            DewPointAlertLevel::Danger => "environment_alert_danger",
+            DewPointAlertLevel::Critical => "environment_alert_critical",
+            DewPointAlertLevel::Strong => "environment_alert_strong",
+            DewPointAlertLevel::Moderate => "environment_alert_moderate",
+            DewPointAlertLevel::Weak => "environment_alert_weak",
             DewPointAlertLevel::Safe => return, // Ne devrait pas arriver
         };
 
-        let notification = NotificationPayload::new(priority, title, body, "environment-monitor");
+        // Construire les variables pour l'interpolation
+        let mut variables = HashMap::new();
+        variables.insert("room_id".to_string(), room_id.to_string());
+        variables.insert("diagnostics".to_string(), self.format_diagnostics(evaluation));
+        variables.insert("suggestion".to_string(), evaluation.level.suggestion().to_string());
+        variables.insert("level".to_string(), format!("{:?}", evaluation.level));
+        if let Some(temp) = evaluation.air_temp_c {
+            variables.insert("temperature".to_string(), format!("{:.1}", temp));
+        }
+        if let Some(hum) = evaluation.humidity_pct {
+            variables.insert("humidity".to_string(), format!("{:.1}", hum));
+        }
 
-        match self.notification_client.send(notification).await {
-            Ok(true) => println!(
+        // Obtenir le titre et corps depuis la config (ou fallback)
+        let (title, body, priority) = match self.notification_config.build_notification(type_id, &variables) {
+            Some((t, b, p)) => (t, b, p.into()),
+            None => {
+                // Config désactivée - ne pas envoyer
+                println!("[env-alerts] Notification {} disabled by config", type_id);
+                return;
+            }
+        };
+
+        let notification = Notification {
+            id: String::new(), // Will be assigned by manager
+            priority,
+            title: title.clone(),
+            body,
+            source: "environment-monitor".to_string(),
+            timestamp: OffsetDateTime::now_utc(),
+            acknowledged: false,
+            acknowledged_at: None,
+            actions: vec![],
+            data: None,
+        };
+
+        match self.notifications_manager.send(notification).await {
+            Ok(()) => println!(
                 "[env-alerts] Notification envoyée: {} ({:?})",
-                room_id, evaluation.level
-            ),
-            Ok(false) => println!(
-                "[env-alerts] Plugin indisponible, alerte ignorée: {} ({:?})",
                 room_id, evaluation.level
             ),
             Err(e) => eprintln!("[env-alerts] Erreur notification: {}", e),
@@ -203,17 +198,34 @@ impl EnvironmentAlertMonitor {
 
     /// Envoie une notification de retour à la normale
     async fn send_recovery_notification(&self, room_id: &str, previous_level: DewPointAlertLevel) {
-        let notification = NotificationPayload::new(
-            NotificationPriority::P2,
-            format!("✅ Retour normal - {}", room_id),
-            format!(
-                "Les conditions sont revenues à la normale (était: {:?})",
-                previous_level
-            ),
-            "environment-monitor",
-        );
+        let type_id = "environment_alert_recovery";
 
-        let _ = self.notification_client.send(notification).await;
+        let mut variables = HashMap::new();
+        variables.insert("room_id".to_string(), room_id.to_string());
+        variables.insert("previous_level".to_string(), format!("{:?}", previous_level));
+
+        let (title, body, priority) = match self.notification_config.build_notification(type_id, &variables) {
+            Some((t, b, p)) => (t, b, p.into()),
+            None => {
+                println!("[env-alerts] Notification {} disabled by config", type_id);
+                return;
+            }
+        };
+
+        let notification = Notification {
+            id: String::new(),
+            priority,
+            title,
+            body,
+            source: "environment-monitor".to_string(),
+            timestamp: OffsetDateTime::now_utc(),
+            acknowledged: false,
+            acknowledged_at: None,
+            actions: vec![],
+            data: None,
+        };
+
+        let _ = self.notifications_manager.send(notification).await;
     }
 
     /// Formate les diagnostics pour le message

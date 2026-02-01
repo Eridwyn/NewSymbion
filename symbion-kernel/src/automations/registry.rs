@@ -15,9 +15,19 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomationSchema {
     pub triggers: Vec<TriggerSchema>,
+    pub trigger_group: TriggerGroupSchema,
     pub conditions: Vec<ConditionSchema>,
     pub actions: Vec<ActionSchema>,
     pub dynamic_values: DynamicValues,
+}
+
+/// Schema for trigger groups (AND/OR logic)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TriggerGroupSchema {
+    pub supports_groups: bool,
+    pub default_operator: String,
+    pub max_depth: u8,
+    pub operators: Vec<ValueOption>,
 }
 
 /// Dynamic values from kernel registries
@@ -27,12 +37,17 @@ pub struct DynamicValues {
     pub agents: Vec<ValueOption>,
     pub rooms: Vec<ValueOption>,
     pub sensors: Vec<SensorOption>,
+    pub categories: Vec<ValueOption>,
     pub alert_levels: Vec<ValueOption>,
     pub priorities: Vec<ValueOption>,
     pub command_types: Vec<ValueOption>,
     pub sensor_metrics: Vec<ValueOption>,
     pub comparison_operators: Vec<ValueOption>,
     pub weekdays: Vec<ValueOption>,
+    pub days_of_month: Vec<ValueOption>,
+    pub months: Vec<ValueOption>,
+    pub plugins: Vec<ValueOption>,
+    pub plugin_health_statuses: Vec<ValueOption>,
 }
 
 /// Sensor option with room context
@@ -134,12 +149,35 @@ impl SchemaRegistry {
         agents: &[(String, String)],  // (id, name/hostname)
         rooms: &[String],
         sensors: &[SensorInfo],
+        modes: &[(String, String, String)],  // (slug, label, description)
     ) -> AutomationSchema {
         AutomationSchema {
             triggers: Self::get_triggers(),
+            trigger_group: Self::get_trigger_group_schema(),
             conditions: Self::get_conditions(),
             actions: Self::get_actions(),
-            dynamic_values: Self::get_dynamic_values(agents, rooms, sensors),
+            dynamic_values: Self::get_dynamic_values(agents, rooms, sensors, modes),
+        }
+    }
+
+    /// Static trigger group schema
+    fn get_trigger_group_schema() -> TriggerGroupSchema {
+        TriggerGroupSchema {
+            supports_groups: true,
+            default_operator: "or".to_string(),
+            max_depth: 2, // Maximum 2 levels of nesting
+            operators: vec![
+                ValueOption {
+                    value: "or".to_string(),
+                    label: "OU - Au moins un trigger".to_string(),
+                    description: Some("L'automation se déclenche si au moins un trigger correspond".to_string()),
+                },
+                ValueOption {
+                    value: "and".to_string(),
+                    label: "ET - Tous les triggers".to_string(),
+                    description: Some("Tous les triggers doivent correspondre au même événement".to_string()),
+                },
+            ],
         }
     }
 
@@ -243,6 +281,77 @@ impl SchemaRegistry {
                 icon: "👆".to_string(),
                 fields: vec![],
             },
+            TriggerSchema {
+                trigger_type: "plugin_health".to_string(),
+                label: "Santé plugin".to_string(),
+                description: "Déclenché quand l'état d'un plugin change".to_string(),
+                icon: "🔌".to_string(),
+                fields: vec![
+                    FieldSchema {
+                        name: "plugin_name".to_string(),
+                        label: "Plugin".to_string(),
+                        field_type: FieldType::Select,
+                        required: false,
+                        default_value: None,
+                        placeholder: Some("Tous les plugins".to_string()),
+                        options_key: Some("plugins".to_string()),
+                        min: None,
+                        max: None,
+                    },
+                    FieldSchema {
+                        name: "status".to_string(),
+                        label: "État".to_string(),
+                        field_type: FieldType::Select,
+                        required: true,
+                        default_value: Some(serde_json::json!("unhealthy")),
+                        placeholder: None,
+                        options_key: Some("plugin_health_statuses".to_string()),
+                        min: None,
+                        max: None,
+                    },
+                ],
+            },
+            TriggerSchema {
+                trigger_type: "scheduled".to_string(),
+                label: "Planifié (Polling)".to_string(),
+                description: "Se déclenche à intervalles réguliers".to_string(),
+                icon: "⏰".to_string(),
+                fields: vec![
+                    FieldSchema {
+                        name: "interval_seconds".to_string(),
+                        label: "Intervalle (secondes)".to_string(),
+                        field_type: FieldType::Number,
+                        required: true,
+                        default_value: Some(serde_json::json!(300)),
+                        placeholder: Some("300 = 5 minutes".to_string()),
+                        options_key: None,
+                        min: Some(60.0),
+                        max: Some(86400.0),
+                    },
+                    FieldSchema {
+                        name: "active_hours_start".to_string(),
+                        label: "Heure début (optionnel)".to_string(),
+                        field_type: FieldType::Number,
+                        required: false,
+                        default_value: None,
+                        placeholder: Some("0-23".to_string()),
+                        options_key: None,
+                        min: Some(0.0),
+                        max: Some(23.0),
+                    },
+                    FieldSchema {
+                        name: "active_hours_end".to_string(),
+                        label: "Heure fin (optionnel)".to_string(),
+                        field_type: FieldType::Number,
+                        required: false,
+                        default_value: None,
+                        placeholder: Some("0-23".to_string()),
+                        options_key: None,
+                        min: Some(0.0),
+                        max: Some(23.0),
+                    },
+                ],
+            },
         ]
     }
 
@@ -320,6 +429,42 @@ impl SchemaRegistry {
                         default_value: Some(serde_json::json!(["1", "2", "3", "4", "5"])),
                         placeholder: None,
                         options_key: Some("weekdays".to_string()),
+                        min: None,
+                        max: None,
+                    },
+                ],
+            },
+            ConditionSchema {
+                condition_type: "day_of_month".to_string(),
+                label: "Jour du mois".to_string(),
+                description: "Vérifie le jour du mois (31 = dernier jour)".to_string(),
+                fields: vec![
+                    FieldSchema {
+                        name: "days".to_string(),
+                        label: "Jours".to_string(),
+                        field_type: FieldType::MultiSelect,
+                        required: true,
+                        default_value: Some(serde_json::json!(["1"])),
+                        placeholder: None,
+                        options_key: Some("days_of_month".to_string()),
+                        min: None,
+                        max: None,
+                    },
+                ],
+            },
+            ConditionSchema {
+                condition_type: "month".to_string(),
+                label: "Mois de l'année".to_string(),
+                description: "Vérifie si on est dans un mois spécifique".to_string(),
+                fields: vec![
+                    FieldSchema {
+                        name: "months".to_string(),
+                        label: "Mois".to_string(),
+                        field_type: FieldType::MultiSelect,
+                        required: true,
+                        default_value: Some(serde_json::json!(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])),
+                        placeholder: None,
+                        options_key: Some("months".to_string()),
                         min: None,
                         max: None,
                     },
@@ -539,25 +684,17 @@ impl SchemaRegistry {
         agents: &[(String, String)],
         rooms: &[String],
         sensors: &[SensorInfo],
+        modes: &[(String, String, String)],  // (slug, label, description)
     ) -> DynamicValues {
         DynamicValues {
-            modes: vec![
-                ValueOption {
-                    value: "cravate".to_string(),
-                    label: "👔 Cravate".to_string(),
-                    description: Some("Mode professionnel".to_string()),
-                },
-                ValueOption {
-                    value: "intime".to_string(),
-                    label: "🏡 Intime".to_string(),
-                    description: Some("Mode domestique".to_string()),
-                },
-                ValueOption {
-                    value: "neutre".to_string(),
-                    label: "🌱 Neutre".to_string(),
-                    description: Some("Mode surveillance".to_string()),
-                },
-            ],
+            modes: modes
+                .iter()
+                .map(|(slug, label, description)| ValueOption {
+                    value: slug.clone(),
+                    label: label.clone(),
+                    description: Some(description.clone()),
+                })
+                .collect(),
             agents: agents
                 .iter()
                 .map(|(id, name)| ValueOption {
@@ -598,6 +735,13 @@ impl SchemaRegistry {
                     }
                 })
                 .collect(),
+            categories: vec![
+                ValueOption { value: "systeme".to_string(), label: "🔧 Système".to_string(), description: Some("Automations système".to_string()) },
+                ValueOption { value: "alertes".to_string(), label: "🚨 Alertes".to_string(), description: Some("Alertes et notifications".to_string()) },
+                ValueOption { value: "modes".to_string(), label: "🎯 Modes".to_string(), description: Some("Changements de mode".to_string()) },
+                ValueOption { value: "notifications".to_string(), label: "🔔 Notifications".to_string(), description: Some("Notifications personnalisées".to_string()) },
+                ValueOption { value: "custom".to_string(), label: "✨ Personnalisé".to_string(), description: Some("Automations personnalisées".to_string()) },
+            ],
             alert_levels: vec![
                 ValueOption {
                     value: "normal".to_string(),
@@ -727,6 +871,37 @@ impl SchemaRegistry {
                 ValueOption { value: "6".to_string(), label: "Samedi".to_string(), description: None },
                 ValueOption { value: "0".to_string(), label: "Dimanche".to_string(), description: None },
             ],
+            days_of_month: (1..=31).map(|d| ValueOption {
+                value: d.to_string(),
+                label: if d == 31 { "31 (Dernier jour)".to_string() } else { d.to_string() },
+                description: if d == 31 { Some("Dernier jour du mois quel qu'il soit".to_string()) } else { None },
+            }).collect(),
+            months: vec![
+                ValueOption { value: "1".to_string(), label: "Janvier".to_string(), description: None },
+                ValueOption { value: "2".to_string(), label: "Février".to_string(), description: None },
+                ValueOption { value: "3".to_string(), label: "Mars".to_string(), description: None },
+                ValueOption { value: "4".to_string(), label: "Avril".to_string(), description: None },
+                ValueOption { value: "5".to_string(), label: "Mai".to_string(), description: None },
+                ValueOption { value: "6".to_string(), label: "Juin".to_string(), description: None },
+                ValueOption { value: "7".to_string(), label: "Juillet".to_string(), description: None },
+                ValueOption { value: "8".to_string(), label: "Août".to_string(), description: None },
+                ValueOption { value: "9".to_string(), label: "Septembre".to_string(), description: None },
+                ValueOption { value: "10".to_string(), label: "Octobre".to_string(), description: None },
+                ValueOption { value: "11".to_string(), label: "Novembre".to_string(), description: None },
+                ValueOption { value: "12".to_string(), label: "Décembre".to_string(), description: None },
+            ],
+            plugins: vec![
+                ValueOption { value: "notes".to_string(), label: "📝 Notes".to_string(), description: Some("Plugin de notes".to_string()) },
+                ValueOption { value: "sensors".to_string(), label: "🌡️ Sensors".to_string(), description: Some("Plugin capteurs environnement".to_string()) },
+            ],
+            plugin_health_statuses: vec![
+                ValueOption { value: "healthy".to_string(), label: "🟢 Healthy".to_string(), description: Some("Plugin fonctionne".to_string()) },
+                ValueOption { value: "unhealthy".to_string(), label: "🔴 Unhealthy".to_string(), description: Some("Plugin ne répond pas".to_string()) },
+                ValueOption { value: "recovery_attempt".to_string(), label: "🔄 Recovery".to_string(), description: Some("Tentative de redémarrage".to_string()) },
+                ValueOption { value: "recovery_failed".to_string(), label: "❌ Recovery Failed".to_string(), description: Some("Redémarrage échoué".to_string()) },
+                ValueOption { value: "recovery_success".to_string(), label: "✅ Recovery Success".to_string(), description: Some("Redémarrage réussi".to_string()) },
+                ValueOption { value: "any".to_string(), label: "* Tout changement".to_string(), description: Some("N'importe quel changement".to_string()) },
+            ],
         }
     }
 }
@@ -759,11 +934,16 @@ mod tests {
                 status: "online".to_string(),
             },
         ];
+        let modes = vec![
+            ("cravate".to_string(), "Cravate".to_string(), "Mode Pro".to_string()),
+            ("intime".to_string(), "Intime".to_string(), "Mode Maison".to_string()),
+            ("neutre".to_string(), "Neutre".to_string(), "Mode Veille".to_string()),
+        ];
 
-        let schema = SchemaRegistry::get_schema(&agents, &rooms, &sensors);
+        let schema = SchemaRegistry::get_schema(&agents, &rooms, &sensors, &modes);
 
-        assert_eq!(schema.triggers.len(), 4);
-        assert_eq!(schema.conditions.len(), 5);
+        assert_eq!(schema.triggers.len(), 6);  // mode_change, sensor_alert, agent_status, manual, plugin_health, scheduled
+        assert_eq!(schema.conditions.len(), 7);  // current_mode, time_range, day_of_week, day_of_month, month, sensor_value, agent_online
         assert_eq!(schema.actions.len(), 4);
         assert_eq!(schema.dynamic_values.modes.len(), 3);
         assert_eq!(schema.dynamic_values.agents.len(), 2);
@@ -772,5 +952,7 @@ mod tests {
         assert_eq!(schema.dynamic_values.command_types.len(), 6);
         assert_eq!(schema.dynamic_values.sensor_metrics.len(), 3);
         assert_eq!(schema.dynamic_values.weekdays.len(), 7);
+        assert_eq!(schema.dynamic_values.days_of_month.len(), 31);
+        assert_eq!(schema.dynamic_values.months.len(), 12);
     }
 }

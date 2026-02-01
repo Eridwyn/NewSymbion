@@ -90,26 +90,7 @@ class ContextEngineWidget extends LitElement {
       margin-bottom: 0.5rem;
     }
 
-    .confidence-bar {
-      width: 100%;
-      height: 4px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 2px;
-      overflow: hidden;
-    }
-
-    .confidence-fill {
-      height: 100%;
-      background: linear-gradient(90deg, var(--context-primary, #00d4aa), color-mix(in srgb, var(--context-primary, #00d4aa) 70%, white));
-      border-radius: 2px;
-      transition: width 0.5s ease;
-    }
-
-    .confidence-text {
-      font-size: 0.65rem;
-      color: var(--color-dark-text-tertiary, #6c757d);
-      margin-top: 0.25rem;
-    }
+    /* Confidence bar removed - now managed by Intelligence Widget */
 
     /* Automations Section */
     .automations-section {
@@ -327,12 +308,20 @@ class ContextEngineWidget extends LitElement {
   }
 
   getModeIcon(mode) {
-    const icons = { cravate: '👔', intime: '🏡', neutre: '🌱' }
+    // Support both legacy and new mode slugs
+    const icons = {
+      cravate: '👔', intime: '🏡', neutre: '🌱',
+      pro: '👔', focus: '🎯', maison: '🏡', veille: '🌱'
+    }
     return icons[mode?.toLowerCase()] || '🌱'
   }
 
   getModeName(mode) {
-    const names = { cravate: 'Focus Pro', intime: 'Maison', neutre: 'Veille' }
+    // Support both legacy and new mode slugs
+    const names = {
+      cravate: 'Focus Pro', intime: 'Maison', neutre: 'Veille',
+      pro: 'Pro', focus: 'Focus', maison: 'Maison', veille: 'Veille'
+    }
     return names[mode?.toLowerCase()] || 'Inconnu'
   }
 
@@ -360,8 +349,8 @@ class ContextEngineWidget extends LitElement {
       `
     }
 
-    const mode = this.contextState?.mode?.toLowerCase() || 'neutre'
-    const confidence = this.contextState?.confidence || 0
+    // Prefer mode_slug (dynamic) over mode (legacy enum)
+    const mode = this.contextState?.mode_slug || this.contextState?.mode?.toLowerCase() || 'veille'
     const enabledCount = this.automations.filter(a => a.enabled).length
 
     return html`
@@ -378,10 +367,6 @@ class ContextEngineWidget extends LitElement {
             <div class="mode-info">
               <div class="mode-name">${this.getModeName(mode)}</div>
               <div class="mode-reason">${this.contextState?.reason || 'Détection auto'}</div>
-              <div class="confidence-bar">
-                <div class="confidence-fill" style="width: ${confidence * 100}%"></div>
-              </div>
-              <div class="confidence-text">Confiance: ${Math.round(confidence * 100)}%</div>
             </div>
           </div>
 

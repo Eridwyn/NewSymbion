@@ -1,0 +1,1181 @@
+/**
+ * SYMBION KERNEL - Context Intelligence Engine
+ *
+ * ROLE: Intelligent autonomous context adaptation system
+ *
+ * FEATURES:
+ * - Multi-signal collection (time, agent activity, environment)
+ * - Pattern learning from user behavior
+ * - Mode prediction with confidence scores
+ * - Feedback loop for continuous improvement
+ * - Auto-creation of automations from learned patterns
+ * - Drift detection and adaptation
+ */
+
+use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
+use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
+
+use crate::agents::SharedAgentRegistry;
+use crate::context::{ContextEngine, Mode, Theme};
+use crate::sensors::SensorRegistry;
+
+/// Shared type alias for ContextIntelligence
+pub type SharedContextIntelligence = Arc<ContextIntelligence>;
+
+// ============================================================================
+// Configuration
+// ============================================================================
+
+/// Configuration for the intelligence engine
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntelligenceConfig {
+    /// Threshold for auto-applying mode changes without validation (0.0-1.0)
+    /// Default: 0.90 (90% confidence required)
+    pub auto_apply_threshold: f32,
+
+    /// Threshold for suggesting mode changes via notification (0.0-1.0)
+    /// Default: 0.70 (70% confidence required)
+    pub suggestion_threshold: f32,
+
+    /// Minimum occurrences of a pattern before learning it
+    /// Default: 3
+    pub min_pattern_occurrences: u32,
+
+    /// Weights for different signal sources
+    pub weights: SignalWeights,
+
+    /// Enable auto-creation of automations from learned patterns
+    pub auto_create_automations: bool,
+
+    /// Enable automatic adaptation when habits change
+    pub auto_adapt: bool,
+
+    /// Check interval in seconds for the intelligence monitor
+    pub check_interval_seconds: u64,
+}
+
+impl Default for IntelligenceConfig {
+    fn default() -> Self {
+        Self {
+            auto_apply_threshold: 0.60,  // Lowered temporarily while learning
+            suggestion_threshold: 0.40,
+            min_pattern_occurrences: 3,
+            weights: SignalWeights::default(),
+            auto_create_automations: true,
+            auto_adapt: true,
+            check_interval_seconds: 30,
+        }
+    }
+}
+
+/// Weights for different signal sources in prediction
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignalWeights {
+    /// Weight for temporal signals (hour + day of week)
+    pub temporal: f32,
+    /// Weight for behavioral patterns (manual changes history)
+    pub behavioral: f32,
+    /// Weight for agent activity (CPU, processes, idle time)
+    pub agent_activity: f32,
+    /// Weight for environmental factors (temperature, humidity)
+    pub environmental: f32,
+    /// Weight for momentum (time in current mode)
+    pub momentum: f32,
+}
+
+impl Default for SignalWeights {
+    fn default() -> Self {
+        Self {
+            temporal: 0.40,      // Increased: time patterns are reliable
+            behavioral: 0.35,   // Increased: learned patterns matter
+            agent_activity: 0.10, // Reduced: less reliable
+            environmental: 0.05,
+            momentum: 0.10,
+        }
+    }
+}
+
+// ============================================================================
+// Signal Collection
+// ============================================================================
+
+/// Snapshot of all contextual signals at a point in time
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextSignals {
+    // Temporal
+    pub hour: u8,                    // 0-23
+    pub day_of_week: u8,             // 0-6 (Sun-Sat)
+    pub is_weekend: bool,
+    pub is_holiday: bool,            // Future: API for holidays
+
+    // Agent activity
+    pub agent_idle_seconds: u64,     // Seconds since last activity
+    pub cpu_usage: f32,              // 0-100
+    pub active_processes: Vec<String>, // Top running processes
+    pub is_screen_locked: bool,      // Future: Agent capability
+
+    // Environment
+    pub temperature: Option<f32>,
+    pub humidity: Option<f32>,
+
+    // Current context
+    pub current_mode: String,
+    pub time_in_current_mode_minutes: i64,
+    #[serde(with = "time::serde::iso8601::option")]
+    pub last_manual_change: Option<OffsetDateTime>,
+}
+
+// ============================================================================
+// Prediction
+// ============================================================================
+
+/// Result of a mode prediction
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModePrediction {
+    pub mode: String,               // Mode slug (pro, maison, veille)
+    pub confidence: f32,            // 0.0 - 1.0
+    pub reasons: Vec<String>,       // Human-readable explanations
+    pub contributing_factors: Vec<(String, f32)>, // (signal_name, weight)
+}
+
+/// Single prediction from one signal source
+#[derive(Debug, Clone)]
+pub struct SinglePrediction {
+    pub mode: String,
+    pub confidence: f32,
+    pub reason: String,
+}
+
+// ============================================================================
+// Learning
+// ============================================================================
+
+/// A pattern learned from user behavior
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LearnedPattern {
+    pub mode: String,
+    pub day_of_week: u8,
+    pub hour: u8,
+    pub confidence: f32,
+    pub occurrences: u32,
+    #[serde(with = "time::serde::iso8601")]
+    pub last_seen: OffsetDateTime,
+    pub source: PatternSource,
+}
+
+/// Where a pattern came from
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum PatternSource {
+    /// Detected from history analysis
+    Historical,
+    /// Learned from user correction
+    UserCorrection,
+    /// Imported from existing automation
+    Automation,
+}
+
+/// Record of a prediction for learning purposes
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PredictionRecord {
+    #[serde(with = "time::serde::iso8601")]
+    pub timestamp: OffsetDateTime,
+    pub predicted_mode: String,
+    pub actual_mode: Option<String>,  // Set when user corrects
+    pub confidence: f32,
+    pub was_correct: Option<bool>,
+}
+
+/// User feedback on a prediction
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserFeedback {
+    #[serde(with = "time::serde::iso8601")]
+    pub timestamp: OffsetDateTime,
+    pub predicted_mode: String,
+    pub actual_mode: String,       // What the user chose
+    pub signals_snapshot: ContextSignals,
+    pub was_correction: bool,      // true if different from prediction
+}
+
+// ============================================================================
+// Drift Detection
+// ============================================================================
+
+/// Detected change in user habits
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HabitDrift {
+    pub mode: String,
+    pub day_of_week: u8,
+    pub old_hour: u8,
+    pub new_hour: u8,
+    pub shift_hours: i8,
+    pub suggestion: String,
+}
+
+// ============================================================================
+// Status
+// ============================================================================
+
+/// Current status of the intelligence engine
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntelligenceStatus {
+    pub enabled: bool,
+    pub config: IntelligenceConfig,
+    pub learned_patterns_count: usize,
+    pub auto_created_automations: usize,
+    pub last_prediction: Option<ModePrediction>,
+    pub accuracy_last_7_days: f32,
+}
+
+// ============================================================================
+// Main Engine
+// ============================================================================
+
+/// The Context Intelligence Engine
+pub struct ContextIntelligence {
+    context_engine: Arc<ContextEngine>,
+    agents: SharedAgentRegistry,
+    sensors: Arc<SensorRegistry>,
+
+    // Configuration
+    pub config: RwLock<IntelligenceConfig>,
+
+    // Learning state
+    learned_patterns: RwLock<Vec<LearnedPattern>>,
+    prediction_history: RwLock<VecDeque<PredictionRecord>>,
+    feedback_history: RwLock<VecDeque<UserFeedback>>,
+
+    // Last prediction (for status)
+    last_prediction: RwLock<Option<ModePrediction>>,
+}
+
+impl ContextIntelligence {
+    /// Create a new ContextIntelligence engine
+    pub fn new(
+        context_engine: Arc<ContextEngine>,
+        agents: SharedAgentRegistry,
+        sensors: Arc<SensorRegistry>,
+    ) -> Self {
+        let config = IntelligenceConfig::default();
+
+        // Load learned patterns from disk if they exist
+        let patterns_path = std::path::PathBuf::from("learned_patterns.json");
+        let learned_patterns = if patterns_path.exists() {
+            match std::fs::read_to_string(&patterns_path) {
+                Ok(content) => {
+                    match serde_json::from_str::<Vec<LearnedPattern>>(&content) {
+                        Ok(p) => {
+                            eprintln!("[intelligence] Loaded {} learned patterns from disk", p.len());
+                            p
+                        }
+                        Err(e) => {
+                            eprintln!("[intelligence] Failed to parse patterns file: {}", e);
+                            Vec::new()
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[intelligence] Failed to read patterns file: {}", e);
+                    Vec::new()
+                }
+            }
+        } else {
+            eprintln!("[intelligence] No patterns file found, starting fresh");
+            Vec::new()
+        };
+
+        Self {
+            context_engine,
+            agents,
+            sensors,
+            config: RwLock::new(config),
+            learned_patterns: RwLock::new(learned_patterns),
+            prediction_history: RwLock::new(VecDeque::with_capacity(1000)),
+            feedback_history: RwLock::new(VecDeque::with_capacity(500)),
+            last_prediction: RwLock::new(None),
+        }
+    }
+
+    /// Get current configuration
+    pub fn get_config(&self) -> IntelligenceConfig {
+        self.config.read().clone()
+    }
+
+    /// Update configuration
+    pub fn update_config(&self, new_config: IntelligenceConfig) {
+        *self.config.write() = new_config;
+        eprintln!("[intelligence] Configuration updated");
+    }
+
+    /// Get current status
+    pub fn get_status(&self) -> IntelligenceStatus {
+        let config = self.config.read().clone();
+        let patterns_count = self.learned_patterns.read().len();
+        let last_pred = self.last_prediction.read().clone();
+        let accuracy = self.calculate_accuracy(7);
+
+        IntelligenceStatus {
+            enabled: true,
+            config,
+            learned_patterns_count: patterns_count,
+            auto_created_automations: 0, // TODO: Track this
+            last_prediction: last_pred,
+            accuracy_last_7_days: accuracy,
+        }
+    }
+
+    /// Get learned patterns
+    pub fn get_patterns(&self) -> Vec<LearnedPattern> {
+        self.learned_patterns.read().clone()
+    }
+
+    /// Get prediction history
+    pub fn get_prediction_history(&self) -> Vec<PredictionRecord> {
+        self.prediction_history.read().iter().cloned().collect()
+    }
+
+    /// Save learned patterns to disk
+    pub fn save_patterns(&self) {
+        let patterns = self.learned_patterns.read();
+        let path = std::path::PathBuf::from("learned_patterns.json");
+
+        match serde_json::to_string_pretty(&*patterns) {
+            Ok(json) => {
+                if let Err(e) = std::fs::write(&path, json) {
+                    eprintln!("[intelligence] Failed to save patterns: {}", e);
+                }
+            }
+            Err(e) => {
+                eprintln!("[intelligence] Failed to serialize patterns: {}", e);
+            }
+        }
+    }
+
+    /// Calculate prediction accuracy over the last N days
+    pub fn calculate_accuracy(&self, days: i64) -> f32 {
+        let history = self.prediction_history.read();
+        let cutoff = OffsetDateTime::now_utc() - time::Duration::days(days);
+
+        let recent: Vec<&PredictionRecord> = history
+            .iter()
+            .filter(|r| r.timestamp > cutoff && r.was_correct.is_some())
+            .collect();
+
+        if recent.is_empty() {
+            return 0.0;
+        }
+
+        let correct = recent.iter().filter(|r| r.was_correct == Some(true)).count();
+        (correct as f32 / recent.len() as f32) * 100.0
+    }
+
+    /// Initialize patterns from existing context history
+    /// Only runs if no patterns were loaded from disk
+    pub fn init_patterns_from_history(&self) {
+        // Check if patterns were already loaded from disk
+        {
+            let patterns = self.learned_patterns.read();
+            if !patterns.is_empty() {
+                eprintln!("[intelligence] Patterns already loaded from disk ({} patterns), skipping history bootstrap", patterns.len());
+                return;
+            }
+        }
+
+        // Analyze context history directly
+        let history = self.context_engine.get_history();
+        let manual_changes: Vec<_> = history.iter().filter(|e| e.was_manual).collect();
+
+        if manual_changes.len() < 2 {
+            eprintln!("[intelligence] Not enough manual changes in history for pattern detection");
+            return;
+        }
+
+        // Group by (mode, day_of_week, hour)
+        use std::collections::HashMap;
+        let mut pattern_map: HashMap<(String, u8, u8), u32> = HashMap::new();
+
+        for entry in manual_changes {
+            let mode_slug = match entry.mode {
+                Mode::Cravate => "pro",
+                Mode::Intime => "maison",
+                Mode::Neutre => "veille",
+            };
+            let weekday = entry.timestamp.weekday().number_from_monday() as u8 - 1; // 0=Mon, 6=Sun
+            let hour = entry.timestamp.hour();
+            let key = (mode_slug.to_string(), weekday, hour);
+
+            *pattern_map.entry(key).or_insert(0) += 1;
+        }
+
+        // Create learned patterns (min 2 occurrences)
+        let mut patterns = self.learned_patterns.write();
+
+        for ((mode, day, hour), count) in pattern_map {
+            if count >= 2 {
+                let confidence = (count as f32 / 10.0).min(1.0);
+                patterns.push(LearnedPattern {
+                    mode,
+                    day_of_week: day,
+                    hour,
+                    confidence,
+                    occurrences: count,
+                    last_seen: OffsetDateTime::now_utc(),
+                    source: PatternSource::Historical,
+                });
+            }
+        }
+
+        // Sort by confidence
+        patterns.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal));
+
+        eprintln!("[intelligence] Bootstrapped {} patterns from history", patterns.len());
+        drop(patterns);
+
+        self.save_patterns();
+    }
+
+    // ========================================================================
+    // Phase 3: Signal Collection
+    // ========================================================================
+
+    /// Collect all available contextual signals
+    pub async fn collect_signals(&self) -> ContextSignals {
+        let now = OffsetDateTime::now_utc();
+
+        // Temporal signals
+        let hour = now.hour();
+        let day_of_week = now.weekday().number_from_monday() as u8 - 1; // 0=Mon, 6=Sun
+        let is_weekend = day_of_week >= 5; // 5=Sat, 6=Sun
+
+        // Agent activity (from primary agent's heartbeat)
+        let (idle_seconds, cpu_usage, active_processes) = self.get_agent_metrics().await;
+
+        // Environment (from sensors)
+        let (temperature, humidity) = self.get_environment_readings().await;
+
+        // Current context state
+        let (current_mode, time_in_mode) = match self.context_engine.get_state() {
+            Some(current) => {
+                let mode = current.mode_slug.clone().unwrap_or_else(|| "veille".to_string());
+                let duration = now - current.changed_at;
+                (mode, duration.whole_minutes())
+            }
+            None => ("veille".to_string(), 0),
+        };
+        let last_manual = self.get_last_manual_change();
+
+        ContextSignals {
+            hour,
+            day_of_week,
+            is_weekend,
+            is_holiday: false, // TODO: External holiday API
+            agent_idle_seconds: idle_seconds,
+            cpu_usage,
+            active_processes,
+            is_screen_locked: false, // TODO: Agent capability
+            temperature,
+            humidity,
+            current_mode,
+            time_in_current_mode_minutes: time_in_mode,
+            last_manual_change: last_manual,
+        }
+    }
+
+    /// Get metrics from the primary agent (pc-bureau preferred, or first online)
+    async fn get_agent_metrics(&self) -> (u64, f32, Vec<String>) {
+        let agents = self.agents.list_agents().await;
+
+        // Find primary agent (pc-bureau preferred, or first online)
+        let primary = agents.iter()
+            .find(|(id, a)| *id == "pc-bureau" && a.status.status == "online")
+            .or_else(|| agents.iter().find(|(_, a)| a.status.status == "online"));
+
+        if let Some((_, agent)) = primary {
+            // Calculate idle from last heartbeat
+            let idle = agent.status.last_heartbeat
+                .map(|hb| {
+                    let duration = OffsetDateTime::now_utc() - hb;
+                    duration.whole_seconds().max(0) as u64
+                })
+                .unwrap_or(0);
+
+            // CPU from latest metrics
+            let cpu = agent.status.system.as_ref()
+                .map(|s| s.cpu.percent)
+                .unwrap_or(0.0);
+
+            // Top processes if available (get process names from top_cpu)
+            let processes = agent.status.processes.as_ref()
+                .and_then(|p| p.top_cpu.as_ref())
+                .map(|procs| procs.iter().map(|p| p.name.clone()).collect())
+                .unwrap_or_default();
+
+            (idle, cpu, processes)
+        } else {
+            (0, 0.0, Vec::new())
+        }
+    }
+
+    /// Get environment readings from sensors
+    async fn get_environment_readings(&self) -> (Option<f32>, Option<f32>) {
+        // Try to get readings from any room with recent data
+        let rooms = self.sensors.list_rooms();
+
+        for room_id in rooms {
+            if let Some(env) = self.sensors.get_environment_by_room(&room_id) {
+                // Only use if recent (< 5 minutes old)
+                let age_seconds = (chrono::Utc::now() - env.current.timestamp).num_seconds();
+                if age_seconds < 300 {
+                    return (env.current.temperature_c, env.current.humidity_pct);
+                }
+            }
+        }
+
+        (None, None)
+    }
+
+    /// Get timestamp of last manual mode change
+    fn get_last_manual_change(&self) -> Option<OffsetDateTime> {
+        let history = self.context_engine.get_history();
+        history.iter()
+            .filter(|e| e.was_manual)
+            .map(|e| e.timestamp)
+            .max() // Return most recent, not first
+    }
+
+    // ========================================================================
+    // Phase 4: Prediction Engine
+    // ========================================================================
+
+    /// Predict optimal mode based on all signals
+    pub fn predict_mode(&self, signals: &ContextSignals) -> ModePrediction {
+        let config = self.config.read();
+        let mut scores: HashMap<String, f32> = HashMap::new();
+        let mut reasons: Vec<String> = Vec::new();
+        let mut factors: Vec<(String, f32)> = Vec::new();
+
+        // Initialize mode scores
+        for mode in ["pro", "maison", "veille"] {
+            scores.insert(mode.to_string(), 0.0);
+        }
+
+        // 1. TEMPORAL SIGNAL (35%)
+        let temporal = self.predict_from_temporal(signals);
+        self.add_weighted_score(&mut scores, &temporal, config.weights.temporal);
+        if temporal.confidence > 0.5 {
+            reasons.push(temporal.reason.clone());
+            factors.push(("temporal".into(), temporal.confidence));
+        }
+
+        // 2. BEHAVIORAL PATTERNS (25%)
+        let behavioral = self.predict_from_patterns(signals);
+        self.add_weighted_score(&mut scores, &behavioral, config.weights.behavioral);
+        if behavioral.confidence > 0.5 {
+            reasons.push(behavioral.reason.clone());
+            factors.push(("behavioral".into(), behavioral.confidence));
+        }
+
+        // 3. AGENT ACTIVITY (20%)
+        let activity = self.predict_from_agent_activity(signals);
+        self.add_weighted_score(&mut scores, &activity, config.weights.agent_activity);
+        if activity.confidence > 0.5 {
+            reasons.push(activity.reason.clone());
+            factors.push(("agent_activity".into(), activity.confidence));
+        }
+
+        // 4. ENVIRONMENT (10%)
+        let environment = self.predict_from_environment(signals);
+        self.add_weighted_score(&mut scores, &environment, config.weights.environmental);
+        if environment.confidence > 0.3 {
+            factors.push(("environment".into(), environment.confidence));
+        }
+
+        // 5. MOMENTUM (10%) - Prefer staying in current mode
+        let momentum = self.predict_from_momentum(signals);
+        self.add_weighted_score(&mut scores, &momentum, config.weights.momentum);
+
+        drop(config);
+
+        // Select mode with highest score
+        let (best_mode, best_score) = scores
+            .iter()
+            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(m, s)| (m.clone(), *s))
+            .unwrap_or(("veille".into(), 0.0));
+
+        let prediction = ModePrediction {
+            mode: best_mode,
+            confidence: best_score.min(1.0),
+            reasons,
+            contributing_factors: factors,
+        };
+
+        // Store for status
+        *self.last_prediction.write() = Some(prediction.clone());
+
+        prediction
+    }
+
+    /// Add weighted score from a single prediction
+    fn add_weighted_score(
+        &self,
+        scores: &mut HashMap<String, f32>,
+        prediction: &SinglePrediction,
+        weight: f32,
+    ) {
+        if !prediction.mode.is_empty() && prediction.confidence > 0.0 {
+            if let Some(score) = scores.get_mut(&prediction.mode) {
+                *score += prediction.confidence * weight;
+            }
+        }
+    }
+
+    // ========================================================================
+    // Individual Predictors
+    // ========================================================================
+
+    /// Predict based on time patterns (hour + day of week)
+    fn predict_from_temporal(&self, signals: &ContextSignals) -> SinglePrediction {
+        // Check learned patterns first
+        let patterns = self.learned_patterns.read();
+
+        // Find matching pattern (same day, hour ±1)
+        let matching = patterns.iter()
+            .filter(|p| {
+                p.day_of_week == signals.day_of_week &&
+                (p.hour as i8 - signals.hour as i8).abs() <= 1
+            })
+            .max_by(|a, b| a.confidence.partial_cmp(&b.confidence).unwrap_or(std::cmp::Ordering::Equal));
+
+        if let Some(pattern) = matching {
+            return SinglePrediction {
+                mode: pattern.mode.clone(),
+                confidence: pattern.confidence,
+                reason: format!(
+                    "Pattern détecté: {} à {}h le {}",
+                    mode_display_name(&pattern.mode),
+                    pattern.hour,
+                    day_name(pattern.day_of_week)
+                ),
+            };
+        }
+
+        drop(patterns);
+
+        // Fallback to default temporal rules
+        let (mode, confidence, reason) = match (signals.is_weekend, signals.hour) {
+            (_, 23..=23 | 0..=6) => ("veille", 0.6, "Heures de nuit"),
+            (true, _) => ("maison", 0.5, "Week-end"),
+            (false, 8..=12) => ("pro", 0.5, "Matinée en semaine"),
+            (false, 13..=17) => ("pro", 0.5, "Après-midi en semaine"),
+            (false, 18..=22) => ("maison", 0.5, "Soirée en semaine"),
+            _ => ("veille", 0.4, "Horaire par défaut"),
+        };
+
+        SinglePrediction {
+            mode: mode.to_string(),
+            confidence,
+            reason: reason.to_string(),
+        }
+    }
+
+    /// Predict based on learned behavioral patterns
+    fn predict_from_patterns(&self, signals: &ContextSignals) -> SinglePrediction {
+        let patterns = self.learned_patterns.read();
+
+        // Find high-confidence pattern for current context
+        let high_confidence = patterns.iter()
+            .filter(|p| {
+                p.day_of_week == signals.day_of_week &&
+                p.hour == signals.hour &&
+                p.occurrences >= 3 &&
+                p.confidence > 0.6
+            })
+            .max_by(|a, b| a.occurrences.cmp(&b.occurrences));
+
+        if let Some(pattern) = high_confidence {
+            SinglePrediction {
+                mode: pattern.mode.clone(),
+                confidence: pattern.confidence,
+                reason: format!(
+                    "Habitude apprise: {} ({} occurrences)",
+                    mode_display_name(&pattern.mode),
+                    pattern.occurrences
+                ),
+            }
+        } else {
+            SinglePrediction {
+                mode: String::new(),
+                confidence: 0.0,
+                reason: String::new(),
+            }
+        }
+    }
+
+    /// Predict based on agent activity (CPU, processes, idle time)
+    fn predict_from_agent_activity(&self, signals: &ContextSignals) -> SinglePrediction {
+        // Detect work apps
+        let work_apps = ["code", "rider", "intellij", "vscode", "terminal", "slack", "teams", "rustrover", "idea"];
+        let has_work_apps = signals.active_processes.iter()
+            .any(|p| work_apps.iter().any(|w| p.to_lowercase().contains(w)));
+
+        // Detect leisure apps
+        let leisure_apps = ["spotify", "netflix", "vlc", "steam", "discord", "firefox", "chrome", "kodi", "plex"];
+        let has_leisure_apps = signals.active_processes.iter()
+            .any(|p| leisure_apps.iter().any(|l| p.to_lowercase().contains(l)));
+
+        // Check if idle
+        let is_idle = signals.agent_idle_seconds > 300; // 5 minutes
+        let is_very_idle = signals.agent_idle_seconds > 1800; // 30 minutes
+
+        let (mode, confidence, reason) = if is_very_idle && (signals.hour >= 23 || signals.hour <= 6) {
+            ("veille", 0.8, "Inactif tard le soir".to_string())
+        } else if is_very_idle && signals.cpu_usage < 5.0 {
+            ("veille", 0.6, "Système très idle".to_string())
+        } else if has_work_apps && !has_leisure_apps {
+            let app_names: Vec<&str> = signals.active_processes.iter()
+                .filter(|p| work_apps.iter().any(|w| p.to_lowercase().contains(w)))
+                .take(2)
+                .map(|s| s.as_str())
+                .collect();
+            ("pro", 0.7, format!("Apps de travail: {}", app_names.join(", ")))
+        } else if has_leisure_apps && !has_work_apps {
+            ("maison", 0.6, "Apps de détente détectées".to_string())
+        } else if is_idle {
+            ("veille", 0.4, "Système idle".to_string())
+        } else {
+            ("", 0.0, String::new())
+        };
+
+        SinglePrediction {
+            mode: mode.to_string(),
+            confidence,
+            reason,
+        }
+    }
+
+    /// Predict based on environment (temperature, humidity)
+    fn predict_from_environment(&self, signals: &ContextSignals) -> SinglePrediction {
+        // Environmental factors are weak signals
+        // Cold temperature might indicate sleeping/away
+        if let Some(temp) = signals.temperature {
+            if temp < 17.0 && signals.hour >= 22 {
+                return SinglePrediction {
+                    mode: "veille".to_string(),
+                    confidence: 0.3,
+                    reason: format!("Température basse ({:.1}°C) le soir", temp),
+                };
+            }
+        }
+
+        SinglePrediction {
+            mode: String::new(),
+            confidence: 0.0,
+            reason: String::new(),
+        }
+    }
+
+    /// Predict based on momentum (time in current mode)
+    fn predict_from_momentum(&self, signals: &ContextSignals) -> SinglePrediction {
+        let minutes = signals.time_in_current_mode_minutes;
+
+        // Strong preference to stay if just changed
+        let confidence = if minutes < 15 {
+            0.8 // Just changed - strong momentum
+        } else if minutes < 60 {
+            0.5 // Less than an hour
+        } else if minutes < 240 {
+            0.3 // Less than 4 hours
+        } else {
+            0.1 // Long time - weak momentum
+        };
+
+        SinglePrediction {
+            mode: signals.current_mode.clone(),
+            confidence,
+            reason: format!("En mode {} depuis {}min", signals.current_mode, minutes),
+        }
+    }
+
+    // ========================================================================
+    // Phase 5: Feedback Loop (Learning)
+    // ========================================================================
+
+    /// Record user feedback when they manually change mode
+    pub fn record_feedback(&self, chosen_mode: &str, signals: ContextSignals) {
+        let last_prediction = self.last_prediction.read().clone();
+
+        let predicted_mode = last_prediction
+            .as_ref()
+            .map(|p| p.mode.clone())
+            .unwrap_or_default();
+
+        let was_correction = !predicted_mode.is_empty() && predicted_mode != chosen_mode;
+
+        let feedback = UserFeedback {
+            timestamp: OffsetDateTime::now_utc(),
+            predicted_mode: predicted_mode.clone(),
+            actual_mode: chosen_mode.to_string(),
+            signals_snapshot: signals.clone(),
+            was_correction,
+        };
+
+        // Store feedback
+        {
+            let mut history = self.feedback_history.write();
+            if history.len() >= 500 {
+                history.pop_front();
+            }
+            history.push_back(feedback.clone());
+        }
+
+        // Update prediction history
+        {
+            let mut pred_history = self.prediction_history.write();
+            if let Some(last) = pred_history.back_mut() {
+                if last.predicted_mode == predicted_mode {
+                    last.actual_mode = Some(chosen_mode.to_string());
+                    last.was_correct = Some(!was_correction);
+                }
+            }
+        }
+
+        // If correction, learn from it
+        if was_correction {
+            self.learn_from_correction(&feedback);
+        }
+    }
+
+    /// Learn from a user correction
+    fn learn_from_correction(&self, feedback: &UserFeedback) {
+        eprintln!(
+            "[intelligence] 📚 Correction: prédit {} mais utilisateur choisit {}",
+            feedback.predicted_mode, feedback.actual_mode
+        );
+
+        let new_pattern = LearnedPattern {
+            mode: feedback.actual_mode.clone(),
+            day_of_week: feedback.signals_snapshot.day_of_week,
+            hour: feedback.signals_snapshot.hour,
+            confidence: 0.3, // Start low
+            occurrences: 1,
+            last_seen: feedback.timestamp,
+            source: PatternSource::UserCorrection,
+        };
+
+        self.merge_or_create_pattern(new_pattern);
+    }
+
+    /// Merge with existing pattern or create new
+    fn merge_or_create_pattern(&self, new_pattern: LearnedPattern) {
+        let mut patterns = self.learned_patterns.write();
+
+        // Find similar pattern
+        if let Some(existing) = patterns.iter_mut().find(|p| {
+            p.mode == new_pattern.mode &&
+            p.day_of_week == new_pattern.day_of_week &&
+            (p.hour as i8 - new_pattern.hour as i8).abs() <= 1
+        }) {
+            // Reinforce existing pattern
+            existing.occurrences += 1;
+            existing.confidence = (existing.occurrences as f32 / 10.0).min(0.95);
+            existing.last_seen = new_pattern.last_seen;
+            eprintln!(
+                "[intelligence] 📈 Pattern renforcé: {} à {}h ({} occurrences, {:.0}% confidence)",
+                existing.mode, existing.hour, existing.occurrences, existing.confidence * 100.0
+            );
+        } else {
+            // Create new pattern
+            eprintln!(
+                "[intelligence] 🆕 Nouveau pattern: {} à {}h le {}",
+                new_pattern.mode, new_pattern.hour, day_name(new_pattern.day_of_week)
+            );
+            patterns.push(new_pattern);
+        }
+
+        drop(patterns);
+        self.save_patterns();
+    }
+
+    /// Record a prediction for accuracy tracking
+    pub fn record_prediction(&self, prediction: &ModePrediction) {
+        let record = PredictionRecord {
+            timestamp: OffsetDateTime::now_utc(),
+            predicted_mode: prediction.mode.clone(),
+            actual_mode: None,
+            confidence: prediction.confidence,
+            was_correct: None,
+        };
+
+        let mut history = self.prediction_history.write();
+        if history.len() >= 1000 {
+            history.pop_front();
+        }
+        history.push_back(record);
+    }
+
+    /// Mark the last prediction as correct (called when auto-apply succeeds)
+    pub fn mark_last_prediction_correct(&self) {
+        let mut history = self.prediction_history.write();
+        if let Some(last) = history.back_mut() {
+            if last.was_correct.is_none() {
+                last.was_correct = Some(true);
+                last.actual_mode = Some(last.predicted_mode.clone());
+            }
+        }
+    }
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+fn day_name(day: u8) -> &'static str {
+    match day {
+        0 => "dimanche",
+        1 => "lundi",
+        2 => "mardi",
+        3 => "mercredi",
+        4 => "jeudi",
+        5 => "vendredi",
+        6 => "samedi",
+        _ => "inconnu",
+    }
+}
+
+fn mode_display_name(mode: &str) -> &'static str {
+    match mode {
+        "pro" | "cravate" => "Professionnel",
+        "maison" | "intime" => "Maison",
+        "veille" | "neutre" => "Veille",
+        _ => "Inconnu",
+    }
+}
+
+// ============================================================================
+// Intelligence Monitor
+// ============================================================================
+
+impl ContextIntelligence {
+    /// Spawn the intelligence monitor background task
+    /// Runs every 30 seconds to collect signals, predict mode, and auto-apply/suggest
+    pub fn spawn_intelligence_monitor(
+        intelligence: SharedContextIntelligence,
+        mode_registry: crate::modes::SharedModeRegistry,
+        notifications_manager: crate::notifications::SharedNotificationManager,
+    ) {
+        tokio::spawn(async move {
+            eprintln!("[intelligence] 🧠 Intelligence monitor started");
+
+            loop {
+                let check_interval = {
+                    let config = intelligence.config.read();
+                    std::time::Duration::from_secs(config.check_interval_seconds)
+                };
+
+                tokio::time::sleep(check_interval).await;
+
+                // 1. Collect signals
+                let signals = intelligence.collect_signals().await;
+
+                // 2. Predict optimal mode
+                let prediction = intelligence.predict_mode(&signals);
+
+                // Record the prediction for accuracy tracking
+                intelligence.record_prediction(&prediction);
+
+                // 3. Compare with current mode
+                let current_mode = signals.current_mode.clone();
+
+                // Log prediction for debugging
+                eprintln!(
+                    "[intelligence] Prediction: {} (conf: {:.0}%) | Current: {} | {}",
+                    prediction.mode,
+                    prediction.confidence * 100.0,
+                    current_mode,
+                    if prediction.mode == current_mode { "SAME" } else { "DIFFERENT" }
+                );
+
+                // Check for active override - NEVER change mode while override is active
+                let has_active_override = intelligence.context_engine.get_state()
+                    .and_then(|s| s.manual_override)
+                    .map(|o| o.until > time::OffsetDateTime::now_utc())
+                    .unwrap_or(false);
+
+                if has_active_override {
+                    eprintln!(
+                        "[intelligence] 🔒 Override actif - aucun changement de mode autorisé"
+                    );
+                    continue; // Skip this cycle entirely
+                }
+
+                if prediction.mode != current_mode {
+                    let config = intelligence.config.read().clone();
+
+                    // Check if there was a recent manual change (cooldown period)
+                    let manual_cooldown_minutes = 30;
+                    let recent_manual_change = signals.last_manual_change
+                        .map(|ts| {
+                            let now = time::OffsetDateTime::now_utc();
+                            (now - ts).whole_minutes() < manual_cooldown_minutes
+                        })
+                        .unwrap_or(false);
+
+                    if prediction.confidence >= config.auto_apply_threshold && !recent_manual_change {
+                        // AUTO-APPLY: Very high confidence AND no recent manual change
+                        eprintln!(
+                            "[intelligence] 🎯 Auto-apply: {} → {} (confiance {:.0}%)",
+                            current_mode, prediction.mode, prediction.confidence * 100.0
+                        );
+
+                        // Get theme from mode registry and convert ModeTheme -> Theme
+                        let mode_theme = mode_registry.get_by_slug(&prediction.mode)
+                            .map(|m| m.theme.clone());
+                        let theme = match mode_theme {
+                            Some(mt) => Theme {
+                                primary: mt.primary,
+                                bg: mt.background,
+                                accent: mt.accent,
+                            },
+                            None => Theme {
+                                primary: "#6b7280".to_string(),
+                                bg: "#f9fafb".to_string(),
+                                accent: "#4b5563".to_string(),
+                            },
+                        };
+
+                        let reason = if prediction.reasons.is_empty() {
+                            "Intelligence contextuelle".to_string()
+                        } else {
+                            prediction.reasons.join(" + ")
+                        };
+
+                        intelligence.context_engine.set_mode_natural(
+                            prediction.mode.clone(),
+                            theme,
+                            reason,
+                        );
+
+                        // Mark prediction as correct for accuracy tracking
+                        intelligence.mark_last_prediction_correct();
+
+                    } else if prediction.confidence >= config.suggestion_threshold {
+                        // SUGGEST: Medium confidence - notify user
+                        // Also triggered when auto-apply was blocked by recent manual change
+                        if recent_manual_change && prediction.confidence >= config.auto_apply_threshold {
+                            eprintln!(
+                                "[intelligence] ⏸️ Auto-apply bloqué (changement manuel récent) → suggestion: {} → {} (confiance {:.0}%)",
+                                current_mode, prediction.mode, prediction.confidence * 100.0
+                            );
+                        } else {
+                            eprintln!(
+                                "[intelligence] 💡 Suggestion: {} → {} (confiance {:.0}%)",
+                                current_mode, prediction.mode, prediction.confidence * 100.0
+                            );
+                        }
+
+                        // Send non-intrusive notification
+                        Self::send_suggestion_notification(
+                            &notifications_manager,
+                            &prediction,
+                            &current_mode,
+                        ).await;
+                    } else if recent_manual_change {
+                        // OBSERVE: Confidence too low but we log that we're respecting manual choice
+                        eprintln!(
+                            "[intelligence] 👀 Observer (changement manuel récent): {} prédit, confiance {:.0}%",
+                            prediction.mode, prediction.confidence * 100.0
+                        );
+                    }
+                    // If confidence < suggestion_threshold and no recent manual: observe silently
+                }
+            }
+        });
+    }
+
+    /// Send a suggestion notification to the user
+    async fn send_suggestion_notification(
+        notifications_manager: &crate::notifications::SharedNotificationManager,
+        prediction: &ModePrediction,
+        current_mode: &str,
+    ) {
+        let title = format!("💡 Suggestion de mode");
+        let body = format!(
+            "Passer en mode {} ? (confiance: {:.0}%)\nRaison: {}",
+            mode_display_name(&prediction.mode),
+            prediction.confidence * 100.0,
+            prediction.reasons.first().cloned().unwrap_or_default()
+        );
+
+        let notification = crate::notifications::Notification {
+            id: uuid::Uuid::new_v4().to_string(),
+            priority: crate::notifications::NotificationPriority::P2, // Normal priority suggestion
+            title,
+            body,
+            source: "context_intelligence".to_string(),
+            timestamp: time::OffsetDateTime::now_utc(),
+            acknowledged: false,
+            acknowledged_at: None,
+            actions: vec![
+                crate::notifications::NotificationAction {
+                    id: "apply".to_string(),
+                    label: format!("Appliquer {}", mode_display_name(&prediction.mode)),
+                    action_type: crate::notifications::ActionType::Custom("apply_mode".to_string()),
+                },
+                crate::notifications::NotificationAction {
+                    id: "dismiss".to_string(),
+                    label: "Ignorer".to_string(),
+                    action_type: crate::notifications::ActionType::Reject,
+                },
+            ],
+            data: Some(serde_json::json!({
+                "type": "intelligence_suggestion",
+                "suggested_mode": prediction.mode,
+                "current_mode": current_mode,
+                "confidence": prediction.confidence,
+            })),
+        };
+
+        if let Err(e) = notifications_manager.send(notification).await {
+            eprintln!("[intelligence] Failed to send suggestion notification: {}", e);
+        }
+    }
+}
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_config() {
+        let config = IntelligenceConfig::default();
+        assert_eq!(config.auto_apply_threshold, 0.90);
+        assert_eq!(config.suggestion_threshold, 0.70);
+        assert_eq!(config.min_pattern_occurrences, 3);
+        assert!(config.auto_create_automations);
+    }
+
+    #[test]
+    fn test_signal_weights_sum_to_one() {
+        let weights = SignalWeights::default();
+        let sum = weights.temporal + weights.behavioral + weights.agent_activity +
+                  weights.environmental + weights.momentum;
+        assert!((sum - 1.0).abs() < 0.001, "Weights should sum to 1.0, got {}", sum);
+    }
+
+    #[test]
+    fn test_pattern_source_serialization() {
+        let source = PatternSource::UserCorrection;
+        let json = serde_json::to_string(&source).unwrap();
+        assert!(json.contains("UserCorrection"));
+
+        let parsed: PatternSource = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, PatternSource::UserCorrection);
+    }
+}

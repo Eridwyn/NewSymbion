@@ -58,6 +58,23 @@ pub enum AutomationEvent {
         #[serde(with = "time::serde::iso8601")]
         timestamp: OffsetDateTime,
     },
+
+    /// Plugin health status changed
+    PluginHealth {
+        plugin_name: String,
+        status: String,  // "healthy", "unhealthy", "recovery_attempt", "recovery_failed", "recovery_success"
+        previous_status: Option<String>,
+        #[serde(with = "time::serde::iso8601")]
+        timestamp: OffsetDateTime,
+    },
+
+    /// Scheduled/polling trigger fired
+    Scheduled {
+        automation_id: String,
+        automation_name: String,
+        #[serde(with = "time::serde::iso8601")]
+        timestamp: OffsetDateTime,
+    },
 }
 
 impl AutomationEvent {
@@ -68,6 +85,8 @@ impl AutomationEvent {
             AutomationEvent::SensorAlert { .. } => "sensor_alert",
             AutomationEvent::AgentStatus { .. } => "agent_status",
             AutomationEvent::Manual { .. } => "manual",
+            AutomationEvent::PluginHealth { .. } => "plugin_health",
+            AutomationEvent::Scheduled { .. } => "scheduled",
         }
     }
 
@@ -78,6 +97,8 @@ impl AutomationEvent {
             AutomationEvent::SensorAlert { timestamp, .. } => *timestamp,
             AutomationEvent::AgentStatus { timestamp, .. } => *timestamp,
             AutomationEvent::Manual { timestamp, .. } => *timestamp,
+            AutomationEvent::PluginHealth { timestamp, .. } => *timestamp,
+            AutomationEvent::Scheduled { timestamp, .. } => *timestamp,
         }
     }
 }
@@ -178,6 +199,40 @@ impl EventDispatcher {
         match self.sender.send(event) {
             Ok(n) => eprintln!("[automations] dispatched manual trigger for {} ({} receivers)", automation_id, n),
             Err(_) => eprintln!("[automations] no receivers for manual trigger"),
+        }
+    }
+
+    /// Dispatch plugin health event
+    pub fn dispatch_plugin_health(
+        &self,
+        plugin_name: &str,
+        status: &str,
+        previous_status: Option<&str>,
+    ) {
+        let event = AutomationEvent::PluginHealth {
+            plugin_name: plugin_name.to_string(),
+            status: status.to_string(),
+            previous_status: previous_status.map(|s| s.to_string()),
+            timestamp: OffsetDateTime::now_utc(),
+        };
+
+        match self.sender.send(event) {
+            Ok(n) => eprintln!("[automations] dispatched plugin_health event for {} ({} receivers)", plugin_name, n),
+            Err(_) => eprintln!("[automations] no receivers for plugin_health event"),
+        }
+    }
+
+    /// Dispatch scheduled trigger event
+    pub fn dispatch_scheduled(&self, automation_id: &str, automation_name: &str) {
+        let event = AutomationEvent::Scheduled {
+            automation_id: automation_id.to_string(),
+            automation_name: automation_name.to_string(),
+            timestamp: OffsetDateTime::now_utc(),
+        };
+
+        match self.sender.send(event) {
+            Ok(n) => eprintln!("[scheduler] dispatched scheduled event for {} ({} receivers)", automation_name, n),
+            Err(_) => eprintln!("[scheduler] no receivers for scheduled event"),
         }
     }
 

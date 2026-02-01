@@ -18,6 +18,15 @@ use time::OffsetDateTime;
 // Re-export ImpactLevel from decision module for convenience
 pub use crate::decision::ImpactLevel;
 
+/// Available automation categories
+pub const DEFAULT_CATEGORIES: &[(&str, &str)] = &[
+    ("systeme", "Système"),
+    ("alertes", "Alertes"),
+    ("modes", "Modes"),
+    ("notifications", "Notifications"),
+    ("custom", "Personnalisé"),
+];
+
 /// Complete automation rule
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Automation {
@@ -25,14 +34,34 @@ pub struct Automation {
     pub name: String,
     #[serde(default)]
     pub description: Option<String>,
+    /// Category for organizing automations (systeme, alertes, modes, notifications, custom)
+    #[serde(default)]
+    pub category: Option<String>,
     #[serde(default = "default_true")]
     pub enabled: bool,
-    pub trigger: Trigger,
+    /// Legacy single trigger (for backward compatibility)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub trigger: Option<Trigger>,
+    /// New trigger group with AND/OR logic
+    #[serde(default)]
+    pub triggers: Option<TriggerGroup>,
     #[serde(default)]
     pub conditions: Option<ConditionGroup>,
     pub actions: Vec<ActionDefinition>,
     #[serde(default = "default_cooldown")]
     pub cooldown_seconds: u32,
+
+    // Intelligence flags
+    /// Si true, bypass le Decision Engine (auto-approuvé)
+    #[serde(default)]
+    pub trusted: Option<bool>,
+    /// Si true, ne pas exécuter si déjà dans le mode cible (évite spam)
+    #[serde(default)]
+    pub skip_if_same_mode: Option<bool>,
+    /// Marqué true si créé automatiquement par le système d'intelligence
+    #[serde(default)]
+    pub auto_created: Option<bool>,
 
     // Execution tracking
     #[serde(default)]
@@ -91,6 +120,23 @@ pub enum Trigger {
     /// Manual trigger only (via API)
     Manual,
 
+    /// Triggered when plugin health changes
+    PluginHealth {
+        #[serde(default)]
+        plugin_name: Option<String>,
+        status: PluginHealthStatus,
+    },
+
+    /// Scheduled/polling trigger - fires at regular intervals
+    Scheduled {
+        /// Interval in seconds (minimum 60, default 300 = 5 minutes)
+        interval_seconds: u32,
+        /// Optional: only run between these hours (0-23), e.g., (9, 18) for 9am-6pm
+        #[serde(default)]
+        #[serde(skip_serializing_if = "Option::is_none")]
+        active_hours: Option<(u8, u8)>,
+    },
+
     /// Plugin-defined custom trigger
     Custom {
         plugin_name: String,
@@ -98,6 +144,13 @@ pub enum Trigger {
         #[serde(default)]
         config: Value,
     },
+}
+
+impl Trigger {
+    /// Returns true if this is an event-based trigger (vs scheduled/polling)
+    pub fn is_event_based(&self) -> bool {
+        !matches!(self, Trigger::Scheduled { .. })
+    }
 }
 
 /// Alert levels for sensor triggers
@@ -119,12 +172,48 @@ pub enum AgentStatusType {
     Any,
 }
 
-/// Logical operator for condition groups
+/// Plugin health status for triggers
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PluginHealthStatus {
+    Healthy,
+    Unhealthy,
+    RecoveryAttempt,
+    RecoveryFailed,
+    RecoverySuccess,
+    Any,
+}
+
+/// Logical operator for condition/trigger groups
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LogicalOperator {
     And,
     Or,
+}
+
+/// Group of triggers with AND/OR logic
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TriggerGroup {
+    pub operator: LogicalOperator,
+    pub triggers: Vec<TriggerItem>,
+}
+
+/// Trigger item - can be single trigger or nested group
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TriggerItem {
+    Group(Box<TriggerGroup>),
+    Single(Trigger),
+}
+
+impl Default for TriggerGroup {
+    fn default() -> Self {
+        TriggerGroup {
+            operator: LogicalOperator::Or, // OR is more intuitive default for triggers
+            triggers: vec![],
+        }
+    }
 }
 
 /// Group of conditions with AND/OR logic
@@ -179,6 +268,16 @@ pub enum Condition {
         days: Vec<u8>,
     },
 
+    /// Check day of month (1-31, 31 = last day of any month)
+    DayOfMonth {
+        days: Vec<u8>,
+    },
+
+    /// Check month of year (1-12)
+    Month {
+        months: Vec<u8>,
+    },
+
     /// Check sensor value
     SensorValue {
         room_id: String,
@@ -231,6 +330,10 @@ pub enum ActionDefinition {
         reason: String,
         #[serde(default = "default_impact_medium")]
         impact_level: ImpactLevel,
+        /// Si false (ou None), utilise set_mode_natural() au lieu de set_override()
+        /// Cela évite de créer un override temporaire et permet au système de continuer à évoluer
+        #[serde(default)]
+        use_override: Option<bool>,
     },
 
     /// Send command to agent
@@ -326,14 +429,58 @@ pub struct AutomationRequest {
     pub name: String,
     #[serde(default)]
     pub description: Option<String>,
+    /// Category for organizing automations (systeme, alertes, modes, notifications, custom)
+    #[serde(default)]
+    pub category: Option<String>,
     #[serde(default = "default_true")]
     pub enabled: bool,
-    pub trigger: Trigger,
+    /// Legacy single trigger (for backward compatibility)
+    #[serde(default)]
+    pub trigger: Option<Trigger>,
+    /// New trigger group with AND/OR logic
+    #[serde(default)]
+    pub triggers: Option<TriggerGroup>,
     #[serde(default)]
     pub conditions: Option<ConditionGroup>,
     pub actions: Vec<ActionDefinition>,
     #[serde(default = "default_cooldown")]
     pub cooldown_seconds: u32,
+
+    // Intelligence flags (optionnels, pour création via API)
+    /// Si true, bypass le Decision Engine (auto-approuvé)
+    #[serde(default)]
+    pub trusted: Option<bool>,
+    /// Si true, ne pas exécuter si déjà dans le mode cible
+    #[serde(default)]
+    pub skip_if_same_mode: Option<bool>,
+    /// Marqué true si créé automatiquement par le système d'intelligence
+    #[serde(default)]
+    pub auto_created: Option<bool>,
+}
+
+impl AutomationRequest {
+    /// Get the effective TriggerGroup from request (prefers `triggers`, falls back to `trigger`)
+    pub fn get_trigger_group(&self) -> Option<TriggerGroup> {
+        if let Some(ref tg) = self.triggers {
+            Some(tg.clone())
+        } else if let Some(ref t) = self.trigger {
+            Some(TriggerGroup {
+                operator: LogicalOperator::Or,
+                triggers: vec![TriggerItem::Single(t.clone())],
+            })
+        } else {
+            None
+        }
+    }
+
+    /// Check if request has any triggers defined
+    pub fn has_triggers(&self) -> bool {
+        if let Some(ref tg) = self.triggers {
+            !tg.triggers.is_empty()
+        } else {
+            self.trigger.is_some()
+        }
+    }
 }
 
 /// Response for automation list
@@ -436,6 +583,29 @@ impl Automation {
             None
         }
     }
+
+    /// Get the effective TriggerGroup (prefers `triggers`, falls back to wrapping `trigger`)
+    pub fn get_trigger_group(&self) -> TriggerGroup {
+        if let Some(ref tg) = self.triggers {
+            tg.clone()
+        } else if let Some(ref t) = self.trigger {
+            TriggerGroup {
+                operator: LogicalOperator::Or,
+                triggers: vec![TriggerItem::Single(t.clone())],
+            }
+        } else {
+            TriggerGroup::default()
+        }
+    }
+
+    /// Check if automation has any triggers defined
+    pub fn has_triggers(&self) -> bool {
+        if let Some(ref tg) = self.triggers {
+            !tg.triggers.is_empty()
+        } else {
+            self.trigger.is_some()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -529,11 +699,16 @@ mod tests {
             id: "test".to_string(),
             name: "Test".to_string(),
             description: None,
+            category: Some("custom".to_string()),
             enabled: true,
-            trigger: Trigger::Manual,
+            trigger: Some(Trigger::Manual),
+            triggers: None,
             conditions: None,
             actions: vec![],
             cooldown_seconds: 60,
+            trusted: None,
+            skip_if_same_mode: None,
+            auto_created: None,
             last_executed_at: Some(OffsetDateTime::now_utc()),
             execution_count: 1,
             created_at: None,
