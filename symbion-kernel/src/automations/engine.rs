@@ -114,9 +114,21 @@ impl AutomationEngine {
                     ComparisonOperator::NotEquals => !current.eq_ignore_ascii_case(mode),
                     _ => false,
                 };
+
+                // Debug logging for condition evaluation
+                eprintln!(
+                    "[automations] DEBUG: CurrentMode condition - current='{}', target='{}', operator={:?}, matches={}",
+                    current, mode, operator, matches
+                );
+
+                let op_str = match operator {
+                    ComparisonOperator::Equals => "==",
+                    ComparisonOperator::NotEquals => "!=",
+                    _ => "??",
+                };
                 (
                     matches,
-                    format!("current mode '{}' {} '{}'", current, if matches { "==" } else { "!=" }, mode),
+                    format!("current mode '{}' {} '{}' → {}", current, op_str, mode, matches),
                 )
             }
 
