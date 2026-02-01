@@ -32,6 +32,11 @@ impl DecisionEngine {
     pub fn decide(&self, action: &Action, context: &DecisionContext) -> DecisionResult {
         let decision_id = Uuid::new_v4().to_string();
 
+        // Ensure trace_id is valid (generate if empty)
+        let mut action = action.clone();
+        action.ensure_trace_id();
+        let action = &action;
+
         // Mode dry-run: évaluation sans exécution
         if action.dry_run {
             return self.dry_run_evaluate(action, context, decision_id);
@@ -173,7 +178,7 @@ impl DecisionEngine {
 
     /// Obtenir le seuil selon impact level
     fn get_threshold(&self, impact_level: &ImpactLevel) -> f32 {
-        let config = self.config.read().unwrap();
+        let config = self.config.read().expect("[decision-engine] Config lock poisoned (read)");
         match impact_level {
             ImpactLevel::Low => config.impact_thresholds.low,
             ImpactLevel::Medium => config.impact_thresholds.medium,
@@ -184,14 +189,14 @@ impl DecisionEngine {
 
     /// Mettre à jour la configuration
     pub fn update_config(&self, config: DecisionConfig) {
-        let mut current = self.config.write().unwrap();
+        let mut current = self.config.write().expect("[decision-engine] Config lock poisoned (write)");
         *current = config;
         eprintln!("[decision-engine] Config updated: {:?}", current.impact_thresholds);
     }
 
     /// Obtenir la configuration actuelle
     pub fn config(&self) -> DecisionConfig {
-        self.config.read().unwrap().clone()
+        self.config.read().expect("[decision-engine] Config lock poisoned (read)").clone()
     }
 }
 

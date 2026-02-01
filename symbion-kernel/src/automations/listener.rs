@@ -13,12 +13,13 @@
 
 use crate::agents::SharedAgentRegistry;
 use crate::automations::{
-    AutomationEvent, AutomationStore, Trigger, AlertLevel, AgentStatusType,
+    AutomationEvent, AutomationStore, Trigger, AlertLevel, AgentStatusType, PluginHealthStatus,
     AutomationEngine, ExecutionContext, ExecutionRecord, SharedPendingActionRegistry,
+    TriggerGroup, TriggerItem, LogicalOperator,
 };
 use crate::context::ContextEngine;
 use crate::decision::{DecisionEngine, SharedTrustTracker, ValidationManager};
-use crate::notification_client::NotificationClient;
+use crate::notifications::SharedNotificationManager;
 use crate::sensors::SensorRegistry;
 
 use std::sync::Arc;
@@ -31,7 +32,7 @@ pub struct AutomationListener {
     context_engine: Arc<ContextEngine>,
     agents: SharedAgentRegistry,
     sensors: Arc<SensorRegistry>,
-    notification_client: NotificationClient,
+    notifications_manager: SharedNotificationManager,
     /// Decision Engine for trust evaluation (Phase 7)
     decision_engine: Option<Arc<DecisionEngine>>,
     /// Trust Tracker for evolving statistics (Phase 7)
@@ -48,7 +49,7 @@ impl AutomationListener {
         context_engine: Arc<ContextEngine>,
         agents: SharedAgentRegistry,
         sensors: Arc<SensorRegistry>,
-        notification_client: NotificationClient,
+        notifications_manager: SharedNotificationManager,
         decision_engine: Option<Arc<DecisionEngine>>,
         trust_tracker: Option<SharedTrustTracker>,
         validation_manager: Option<Arc<ValidationManager>>,
@@ -59,7 +60,7 @@ impl AutomationListener {
             context_engine,
             agents,
             sensors,
-            notification_client,
+            notifications_manager,
             decision_engine,
             trust_tracker,
             validation_manager,
@@ -105,8 +106,9 @@ impl AutomationListener {
                 continue;
             }
 
-            // Check if trigger matches
-            if !self.trigger_matches(&automation.trigger, &event, &automation.id) {
+            // Check if trigger group matches
+            let trigger_group = automation.get_trigger_group();
+            if !self.trigger_group_matches(&trigger_group, &event, &automation.id) {
                 continue;
             }
 
@@ -133,7 +135,7 @@ impl AutomationListener {
                 context_engine: self.context_engine.clone(),
                 agents: self.agents.clone(),
                 sensors: self.sensors.clone(),
-                notification_client: self.notification_client.clone(),
+                notifications_manager: self.notifications_manager.clone(),
                 event: event.clone(),
                 decision_engine: self.decision_engine.clone(),
                 trust_tracker: self.trust_tracker.clone(),
@@ -328,6 +330,34 @@ impl AutomationListener {
                 automation_id == target_id
             }
 
+            // Plugin health trigger
+            (
+                Trigger::PluginHealth { plugin_name, status },
+                AutomationEvent::PluginHealth {
+                    plugin_name: event_plugin,
+                    status: event_status,
+                    ..
+                },
+            ) => {
+                let plugin_matches = plugin_name
+                    .as_ref()
+                    .map(|p| p.eq_ignore_ascii_case(event_plugin))
+                    .unwrap_or(true);
+
+                let status_matches = self.plugin_health_status_matches(*status, event_status);
+
+                plugin_matches && status_matches
+            }
+
+            // Scheduled trigger - matches only Scheduled events for this specific automation
+            (
+                Trigger::Scheduled { .. },
+                AutomationEvent::Scheduled { automation_id: event_auto_id, .. }
+            ) => {
+                // Scheduled events are targeted to a specific automation
+                automation_id == event_auto_id
+            }
+
             // Custom plugin trigger (Phase 5+)
             (Trigger::Custom { plugin_name: _, trigger_type: _, .. }, _) => {
                 // Custom triggers will be implemented with plugin support
@@ -336,6 +366,19 @@ impl AutomationListener {
 
             // No match for other combinations
             _ => false,
+        }
+    }
+
+    /// Check if plugin health status matches
+    fn plugin_health_status_matches(&self, trigger_status: PluginHealthStatus, event_status: &str) -> bool {
+        let normalized_event = event_status.to_lowercase();
+        match trigger_status {
+            PluginHealthStatus::Any => true,
+            PluginHealthStatus::Healthy => normalized_event == "healthy",
+            PluginHealthStatus::Unhealthy => normalized_event == "unhealthy",
+            PluginHealthStatus::RecoveryAttempt => normalized_event == "recovery_attempt",
+            PluginHealthStatus::RecoveryFailed => normalized_event == "recovery_failed",
+            PluginHealthStatus::RecoverySuccess => normalized_event == "recovery_success",
         }
     }
 
@@ -350,6 +393,36 @@ impl AutomationListener {
             AlertLevel::Critical => normalized_event == "critical" || normalized_event == "danger",
         }
     }
+
+    /// Check if a trigger group matches an event (AND/OR logic)
+    fn trigger_group_matches(&self, group: &TriggerGroup, event: &AutomationEvent, automation_id: &str) -> bool {
+        if group.triggers.is_empty() {
+            return false; // No triggers = no match
+        }
+
+        match group.operator {
+            LogicalOperator::Or => {
+                // ANY trigger matches = group matches
+                group.triggers.iter().any(|item| {
+                    self.trigger_item_matches(item, event, automation_id)
+                })
+            }
+            LogicalOperator::And => {
+                // ALL triggers must match the same event
+                group.triggers.iter().all(|item| {
+                    self.trigger_item_matches(item, event, automation_id)
+                })
+            }
+        }
+    }
+
+    /// Check if a single trigger item matches (can be single trigger or nested group)
+    fn trigger_item_matches(&self, item: &TriggerItem, event: &AutomationEvent, automation_id: &str) -> bool {
+        match item {
+            TriggerItem::Single(trigger) => self.trigger_matches(trigger, event, automation_id),
+            TriggerItem::Group(nested_group) => self.trigger_group_matches(nested_group, event, automation_id),
+        }
+    }
 }
 
 /// Spawn the automation listener with given store and dispatcher
@@ -358,7 +431,7 @@ pub fn spawn_automation_listener(
     context_engine: Arc<ContextEngine>,
     agents: SharedAgentRegistry,
     sensors: Arc<SensorRegistry>,
-    notification_client: NotificationClient,
+    notifications_manager: SharedNotificationManager,
     receiver: broadcast::Receiver<AutomationEvent>,
     decision_engine: Option<Arc<DecisionEngine>>,
     trust_tracker: Option<SharedTrustTracker>,
@@ -370,7 +443,7 @@ pub fn spawn_automation_listener(
         context_engine,
         agents,
         sensors,
-        notification_client,
+        notifications_manager,
         decision_engine,
         trust_tracker,
         validation_manager,

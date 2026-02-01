@@ -9,6 +9,23 @@ import { LitElement, html, css } from 'lit'
 import csrfService from '../services/csrf-service.js'
 import automationsService from '../services/automations-service.js'
 
+// Import du composant timeline (utilisé dans le template)
+import './automation-timeline.js'
+
+// Classification des types de règles
+// Événements = déclencheurs (triggers) - provoquent l'exécution
+const EVENT_TYPES = ['mode_change', 'sensor_alert', 'agent_status', 'manual', 'plugin_health', 'scheduled']
+// États = conditions - vérifient l'état actuel
+const STATE_TYPES = ['current_mode', 'time_range', 'day_of_week', 'day_of_month', 'month', 'sensor_value', 'agent_online']
+
+function isEventType(type) {
+  return EVENT_TYPES.includes(type)
+}
+
+function isStateType(type) {
+  return STATE_TYPES.includes(type)
+}
+
 class ContextEnginePage extends LitElement {
   static styles = css`
     :host {
@@ -47,6 +64,362 @@ class ContextEnginePage extends LitElement {
     @keyframes scaleIn {
       from { opacity: 0; transform: scale(0.95); }
       to { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes slideDown {
+      from { opacity: 1; transform: translateY(0); }
+      to { opacity: 0; transform: translateY(20px); }
+    }
+
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(var(--pulse-color), 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(var(--pulse-color), 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(var(--pulse-color), 0); }
+    }
+
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10001;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .toast {
+      padding: 0.75rem 1.25rem;
+      border-radius: 12px;
+      background: rgba(25, 26, 32, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      color: var(--color-dark-text-primary, #f8f9fa);
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      animation: slideUp 0.3s ease-out;
+      pointer-events: auto;
+    }
+
+    .toast.leaving {
+      animation: slideDown 0.25s ease-in forwards;
+    }
+
+    .toast.success {
+      border-color: rgba(34, 197, 94, 0.4);
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(25, 26, 32, 0.95) 100%);
+    }
+
+    .toast.error {
+      border-color: rgba(239, 68, 68, 0.4);
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(25, 26, 32, 0.95) 100%);
+    }
+
+    .toast.info {
+      border-color: rgba(59, 130, 246, 0.4);
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(25, 26, 32, 0.95) 100%);
+    }
+
+    .toast-icon {
+      font-size: 1.1rem;
+    }
+
+    .toast-message {
+      flex: 1;
+    }
+
+    /* Confirmation Overlay */
+    .confirm-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10002;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(8px);
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    .confirm-dialog {
+      background: linear-gradient(135deg, rgba(25, 26, 32, 0.98) 0%, rgba(15, 15, 17, 1) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 1.5rem;
+      max-width: 380px;
+      width: 90%;
+      animation: scaleIn 0.25s ease-out;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+    }
+
+    .confirm-icon {
+      font-size: 2.5rem;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+
+    .confirm-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--color-dark-text-primary, #f8f9fa);
+      text-align: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .confirm-message {
+      font-size: 0.85rem;
+      color: var(--color-dark-text-secondary, #adb5bd);
+      text-align: center;
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+
+    .confirm-actions {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .confirm-actions .btn {
+      flex: 1;
+      justify-content: center;
+    }
+
+    /* Mode Change Overlay */
+    .mode-change-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(16px);
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    .mode-change-content {
+      text-align: center;
+      animation: scaleIn 0.4s ease-out;
+    }
+
+    .mode-change-icon {
+      font-size: 5rem;
+      margin-bottom: 1rem;
+      animation: float 2s ease-in-out infinite;
+    }
+
+    .mode-change-name {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--context-primary, #00d4aa);
+      margin-bottom: 0.5rem;
+    }
+
+    .mode-change-message {
+      font-size: 0.9rem;
+      color: var(--color-dark-text-secondary, #adb5bd);
+    }
+
+    /* Skeleton Loading */
+    .skeleton {
+      background: linear-gradient(90deg,
+        rgba(255, 255, 255, 0.03) 25%,
+        rgba(255, 255, 255, 0.08) 50%,
+        rgba(255, 255, 255, 0.03) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+      border-radius: 8px;
+    }
+
+    .skeleton-text {
+      height: 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .skeleton-text.short {
+      width: 60%;
+    }
+
+    .skeleton-card {
+      height: 100px;
+      margin-bottom: 0.75rem;
+    }
+
+    /* Enhanced Validation Cards */
+    .validation-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .validation-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg,
+        var(--validation-color, #f59e0b),
+        color-mix(in srgb, var(--validation-color, #f59e0b) 70%, white));
+    }
+
+    .validation-card:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .validation-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .validation-icon {
+      font-size: 2rem;
+      padding: 0.5rem;
+      background: rgba(245, 158, 11, 0.15);
+      border-radius: 12px;
+    }
+
+    .validation-info {
+      flex: 1;
+    }
+
+    .validation-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--color-dark-text-primary, #f8f9fa);
+      margin-bottom: 0.25rem;
+    }
+
+    .validation-subtitle {
+      font-size: 0.8rem;
+      color: var(--color-dark-text-tertiary, #6c757d);
+    }
+
+    .validation-trust-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 8px;
+    }
+
+    .validation-trust-bar {
+      width: 60px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .validation-trust-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+
+    .validation-trust-fill.high { background: linear-gradient(90deg, #22c55e, #4ade80); }
+    .validation-trust-fill.medium { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .validation-trust-fill.low { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+    .validation-reasons {
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .validation-reasons-title {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-dark-text-tertiary, #6c757d);
+      margin-bottom: 0.5rem;
+    }
+
+    .validation-reason-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--color-dark-text-secondary, #adb5bd);
+      padding: 0.25rem 0;
+    }
+
+    .validation-reason-bullet {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--context-primary, #00d4aa);
+    }
+
+    .validation-actions {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .validation-btn {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .validation-btn.approve {
+      background: rgba(34, 197, 94, 0.15);
+      border-color: rgba(34, 197, 94, 0.4);
+      color: #22c55e;
+    }
+
+    .validation-btn.approve:hover {
+      background: rgba(34, 197, 94, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .validation-btn.reject {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #ef4444;
+    }
+
+    .validation-btn.reject:hover {
+      background: rgba(239, 68, 68, 0.25);
+      transform: translateY(-1px);
     }
 
     /* Header */
@@ -454,6 +827,513 @@ class ContextEnginePage extends LitElement {
       color: #ef4444;
     }
 
+    /* ===== Enhanced Automation Cards ===== */
+    .automation-card {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 0;
+      margin-bottom: 0.75rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .automation-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+      background: var(--card-status-color, rgba(255, 255, 255, 0.2));
+      transition: all 0.3s ease;
+    }
+
+    .automation-card.enabled::before {
+      background: var(--context-primary, #00d4aa);
+    }
+
+    .automation-card.disabled::before {
+      background: rgba(239, 68, 68, 0.5);
+    }
+
+    .automation-card:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    }
+
+    .automation-card.highlighted {
+      border-color: var(--context-primary, #00d4aa);
+      box-shadow: 0 0 0 1px var(--context-primary, #00d4aa),
+                  0 8px 32px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+    }
+
+    .automation-card.add-new {
+      border-style: dashed;
+      border-color: rgba(255, 255, 255, 0.15);
+      background: transparent;
+    }
+
+    .automation-card.add-new::before {
+      display: none;
+    }
+
+    .automation-card.add-new:hover {
+      border-color: var(--context-primary, #00d4aa);
+      background: color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent);
+    }
+
+    .automation-card.add-new:hover div {
+      color: var(--context-primary, #00d4aa) !important;
+      opacity: 1 !important;
+    }
+
+    .automation-card-inner {
+      padding: 1rem 1rem 1rem 1.25rem;
+    }
+
+    .automation-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .automation-status-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      flex-shrink: 0;
+    }
+
+    .automation-card.enabled .automation-status-icon {
+      background: color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+    }
+
+    .automation-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .automation-title-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .automation-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--color-dark-text-primary, #f8f9fa);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .automation-category-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--color-dark-text-secondary, #adb5bd);
+    }
+
+    .automation-category-badge.comfort { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+    .automation-category-badge.security { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .automation-category-badge.energy { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+    .automation-category-badge.notifications { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+    .automation-category-badge.custom { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+
+    .automation-subtitle {
+      font-size: 0.8rem;
+      color: var(--color-dark-text-tertiary, #6c757d);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .automation-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .automation-details {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      padding-top: 0.75rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .automation-detail {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.75rem;
+      color: var(--color-dark-text-secondary, #adb5bd);
+    }
+
+    .automation-detail-icon {
+      font-size: 0.85rem;
+      opacity: 0.7;
+    }
+
+    .automation-detail-value {
+      font-weight: 500;
+    }
+
+    .automation-quick-actions {
+      margin-left: auto;
+      display: flex;
+      gap: 0.5rem;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .automation-card:hover .automation-quick-actions {
+      opacity: 1;
+    }
+
+    .quick-action-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--color-dark-text-secondary, #adb5bd);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      transition: all 0.2s ease;
+    }
+
+    .quick-action-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+      color: var(--color-dark-text-primary, #f8f9fa);
+    }
+
+    .quick-action-btn.play:hover {
+      background: rgba(34, 197, 94, 0.15);
+      border-color: rgba(34, 197, 94, 0.3);
+      color: #22c55e;
+    }
+
+    /* ===== Enhanced Category Filter ===== */
+    .category-filter-bar {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      padding: 0.5rem;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .category-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem 0.85rem;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--color-dark-text-secondary, #adb5bd);
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      white-space: nowrap;
+    }
+
+    .category-pill:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .category-pill.active {
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent) 0%,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 100%);
+      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 50%, transparent);
+      color: var(--context-primary, #00d4aa);
+      font-weight: 600;
+    }
+
+    .category-pill-icon {
+      font-size: 0.9rem;
+    }
+
+    .category-pill-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 0.35rem;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+
+    .category-pill.active .category-pill-count {
+      background: color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+    }
+
+    /* ===== Automations Header Stats ===== */
+    .automations-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding: 0.75rem 1rem;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .automations-stats {
+      display: flex;
+      gap: 1.5rem;
+    }
+
+    .automation-stat {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .automation-stat-value {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--context-primary, #00d4aa);
+    }
+
+    .automation-stat-label {
+      font-size: 0.75rem;
+      color: var(--color-dark-text-tertiary, #6c757d);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .automation-stat-divider {
+      width: 1px;
+      height: 24px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* ===== Enhanced History Section ===== */
+    .history-section {
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .history-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--color-dark-text-secondary, #adb5bd);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .history-title-icon {
+      font-size: 1rem;
+    }
+
+    .history-timeline {
+      position: relative;
+      padding-left: 1.5rem;
+    }
+
+    .history-timeline::before {
+      content: '';
+      position: absolute;
+      left: 6px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: linear-gradient(180deg,
+        rgba(255, 255, 255, 0.1) 0%,
+        rgba(255, 255, 255, 0.02) 100%);
+      border-radius: 1px;
+    }
+
+    .history-item {
+      position: relative;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      transition: all 0.2s ease;
+    }
+
+    .history-item::before {
+      content: '';
+      position: absolute;
+      left: -1.5rem;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--history-status-color, rgba(255, 255, 255, 0.2));
+      border: 2px solid rgba(15, 15, 17, 1);
+      z-index: 1;
+    }
+
+    .history-item.success::before {
+      background: #22c55e;
+      box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+    }
+
+    .history-item.failed::before {
+      background: #ef4444;
+      box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+    }
+
+    .history-item:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .history-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.25rem;
+    }
+
+    .history-item-name {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--color-dark-text-primary, #f8f9fa);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .history-item-status {
+      font-size: 0.9rem;
+    }
+
+    .history-item-time {
+      font-size: 0.7rem;
+      color: var(--color-dark-text-tertiary, #6c757d);
+    }
+
+    .history-item-details {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.75rem;
+      color: var(--color-dark-text-secondary, #adb5bd);
+    }
+
+    /* ===== Enhanced Empty State ===== */
+    .empty-state-enhanced {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+      text-align: center;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
+      border: 2px dashed rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+    }
+
+    .empty-state-icon-container {
+      width: 80px;
+      height: 80px;
+      border-radius: 20px;
+      background: linear-gradient(135deg,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 0%,
+        color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent) 100%);
+      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .empty-state-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--color-dark-text-primary, #f8f9fa);
+      margin-bottom: 0.5rem;
+    }
+
+    .empty-state-description {
+      font-size: 0.85rem;
+      color: var(--color-dark-text-secondary, #adb5bd);
+      margin-bottom: 1.5rem;
+      max-width: 280px;
+      line-height: 1.5;
+    }
+
+    .empty-state-suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      justify-content: center;
+      margin-top: 1rem;
+    }
+
+    .suggestion-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.75rem;
+      color: var(--color-dark-text-secondary, #adb5bd);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .suggestion-chip:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.15);
+      color: var(--color-dark-text-primary, #f8f9fa);
+    }
+
     /* Stats */
     .stat-bar {
       margin-bottom: 1rem;
@@ -600,6 +1480,558 @@ class ContextEnginePage extends LitElement {
       color: var(--color-dark-text-secondary, #adb5bd);
     }
 
+    /* ============ MODES TAB STYLES (Unified) ============ */
+    .modes-container {
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .section-header h3 {
+      margin: 0;
+      color: var(--color-dark-text-primary, #f8f9fa);
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    /* Current Mode Section */
+    .current-mode-section {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 1rem;
+    }
+
+    .current-mode-display {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .mode-status {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .current-mode-icon {
+      font-size: 2.5rem;
+    }
+
+    .mode-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .current-mode-name {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--color-dark-text-primary, #f8f9fa);
+    }
+
+    .mode-reason {
+      font-size: 0.8rem;
+      color: var(--color-dark-text-secondary, #adb5bd);
+    }
+
+    .confidence-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .confidence-bar-mini {
+      width: 60px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .confidence-bar-mini .confidence-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #22c55e, #16a34a);
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+
+    .confidence-value {
+      font-size: 0.75rem;
+      color: var(--color-dark-text-secondary, #adb5bd);
+      font-weight: 600;
+    }
+
+    .override-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 8px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.85rem;
+      color: #fbbf24;
+    }
+
+    .quick-mode-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .mode-buttons-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .mode-quick-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.5rem 0.75rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      color: var(--color-dark-text-primary, #f8f9fa);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .mode-quick-btn:hover {
+      background: var(--btn-color, #6b7280);
+      border-color: var(--btn-color, #6b7280);
+      color: white;
+    }
+
+    .mode-quick-btn.active {
+      background: var(--btn-color, #6b7280);
+      border-color: var(--btn-color, #6b7280);
+      color: white;
+      box-shadow: 0 0 12px rgba(var(--btn-color), 0.3);
+    }
+
+    .duration-selector {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .loading-state {
+      text-align: center;
+      padding: 2rem;
+      color: var(--color-dark-text-secondary, #adb5bd);
+    }
+
+    /* Modes Management Section */
+    .modes-management-section {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 1rem;
+    }
+
+    .modes-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .modes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 1rem;
+    }
+
+    .mode-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 1rem;
+      transition: all 0.2s;
+    }
+
+    .mode-card:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: var(--mode-primary, #6b7280);
+    }
+
+    .mode-card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .mode-card-icon {
+      font-size: 1.5rem;
+    }
+
+    .mode-card-name {
+      font-weight: 600;
+      color: var(--color-dark-text-primary, #f8f9fa);
+      flex: 1;
+    }
+
+    .system-badge {
+      font-size: 0.6rem;
+      padding: 0.15rem 0.4rem;
+      background: rgba(99, 102, 241, 0.2);
+      color: #818cf8;
+      border-radius: 4px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .mode-card-preview {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .color-preview {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+    }
+
+    .mode-card-slug {
+      font-size: 0.75rem;
+      color: var(--color-dark-text-tertiary, #6c757d);
+      font-family: monospace;
+      margin-bottom: 0.75rem;
+    }
+
+    .mode-card-actions {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: flex-end;
+    }
+
+    .btn-sm {
+      padding: 0.35rem 0.6rem;
+      font-size: 0.8rem;
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    /* Mode Form Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .mode-form {
+      background: linear-gradient(135deg, rgba(25, 26, 32, 0.98) 0%, rgba(15, 15, 17, 1) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      width: 90%;
+      max-width: 420px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .form-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--color-dark-text-primary, #f8f9fa);
+    }
+
+    .form-body {
+      padding: 1.25rem;
+    }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      padding: 1rem 1.25rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .emoji-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .emoji-btn {
+      width: 40px;
+      height: 40px;
+      font-size: 1.3rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 2px solid transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .emoji-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .emoji-btn.selected {
+      border-color: var(--context-primary, #00d4aa);
+      background: rgba(0, 212, 170, 0.1);
+    }
+
+    .color-pickers {
+      display: flex;
+      gap: 1rem;
+    }
+
+    .color-picker-group {
+      flex: 1;
+      text-align: center;
+    }
+
+    .color-picker-group label {
+      font-size: 0.7rem;
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+
+    .color-picker-group input[type="color"] {
+      width: 100%;
+      height: 40px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background: transparent;
+    }
+
+    .color-picker-group input[type="color"]::-webkit-color-swatch-wrapper {
+      padding: 2px;
+    }
+
+    .color-picker-group input[type="color"]::-webkit-color-swatch {
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .mode-preview {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem;
+      background: var(--preview-bg, #f8fafc);
+      border-radius: 10px;
+      border: 2px solid var(--preview-primary, #2563eb);
+    }
+
+    .preview-icon {
+      font-size: 2rem;
+    }
+
+    .preview-name {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--preview-accent, #1e40af);
+    }
+
+    /* ============ PLANNING TAB STYLES ============ */
+    .planning-container {
+      padding: 0;
+    }
+
+    .planning-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .planning-default {
+      display: flex;
+      align-items: center;
+      padding: 0.75rem;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+      color: var(--color-dark-text-secondary);
+    }
+
+    .planning-grid {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 12px;
+      padding: 0.5rem;
+      margin-bottom: 1rem;
+      overflow-x: auto;
+    }
+
+    .grid-header {
+      display: grid;
+      grid-template-columns: 40px repeat(7, 1fr);
+      gap: 2px;
+      margin-bottom: 2px;
+    }
+
+    .grid-day-header {
+      text-align: center;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--color-dark-text-tertiary);
+      padding: 0.25rem;
+    }
+
+    .grid-row {
+      display: grid;
+      grid-template-columns: 40px repeat(7, 1fr);
+      gap: 2px;
+    }
+
+    .grid-hour-label {
+      font-size: 0.65rem;
+      color: var(--color-dark-text-tertiary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .grid-cell {
+      height: 32px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid transparent;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .grid-cell:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .grid-cell.has-rule {
+      border-width: 2px;
+    }
+
+    .cell-icon {
+      font-size: 0.8rem;
+    }
+
+    .planning-rules-list {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .rule-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      transition: all 0.2s;
+    }
+
+    .rule-card.disabled {
+      opacity: 0.5;
+    }
+
+    .rule-card:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .rule-card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .rule-icon {
+      font-size: 1.2rem;
+    }
+
+    .rule-name {
+      flex: 1;
+      font-weight: 500;
+      color: var(--color-dark-text-primary);
+    }
+
+    .rule-actions {
+      display: flex;
+      gap: 0.25rem;
+    }
+
+    .rule-details {
+      display: flex;
+      gap: 1rem;
+      margin-top: 0.5rem;
+      font-size: 0.75rem;
+      color: var(--color-dark-text-tertiary);
+    }
+
+    .rule-form {
+      background: linear-gradient(135deg, rgba(25, 26, 32, 0.98) 0%, rgba(15, 15, 17, 1) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      width: 90%;
+      max-width: 420px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .days-picker {
+      display: flex;
+      gap: 0.25rem;
+    }
+
+    .day-btn {
+      flex: 1;
+      padding: 0.5rem;
+      font-size: 0.75rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 2px solid transparent;
+      border-radius: 6px;
+      color: var(--color-dark-text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .day-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .day-btn.selected {
+      border-color: var(--context-primary, #00d4aa);
+      background: rgba(0, 212, 170, 0.1);
+      color: var(--context-primary, #00d4aa);
+    }
+
+    .form-row {
+      display: flex;
+      gap: 1rem;
+    }
+
     /* Mobile */
     @media (max-width: 600px) {
       .page {
@@ -621,6 +2053,15 @@ class ContextEnginePage extends LitElement {
       .mode-buttons {
         flex-wrap: wrap;
       }
+
+      .modes-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .color-pickers {
+        flex-direction: column;
+        gap: 0.75rem;
+      }
     }
   `
 
@@ -631,7 +2072,7 @@ class ContextEnginePage extends LitElement {
     automationHistory: { type: Array },
     validations: { type: Array },
     stats: { type: Object },
-    patterns: { type: Array },
+    // patterns removed - now managed by Intelligence tab
     config: { type: Object },
     schema: { type: Object },
     loading: { type: Boolean },
@@ -642,19 +2083,55 @@ class ContextEnginePage extends LitElement {
     showingActionConfig: { type: Boolean },
     pendingActionType: { type: String },
     pendingAction: { type: Object },
+    // Condition form state
+    showingConditionConfig: { type: Boolean },
+    pendingConditionType: { type: String },
+    pendingCondition: { type: Object },
+    pendingConditionPath: { type: Array },
+    // Trigger form state (for multiple triggers with AND/OR)
+    showingTriggerConfig: { type: Boolean },
+    pendingTriggerType: { type: String },
+    pendingTrigger: { type: Object },
+    pendingTriggerPath: { type: Array },
     // Config help toggle
     showConfigHelp: { type: Boolean },
+    // Modes dynamiques
+    modes: { type: Array },
+    showModeForm: { type: Boolean },
+    editingMode: { type: Object },
+    modeFormData: { type: Object },
+    // Planning horaire
+    schedule: { type: Object },
+    showRuleForm: { type: Boolean },
+    editingRule: { type: Object },
+    ruleFormData: { type: Object },
+    // Notification configs
+    notificationConfigs: { type: Array },
+    editingNotifConfig: { type: Object },
+    showNotifHelp: { type: Boolean },
+    // Timeline highlighting
+    highlightedAutomationId: { type: String },
+    categoryFilter: { type: String },
+    // Intelligence data
+    intelligenceStatus: { type: Object },
+    intelligenceSignals: { type: Object },
+    intelligencePatterns: { type: Array },
+    intelligenceConfig: { type: Object },
+    // UX Overlay states
+    toasts: { type: Array },
+    confirmDialog: { type: Object },
+    modeChangeOverlay: { type: Object },
   }
 
   constructor() {
     super()
-    this.activeTab = 'mode'
+    this.activeTab = 'modes'
     this.contextState = null
     this.automations = []
     this.automationHistory = []
     this.validations = []
     this.stats = null
-    this.patterns = []
+    // patterns removed - now managed by Intelligence tab
     this.config = {
       impact_thresholds: { low: 0.3, medium: 0.5, high: 0.7, very_high: 0.9 },
       initial_trust_score: 0.5
@@ -668,7 +2145,55 @@ class ContextEnginePage extends LitElement {
     this.showingActionConfig = false
     this.pendingActionType = 'send_notification'
     this.pendingAction = null
+    // Condition form state
+    this.showingConditionConfig = false
+    this.pendingConditionType = 'current_mode'
+    this.pendingCondition = null
+    this.pendingConditionPath = null
+    // Trigger form state
+    this.showingTriggerConfig = false
+    this.pendingTriggerType = 'mode_change'
+    this.pendingTrigger = null
+    this.pendingTriggerPath = null
     this.showConfigHelp = false
+    // Modes dynamiques
+    this.modes = []
+    this.showModeForm = false
+    this.editingMode = null
+    this.modeFormData = {
+      name: '',
+      icon: '🎯',
+      theme: { primary: '#2563eb', background: '#f8fafc', accent: '#1e40af' }
+    }
+    // Planning horaire
+    this.schedule = { rules: [], default_mode_id: 'mode-veille' }
+    this.showRuleForm = false
+    this.editingRule = null
+    this.ruleFormData = {
+      mode_id: 'mode-pro',
+      days: [0, 1, 2, 3, 4],
+      start_time: '09:00',
+      end_time: '18:00',
+      priority: 0,
+      name: ''
+    }
+    // Notification configs
+    this.notificationConfigs = []
+    this.editingNotifConfig = null
+    this.showNotifHelp = false
+    // Category filter for automations
+    this.categoryFilter = 'all'
+    // Timeline highlighting
+    this.highlightedAutomationId = null
+    // Intelligence data
+    this.intelligenceStatus = null
+    this.intelligenceSignals = null
+    this.intelligencePatterns = []
+    this.intelligenceConfig = null
+    // UX Overlay states
+    this.toasts = []
+    this.confirmDialog = null
+    this.modeChangeOverlay = null
   }
 
   connectedCallback() {
@@ -718,6 +2243,8 @@ class ContextEnginePage extends LitElement {
         this.loadValidations(),
         this.loadStats(),
         this.loadConfig(),
+        this.loadModes(),
+        this.loadSchedule(),
       ])
     } catch (e) {
       console.error('[context-engine] Failed to load data:', e)
@@ -761,12 +2288,8 @@ class ContextEnginePage extends LitElement {
     try {
       const apiService = document.querySelector('api-service')
       if (!apiService) return
-      const [stats, patterns] = await Promise.all([
-        apiService.request('/v1/context/stats'),
-        apiService.request('/v1/context/patterns'),
-      ])
-      this.stats = stats
-      this.patterns = patterns
+      // Note: patterns endpoint removed - now managed by Intelligence tab
+      this.stats = await apiService.request('/v1/context/stats')
     } catch (e) {
       console.error('[context-engine] Failed to load stats:', e)
     }
@@ -783,13 +2306,135 @@ class ContextEnginePage extends LitElement {
     }
   }
 
+  async loadModes() {
+    try {
+      const apiService = document.querySelector('api-service')
+      if (!apiService) return
+      this.modes = await apiService.request('/v1/modes')
+      if (!Array.isArray(this.modes)) this.modes = []
+    } catch (e) {
+      console.error('[context-engine] Failed to load modes:', e)
+      this.modes = []
+    }
+  }
+
+  async loadSchedule() {
+    try {
+      const apiService = document.querySelector('api-service')
+      if (!apiService) return
+      this.schedule = await apiService.request('/v1/schedule')
+    } catch (e) {
+      console.error('[context-engine] Failed to load schedule:', e)
+      this.schedule = { rules: [], default_mode_id: 'mode-veille' }
+    }
+  }
+
+  async loadNotificationConfigs() {
+    try {
+      const apiService = document.querySelector('api-service')
+      if (!apiService) return
+      this.notificationConfigs = await apiService.request('/v1/notification-types')
+    } catch (e) {
+      console.error('[context-engine] Failed to load notification configs:', e)
+      this.notificationConfigs = []
+    }
+  }
+
+  async loadIntelligence() {
+    try {
+      const apiService = document.querySelector('api-service')
+      if (!apiService) return
+      const [status, signals, patterns, config] = await Promise.all([
+        apiService.request('/v1/intelligence/status').catch(() => null),
+        apiService.request('/v1/intelligence/signals').catch(() => null),
+        apiService.request('/v1/intelligence/patterns').catch(() => ({ patterns: [] })),
+        apiService.request('/v1/intelligence/config').catch(() => null),
+      ])
+      this.intelligenceStatus = status
+      this.intelligenceSignals = signals
+      this.intelligencePatterns = patterns?.patterns || []
+      this.intelligenceConfig = config?.config || null
+    } catch (e) {
+      console.error('[context-engine] Failed to load intelligence:', e)
+    }
+  }
+
   close() {
     this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }))
+  }
+
+  // ============ Toast Notifications ============
+  showToast(message, type = 'info', duration = 3000) {
+    const toast = {
+      id: Date.now(),
+      message,
+      type,
+      icon: type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ'
+    }
+    this.toasts = [...this.toasts, toast]
+
+    // Auto-remove after duration
+    setTimeout(() => {
+      this.removeToast(toast.id)
+    }, duration)
+  }
+
+  removeToast(id) {
+    // First mark as leaving for animation
+    const toastEl = this.shadowRoot?.querySelector(`[data-toast-id="${id}"]`)
+    if (toastEl) {
+      toastEl.classList.add('leaving')
+      setTimeout(() => {
+        this.toasts = this.toasts.filter(t => t.id !== id)
+      }, 250)
+    } else {
+      this.toasts = this.toasts.filter(t => t.id !== id)
+    }
+  }
+
+  // ============ Confirmation Dialog ============
+  showConfirmDialog(options) {
+    return new Promise((resolve) => {
+      this.confirmDialog = {
+        icon: options.icon || '⚠️',
+        title: options.title || 'Confirmer',
+        message: options.message || 'Êtes-vous sûr ?',
+        confirmLabel: options.confirmLabel || 'Confirmer',
+        cancelLabel: options.cancelLabel || 'Annuler',
+        confirmClass: options.confirmClass || 'btn-danger',
+        resolve
+      }
+    })
+  }
+
+  handleConfirm(confirmed) {
+    if (this.confirmDialog?.resolve) {
+      this.confirmDialog.resolve(confirmed)
+    }
+    this.confirmDialog = null
+  }
+
+  // ============ Mode Change Overlay ============
+  showModeChangeOverlay(mode, duration) {
+    this.modeChangeOverlay = {
+      mode,
+      duration,
+      icon: this.getModeIcon(mode),
+      name: this.getModeName(mode)
+    }
+
+    // Auto-hide after 1.5 seconds
+    setTimeout(() => {
+      this.modeChangeOverlay = null
+    }, 1500)
   }
 
   // Mode actions
   async setModeOverride(mode) {
     try {
+      // Show mode change overlay immediately
+      this.showModeChangeOverlay(mode, this.selectedDuration)
+
       const res = await csrfService.fetchWithCsrf('/v1/context/override', {
         method: 'POST',
         body: JSON.stringify({
@@ -804,9 +2449,20 @@ class ContextEnginePage extends LitElement {
         document.body.dispatchEvent(new CustomEvent('context-change', {
           detail: { context: this.contextState }
         }))
+        this.showToast(`Mode ${this.getModeName(mode)} activé pour ${this.formatDuration(this.selectedDuration)}`, 'success')
+
+        // Record feedback for intelligence learning
+        // This allows the system to learn from manual mode changes
+        csrfService.fetchWithCsrf('/v1/intelligence/feedback', {
+          method: 'POST',
+          body: JSON.stringify({ chosen_mode: mode })
+        }).catch(e => console.log('[context-engine] Feedback recording failed (non-critical):', e))
+      } else {
+        this.showToast('Erreur lors du changement de mode', 'error')
       }
     } catch (e) {
       console.error('[context-engine] Failed to set override:', e)
+      this.showToast('Erreur lors du changement de mode', 'error')
     }
   }
 
@@ -819,29 +2475,49 @@ class ContextEnginePage extends LitElement {
         document.body.dispatchEvent(new CustomEvent('context-change', {
           detail: { context: this.contextState }
         }))
+        this.showToast('Override annulé - Mode automatique restauré', 'success')
+      } else {
+        this.showToast('Erreur lors de l\'annulation', 'error')
       }
     } catch (e) {
       console.error('[context-engine] Failed to clear override:', e)
+      this.showToast('Erreur lors de l\'annulation', 'error')
     }
   }
 
   // Automation actions
   async toggleAutomation(id) {
     try {
+      const auto = this.automations.find(a => a.id === id)
+      const wasEnabled = auto?.enabled
       await automationsService.toggleAutomation(id)
       await this.loadAutomations()
+      this.showToast(wasEnabled ? 'Automation désactivée' : 'Automation activée', 'success')
     } catch (e) {
       console.error('[context-engine] Failed to toggle automation:', e)
+      this.showToast('Erreur lors de la modification', 'error')
     }
   }
 
   async deleteAutomation(id) {
-    if (!confirm('Supprimer cette automation ?')) return
+    const confirmed = await this.showConfirmDialog({
+      icon: '🗑️',
+      title: 'Supprimer cette automation ?',
+      message: 'Cette action est irréversible. L\'automation sera définitivement supprimée.',
+      confirmLabel: 'Supprimer',
+      cancelLabel: 'Annuler',
+      confirmClass: 'btn-danger'
+    })
+
+    if (!confirmed) return
+
     try {
       await automationsService.deleteAutomation(id)
       await this.loadAutomations()
+      this.showToast('Automation supprimée', 'success')
     } catch (e) {
       console.error('[context-engine] Failed to delete automation:', e)
+      this.showToast('Erreur lors de la suppression', 'error')
     }
   }
 
@@ -849,15 +2525,76 @@ class ContextEnginePage extends LitElement {
     this.editingAutomation = {
       name: '',
       enabled: true,
-      trigger: { type: 'mode_change', from_mode: null, to_mode: null },
+      triggers: { operator: 'or', triggers: [] },
       actions: [],
+      cooldown_seconds: 60
+    }
+    // Reset trigger form state
+    this.showingTriggerConfig = false
+    this.pendingTriggerType = 'mode_change'
+    this.pendingTrigger = null
+    this.pendingTriggerPath = null
+    this.showForm = true
+  }
+
+  // Timeline event handlers
+  _handleTimelineSlotClick(e) {
+    const { hour, day, dayName, automations } = e.detail
+    if (automations && automations.length > 0) {
+      // Open existing automation
+      const autoId = automations[0].id
+      const auto = this.automations.find(a => a.id === autoId)
+      if (auto) {
+        this.openEditForm(auto)
+      }
+    } else {
+      // Create new scheduled automation with preset values
+      this.openScheduledAutomation({ startHour: hour, endHour: hour + 3, day, dayName })
+    }
+  }
+
+  _handleTimelineHighlight(e) {
+    this.highlightedAutomationId = e.detail?.id || null
+  }
+
+  openScheduledAutomation(preset) {
+    const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+    this.editingAutomation = {
+      name: `Planning ${preset.dayName || dayNames[preset.day]} ${preset.startHour}h`,
+      enabled: true,
+      category: 'modes',
+      _rules: {
+        operator: 'and',
+        items: [
+          { type: 'scheduled', interval_seconds: 60 },
+          { type: 'time_range', start_hour: preset.startHour, end_hour: preset.endHour },
+          { type: 'day_of_week', days: [preset.day] }
+        ]
+      },
+      actions: [{ type: 'force_mode', mode: '', reason: 'automation' }],
       cooldown_seconds: 60
     }
     this.showForm = true
   }
 
   openEditForm(auto) {
-    this.editingAutomation = JSON.parse(JSON.stringify(auto))
+    const clone = JSON.parse(JSON.stringify(auto))
+    // Migrate old trigger format to new triggers format
+    if (!clone.triggers && clone.trigger) {
+      clone.triggers = {
+        operator: 'or',
+        triggers: [clone.trigger]
+      }
+      delete clone.trigger
+    } else if (!clone.triggers) {
+      clone.triggers = { operator: 'or', triggers: [] }
+    }
+    this.editingAutomation = clone
+    // Reset trigger form state
+    this.showingTriggerConfig = false
+    this.pendingTriggerType = 'mode_change'
+    this.pendingTrigger = null
+    this.pendingTriggerPath = null
     this.showForm = true
   }
 
@@ -867,23 +2604,76 @@ class ContextEnginePage extends LitElement {
   }
 
   async saveAutomation() {
-    if (!this.editingAutomation?.name) {
-      alert('Le nom est requis')
+    const errors = this.validateAutomation(this.editingAutomation)
+    if (errors.length > 0) {
+      this.showToast(errors[0], 'error')
       return
     }
     try {
-      if (this.editingAutomation.id) {
-        await automationsService.updateAutomation(this.editingAutomation.id, this.editingAutomation)
+      // Split unified rules into triggers and conditions for backend
+      if (this.editingAutomation._rules) {
+        const { triggers, conditions } = this.splitRulesForBackend(this.editingAutomation._rules)
+        this.editingAutomation.triggers = triggers
+        this.editingAutomation.conditions = conditions.conditions?.length > 0 ? conditions : null
+      }
+
+      // Clean up internal fields before sending
+      const autoToSave = { ...this.editingAutomation }
+      delete autoToSave._rules
+
+      const isEdit = !!autoToSave.id
+      if (autoToSave.id) {
+        await automationsService.updateAutomation(autoToSave.id, autoToSave)
       } else {
-        await automationsService.createAutomation(this.editingAutomation)
+        await automationsService.createAutomation(autoToSave)
       }
       this.showForm = false
       this.editingAutomation = null
       await this.loadAutomations()
+      this.showToast(isEdit ? 'Automation mise à jour' : 'Automation créée', 'success')
     } catch (e) {
       console.error('[context-engine] Failed to save automation:', e)
-      alert('Erreur lors de la sauvegarde')
+      this.showToast('Erreur: ' + (e.message || 'Erreur inconnue'), 'error')
     }
+  }
+
+  validateAutomation(auto) {
+    const errors = []
+    if (!auto?.name?.trim()) {
+      errors.push('Le nom est requis')
+    }
+    // Check rules - must have at least one event (trigger)
+    if (auto._rules) {
+      if (!this.hasEventInRules(auto._rules)) {
+        errors.push('Au moins un événement (déclencheur) est requis')
+      }
+    } else {
+      // Fallback for legacy automations without _rules
+      const triggersGroup = auto?.triggers
+      if (!triggersGroup?.triggers?.length) {
+        errors.push('Au moins un déclencheur est requis')
+      }
+    }
+    // Check actions
+    if (!auto?.actions?.length) {
+      errors.push('Au moins une action est requise')
+    } else {
+      // Validate each action's required fields
+      auto.actions.forEach((action, idx) => {
+        const actionSchema = this.schema?.actions?.find(a => a.type === action.type)
+        if (actionSchema?.fields) {
+          actionSchema.fields.forEach(field => {
+            if (field.required) {
+              const value = action[field.name]
+              if (value === undefined || value === null || value === '') {
+                errors.push(`Action ${idx + 1} (${actionSchema.label}): ${field.label} est requis`)
+              }
+            }
+          })
+        }
+      })
+    }
+    return errors
   }
 
   // Validation actions
@@ -923,22 +2713,44 @@ class ContextEnginePage extends LitElement {
         body: JSON.stringify(this.config)
       })
       if (res.ok) {
-        alert('Configuration sauvegardée')
+        this.showToast('Configuration sauvegardée', 'success')
+      } else {
+        this.showToast('Erreur lors de la sauvegarde', 'error')
       }
     } catch (e) {
       console.error('[context-engine] Failed to save config:', e)
+      this.showToast('Erreur lors de la sauvegarde', 'error')
     }
   }
 
-  // Helpers
-  getModeIcon(mode) {
-    const icons = { cravate: '👔', intime: '🏡', neutre: '🌱' }
-    return icons[mode?.toLowerCase()] || '🌱'
+  // Helpers - use dynamic modes from mode_registry
+  getModeIcon(modeSlug) {
+    // First try to find in dynamic modes
+    const slug = modeSlug?.toLowerCase()
+    const dynamicMode = this.modes.find(m => m.slug === slug)
+    if (dynamicMode) return dynamicMode.icon
+
+    // Fallback for legacy mode names
+    const legacyIcons = { cravate: '👔', intime: '🏡', neutre: '🌱', pro: '👔', focus: '🎯', maison: '🏡', veille: '🌱' }
+    return legacyIcons[slug] || '🌱'
   }
 
-  getModeName(mode) {
-    const names = { cravate: 'Focus Pro', intime: 'Maison', neutre: 'Veille' }
-    return names[mode?.toLowerCase()] || 'Inconnu'
+  getModeName(modeSlug) {
+    // First try to find in dynamic modes
+    const slug = modeSlug?.toLowerCase()
+    const dynamicMode = this.modes.find(m => m.slug === slug)
+    if (dynamicMode) return dynamicMode.name
+
+    // Fallback for legacy mode names
+    const legacyNames = { cravate: 'Focus Pro', intime: 'Maison', neutre: 'Veille', pro: 'Pro', focus: 'Focus', maison: 'Maison', veille: 'Veille' }
+    return legacyNames[slug] || 'Inconnu'
+  }
+
+  // Get mode theme (for styling)
+  getModeTheme(modeSlug) {
+    const slug = modeSlug?.toLowerCase()
+    const dynamicMode = this.modes.find(m => m.slug === slug)
+    return dynamicMode?.theme || { primary: '#6b7280', background: '#f9fafb', accent: '#4b5563' }
   }
 
   getTrustClass(score) {
@@ -975,16 +2787,69 @@ class ContextEnginePage extends LitElement {
         </div>
 
         <div class="tabs">
-          ${this.renderTab('mode', 'Mode')}
+          ${this.renderTab('modes', 'Modes')}
+          ${this.renderTab('intelligence', 'Intelligence')}
           ${this.renderTab('automations', 'Automations')}
           ${this.renderTab('validations', 'Validations', this.validations.length)}
-          ${this.renderTab('stats', 'Stats')}
           ${this.renderTab('config', 'Config')}
         </div>
 
         <div class="content">
-          ${this.loading ? html`<div class="loading">Chargement...</div>` : this.renderActiveTab()}
+          ${this.loading ? this.renderSkeletonLoading() : this.renderActiveTab()}
         </div>
+      </div>
+
+      <!-- Toast Notifications -->
+      ${this.toasts.length > 0 ? html`
+        <div class="toast-container">
+          ${this.toasts.map(t => html`
+            <div class="toast ${t.type}" data-toast-id="${t.id}">
+              <span class="toast-icon">${t.icon}</span>
+              <span class="toast-message">${t.message}</span>
+            </div>
+          `)}
+        </div>
+      ` : ''}
+
+      <!-- Confirmation Dialog -->
+      ${this.confirmDialog ? html`
+        <div class="confirm-overlay" @click="${() => this.handleConfirm(false)}">
+          <div class="confirm-dialog" @click="${e => e.stopPropagation()}">
+            <div class="confirm-icon">${this.confirmDialog.icon}</div>
+            <div class="confirm-title">${this.confirmDialog.title}</div>
+            <div class="confirm-message">${this.confirmDialog.message}</div>
+            <div class="confirm-actions">
+              <button class="btn" @click="${() => this.handleConfirm(false)}">
+                ${this.confirmDialog.cancelLabel}
+              </button>
+              <button class="btn ${this.confirmDialog.confirmClass}" @click="${() => this.handleConfirm(true)}">
+                ${this.confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Mode Change Overlay -->
+      ${this.modeChangeOverlay ? html`
+        <div class="mode-change-overlay">
+          <div class="mode-change-content">
+            <div class="mode-change-icon">${this.modeChangeOverlay.icon}</div>
+            <div class="mode-change-name">${this.modeChangeOverlay.name}</div>
+            <div class="mode-change-message">Activé pour ${this.formatDuration(this.modeChangeOverlay.duration)}</div>
+          </div>
+        </div>
+      ` : ''}
+    `
+  }
+
+  renderSkeletonLoading() {
+    return html`
+      <div class="skeleton-loading">
+        <div class="skeleton skeleton-text"></div>
+        <div class="skeleton skeleton-text short"></div>
+        <div class="skeleton skeleton-card"></div>
+        <div class="skeleton skeleton-card"></div>
       </div>
     `
   }
@@ -1011,21 +2876,22 @@ class ContextEnginePage extends LitElement {
       case 'automations':
         this.loadAutomations()
         break
-      case 'mode':
+      case 'modes':
+        this.loadModes()
         this.loadContext()
         break
-      case 'stats':
-        this.loadStats()
+      case 'intelligence':
+        this.loadIntelligence()
         break
     }
   }
 
   renderActiveTab() {
     switch (this.activeTab) {
-      case 'mode': return this.renderModeTab()
+      case 'modes': return this.renderModesTab()
+      case 'intelligence': return this.renderIntelligenceTab()
       case 'automations': return this.renderAutomationsTab()
       case 'validations': return this.renderValidationsTab()
-      case 'stats': return this.renderStatsTab()
       case 'config': return this.renderConfigTab()
       default: return html`<div>Onglet inconnu</div>`
     }
@@ -1035,7 +2901,8 @@ class ContextEnginePage extends LitElement {
     const state = this.contextState
     if (!state) return html`<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Chargement du contexte...</div></div>`
 
-    const mode = state.mode?.toLowerCase() || 'neutre'
+    // Prefer mode_slug (dynamic) over mode (legacy enum)
+    const mode = state.mode_slug || state.mode?.toLowerCase() || 'veille'
     const hasOverride = !!state.manual_override
 
     return html`
@@ -1044,10 +2911,7 @@ class ContextEnginePage extends LitElement {
         <div class="mode-name">${this.getModeName(mode)}</div>
         <div class="mode-reason">${state.reason || 'Détection automatique'}</div>
 
-        <div class="confidence-bar">
-          <div class="confidence-fill" style="width: ${(state.confidence || 0) * 100}%"></div>
-        </div>
-        <div class="confidence-text">Confiance: ${Math.round((state.confidence || 0) * 100)}%</div>
+        <!-- Confidence bar removed - now displayed in Intelligence Widget -->
 
         ${hasOverride ? html`
           <div class="override-info">
@@ -1096,33 +2960,277 @@ class ContextEnginePage extends LitElement {
       return this.renderAutomationForm()
     }
 
-    const enabled = this.automations.filter(a => a.enabled).length
+    // Get categories from schema with icons
+    const categoryIcons = {
+      all: '📋', comfort: '🛋️', security: '🔒', energy: '⚡',
+      notifications: '🔔', custom: '⚙️'
+    }
+    const categories = this.schema?.dynamic_values?.categories || []
+
+    // Filter automations by category
+    const filteredAutomations = this.categoryFilter === 'all'
+      ? this.automations
+      : this.automations.filter(a => (a.category || 'custom') === this.categoryFilter)
+
+    const totalEnabled = this.automations.filter(a => a.enabled).length
+    const filteredEnabled = filteredAutomations.filter(a => a.enabled).length
+    const recentExecutions = this.automationHistory.filter(h => {
+      const execTime = new Date(h.executed_at)
+      return (Date.now() - execTime) < 24 * 60 * 60 * 1000
+    }).length
 
     return html`
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <div style="font-size: 0.85rem; color: var(--color-dark-text-secondary);">
-          ${enabled} active${enabled !== 1 ? 's' : ''} / ${this.automations.length} total
+      <!-- Timeline Hebdomadaire -->
+      <automation-timeline
+        .automations="${this.automations}"
+        .modes="${this.schema?.dynamic_values?.modes || []}"
+        .highlightedId="${this.highlightedAutomationId}"
+        @slot-click="${this._handleTimelineSlotClick}"
+        @automation-highlight="${this._handleTimelineHighlight}"
+        style="margin-bottom: 1.5rem;"
+      ></automation-timeline>
+
+      <!-- Header Stats -->
+      <div class="automations-header">
+        <div class="automations-stats">
+          <div class="automation-stat">
+            <span class="automation-stat-value">${totalEnabled}</span>
+            <span class="automation-stat-label">Actives</span>
+          </div>
+          <div class="automation-stat-divider"></div>
+          <div class="automation-stat">
+            <span class="automation-stat-value">${this.automations.length}</span>
+            <span class="automation-stat-label">Total</span>
+          </div>
+          <div class="automation-stat-divider"></div>
+          <div class="automation-stat">
+            <span class="automation-stat-value">${recentExecutions}</span>
+            <span class="automation-stat-label">Exécutions 24h</span>
+          </div>
         </div>
-        <button class="btn btn-primary" @click="${this.openCreateForm}">
-          + Nouvelle
-        </button>
       </div>
 
-      ${this.automations.length === 0 ? html`
-        <div class="empty-state">
-          <div class="empty-icon">⚡</div>
-          <div class="empty-text">Aucune automation configurée</div>
-          <button class="btn btn-primary" @click="${this.openCreateForm}">Créer une automation</button>
-        </div>
-      ` : this.automations.map(auto => this.renderAutomationCard(auto))}
+      <!-- Enhanced Category Filter -->
+      <div class="category-filter-bar">
+        <button
+          class="category-pill ${this.categoryFilter === 'all' ? 'active' : ''}"
+          @click="${() => { this.categoryFilter = 'all'; this.requestUpdate() }}"
+        >
+          <span class="category-pill-icon">${categoryIcons.all}</span>
+          <span>Toutes</span>
+          <span class="category-pill-count">${this.automations.length}</span>
+        </button>
+        ${categories.map(cat => {
+          const count = this.automations.filter(a => (a.category || 'custom') === cat.value).length
+          const icon = categoryIcons[cat.value] || '📁'
+          return html`
+            <button
+              class="category-pill ${this.categoryFilter === cat.value ? 'active' : ''}"
+              @click="${() => { this.categoryFilter = cat.value; this.requestUpdate() }}"
+            >
+              <span class="category-pill-icon">${icon}</span>
+              <span>${cat.label}</span>
+              <span class="category-pill-count">${count}</span>
+            </button>
+          `
+        })}
+      </div>
 
-      ${this.automationHistory.length > 0 ? html`
-        <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.08);">
-          <div class="controls-title">Historique récent</div>
+      <!-- Automation Cards -->
+      ${filteredAutomations.length === 0 ? this.renderEmptyStateEnhanced() : html`
+        <div class="automations-list">
+          <!-- Add New Automation Card -->
+          <div class="automation-card add-new" @click="${this.openCreateForm}">
+            <div class="automation-card-inner" style="display: flex; align-items: center; justify-content: center; min-height: 80px; cursor: pointer;">
+              <div style="text-align: center;">
+                <div style="font-size: 1.5rem; margin-bottom: 0.25rem; opacity: 0.6;">+</div>
+                <div style="font-size: 0.85rem; color: var(--color-dark-text-secondary);">Nouvelle automation</div>
+              </div>
+            </div>
+          </div>
+          ${filteredAutomations.map(auto => this.renderAutomationCard(auto))}
+        </div>
+      `}
+
+      <!-- Enhanced History Section -->
+      ${this.automationHistory.length > 0 ? this.renderHistorySection() : ''}
+    `
+  }
+
+  renderEmptyStateEnhanced() {
+    const suggestions = [
+      { icon: '🌙', label: 'Mode nuit auto', action: () => this.createSuggestionAutomation('night') },
+      { icon: '🚪', label: 'Notification entrée', action: () => this.createSuggestionAutomation('entry') },
+      { icon: '🌡️', label: 'Alerte température', action: () => this.createSuggestionAutomation('temp') }
+    ]
+
+    return html`
+      <div class="empty-state-enhanced">
+        <div class="empty-state-icon-container">⚡</div>
+        <div class="empty-state-title">
+          ${this.categoryFilter === 'all'
+            ? 'Aucune automation configurée'
+            : 'Aucune automation dans cette catégorie'}
+        </div>
+        <div class="empty-state-description">
+          Automatisez votre maison en créant des règles intelligentes qui réagissent aux événements.
+        </div>
+        <button class="btn btn-primary" @click="${this.openCreateForm}">
+          Créer une automation
+        </button>
+        ${this.categoryFilter === 'all' ? html`
+          <div class="empty-state-suggestions">
+            ${suggestions.map(s => html`
+              <button class="suggestion-chip" @click="${s.action}">
+                <span>${s.icon}</span>
+                <span>${s.label}</span>
+              </button>
+            `)}
+          </div>
+        ` : ''}
+      </div>
+    `
+  }
+
+  createSuggestionAutomation(type) {
+    // Pre-fill automation based on suggestion type
+    const templates = {
+      night: {
+        name: 'Mode nuit automatique',
+        category: 'comfort',
+        triggers: { operator: 'or', triggers: [{ type: 'scheduled', start_hour: 23, end_hour: 23 }] },
+        actions: [{ type: 'force_mode', mode: 'veille', duration_minutes: 480 }]
+      },
+      entry: {
+        name: 'Notification entrée',
+        category: 'security',
+        triggers: { operator: 'or', triggers: [{ type: 'agent_status', status: 'online' }] },
+        actions: [{ type: 'send_notification', title: 'Arrivée détectée', body: 'Un appareil vient de se connecter' }]
+      },
+      temp: {
+        name: 'Alerte température haute',
+        category: 'notifications',
+        triggers: { operator: 'or', triggers: [{ type: 'sensor_alert', alert_level: 'warning' }] },
+        actions: [{ type: 'send_notification', title: 'Alerte température', body: 'Température anormale détectée' }]
+      }
+    }
+
+    this.editingAutomation = {
+      enabled: true,
+      cooldown_seconds: 300,
+      conditions: { operator: 'and', conditions: [] },
+      ...templates[type]
+    }
+    this.showForm = true
+    this.requestUpdate()
+  }
+
+  renderHistorySection() {
+    return html`
+      <div class="history-section">
+        <div class="history-header">
+          <div class="history-title">
+            <span class="history-title-icon">📜</span>
+            Historique récent
+          </div>
+          <span style="font-size: 0.75rem; color: var(--color-dark-text-tertiary);">
+            ${this.automationHistory.length} exécution${this.automationHistory.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+        <div class="history-timeline">
           ${this.automationHistory.slice(0, 5).map(h => this.renderHistoryItem(h))}
         </div>
-      ` : ''}
+      </div>
     `
+  }
+
+  // Génère un champ de formulaire basé sur le schema
+  renderSchemaField(field, value, onChange) {
+    const options = field.options_key ? (this.schema?.dynamic_values?.[field.options_key] || []) : []
+
+    switch (field.field_type) {
+      case 'select':
+        return html`
+          <select class="form-input"
+            @change="${e => onChange(e.target.value || null)}">
+            ${!field.required
+              ? html`<option value="">${field.placeholder || 'Tous'}</option>`
+              : html`<option value="" disabled ?selected="${!value}">-- Sélectionner --</option>`
+            }
+            ${options.map(opt => html`
+              <option value="${opt.value}" ?selected="${opt.value === value}">${opt.label}</option>
+            `)}
+            ${field.name === 'status' && options.length === 0 ? html`
+              <option value="online" ?selected="${value === 'online'}">Online</option>
+              <option value="offline" ?selected="${value === 'offline'}">Offline</option>
+            ` : ''}
+          </select>
+        `
+
+      case 'multi_select':
+        const selectedValues = Array.isArray(value) ? value : []
+        return html`
+          <div class="multi-select-group">
+            ${options.map(opt => html`
+              <label class="checkbox-label">
+                <input type="checkbox"
+                  ?checked="${selectedValues.includes(opt.value)}"
+                  @change="${e => {
+                    const newVals = e.target.checked
+                      ? [...selectedValues, opt.value]
+                      : selectedValues.filter(v => v !== opt.value)
+                    onChange(newVals)
+                  }}">
+                ${opt.label}
+              </label>
+            `)}
+          </div>
+        `
+
+      case 'number':
+        // Detect hour fields for special rendering
+        const isHourField = field.name.includes('hour') && field.max <= 24
+        if (isHourField) {
+          const hours = Array.from({ length: 25 }, (_, i) => i) // 0-24
+          const currentVal = value ?? field.default_value ?? ''
+          return html`
+            <select class="form-input hour-select"
+              @change="${e => onChange(e.target.value !== '' ? parseInt(e.target.value) : null)}">
+              ${!field.required ? html`<option value="">--</option>` : ''}
+              ${hours.map(h => html`
+                <option value="${h}" ?selected="${h === currentVal}">${String(h).padStart(2, '0')}:00</option>
+              `)}
+            </select>
+          `
+        }
+        return html`
+          <input type="number" class="form-input"
+            .value="${value ?? field.default_value ?? ''}"
+            min="${field.min ?? ''}"
+            max="${field.max ?? ''}"
+            placeholder="${field.placeholder || ''}"
+            @input="${e => onChange(e.target.value ? parseFloat(e.target.value) : null)}">
+        `
+
+      case 'text':
+        return html`
+          <input type="text" class="form-input"
+            .value="${value || ''}"
+            placeholder="${field.placeholder || ''}"
+            @input="${e => onChange(e.target.value)}">
+        `
+
+      case 'text_area':
+        return html`
+          <textarea class="form-input" rows="2"
+            .value="${value || ''}"
+            placeholder="${field.placeholder || ''}"
+            @input="${e => onChange(e.target.value)}"></textarea>
+        `
+
+      default:
+        return html`<input type="text" class="form-input" .value="${value || ''}" @input="${e => onChange(e.target.value)}">`
+    }
   }
 
   renderAutomationForm() {
@@ -1139,78 +3247,17 @@ class ContextEnginePage extends LitElement {
       </div>
 
       <div class="form-group">
-        <label>Trigger</label>
-        <select class="form-input" .value="${auto.trigger?.type || 'mode_change'}"
-          @change="${e => this.editingAutomation.trigger = { type: e.target.value }}">
-          <option value="mode_change">Changement de mode</option>
-          <option value="agent_status">Statut agent</option>
-          <option value="sensor_alert">Alerte capteur</option>
+        <label>Catégorie</label>
+        <select class="form-input"
+          @change="${e => { this.editingAutomation.category = e.target.value; this.requestUpdate() }}">
+          ${(this.schema?.dynamic_values?.categories || []).map(cat => html`
+            <option value="${cat.value}" ?selected="${(auto.category || 'custom') === cat.value}">${cat.label}</option>
+          `)}
         </select>
       </div>
 
-      ${auto.trigger?.type === 'mode_change' ? html`
-        <div style="display: flex; gap: 1rem;">
-          <div class="form-group" style="flex: 1;">
-            <label>De mode</label>
-            <select class="form-input" .value="${auto.trigger?.from_mode || ''}"
-              @change="${e => this.editingAutomation.trigger = { ...this.editingAutomation.trigger, from_mode: e.target.value || null }}">
-              <option value="">Tous</option>
-              <option value="cravate">Cravate</option>
-              <option value="intime">Intime</option>
-              <option value="neutre">Neutre</option>
-            </select>
-          </div>
-          <div class="form-group" style="flex: 1;">
-            <label>Vers mode</label>
-            <select class="form-input" .value="${auto.trigger?.to_mode || ''}"
-              @change="${e => this.editingAutomation.trigger = { ...this.editingAutomation.trigger, to_mode: e.target.value || null }}">
-              <option value="">Tous</option>
-              <option value="cravate">Cravate</option>
-              <option value="intime">Intime</option>
-              <option value="neutre">Neutre</option>
-            </select>
-          </div>
-        </div>
-      ` : ''}
-
-      ${auto.trigger?.type === 'agent_status' ? html`
-        <div style="display: flex; gap: 1rem;">
-          <div class="form-group" style="flex: 1;">
-            <label>Agent (optionnel)</label>
-            <input type="text" class="form-input" placeholder="Laisser vide pour tous"
-              .value="${auto.trigger?.agent_id || ''}"
-              @input="${e => this.editingAutomation.trigger = { ...this.editingAutomation.trigger, agent_id: e.target.value || null }}">
-          </div>
-          <div class="form-group" style="flex: 1;">
-            <label>Statut</label>
-            <select class="form-input" .value="${auto.trigger?.status || 'offline'}"
-              @change="${e => this.editingAutomation.trigger = { ...this.editingAutomation.trigger, status: e.target.value }}">
-              <option value="online">Online</option>
-              <option value="offline">Offline</option>
-            </select>
-          </div>
-        </div>
-      ` : ''}
-
-      ${auto.trigger?.type === 'sensor_alert' ? html`
-        <div style="display: flex; gap: 1rem;">
-          <div class="form-group" style="flex: 1;">
-            <label>Pièce</label>
-            <input type="text" class="form-input" placeholder="ex: chambre"
-              .value="${auto.trigger?.room_id || ''}"
-              @input="${e => this.editingAutomation.trigger = { ...this.editingAutomation.trigger, room_id: e.target.value || null }}">
-          </div>
-          <div class="form-group" style="flex: 1;">
-            <label>Niveau d'alerte</label>
-            <select class="form-input" .value="${auto.trigger?.alert_level || 'warning'}"
-              @change="${e => this.editingAutomation.trigger = { ...this.editingAutomation.trigger, alert_level: e.target.value }}">
-              <option value="normal">Normal</option>
-              <option value="warning">Attention</option>
-              <option value="critical">Critique</option>
-            </select>
-          </div>
-        </div>
-      ` : ''}
+      <!-- Règles Section (Triggers + Conditions unifiés) -->
+      ${this.renderRulesSection(auto)}
 
       <div class="form-group">
         <label>Cooldown (secondes)</label>
@@ -1244,9 +3291,9 @@ class ContextEnginePage extends LitElement {
             <div style="flex: 1; min-width: 150px;">
               <label style="font-size: 0.75rem; color: var(--color-dark-text-tertiary);">Type d'action</label>
               <select class="form-input" id="new-action-type" style="margin-top: 0.25rem;">
-                <option value="send_notification">📢 Notification</option>
-                <option value="force_mode">🎯 Forcer mode</option>
-                <option value="agent_command">🤖 Commande agent</option>
+                ${(this.schema?.actions || []).map(a => html`
+                  <option value="${a.type}">${a.icon || ''} ${a.label}</option>
+                `)}
               </select>
             </div>
             <button class="btn btn-small" @click="${this.showActionConfig}" style="white-space: nowrap;">+ Configurer</button>
@@ -1273,90 +3320,85 @@ class ContextEnginePage extends LitElement {
     `
   }
 
+  /**
+   * Initialize an object with default values from schema fields
+   * Handles: default_value, required selects (first option), hour fields (sensible defaults)
+   */
+  initializeWithDefaults(type, fields) {
+    const defaults = { type }
+
+    if (!fields) return defaults
+
+    fields.forEach(field => {
+      // Set default value from schema if available
+      if (field.default_value !== undefined && field.default_value !== null) {
+        defaults[field.name] = field.default_value
+      }
+      // For required select fields, pre-select the first option
+      else if (field.required && field.field_type === 'select' && field.options_key) {
+        const options = this.schema?.dynamic_values?.[field.options_key] || []
+        if (options.length > 0) {
+          defaults[field.name] = options[0].value
+        }
+      }
+      // For required hour fields, set sensible defaults
+      else if (field.required && field.field_type === 'number' && field.name.includes('hour')) {
+        if (field.name.includes('start')) {
+          defaults[field.name] = 8  // Default start: 8h
+        } else if (field.name.includes('end')) {
+          defaults[field.name] = 18 // Default end: 18h
+        }
+      }
+    })
+
+    return defaults
+  }
+
   getActionLabel(action) {
     switch (action.type) {
       case 'send_notification':
         return `📢 Notif: "${action.title || 'Sans titre'}"`
       case 'force_mode':
-        return `🎯 Mode: ${action.mode} (${action.duration_minutes || 60}min)`
+        const modeLabel = action.mode || '(non défini)'
+        const duration = action.duration_minutes || 60
+        return `🎯 Mode: ${modeLabel} (${duration}min)`
       case 'agent_command':
-        return `🤖 Agent ${action.agent_id}: ${action.command_type}`
+        return `🤖 Agent ${action.agent_id || '?'}: ${action.command_type || '?'}`
+      case 'delay':
+        return `⏱️ Délai: ${action.seconds || 0}s`
       default:
-        return `⚙️ ${action.type}`
+        return `⚙️ ${action.type || 'inconnu'}`
     }
   }
 
   showActionConfig() {
     this.pendingActionType = this.shadowRoot.querySelector('#new-action-type')?.value || 'send_notification'
-    this.pendingAction = { type: this.pendingActionType }
+    const actionSchema = this.schema?.actions?.find(a => a.type === this.pendingActionType)
+    this.pendingAction = this.initializeWithDefaults(this.pendingActionType, actionSchema?.fields)
     this.showingActionConfig = true
   }
 
   renderActionConfig() {
     const type = this.pendingActionType
+    const actionSchema = this.schema?.actions?.find(a => a.type === type)
 
-    if (type === 'send_notification') {
-      return html`
-        <div class="form-group" style="margin-bottom: 0.5rem;">
-          <label style="font-size: 0.75rem;">Titre</label>
-          <input type="text" class="form-input" placeholder="Titre notification"
-            @input="${e => this.pendingAction.title = e.target.value}">
-        </div>
-        <div class="form-group" style="margin-bottom: 0.5rem;">
-          <label style="font-size: 0.75rem;">Message</label>
-          <input type="text" class="form-input" placeholder="Corps du message"
-            @input="${e => this.pendingAction.body = e.target.value}">
-        </div>
-        <div class="form-group" style="margin-bottom: 0;">
-          <label style="font-size: 0.75rem;">Priorité</label>
-          <select class="form-input" @change="${e => this.pendingAction.priority = e.target.value}">
-            <option value="P2">P2 - Normal</option>
-            <option value="P1">P1 - Important</option>
-            <option value="P0">P0 - Critique</option>
-          </select>
-        </div>
-      `
+    if (!actionSchema || !actionSchema.fields?.length) {
+      return html`<div style="font-size: 0.8rem; color: var(--color-dark-text-tertiary);">
+        ${actionSchema?.description || 'Aucune configuration requise'}
+      </div>`
     }
 
-    if (type === 'force_mode') {
-      return html`
-        <div class="form-group" style="margin-bottom: 0.5rem;">
-          <label style="font-size: 0.75rem;">Mode cible</label>
-          <select class="form-input" @change="${e => this.pendingAction.mode = e.target.value}">
-            <option value="cravate">👔 Cravate</option>
-            <option value="intime">🏡 Intime</option>
-            <option value="neutre">🌱 Neutre</option>
-          </select>
+    return html`
+      ${actionSchema.fields.map((field, idx) => html`
+        <div class="form-group" style="margin-bottom: ${idx < actionSchema.fields.length - 1 ? '0.5rem' : '0'};">
+          <label style="font-size: 0.75rem;">${field.label}${field.required ? ' *' : ''}</label>
+          ${this.renderSchemaField(field, this.pendingAction?.[field.name], (val) => {
+            this.pendingAction = { ...this.pendingAction, [field.name]: val }
+            this.requestUpdate()
+          })}
         </div>
-        <div class="form-group" style="margin-bottom: 0;">
-          <label style="font-size: 0.75rem;">Durée (minutes)</label>
-          <input type="number" class="form-input" value="60" min="1"
-            @input="${e => this.pendingAction.duration_minutes = parseInt(e.target.value)}">
-        </div>
-      `
-    }
-
-    if (type === 'agent_command') {
-      return html`
-        <div class="form-group" style="margin-bottom: 0.5rem;">
-          <label style="font-size: 0.75rem;">Agent ID</label>
-          <input type="text" class="form-input" placeholder="ex: 345a604068a8"
-            @input="${e => this.pendingAction.agent_id = e.target.value}">
-        </div>
-        <div class="form-group" style="margin-bottom: 0;">
-          <label style="font-size: 0.75rem;">Commande</label>
-          <select class="form-input" @change="${e => this.pendingAction.command_type = e.target.value}">
-            <option value="wake">🔔 Wake</option>
-            <option value="notify">📢 Notify</option>
-            <option value="lock">🔒 Lock</option>
-            <option value="sleep">😴 Sleep</option>
-            <option value="shutdown">⛔ Shutdown</option>
-          </select>
-        </div>
-      `
-    }
-
-    return html`<div>Configuration non disponible</div>`
+      `)}
+    `
   }
 
   addConfiguredAction() {
@@ -1383,54 +3425,1174 @@ class ContextEnginePage extends LitElement {
     }
   }
 
-  renderAutomationCard(auto) {
-    const trigger = auto.trigger
-    let triggerLabel = trigger?.type || 'Inconnu'
-    if (trigger?.type === 'mode_change') {
-      triggerLabel = `Mode: ${trigger.from_mode || '*'} → ${trigger.to_mode || '*'}`
-    } else if (trigger?.type === 'agent_status') {
-      triggerLabel = `Agent ${trigger.agent_id || '*'} → ${trigger.status || '*'}`
-    } else if (trigger?.type === 'sensor_alert') {
-      triggerLabel = `Capteur ${trigger.room_id || '*'}: ${trigger.alert_level || '*'}`
+  // ========== Unified Rules Section (Triggers + Conditions) ==========
+
+  /**
+   * Initialise les règles unifiées à partir des triggers et conditions existants
+   */
+  initRulesFromAutomation(auto) {
+    if (auto._rules) return auto._rules // Déjà initialisé
+
+    const rules = { operator: 'and', items: [] }
+
+    // Ajouter les triggers existants
+    const triggersGroup = auto.triggers || { operator: 'or', triggers: [] }
+    for (const t of (triggersGroup.triggers || [])) {
+      if (t.operator && t.triggers) {
+        // Groupe imbriqué
+        rules.items.push({
+          operator: t.operator,
+          items: t.triggers.map(tr => ({ ...tr, _category: 'event' }))
+        })
+      } else {
+        rules.items.push({ ...t, _category: 'event' })
+      }
     }
 
+    // Ajouter les conditions existantes
+    const conditionsGroup = auto.conditions || { operator: 'and', conditions: [] }
+    for (const c of (conditionsGroup.conditions || [])) {
+      if (c.operator && c.conditions) {
+        // Groupe imbriqué
+        rules.items.push({
+          operator: c.operator,
+          items: c.conditions.map(cd => ({ ...cd, _category: 'state' }))
+        })
+      } else {
+        rules.items.push({ ...c, _category: 'state' })
+      }
+    }
+
+    return rules
+  }
+
+  /**
+   * Retourne les types de règles unifiés (triggers + conditions)
+   */
+  getUnifiedRuleTypes() {
+    const triggers = (this.schema?.triggers || []).map(t => ({
+      ...t,
+      _category: 'event',
+      _categoryLabel: '⚡ Événement'
+    }))
+    const conditions = (this.schema?.conditions || []).map(c => ({
+      ...c,
+      _category: 'state',
+      _categoryLabel: '📋 État'
+    }))
+    return [...triggers, ...conditions]
+  }
+
+  renderRulesSection(auto) {
+    // Initialiser les règles si nécessaire
+    if (!auto._rules) {
+      auto._rules = this.initRulesFromAutomation(auto)
+    }
+    const rules = auto._rules
+    const ruleCount = this.countRules(rules)
+
     return html`
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title">${auto.name}</span>
-          <div class="card-actions">
-            <div
-              class="toggle ${auto.enabled ? 'active' : ''}"
-              @click="${() => this.toggleAutomation(auto.id)}"
-            ></div>
-            <button class="btn btn-small btn-icon" @click="${() => this.openEditForm(auto)}" title="Modifier">✏️</button>
-            <button class="btn btn-small btn-icon btn-danger" @click="${() => this.deleteAutomation(auto.id)}" title="Supprimer">🗑️</button>
-          </div>
+      <div class="form-group">
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+          <label style="margin: 0;">Règles ${ruleCount > 0 ? `(${ruleCount})` : ''}</label>
+          <button
+            type="button"
+            @click="${() => this.showHelp('rules')}"
+            style="cursor: pointer; font-size: 0.75rem; font-weight: bold; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #3b82f6; border: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 2px 4px rgba(59,130,246,0.4);"
+          >?</button>
         </div>
-        <div class="card-meta">
-          Trigger: ${triggerLabel}<br>
-          Actions: ${auto.actions?.length || 0} • Cooldown: ${auto.cooldown_seconds || 0}s
+
+        <div class="rules-editor" style="padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+          ${this.renderRulesGroup(rules, [], 0)}
         </div>
       </div>
     `
   }
 
-  renderHistoryItem(h) {
+  countRules(group) {
+    if (!group?.items) return 0
+    let count = 0
+    for (const item of group.items) {
+      if (item.operator && item.items) {
+        count += this.countRules(item)
+      } else {
+        count++
+      }
+    }
+    return count
+  }
+
+  renderRulesGroup(group, path, depth) {
+    const operatorLabel = group.operator === 'and' ? 'ET' : 'OU'
+    const operatorColor = group.operator === 'and' ? '#3b82f6' : '#f59e0b'
+    const operatorHint = group.operator === 'and'
+      ? 'Toutes les règles doivent correspondre'
+      : 'Au moins une règle doit correspondre'
+    const indent = depth * 12
+
     return html`
-      <div class="card" style="padding: 0.75rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <span style="font-size: 0.85rem; color: var(--color-dark-text-primary);">${h.automation_name}</span>
-            <span style="margin-left: 0.5rem; font-size: 0.75rem;">${h.success ? '✓' : '✗'}</span>
+      <div class="rules-group" style="margin-left: ${indent}px; ${depth > 0 ? 'margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.02); border-radius: 6px; border: 1px dashed rgba(255,255,255,0.1);' : ''}">
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+          <button
+            class="btn btn-small"
+            style="font-size: 0.7rem; padding: 0.2rem 0.5rem; background: ${operatorColor}; color: white; border: none;"
+            @click="${() => this.toggleRulesGroupOperator(path)}"
+            title="Cliquer pour basculer AND/OR"
+          >${operatorLabel}</button>
+          ${depth > 0 ? html`
+            <button class="btn btn-small btn-icon btn-danger" style="font-size: 0.6rem; padding: 0.15rem 0.4rem;" @click="${() => this.removeRulesGroup(path)}" title="Supprimer groupe">✕</button>
+          ` : ''}
+          <span style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">
+            ${operatorHint}
+          </span>
+        </div>
+
+        ${group.items?.map((item, idx) => {
+          const itemPath = [...path, idx]
+          if (item.operator && item.items) {
+            // Nested group
+            return this.renderRulesGroup(item, itemPath, depth + 1)
+          } else {
+            // Single rule
+            return this.renderRuleItem(item, itemPath)
+          }
+        })}
+
+        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+          <button class="btn btn-small" style="font-size: 0.7rem;" @click="${() => this.showRuleConfigFor(path)}">
+            + Règle
+          </button>
+          ${depth < 1 ? html`
+            <button class="btn btn-small" style="font-size: 0.7rem;" @click="${() => this.addRulesGroup(path)}">
+              + Groupe
+            </button>
+          ` : ''}
+        </div>
+
+        ${this.showingRuleConfig && JSON.stringify(this.pendingRulePath) === JSON.stringify(path) ? html`
+          <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);">
+            ${this.renderRuleConfig()}
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+              <button class="btn btn-small" @click="${() => this.showingRuleConfig = false}">Annuler</button>
+              <button class="btn btn-small btn-primary" @click="${this.addConfiguredRule}">Ajouter</button>
+            </div>
           </div>
+        ` : ''}
+      </div>
+    `
+  }
+
+  renderRuleItem(rule, path) {
+    const isEvent = isEventType(rule.type)
+    const categoryColor = isEvent ? '#10b981' : '#8b5cf6'
+    const categoryIcon = isEvent ? '⚡' : '📋'
+    const label = this.getRuleLabel(rule)
+
+    return html`
+      <div class="rule-item" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); border-left: 3px solid ${categoryColor};">
+        <span style="font-size: 0.65rem; color: ${categoryColor};" title="${isEvent ? 'Événement (déclencheur)' : 'État (condition)'}">${categoryIcon}</span>
+        <span style="flex: 1; font-size: 0.8rem;">${label}</span>
+        <button class="btn btn-small btn-icon btn-danger" style="font-size: 0.6rem; padding: 0.15rem 0.4rem;" @click="${() => this.removeRule(path)}" title="Supprimer">✕</button>
+      </div>
+    `
+  }
+
+  getRuleLabel(rule) {
+    // Chercher dans triggers ou conditions
+    const triggerSchema = this.schema?.triggers?.find(t => t.type === rule.type)
+    const conditionSchema = this.schema?.conditions?.find(c => c.type === rule.type)
+    const schema = triggerSchema || conditionSchema
+    const icon = schema?.icon || ''
+
+    // Labels spécifiques selon le type
+    switch (rule.type) {
+      case 'mode_change':
+        const fromMode = this.schema?.dynamic_values?.modes?.find(m => m.value === rule.from_mode)
+        const toMode = this.schema?.dynamic_values?.modes?.find(m => m.value === rule.to_mode)
+        if (rule.from_mode && rule.to_mode) {
+          return `${icon} Mode: ${fromMode?.label || rule.from_mode} → ${toMode?.label || rule.to_mode}`
+        } else if (rule.to_mode) {
+          return `${icon} Mode → ${toMode?.label || rule.to_mode}`
+        } else if (rule.from_mode) {
+          return `${icon} Mode: ${fromMode?.label || rule.from_mode} → *`
+        }
+        return `${icon} Changement de mode`
+      case 'sensor_alert':
+        const room = this.schema?.dynamic_values?.rooms?.find(r => r.value === rule.room_id)
+        const level = this.schema?.dynamic_values?.alert_levels?.find(l => l.value === rule.alert_level)
+        return `${icon} Alerte ${level?.label || 'capteur'} ${room ? `(${room.label})` : ''}`
+      case 'agent_status':
+        const agent = this.schema?.dynamic_values?.agents?.find(a => a.value === rule.agent_id)
+        return `${icon} Agent ${agent?.label || rule.agent_id || '*'}: ${rule.status || '*'}`
+      case 'manual':
+        return `${icon} Déclenchement manuel`
+      case 'plugin_health':
+        const plugin = this.schema?.dynamic_values?.plugins?.find(p => p.value === rule.plugin_name)
+        const status = this.schema?.dynamic_values?.plugin_health_statuses?.find(s => s.value === rule.status)
+        return `${icon} Plugin ${plugin?.label || rule.plugin_name || '*'}: ${status?.label || rule.status || '*'}`
+      case 'scheduled':
+        const intervalSecs = rule.interval_seconds || 300
+        const intervalLabel = intervalSecs >= 3600
+          ? `${Math.round(intervalSecs / 3600)}h`
+          : intervalSecs >= 60
+            ? `${Math.round(intervalSecs / 60)}min`
+            : `${intervalSecs}s`
+        const activeHoursLabel = rule.active_hours
+          ? ` (${rule.active_hours[0]}h-${rule.active_hours[1]}h)`
+          : ''
+        return `${icon} Planifié toutes les ${intervalLabel}${activeHoursLabel}`
+      case 'current_mode':
+        const currentMode = this.schema?.dynamic_values?.modes?.find(m => m.value === rule.mode)
+        return `${icon} Mode actuel = ${currentMode?.label || rule.mode}`
+      case 'time_range':
+        return `${icon} Heure entre ${rule.start_hour || 0}h et ${rule.end_hour || 24}h`
+      case 'day_of_week':
+        const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
+        const days = (rule.days || []).map(d => dayNames[parseInt(d)] || d).join(', ')
+        return `${icon} Jour: ${days || 'Aucun'}`
+      case 'day_of_month':
+        const monthDays = (rule.days || []).map(d => parseInt(d) === 31 ? 'Dernier' : d).join(', ')
+        return `${icon} Jour du mois: ${monthDays || 'Aucun'}`
+      case 'month':
+        const monthNames = ['', 'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
+        const months = (rule.months || []).map(m => monthNames[parseInt(m)] || m).join(', ')
+        return `${icon} Mois: ${months || 'Tous'}`
+      case 'sensor_value':
+        const sensorRoom = this.schema?.dynamic_values?.rooms?.find(r => r.value === rule.room_id)
+        const opLabel = { greater_than: '>', less_than: '<', equals: '=' }[rule.operator] || rule.operator
+        return `${icon} ${rule.metric || 'capteur'} ${sensorRoom?.label || ''} ${opLabel} ${rule.value}`
+      case 'agent_online':
+        const agentCond = this.schema?.dynamic_values?.agents?.find(a => a.value === rule.agent_id)
+        return `${icon} Agent ${agentCond?.label || rule.agent_id} ${rule.online ? 'en ligne' : 'hors ligne'}`
+      default:
+        return `${icon} ${schema?.label || rule.type}`
+    }
+  }
+
+  showRuleConfigFor(path) {
+    this.pendingRulePath = path
+    const allTypes = this.getUnifiedRuleTypes()
+    this.pendingRuleType = allTypes[0]?.type || 'mode_change'
+    const ruleSchema = allTypes.find(t => t.type === this.pendingRuleType)
+    this.pendingRule = this.initializeWithDefaults(this.pendingRuleType, ruleSchema?.fields)
+    this.showingRuleConfig = true
+    this.requestUpdate()
+  }
+
+  renderRuleConfig() {
+    const type = this.pendingRuleType
+    const allTypes = this.getUnifiedRuleTypes()
+    const ruleSchema = allTypes.find(t => t.type === type)
+
+    return html`
+      <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label style="font-size: 0.75rem;">Type de règle</label>
+          <select class="form-input" style="font-size: 0.8rem;"
+            @change="${e => {
+              this.pendingRuleType = e.target.value
+              const newSchema = allTypes.find(t => t.type === e.target.value)
+              this.pendingRule = this.initializeWithDefaults(e.target.value, newSchema?.fields)
+              this.requestUpdate()
+            }}">
+            <optgroup label="⚡ Événements (déclencheurs)">
+              ${allTypes.filter(t => t._category === 'event').map(t => html`
+                <option value="${t.type}" ?selected="${t.type === type}">${t.icon || ''} ${t.label}</option>
+              `)}
+            </optgroup>
+            <optgroup label="📋 États (conditions)">
+              ${allTypes.filter(t => t._category === 'state').map(t => html`
+                <option value="${t.type}" ?selected="${t.type === type}">${t.icon || ''} ${t.label}</option>
+              `)}
+            </optgroup>
+          </select>
+          ${ruleSchema?.description ? html`
+            <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-top: 0.25rem;">${ruleSchema.description}</div>
+          ` : ''}
+        </div>
+
+        ${ruleSchema?.fields?.map(field => html`
+          <div class="form-group" style="margin-bottom: 0;">
+            <label style="font-size: 0.75rem;">${field.label}${field.required ? ' *' : ''}</label>
+            ${this.renderSchemaField(field, this.pendingRule?.[field.name], (val) => {
+              this.pendingRule = { ...this.pendingRule, [field.name]: val }
+              this.requestUpdate()
+            })}
+          </div>
+        `)}
+      </div>
+    `
+  }
+
+  addConfiguredRule() {
+    if (!this.pendingRule || this.pendingRulePath === null) return
+
+    // Navigate to the right group using path
+    let group = this.editingAutomation._rules
+    for (const idx of this.pendingRulePath) {
+      group = group.items[idx]
+    }
+
+    // Transform rule before adding
+    let rule = { ...this.pendingRule }
+
+    // Special handling for scheduled trigger: convert active_hours_start/end to tuple
+    if (rule.type === 'scheduled') {
+      const start = rule.active_hours_start
+      const end = rule.active_hours_end
+      if (start !== undefined && start !== null && end !== undefined && end !== null) {
+        rule.active_hours = [parseInt(start), parseInt(end)]
+      }
+      delete rule.active_hours_start
+      delete rule.active_hours_end
+    }
+
+    // Add rule
+    if (!group.items) group.items = []
+    group.items.push(rule)
+
+    // Reset
+    this.pendingRule = null
+    this.pendingRulePath = null
+    this.showingRuleConfig = false
+    this.requestUpdate()
+  }
+
+  toggleRulesGroupOperator(path) {
+    let group = this.editingAutomation._rules
+    for (const idx of path) {
+      group = group.items[idx]
+    }
+    group.operator = group.operator === 'and' ? 'or' : 'and'
+    this.requestUpdate()
+  }
+
+  addRulesGroup(path) {
+    let group = this.editingAutomation._rules
+    for (const idx of path) {
+      group = group.items[idx]
+    }
+    if (!group.items) group.items = []
+    group.items.push({
+      operator: 'and',
+      items: []
+    })
+    this.requestUpdate()
+  }
+
+  removeRule(path) {
+    const parentPath = path.slice(0, -1)
+    const idx = path[path.length - 1]
+
+    let group = this.editingAutomation._rules
+    for (const i of parentPath) {
+      group = group.items[i]
+    }
+
+    group.items = group.items.filter((_, i) => i !== idx)
+    this.requestUpdate()
+  }
+
+  removeRulesGroup(path) {
+    this.removeRule(path) // Same logic
+  }
+
+  /**
+   * Split les règles unifiées en triggers et conditions pour le backend
+   */
+  /**
+   * Normalize item fields for backend (convert strings to numbers where needed)
+   */
+  normalizeForBackend(item) {
+    const normalized = { ...item }
+    delete normalized._category
+
+    // Convert string arrays to number arrays for specific fields
+    if (normalized.days && Array.isArray(normalized.days)) {
+      normalized.days = normalized.days.map(d => parseInt(d)).filter(d => !isNaN(d))
+    }
+    if (normalized.months && Array.isArray(normalized.months)) {
+      normalized.months = normalized.months.map(m => parseInt(m)).filter(m => !isNaN(m))
+    }
+
+    // Convert hour fields to numbers
+    if (normalized.start_hour !== undefined) {
+      normalized.start_hour = parseInt(normalized.start_hour)
+    }
+    if (normalized.end_hour !== undefined) {
+      normalized.end_hour = parseInt(normalized.end_hour)
+    }
+    if (normalized.active_hours_start !== undefined) {
+      normalized.active_hours_start = parseInt(normalized.active_hours_start)
+    }
+    if (normalized.active_hours_end !== undefined) {
+      normalized.active_hours_end = parseInt(normalized.active_hours_end)
+    }
+
+    // Convert interval to number
+    if (normalized.interval_seconds !== undefined) {
+      normalized.interval_seconds = parseInt(normalized.interval_seconds)
+    }
+
+    return normalized
+  }
+
+  splitRulesForBackend(rulesGroup) {
+    const triggers = { operator: rulesGroup.operator, triggers: [] }
+    const conditions = { operator: rulesGroup.operator, conditions: [] }
+
+    for (const item of (rulesGroup.items || [])) {
+      if (item.operator && item.items) {
+        // Nested group - recursive split
+        const nested = this.splitRulesForBackend(item)
+        if (nested.triggers.triggers.length > 0) {
+          triggers.triggers.push({ operator: item.operator, triggers: nested.triggers.triggers })
+        }
+        if (nested.conditions.conditions.length > 0) {
+          conditions.conditions.push({ operator: item.operator, conditions: nested.conditions.conditions })
+        }
+      } else if (isEventType(item.type)) {
+        // Trigger (event-based)
+        triggers.triggers.push(this.normalizeForBackend(item))
+      } else if (isStateType(item.type)) {
+        // Condition (state-based)
+        conditions.conditions.push(this.normalizeForBackend(item))
+      }
+    }
+
+    return { triggers, conditions }
+  }
+
+  /**
+   * Vérifie si les règles contiennent au moins un événement (trigger)
+   */
+  hasEventInRules(rulesGroup) {
+    if (!rulesGroup?.items?.length) return false
+    for (const item of rulesGroup.items) {
+      if (item.operator && item.items) {
+        if (this.hasEventInRules(item)) return true
+      } else if (isEventType(item.type)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  // ========== Trigger Editor Methods (AND/OR Logic) - LEGACY ==========
+
+  renderTriggersSection(auto) {
+    const triggersGroup = auto.triggers || { operator: 'or', triggers: [] }
+    const hasTriggers = triggersGroup.triggers?.length > 0
+
+    return html`
+      <div class="form-group">
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+          <label style="margin: 0;">Déclencheurs ${hasTriggers ? `(${triggersGroup.triggers.length})` : ''}</label>
+          <button
+            type="button"
+            @click="${() => this.showHelp('triggers')}"
+            style="cursor: pointer; font-size: 0.75rem; font-weight: bold; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #3b82f6; border: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 2px 4px rgba(59,130,246,0.4);"
+          >?</button>
+        </div>
+
+        <div class="triggers-editor" style="padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+          ${this.renderTriggerGroup(triggersGroup, [], 0)}
+        </div>
+      </div>
+    `
+  }
+
+  renderTriggerGroup(group, path, depth) {
+    const operatorLabel = group.operator === 'and' ? 'ET' : 'OU'
+    const operatorColor = group.operator === 'and' ? '#3b82f6' : '#f59e0b'
+    const operatorHint = group.operator === 'and'
+      ? 'Tous les déclencheurs doivent correspondre'
+      : 'Au moins un déclencheur doit correspondre'
+    const indent = depth * 12
+
+    return html`
+      <div class="trigger-group" style="margin-left: ${indent}px; ${depth > 0 ? 'margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.02); border-radius: 6px; border: 1px dashed rgba(255,255,255,0.1);' : ''}">
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+          <button
+            class="btn btn-small"
+            style="font-size: 0.7rem; padding: 0.2rem 0.5rem; background: ${operatorColor}; color: white; border: none;"
+            @click="${() => this.toggleTriggerGroupOperator(path)}"
+            title="Cliquer pour basculer AND/OR"
+          >${operatorLabel}</button>
+          ${depth > 0 ? html`
+            <button class="btn btn-small btn-icon btn-danger" style="font-size: 0.6rem; padding: 0.15rem 0.4rem;" @click="${() => this.removeTriggerGroup(path)}" title="Supprimer groupe">✕</button>
+          ` : ''}
+          <span style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">
+            ${operatorHint}
+          </span>
+        </div>
+
+        ${group.triggers?.map((trigger, idx) => {
+          const triggerPath = [...path, idx]
+          if (trigger.operator && trigger.triggers) {
+            // Nested group
+            return this.renderTriggerGroup(trigger, triggerPath, depth + 1)
+          } else {
+            // Single trigger
+            return this.renderTriggerItem(trigger, triggerPath)
+          }
+        })}
+
+        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+          <button class="btn btn-small" style="font-size: 0.7rem;" @click="${() => this.showTriggerConfigFor(path)}">
+            + Déclencheur
+          </button>
+          ${depth < 1 ? html`
+            <button class="btn btn-small" style="font-size: 0.7rem;" @click="${() => this.addTriggerGroup(path)}">
+              + Groupe
+            </button>
+          ` : ''}
+        </div>
+
+        ${this.showingTriggerConfig && JSON.stringify(this.pendingTriggerPath) === JSON.stringify(path) ? html`
+          <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);">
+            ${this.renderTriggerConfig()}
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+              <button class="btn btn-small" @click="${() => this.showingTriggerConfig = false}">Annuler</button>
+              <button class="btn btn-small btn-primary" @click="${this.addConfiguredTrigger}">Ajouter</button>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `
+  }
+
+  renderTriggerItem(trigger, path) {
+    const triggerSchema = this.schema?.triggers?.find(t => t.type === trigger.type)
+    const label = this.getTriggerLabel(trigger, triggerSchema)
+
+    return html`
+      <div class="trigger-item" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);">
+        <span style="flex: 1; font-size: 0.8rem;">${label}</span>
+        <button class="btn btn-small btn-icon btn-danger" style="font-size: 0.6rem; padding: 0.15rem 0.4rem;" @click="${() => this.removeTrigger(path)}" title="Supprimer">✕</button>
+      </div>
+    `
+  }
+
+  getTriggerLabel(trigger, schema) {
+    const icon = schema?.icon || '⚡'
+    switch (trigger.type) {
+      case 'mode_change':
+        const fromMode = this.schema?.dynamic_values?.modes?.find(m => m.value === trigger.from_mode)
+        const toMode = this.schema?.dynamic_values?.modes?.find(m => m.value === trigger.to_mode)
+        if (trigger.from_mode && trigger.to_mode) {
+          return `${icon} Mode: ${fromMode?.label || trigger.from_mode} → ${toMode?.label || trigger.to_mode}`
+        } else if (trigger.to_mode) {
+          return `${icon} Mode → ${toMode?.label || trigger.to_mode}`
+        } else if (trigger.from_mode) {
+          return `${icon} Mode: ${fromMode?.label || trigger.from_mode} → *`
+        }
+        return `${icon} Changement de mode`
+      case 'sensor_alert':
+        const room = this.schema?.dynamic_values?.rooms?.find(r => r.value === trigger.room_id)
+        const level = this.schema?.dynamic_values?.alert_levels?.find(l => l.value === trigger.alert_level)
+        return `${icon} Alerte ${level?.label || 'capteur'} ${room ? `(${room.label})` : ''}`
+      case 'agent_status':
+        const agent = this.schema?.dynamic_values?.agents?.find(a => a.value === trigger.agent_id)
+        return `${icon} Agent ${agent?.label || trigger.agent_id || '*'}: ${trigger.status || '*'}`
+      case 'manual':
+        return `${icon} Déclenchement manuel`
+      case 'plugin_health':
+        const plugin = this.schema?.dynamic_values?.plugins?.find(p => p.value === trigger.plugin_name)
+        const status = this.schema?.dynamic_values?.plugin_health_statuses?.find(s => s.value === trigger.status)
+        return `${icon} Plugin ${plugin?.label || trigger.plugin_name || '*'}: ${status?.label || trigger.status || '*'}`
+      case 'scheduled':
+        const intervalSecs = trigger.interval_seconds || 300
+        const intervalLabel = intervalSecs >= 3600
+          ? `${Math.round(intervalSecs / 3600)}h`
+          : intervalSecs >= 60
+            ? `${Math.round(intervalSecs / 60)}min`
+            : `${intervalSecs}s`
+        const activeHoursLabel = trigger.active_hours
+          ? ` (${trigger.active_hours[0]}h-${trigger.active_hours[1]}h)`
+          : ''
+        return `${icon} Planifié toutes les ${intervalLabel}${activeHoursLabel}`
+      default:
+        return `${icon} ${schema?.label || trigger.type}`
+    }
+  }
+
+  showTriggerConfigFor(path) {
+    this.pendingTriggerPath = path
+    this.pendingTriggerType = this.schema?.triggers?.[0]?.type || 'mode_change'
+    const triggerSchema = this.schema?.triggers?.find(t => t.type === this.pendingTriggerType)
+    this.pendingTrigger = this.initializeWithDefaults(this.pendingTriggerType, triggerSchema?.fields)
+    this.showingTriggerConfig = true
+    this.requestUpdate()
+  }
+
+  renderTriggerConfig() {
+    const type = this.pendingTriggerType
+    const triggerSchema = this.schema?.triggers?.find(t => t.type === type)
+
+    return html`
+      <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label style="font-size: 0.75rem;">Type de déclencheur</label>
+          <select class="form-input" style="font-size: 0.8rem;"
+            @change="${e => {
+              this.pendingTriggerType = e.target.value
+              const newSchema = this.schema?.triggers?.find(t => t.type === e.target.value)
+              this.pendingTrigger = this.initializeWithDefaults(e.target.value, newSchema?.fields)
+              this.requestUpdate()
+            }}">
+            ${(this.schema?.triggers || []).map(t => html`
+              <option value="${t.type}" ?selected="${t.type === type}">${t.icon || ''} ${t.label}</option>
+            `)}
+          </select>
+          ${triggerSchema?.description ? html`
+            <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-top: 0.25rem;">${triggerSchema.description}</div>
+          ` : ''}
+        </div>
+
+        ${triggerSchema?.fields?.map(field => html`
+          <div class="form-group" style="margin-bottom: 0;">
+            <label style="font-size: 0.75rem;">${field.label}${field.required ? ' *' : ''}</label>
+            ${this.renderSchemaField(field, this.pendingTrigger?.[field.name], (val) => {
+              this.pendingTrigger = { ...this.pendingTrigger, [field.name]: val }
+              this.requestUpdate()
+            })}
+          </div>
+        `)}
+      </div>
+    `
+  }
+
+  addConfiguredTrigger() {
+    if (!this.pendingTrigger || this.pendingTriggerPath === null) return
+
+    // Navigate to the right group using path
+    let group = this.editingAutomation.triggers
+    for (const idx of this.pendingTriggerPath) {
+      group = group.triggers[idx]
+    }
+
+    // Transform trigger before adding
+    let trigger = { ...this.pendingTrigger }
+
+    // Special handling for scheduled trigger: convert active_hours_start/end to tuple
+    if (trigger.type === 'scheduled') {
+      const start = trigger.active_hours_start
+      const end = trigger.active_hours_end
+      if (start !== undefined && start !== null && end !== undefined && end !== null) {
+        trigger.active_hours = [parseInt(start), parseInt(end)]
+      }
+      delete trigger.active_hours_start
+      delete trigger.active_hours_end
+    }
+
+    // Add trigger
+    if (!group.triggers) group.triggers = []
+    group.triggers.push(trigger)
+
+    // Reset
+    this.pendingTrigger = null
+    this.pendingTriggerPath = null
+    this.showingTriggerConfig = false
+    this.requestUpdate()
+  }
+
+  toggleTriggerGroupOperator(path) {
+    let group = this.editingAutomation.triggers
+    for (const idx of path) {
+      group = group.triggers[idx]
+    }
+    group.operator = group.operator === 'and' ? 'or' : 'and'
+    this.requestUpdate()
+  }
+
+  addTriggerGroup(path) {
+    let group = this.editingAutomation.triggers
+    for (const idx of path) {
+      group = group.triggers[idx]
+    }
+    if (!group.triggers) group.triggers = []
+    group.triggers.push({
+      operator: 'and',
+      triggers: []
+    })
+    this.requestUpdate()
+  }
+
+  removeTrigger(path) {
+    const parentPath = path.slice(0, -1)
+    const idx = path[path.length - 1]
+
+    let group = this.editingAutomation.triggers
+    for (const i of parentPath) {
+      group = group.triggers[i]
+    }
+
+    group.triggers = group.triggers.filter((_, i) => i !== idx)
+    this.requestUpdate()
+  }
+
+  removeTriggerGroup(path) {
+    this.removeTrigger(path) // Same logic
+  }
+
+  // ========== Condition Editor Methods ==========
+
+  renderConditionsSection(auto) {
+    const conditions = auto.conditions || null
+    const hasConditions = conditions !== null // Show editor once initialized (even if empty)
+    const conditionCount = conditions?.conditions?.length || 0
+
+    return html`
+      <div class="form-group">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem;">
           <div style="display: flex; align-items: center; gap: 0.5rem;">
-            ${h.trust_score != null ? html`
-              <span class="trust-badge ${this.getTrustClass(h.trust_score)}">
-                🧠 ${Math.round(h.trust_score * 100)}%
-              </span>
-            ` : ''}
-            <span class="card-meta">${this.formatTime(h.executed_at)}</span>
+            <label style="margin: 0;">Conditions ${conditionCount > 0 ? `(${conditionCount})` : '(optionnel)'}</label>
+            <button
+              type="button"
+              @click="${() => this.showHelp('conditions')}"
+              style="cursor: pointer; font-size: 0.75rem; font-weight: bold; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #3b82f6; border: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 2px 4px rgba(59,130,246,0.4);"
+            >?</button>
           </div>
+          ${hasConditions ? html`
+            <button type="button" class="btn btn-small btn-danger" @click="${() => this.clearConditions()}" style="font-size: 0.7rem; padding: 0.2rem 0.5rem;">
+              Supprimer
+            </button>
+          ` : html`
+            <button type="button" class="btn btn-small" @click="${() => this.initConditions()}" style="font-size: 0.75rem;">
+              + Ajouter
+            </button>
+          `}
+        </div>
+
+        ${hasConditions ? html`
+          <div class="conditions-editor" style="padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+            ${this.renderConditionGroup(conditions, [], 0)}
+          </div>
+        ` : ''}
+      </div>
+    `
+  }
+
+  initConditions() {
+    this.editingAutomation.conditions = {
+      operator: 'and',
+      conditions: []
+    }
+    this.requestUpdate()
+  }
+
+  clearConditions() {
+    this.editingAutomation.conditions = null
+    this.showingConditionConfig = false
+    this.requestUpdate()
+  }
+
+  showHelp(topic) {
+    const helpTexts = {
+      rules: `RÈGLES D'AUTOMATION
+
+Combinez des ÉVÉNEMENTS (⚡) et des ÉTATS (📋) :
+
+⚡ ÉVÉNEMENTS (déclencheurs)
+  Mode change, Alerte capteur, Agent status, Planifié...
+  → Provoquent l'exécution de l'automation
+
+📋 ÉTATS (conditions)
+  Mode actuel, Plage horaire, Jour de semaine...
+  → Vérifient l'état AVANT d'exécuter
+
+OPÉRATEURS :
+• ET (bleu) = Toutes les règles doivent correspondre
+• OU (orange) = Au moins une règle doit correspondre
+
+EXEMPLE :
+  (⚡ Planifié 5min) ET (📋 Heure 9h-18h) ET (📋 Jour Lun-Ven)
+
+  = Toutes les 5 minutes, SI entre 9h-18h ET jour de semaine,
+    alors exécuter les actions.
+
+Au moins un événement (⚡) est requis pour déclencher l'automation.`,
+
+      triggers: `DÉCLENCHEURS
+
+Événements qui lancent l'automation.
+
+• OU (orange) = Au moins un déclencheur doit correspondre
+• ET (bleu) = Tous les déclencheurs doivent correspondre
+
+Cliquez sur OU/ET pour basculer.
+Utilisez "+ Groupe" pour des combinaisons complexes.
+
+Exemple :
+  Mode → Focus OU Agent offline
+  = Se déclenche si l'un des deux arrive`,
+
+      conditions: `CONDITIONS (optionnel)
+
+Vérifications supplémentaires AVANT l'exécution.
+
+Exemple :
+  Déclencheur : Mode → Focus
+  Conditions : Heure 9h-18h ET Jour Lun-Ven
+
+  = L'automation se déclenche quand le mode passe en Focus,
+    MAIS seulement si c'est un jour de semaine entre 9h-18h.
+
+• ET (bleu) = Toutes les conditions doivent être vraies
+• OU (orange) = Au moins une condition doit être vraie`
+    }
+
+    alert(helpTexts[topic] || 'Aide non disponible')
+  }
+
+  renderConditionGroup(group, path, depth) {
+    const operatorLabel = group.operator === 'and' ? 'ET' : 'OU'
+    const operatorColor = group.operator === 'and' ? '#3b82f6' : '#f59e0b'
+    const indent = depth * 12
+
+    return html`
+      <div class="condition-group" style="margin-left: ${indent}px; ${depth > 0 ? 'margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.02); border-radius: 6px; border: 1px dashed rgba(255,255,255,0.1);' : ''}">
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+          <button
+            class="btn btn-small"
+            style="font-size: 0.7rem; padding: 0.2rem 0.5rem; background: ${operatorColor}; color: white; border: none;"
+            @click="${() => this.toggleGroupOperator(path)}"
+            title="Cliquer pour basculer AND/OR"
+          >${operatorLabel}</button>
+          ${depth > 0 ? html`
+            <button class="btn btn-small btn-icon btn-danger" style="font-size: 0.6rem; padding: 0.15rem 0.4rem;" @click="${() => this.removeConditionGroup(path)}" title="Supprimer groupe">✕</button>
+          ` : ''}
+          <span style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">
+            ${group.operator === 'and' ? 'Toutes les conditions doivent être vraies' : 'Au moins une condition doit être vraie'}
+          </span>
+        </div>
+
+        ${group.conditions?.map((cond, idx) => {
+          const condPath = [...path, idx]
+          if (cond.type === 'group' || (cond.operator && cond.conditions)) {
+            // Nested group
+            return this.renderConditionGroup(cond, condPath, depth + 1)
+          } else {
+            // Single condition
+            return this.renderConditionItem(cond, condPath)
+          }
+        })}
+
+        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+          <button class="btn btn-small" style="font-size: 0.7rem;" @click="${() => this.showConditionConfigFor(path)}">
+            + Condition
+          </button>
+          <button class="btn btn-small" style="font-size: 0.7rem;" @click="${() => this.addConditionGroup(path)}">
+            + Groupe
+          </button>
+        </div>
+
+        ${this.showingConditionConfig && JSON.stringify(this.pendingConditionPath) === JSON.stringify(path) ? html`
+          <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);">
+            ${this.renderConditionConfig()}
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+              <button class="btn btn-small" @click="${() => this.showingConditionConfig = false}">Annuler</button>
+              <button class="btn btn-small btn-primary" @click="${this.addConfiguredCondition}">Ajouter</button>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `
+  }
+
+  renderConditionItem(cond, path) {
+    const condSchema = this.schema?.conditions?.find(c => c.type === cond.type)
+    const label = this.getConditionLabel(cond, condSchema)
+
+    return html`
+      <div class="condition-item" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);">
+        <span style="flex: 1; font-size: 0.8rem;">${label}</span>
+        <button class="btn btn-small btn-icon btn-danger" style="font-size: 0.6rem; padding: 0.15rem 0.4rem;" @click="${() => this.removeCondition(path)}" title="Supprimer">✕</button>
+      </div>
+    `
+  }
+
+  getConditionLabel(cond, schema) {
+    const icon = '🔍'
+    switch (cond.type) {
+      case 'current_mode':
+        const modeOpt = this.schema?.dynamic_values?.modes?.find(m => m.value === cond.mode)
+        return `${icon} Mode = ${modeOpt?.label || cond.mode || '?'}`
+      case 'time_range':
+        return `${icon} Heure ${cond.start_time || '?'} - ${cond.end_time || '?'}`
+      case 'day_of_week':
+        const days = cond.days?.map(d => ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'][d]).join(', ')
+        return `${icon} Jours: ${days || '?'}`
+      case 'day_of_month':
+        const monthDays2 = cond.days?.map(d => d === 31 ? 'Dernier' : d).join(', ')
+        return `${icon} Jour du mois: ${monthDays2 || 'Aucun'}`
+      case 'month':
+        const monthNames2 = ['', 'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
+        const monthsVal = cond.months?.map(m => monthNames2[m]).join(', ')
+        return `${icon} Mois: ${monthsVal || 'Tous'}`
+      case 'sensor_value':
+        return `${icon} Capteur ${cond.sensor_id || '?'} ${cond.metric || '?'} ${cond.operator || '?'} ${cond.value ?? '?'}`
+      case 'agent_online':
+        return `${icon} Agent ${cond.agent_id || '?'} en ligne`
+      default:
+        return `${icon} ${schema?.label || cond.type}`
+    }
+  }
+
+  showConditionConfigFor(path) {
+    this.pendingConditionPath = path
+    this.pendingConditionType = this.schema?.conditions?.[0]?.type || 'current_mode'
+    const condSchema = this.schema?.conditions?.find(c => c.type === this.pendingConditionType)
+    this.pendingCondition = this.initializeWithDefaults(this.pendingConditionType, condSchema?.fields)
+    this.showingConditionConfig = true
+    this.requestUpdate()
+  }
+
+  renderConditionConfig() {
+    const type = this.pendingConditionType
+    const condSchema = this.schema?.conditions?.find(c => c.type === type)
+
+    return html`
+      <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label style="font-size: 0.75rem;">Type de condition</label>
+          <select class="form-input" style="font-size: 0.8rem;"
+            @change="${e => {
+              this.pendingConditionType = e.target.value
+              const newSchema = this.schema?.conditions?.find(c => c.type === e.target.value)
+              this.pendingCondition = this.initializeWithDefaults(e.target.value, newSchema?.fields)
+              this.requestUpdate()
+            }}">
+            ${(this.schema?.conditions || []).map(c => html`
+              <option value="${c.type}" ?selected="${c.type === type}">${c.icon || ''} ${c.label}</option>
+            `)}
+          </select>
+        </div>
+
+        ${condSchema?.fields?.map(field => html`
+          <div class="form-group" style="margin-bottom: 0;">
+            <label style="font-size: 0.75rem;">${field.label}${field.required ? ' *' : ''}</label>
+            ${this.renderSchemaField(field, this.pendingCondition?.[field.name], (val) => {
+              this.pendingCondition = { ...this.pendingCondition, [field.name]: val }
+              this.requestUpdate()
+            })}
+          </div>
+        `)}
+      </div>
+    `
+  }
+
+  addConfiguredCondition() {
+    if (!this.pendingCondition || !this.pendingConditionPath) return
+
+    // Navigate to the right group using path
+    let group = this.editingAutomation.conditions
+    for (const idx of this.pendingConditionPath) {
+      group = group.conditions[idx]
+    }
+
+    // Add condition
+    if (!group.conditions) group.conditions = []
+    group.conditions.push({ ...this.pendingCondition })
+
+    // Reset
+    this.pendingCondition = null
+    this.pendingConditionPath = null
+    this.showingConditionConfig = false
+    this.requestUpdate()
+  }
+
+  toggleGroupOperator(path) {
+    let group = this.editingAutomation.conditions
+    for (const idx of path) {
+      group = group.conditions[idx]
+    }
+    group.operator = group.operator === 'and' ? 'or' : 'and'
+    this.requestUpdate()
+  }
+
+  addConditionGroup(path) {
+    let group = this.editingAutomation.conditions
+    for (const idx of path) {
+      group = group.conditions[idx]
+    }
+    if (!group.conditions) group.conditions = []
+    group.conditions.push({
+      operator: 'and',
+      conditions: []
+    })
+    this.requestUpdate()
+  }
+
+  removeCondition(path) {
+    const parentPath = path.slice(0, -1)
+    const idx = path[path.length - 1]
+
+    let group = this.editingAutomation.conditions
+    for (const i of parentPath) {
+      group = group.conditions[i]
+    }
+    group.conditions.splice(idx, 1)
+    this.requestUpdate()
+  }
+
+  removeConditionGroup(path) {
+    this.removeCondition(path) // Same logic
+  }
+
+  // ========== End Condition Editor ==========
+
+  renderAutomationCard(auto) {
+    // Support both old trigger and new triggers format
+    let triggerLabel = 'Aucun'
+    let triggerCount = 0
+    if (auto.triggers?.triggers?.length > 0) {
+      triggerCount = auto.triggers.triggers.length
+      if (triggerCount === 1) {
+        const t = auto.triggers.triggers[0]
+        triggerLabel = this.getShortTriggerLabel(t)
+      } else {
+        const op = auto.triggers.operator === 'and' ? 'ET' : 'OU'
+        triggerLabel = `${triggerCount} déclencheurs (${op})`
+      }
+    } else if (auto.trigger) {
+      triggerCount = 1
+      triggerLabel = this.getShortTriggerLabel(auto.trigger)
+    }
+
+    // Category info
+    const category = auto.category || 'custom'
+    const categoryIcons = {
+      comfort: '🛋️', security: '🔒', energy: '⚡',
+      notifications: '🔔', custom: '⚙️'
+    }
+    const categoryIcon = categoryIcons[category] || '⚙️'
+    const statusIcon = auto.enabled ? '⚡' : '💤'
+
+    // Find last execution for this automation
+    const lastExec = this.automationHistory.find(h => h.automation_id === auto.id)
+    const lastExecTime = lastExec ? this.formatTime(lastExec.executed_at) : null
+
+    // Check if highlighted from timeline
+    const isHighlighted = this.highlightedAutomationId === auto.id
+
+    return html`
+      <div class="automation-card ${auto.enabled ? 'enabled' : 'disabled'} ${isHighlighted ? 'highlighted' : ''}">
+        <div class="automation-card-inner">
+          <div class="automation-header">
+            <div class="automation-status-icon">${statusIcon}</div>
+            <div class="automation-info">
+              <div class="automation-title-row">
+                <span class="automation-title">${auto.name}</span>
+                <span class="automation-category-badge ${category}">${categoryIcon} ${category}</span>
+              </div>
+              <div class="automation-subtitle">
+                <span>${triggerLabel}</span>
+              </div>
+            </div>
+            <div class="automation-actions">
+              <div
+                class="toggle ${auto.enabled ? 'active' : ''}"
+                @click="${() => this.toggleAutomation(auto.id)}"
+                title="${auto.enabled ? 'Désactiver' : 'Activer'}"
+              ></div>
+            </div>
+          </div>
+
+          <div class="automation-details">
+            <div class="automation-detail">
+              <span class="automation-detail-icon">🎯</span>
+              <span class="automation-detail-value">${auto.actions?.length || 0}</span>
+              <span>action${(auto.actions?.length || 0) !== 1 ? 's' : ''}</span>
+            </div>
+            <div class="automation-detail">
+              <span class="automation-detail-icon">⏱️</span>
+              <span class="automation-detail-value">${auto.cooldown_seconds || 0}s</span>
+              <span>cooldown</span>
+            </div>
+            ${lastExecTime ? html`
+              <div class="automation-detail">
+                <span class="automation-detail-icon">🕐</span>
+                <span>${lastExecTime}</span>
+              </div>
+            ` : ''}
+
+            <div class="automation-quick-actions">
+              <button class="quick-action-btn play" @click="${() => this.runAutomationManually(auto.id)}" title="Exécuter maintenant">
+                ▶
+              </button>
+              <button class="quick-action-btn" @click="${() => this.openEditForm(auto)}" title="Modifier">
+                ✏️
+              </button>
+              <button class="quick-action-btn" @click="${() => this.deleteAutomation(auto.id)}" title="Supprimer">
+                🗑️
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+  }
+
+  async runAutomationManually(automationId) {
+    try {
+      await csrfService.fetchWithCsrf(`/v1/automations/${automationId}/run`, {
+        method: 'POST'
+      })
+      this.showToast('Automation exécutée', 'success')
+      // Refresh history
+      await this.loadAutomations()
+    } catch (e) {
+      console.error('[context-engine] Failed to run automation:', e)
+      this.showToast('Erreur lors de l\'exécution', 'error')
+    }
+  }
+
+  getShortTriggerLabel(trigger) {
+    if (!trigger?.type) return 'Inconnu'
+    switch (trigger.type) {
+      case 'mode_change':
+        return `Mode: ${trigger.from_mode || '*'} → ${trigger.to_mode || '*'}`
+      case 'agent_status':
+        return `Agent ${trigger.agent_id || '*'} → ${trigger.status || '*'}`
+      case 'sensor_alert':
+        return `Capteur ${trigger.room_id || '*'}: ${trigger.alert_level || '*'}`
+      case 'manual':
+        return 'Manuel'
+      case 'plugin_health':
+        return `Plugin ${trigger.plugin_name || '*'}: ${trigger.status || '*'}`
+      default:
+        return trigger.type
+    }
+  }
+
+  renderHistoryItem(h) {
+    const statusClass = h.success ? 'success' : 'failed'
+    const statusIcon = h.success ? '✓' : '✗'
+    const actionsCount = h.actions_executed || 0
+
+    return html`
+      <div class="history-item ${statusClass}">
+        <div class="history-item-header">
+          <div class="history-item-name">
+            <span class="history-item-status">${statusIcon}</span>
+            ${h.automation_name}
+          </div>
+          <span class="history-item-time">${this.formatTime(h.executed_at)}</span>
+        </div>
+        <div class="history-item-details">
+          ${actionsCount > 0 ? html`
+            <span>${actionsCount} action${actionsCount !== 1 ? 's' : ''}</span>
+          ` : ''}
+          ${h.trust_score != null ? html`
+            <span class="trust-badge ${this.getTrustClass(h.trust_score)}">
+              🧠 ${Math.round(h.trust_score * 100)}%
+            </span>
+          ` : ''}
+          ${h.trigger_type ? html`
+            <span style="opacity: 0.7;">via ${h.trigger_type}</span>
+          ` : ''}
         </div>
       </div>
     `
@@ -1453,28 +4615,73 @@ class ContextEnginePage extends LitElement {
   }
 
   renderValidationCard(v) {
+    const trustScore = v.trust_score || 0
+    const trustClass = this.getTrustClass(trustScore)
+    const actionType = v.action?.action_type || 'Action'
+    const reasons = v.human_reasons || ['Validation requise']
+
     return html`
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title">${v.action?.action_type || 'Action'}</span>
-          <span class="trust-badge ${this.getTrustClass(v.trust_score || 0)}">
-            🧠 ${Math.round((v.trust_score || 0) * 100)}%
-          </span>
+      <div class="validation-card" style="--validation-color: ${trustClass === 'high' ? '#22c55e' : trustClass === 'medium' ? '#f59e0b' : '#ef4444'}">
+        <div class="validation-header">
+          <div class="validation-icon">⚡</div>
+          <div class="validation-info">
+            <div class="validation-title">${actionType}</div>
+            <div class="validation-subtitle">Agent: ${v.action?.agent_id || 'Système'}</div>
+          </div>
+          <div class="validation-trust-indicator">
+            <div class="validation-trust-bar">
+              <div class="validation-trust-fill ${trustClass}" style="width: ${trustScore * 100}%"></div>
+            </div>
+            <span style="font-size: 0.75rem; font-weight: 600; color: var(--color-dark-text-secondary);">
+              ${Math.round(trustScore * 100)}%
+            </span>
+          </div>
         </div>
-        <div class="card-meta" style="margin-bottom: 0.75rem;">
-          ${v.human_reasons?.join(', ') || 'Validation requise'}<br>
-          Seuil: ${Math.round((v.threshold || 0.7) * 100)}%
+
+        <div class="validation-reasons">
+          <div class="validation-reasons-title">Raisons de la validation</div>
+          ${reasons.map(r => html`
+            <div class="validation-reason-item">
+              <div class="validation-reason-bullet"></div>
+              <span>${r}</span>
+            </div>
+          `)}
+          <div class="validation-reason-item" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.05);">
+            <span style="color: var(--color-dark-text-tertiary);">Seuil requis: ${Math.round((v.threshold || 0.7) * 100)}%</span>
+          </div>
         </div>
-        <div class="card-actions">
-          <button class="btn btn-success" @click="${() => this.approveValidation(v.validation_id)}">
+
+        <div class="validation-actions">
+          <button class="validation-btn approve" @click="${() => this.handleApproveValidation(v.validation_id)}">
             ✓ Approuver
           </button>
-          <button class="btn btn-danger" @click="${() => this.rejectValidation(v.validation_id)}">
+          <button class="validation-btn reject" @click="${() => this.handleRejectValidation(v.validation_id)}">
             ✗ Rejeter
           </button>
         </div>
       </div>
     `
+  }
+
+  async handleApproveValidation(id) {
+    await this.approveValidation(id)
+    this.showToast('Action approuvée', 'success')
+  }
+
+  async handleRejectValidation(id) {
+    const confirmed = await this.showConfirmDialog({
+      icon: '🚫',
+      title: 'Rejeter cette action ?',
+      message: 'L\'action sera annulée et l\'agent sera notifié du rejet.',
+      confirmLabel: 'Rejeter',
+      cancelLabel: 'Annuler',
+      confirmClass: 'btn-danger'
+    })
+
+    if (!confirmed) return
+
+    await this.rejectValidation(id)
+    this.showToast('Action rejetée', 'info')
   }
 
   renderStatsTab() {
@@ -1485,7 +4692,8 @@ class ContextEnginePage extends LitElement {
       <div class="controls-title">Temps par mode (24h)</div>
       ${stats.map(s => {
         const pct = total > 0 ? (s.duration_minutes / total) * 100 : 0
-        const mode = s.mode?.toLowerCase() || 'neutre'
+        // Prefer mode_slug if available
+        const mode = s.mode_slug || s.mode?.toLowerCase() || 'veille'
         return html`
           <div class="stat-bar">
             <div class="stat-header">
@@ -1499,22 +4707,591 @@ class ContextEnginePage extends LitElement {
         `
       })}
 
-      ${this.patterns.length > 0 ? html`
-        <div style="margin-top: 2rem;">
-          <div class="controls-title">Patterns détectés</div>
-          ${this.patterns.slice(0, 5).map(p => html`
-            <div class="card" style="padding: 0.75rem;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 0.85rem; color: var(--color-dark-text-primary);">
-                  ${this.getModeIcon(p.mode)} ${p.description || 'Pattern'}
-                </span>
-                <span class="trust-badge high">${Math.round((p.confidence || 0) * 100)}%</span>
-              </div>
+      <!-- Patterns section removed - now displayed in Intelligence tab -->
+    `
+  }
+
+  renderNotificationsTab() {
+    // Group by category
+    const categories = {
+      PluginHealth: { name: 'Santé Plugins', icon: '🔌', configs: [] },
+      Environment: { name: 'Environnement', icon: '🌡️', configs: [] },
+      Automation: { name: 'Automations', icon: '⚙️', configs: [] },
+      Security: { name: 'Sécurité', icon: '🔒', configs: [] },
+      System: { name: 'Système', icon: '🖥️', configs: [] },
+    }
+
+    for (const config of this.notificationConfigs) {
+      const cat = categories[config.category] || categories.System
+      cat.configs.push(config)
+    }
+
+    const priorityColors = {
+      P0: '#ef4444',
+      P1: '#f59e0b',
+      P2: '#3b82f6'
+    }
+
+    return html`
+      <!-- Help Section (collapsible) -->
+      <div class="config-section" style="background: rgba(147, 51, 234, 0.1); border: 1px solid rgba(147, 51, 234, 0.3);">
+        <div class="config-title" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;"
+          @click="${() => this.showNotifHelp = !this.showNotifHelp}">
+          <span style="background: rgba(147, 51, 234, 0.3); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem;">?</span>
+          Variables disponibles
+          <span style="margin-left: auto; font-size: 0.75rem; opacity: 0.6;">${this.showNotifHelp ? '▼' : '▶'}</span>
+        </div>
+        ${this.showNotifHelp ? html`
+        <div style="font-size: 0.8rem; color: var(--color-dark-text-secondary); line-height: 1.6; margin-top: 0.75rem;">
+          <p style="margin: 0 0 0.75rem;">Utilisez <code style="background: rgba(0,0,0,0.3); padding: 0.1rem 0.3rem; border-radius: 4px;">{variable}</code> dans les templates pour insérer des valeurs dynamiques.</p>
+
+          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px; margin: 0 0 0.75rem;">
+            <p style="margin: 0 0 0.5rem; font-weight: 600;">Variables communes :</p>
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: 0.75rem;">
+              <code style="color: #a78bfa;">{timestamp}</code><span>Date/heure de l'événement</span>
             </div>
-          `)}
+          </div>
+
+          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px; margin: 0 0 0.75rem;">
+            <p style="margin: 0 0 0.5rem; font-weight: 600;">🔌 Plugins :</p>
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: 0.75rem;">
+              <code style="color: #a78bfa;">{plugin_name}</code><span>Nom du plugin</span>
+              <code style="color: #a78bfa;">{status}</code><span>État (online/offline/error)</span>
+            </div>
+          </div>
+
+          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px; margin: 0 0 0.75rem;">
+            <p style="margin: 0 0 0.5rem; font-weight: 600;">🌡️ Environnement :</p>
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: 0.75rem;">
+              <code style="color: #a78bfa;">{room}</code><span>Nom de la pièce</span>
+              <code style="color: #a78bfa;">{temperature}</code><span>Température actuelle</span>
+              <code style="color: #a78bfa;">{humidity}</code><span>Humidité actuelle</span>
+              <code style="color: #a78bfa;">{threshold}</code><span>Seuil déclenché</span>
+            </div>
+          </div>
+
+          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px; margin: 0 0 0.75rem;">
+            <p style="margin: 0 0 0.5rem; font-weight: 600;">⚙️ Automations :</p>
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: 0.75rem;">
+              <code style="color: #a78bfa;">{automation_name}</code><span>Nom de l'automation</span>
+              <code style="color: #a78bfa;">{trigger}</code><span>Type de déclencheur</span>
+              <code style="color: #a78bfa;">{action}</code><span>Action exécutée</span>
+              <code style="color: #a78bfa;">{mode}</code><span>Mode actuel</span>
+            </div>
+          </div>
+
+          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px; margin: 0 0 0.75rem;">
+            <p style="margin: 0 0 0.5rem; font-weight: 600;">🔒 Sécurité :</p>
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: 0.75rem;">
+              <code style="color: #a78bfa;">{ip}</code><span>Adresse IP source</span>
+              <code style="color: #a78bfa;">{attempts}</code><span>Nombre de tentatives</span>
+              <code style="color: #a78bfa;">{username}</code><span>Nom d'utilisateur</span>
+            </div>
+          </div>
+
+          <div style="background: rgba(16, 185, 129, 0.15); padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.3);">
+            <p style="margin: 0; font-size: 0.75rem;">
+              <strong>💡 Exemple :</strong><br>
+              Titre: <code>⚠️ {room} - Humidité élevée</code><br>
+              Corps: <code>Humidité à {humidity}% (seuil: {threshold}%)</code>
+            </p>
+          </div>
+        </div>
+        ` : ''}
+      </div>
+
+      <!-- Notification configs by category -->
+      ${Object.entries(categories).filter(([_, cat]) => cat.configs.length > 0).map(([catKey, cat]) => html`
+        <div class="config-section" style="margin-top: 1rem;">
+          <div class="config-title" style="display: flex; align-items: center; gap: 0.5rem;">
+            <span>${cat.icon}</span>
+            ${cat.name}
+            <span style="font-size: 0.7rem; opacity: 0.5; margin-left: auto;">${cat.configs.length} notifications</span>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.75rem;">
+            ${cat.configs.map(config => html`
+              <div class="notif-config-card" style="
+                background: rgba(255,255,255,0.03);
+                border: 1px solid rgba(255,255,255,0.08);
+                border-radius: 8px;
+                padding: 0.75rem;
+                ${!config.enabled ? 'opacity: 0.5;' : ''}
+              ">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                  <!-- Toggle -->
+                  <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox"
+                      ?checked="${config.enabled}"
+                      @change="${e => this.toggleNotificationConfig(config.type_id, e.target.checked)}"
+                      style="width: 16px; height: 16px; accent-color: var(--context-primary, #00d4aa);"
+                    >
+                  </label>
+
+                  <!-- Name & Description -->
+                  <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 500; font-size: 0.85rem; color: var(--color-dark-text-primary);">
+                      ${config.display_name}
+                    </div>
+                    <div style="font-size: 0.7rem; color: var(--color-dark-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                      ${config.description}
+                    </div>
+                  </div>
+
+                  <!-- Priority badge -->
+                  <span style="
+                    padding: 0.15rem 0.4rem;
+                    border-radius: 4px;
+                    font-size: 0.65rem;
+                    font-weight: 600;
+                    background: ${priorityColors[config.priority]}20;
+                    color: ${priorityColors[config.priority]};
+                    border: 1px solid ${priorityColors[config.priority]}40;
+                  ">${config.priority}</span>
+
+                  <!-- Edit button -->
+                  <button
+                    @click="${() => this.editNotificationConfig(config)}"
+                    style="
+                      background: rgba(255,255,255,0.08);
+                      border: none;
+                      color: var(--color-dark-text-secondary);
+                      padding: 0.35rem 0.5rem;
+                      border-radius: 4px;
+                      cursor: pointer;
+                      font-size: 0.75rem;
+                    "
+                  >✏️</button>
+                </div>
+
+                <!-- Templates preview -->
+                <div style="font-size: 0.7rem; color: var(--color-dark-text-secondary); padding-left: 1.75rem;">
+                  <div style="margin-bottom: 0.2rem;">
+                    <span style="opacity: 0.6;">Titre:</span>
+                    <code style="background: rgba(0,0,0,0.2); padding: 0.1rem 0.3rem; border-radius: 3px;">${config.title_template}</code>
+                  </div>
+                  <div>
+                    <span style="opacity: 0.6;">Corps:</span>
+                    <span style="opacity: 0.8;">${config.body_template.length > 50 ? config.body_template.slice(0, 50) + '...' : config.body_template}</span>
+                  </div>
+                </div>
+              </div>
+            `)}
+          </div>
+        </div>
+      `)}
+
+      <!-- Edit modal -->
+      ${this.editingNotifConfig ? html`
+        <div class="modal-overlay" style="
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.7);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10000;
+        " @click="${e => { if (e.target === e.currentTarget) this.editingNotifConfig = null }}">
+          <div style="
+            background: linear-gradient(135deg, rgba(30, 32, 40, 0.98) 0%, rgba(20, 22, 28, 1) 100%);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 12px;
+            padding: 1.25rem;
+            width: 90%;
+            max-width: 450px;
+            max-height: 80vh;
+            overflow-y: auto;
+          ">
+            <h3 style="margin: 0 0 1rem; font-size: 1rem; color: var(--color-dark-text-primary);">
+              ✏️ Modifier "${this.editingNotifConfig.display_name}"
+            </h3>
+
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+              <!-- Enabled -->
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox"
+                  ?checked="${this.editingNotifConfig.enabled}"
+                  @change="${e => this.editingNotifConfig = {...this.editingNotifConfig, enabled: e.target.checked}}"
+                  style="width: 16px; height: 16px; accent-color: var(--context-primary, #00d4aa);"
+                >
+                <span style="font-size: 0.85rem; color: var(--color-dark-text-primary);">Activée</span>
+              </label>
+
+              <!-- Priority -->
+              <div>
+                <label style="font-size: 0.75rem; color: var(--color-dark-text-secondary); display: block; margin-bottom: 0.3rem;">Priorité</label>
+                <select
+                  .value="${this.editingNotifConfig.priority}"
+                  @change="${e => this.editingNotifConfig = {...this.editingNotifConfig, priority: e.target.value}}"
+                  style="
+                    width: 100%;
+                    padding: 0.5rem;
+                    background: rgba(0,0,0,0.3);
+                    border: 1px solid rgba(255,255,255,0.15);
+                    border-radius: 6px;
+                    color: var(--color-dark-text-primary);
+                    font-size: 0.85rem;
+                  "
+                >
+                  <option value="P0" style="background: #1a1a1a;">P0 - Critique (email + push)</option>
+                  <option value="P1" style="background: #1a1a1a;">P1 - Important (push)</option>
+                  <option value="P2" style="background: #1a1a1a;">P2 - Normal (push silencieux)</option>
+                </select>
+              </div>
+
+              <!-- Title template -->
+              <div>
+                <label style="font-size: 0.75rem; color: var(--color-dark-text-secondary); display: block; margin-bottom: 0.3rem;">Template titre</label>
+                <input type="text"
+                  .value="${this.editingNotifConfig.title_template}"
+                  @input="${e => this.editingNotifConfig = {...this.editingNotifConfig, title_template: e.target.value}}"
+                  style="
+                    width: 100%;
+                    padding: 0.5rem;
+                    background: rgba(0,0,0,0.3);
+                    border: 1px solid rgba(255,255,255,0.15);
+                    border-radius: 6px;
+                    color: var(--color-dark-text-primary);
+                    font-size: 0.85rem;
+                    box-sizing: border-box;
+                  "
+                  placeholder="Ex: ⚠️ {room} - Alerte"
+                >
+              </div>
+
+              <!-- Body template -->
+              <div>
+                <label style="font-size: 0.75rem; color: var(--color-dark-text-secondary); display: block; margin-bottom: 0.3rem;">Template corps</label>
+                <textarea
+                  .value="${this.editingNotifConfig.body_template}"
+                  @input="${e => this.editingNotifConfig = {...this.editingNotifConfig, body_template: e.target.value}}"
+                  rows="3"
+                  style="
+                    width: 100%;
+                    padding: 0.5rem;
+                    background: rgba(0,0,0,0.3);
+                    border: 1px solid rgba(255,255,255,0.15);
+                    border-radius: 6px;
+                    color: var(--color-dark-text-primary);
+                    font-size: 0.85rem;
+                    resize: vertical;
+                    box-sizing: border-box;
+                  "
+                  placeholder="Ex: Valeur actuelle: {value}"
+                ></textarea>
+              </div>
+
+              <!-- Available variables -->
+              ${this.editingNotifConfig.available_variables?.length > 0 ? html`
+                <div style="background: rgba(147, 51, 234, 0.1); padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(147, 51, 234, 0.2);">
+                  <div style="font-size: 0.7rem; color: var(--color-dark-text-secondary); margin-bottom: 0.3rem;">Variables disponibles:</div>
+                  <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
+                    ${this.editingNotifConfig.available_variables.map(v => html`
+                      <code style="
+                        background: rgba(0,0,0,0.3);
+                        padding: 0.1rem 0.35rem;
+                        border-radius: 3px;
+                        font-size: 0.7rem;
+                        color: #a78bfa;
+                        cursor: help;
+                      " title="${v.description}">{${v.name}}</code>
+                    `)}
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Actions -->
+            <div style="display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: flex-end;">
+              <button
+                @click="${() => this.editingNotifConfig = null}"
+                style="
+                  padding: 0.5rem 1rem;
+                  background: rgba(255,255,255,0.08);
+                  border: 1px solid rgba(255,255,255,0.15);
+                  border-radius: 6px;
+                  color: var(--color-dark-text-secondary);
+                  cursor: pointer;
+                  font-size: 0.85rem;
+                "
+              >Annuler</button>
+              <button
+                @click="${() => this.saveNotificationConfig()}"
+                style="
+                  padding: 0.5rem 1rem;
+                  background: var(--context-primary, #00d4aa);
+                  border: none;
+                  border-radius: 6px;
+                  color: #000;
+                  cursor: pointer;
+                  font-size: 0.85rem;
+                  font-weight: 500;
+                "
+              >Sauvegarder</button>
+            </div>
+          </div>
         </div>
       ` : ''}
     `
+  }
+
+  async toggleNotificationConfig(typeId, enabled) {
+    try {
+      const config = this.notificationConfigs.find(c => c.type_id === typeId)
+      if (!config) return
+
+      const res = await csrfService.fetchWithCsrf(`/v1/notification-types/${typeId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ ...config, enabled })
+      })
+
+      if (res.ok) {
+        await this.loadNotificationConfigs()
+      }
+    } catch (e) {
+      console.error('[context-engine] Failed to toggle notification config:', e)
+    }
+  }
+
+  editNotificationConfig(config) {
+    this.editingNotifConfig = { ...config }
+  }
+
+  async saveNotificationConfig() {
+    if (!this.editingNotifConfig) return
+
+    try {
+      const res = await csrfService.fetchWithCsrf(`/v1/notification-types/${this.editingNotifConfig.type_id}`, {
+        method: 'PUT',
+        body: JSON.stringify(this.editingNotifConfig)
+      })
+
+      if (res.ok) {
+        this.editingNotifConfig = null
+        await this.loadNotificationConfigs()
+      }
+    } catch (e) {
+      console.error('[context-engine] Failed to save notification config:', e)
+    }
+  }
+
+  renderIntelligenceTab() {
+    const prediction = this.intelligenceSignals?.prediction
+    const signals = this.intelligenceSignals?.signals
+    const config = this.intelligenceConfig
+    const status = this.intelligenceStatus?.status
+    const accuracy = Math.round((status?.accuracy_7_days || 0) * 100)
+
+    return html`
+      <div class="intelligence-tab">
+        <!-- Prediction Section -->
+        <div class="section-card" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(109, 40, 217, 0.05) 100%); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+            <span style="font-size: 1.5rem;">🔮</span>
+            <h3 style="margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-dark-text-primary);">Prediction Actuelle</h3>
+            <span style="margin-left: auto; padding: 0.25rem 0.75rem; border-radius: 12px; background: ${accuracy >= 70 ? 'rgba(34, 197, 94, 0.15)' : 'rgba(251, 146, 60, 0.15)'}; color: ${accuracy >= 70 ? '#22c55e' : '#fb923c'}; font-size: 0.75rem; font-weight: 600;">
+              ${accuracy}% precision (7j)
+            </span>
+          </div>
+
+          ${prediction ? html`
+            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+              <span style="font-size: 3rem;">${this.getModeIcon(prediction.mode)}</span>
+              <div style="flex: 1;">
+                <div style="font-size: 1.25rem; font-weight: 600; color: #8b5cf6; margin-bottom: 0.25rem;">${this.getModeName(prediction.mode)}</div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <div style="flex: 1; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                    <div style="height: 100%; width: ${prediction.confidence * 100}%; background: linear-gradient(90deg, ${prediction.confidence >= 0.7 ? '#22c55e' : prediction.confidence >= 0.4 ? '#fb923c' : '#ef4444'}, ${prediction.confidence >= 0.7 ? '#4ade80' : prediction.confidence >= 0.4 ? '#fdba74' : '#f87171'}); border-radius: 4px;"></div>
+                  </div>
+                  <span style="font-size: 0.85rem; font-weight: 600; color: var(--color-dark-text-secondary);">${Math.round(prediction.confidence * 100)}%</span>
+                </div>
+                <span style="display: inline-block; margin-top: 0.5rem; padding: 0.2rem 0.5rem; border-radius: 10px; font-size: 0.7rem; background: ${prediction.confidence >= 0.9 ? 'rgba(34, 197, 94, 0.15)' : prediction.confidence >= 0.7 ? 'rgba(251, 146, 60, 0.15)' : 'rgba(156, 163, 175, 0.15)'}; color: ${prediction.confidence >= 0.9 ? '#22c55e' : prediction.confidence >= 0.7 ? '#fb923c' : '#9ca3af'};">
+                  ${prediction.confidence >= 0.9 ? 'Auto-apply' : prediction.confidence >= 0.7 ? 'Suggerer' : 'Observer'}
+                </span>
+              </div>
+            </div>
+
+            ${prediction.reasons?.length > 0 ? html`
+              <div style="margin-bottom: 1rem;">
+                <div style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-dark-text-tertiary); margin-bottom: 0.5rem;">Raisons</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.4rem;">
+                  ${prediction.reasons.map(r => html`
+                    <span style="padding: 0.25rem 0.5rem; background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 12px; font-size: 0.75rem; color: var(--color-dark-text-secondary);">${r}</span>
+                  `)}
+                </div>
+              </div>
+            ` : ''}
+
+            ${prediction.contributing_factors?.length > 0 ? html`
+              <div>
+                <div style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-dark-text-tertiary); margin-bottom: 0.5rem;">Facteurs</div>
+                ${prediction.contributing_factors.map(([factor, weight]) => html`
+                  <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+                    <span style="font-size: 0.75rem; color: var(--color-dark-text-tertiary); min-width: 90px;">${this.getFactorLabel(factor)}</span>
+                    <div style="flex: 1; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
+                      <div style="height: 100%; width: ${weight * 100}%; background: linear-gradient(90deg, #8b5cf6, #a78bfa); border-radius: 2px;"></div>
+                    </div>
+                    <span style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); min-width: 35px; text-align: right;">${Math.round(weight * 100)}%</span>
+                  </div>
+                `)}
+              </div>
+            ` : ''}
+          ` : html`
+            <div style="text-align: center; padding: 2rem; color: var(--color-dark-text-tertiary);">
+              <div style="font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.5;">🔮</div>
+              <div>Pas de prediction disponible</div>
+            </div>
+          `}
+        </div>
+
+        <!-- Signals Section -->
+        ${signals ? html`
+          <div class="section-card" style="background: rgba(30, 35, 45, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1rem; margin-bottom: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+              <span style="font-size: 1rem;">📡</span>
+              <h3 style="margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--color-dark-text-primary);">Signaux Actuels</h3>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem;">
+              <div style="padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                <div style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); text-transform: uppercase;">Jour/Heure</div>
+                <div style="font-size: 0.85rem; color: var(--color-dark-text-primary);">${this.getDayNameFull(signals.day_of_week)} ${signals.hour}h</div>
+              </div>
+              <div style="padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                <div style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); text-transform: uppercase;">Mode actuel</div>
+                <div style="font-size: 0.85rem; color: var(--color-dark-text-primary);">${this.getModeIcon(signals.current_mode)} ${signals.current_mode || 'N/A'}</div>
+              </div>
+              <div style="padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                <div style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); text-transform: uppercase;">Idle</div>
+                <div style="font-size: 0.85rem; color: var(--color-dark-text-primary);">${Math.round(signals.agent_idle_seconds / 60)}min</div>
+              </div>
+              <div style="padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                <div style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); text-transform: uppercase;">CPU</div>
+                <div style="font-size: 0.85rem; color: var(--color-dark-text-primary);">${signals.cpu_usage?.toFixed(1) || 0}%</div>
+              </div>
+              ${signals.temperature != null ? html`
+                <div style="padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                  <div style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); text-transform: uppercase;">Temp</div>
+                  <div style="font-size: 0.85rem; color: var(--color-dark-text-primary);">${signals.temperature?.toFixed(1)}°C</div>
+                </div>
+              ` : ''}
+              ${signals.humidity != null ? html`
+                <div style="padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                  <div style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); text-transform: uppercase;">Humidite</div>
+                  <div style="font-size: 0.85rem; color: var(--color-dark-text-primary);">${signals.humidity?.toFixed(1)}%</div>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Patterns Section -->
+        <div class="section-card" style="background: rgba(30, 35, 45, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1rem; margin-bottom: 1rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+            <span style="font-size: 1rem;">📊</span>
+            <h3 style="margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--color-dark-text-primary);">Patterns Appris</h3>
+            <span style="margin-left: auto; font-size: 0.75rem; color: #8b5cf6; font-weight: 600;">${this.intelligencePatterns?.length || 0} patterns</span>
+          </div>
+          ${this.intelligencePatterns?.length > 0 ? html`
+            <div style="max-height: 250px; overflow-y: auto;">
+              <table style="width: 100%; font-size: 0.8rem; border-collapse: collapse;">
+                <thead>
+                  <tr style="text-align: left; color: var(--color-dark-text-tertiary); font-size: 0.7rem; text-transform: uppercase;">
+                    <th style="padding: 0.5rem 0.25rem;">Mode</th>
+                    <th style="padding: 0.5rem 0.25rem;">Jour</th>
+                    <th style="padding: 0.5rem 0.25rem;">Heure</th>
+                    <th style="padding: 0.5rem 0.25rem;">Occurrences</th>
+                    <th style="padding: 0.5rem 0.25rem;">Confiance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${this.intelligencePatterns.slice(0, 20).map(p => html`
+                    <tr style="border-top: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 0.5rem 0.25rem; color: var(--color-dark-text-primary);">
+                        ${this.getModeIcon(p.mode)} ${this.getModeName(p.mode)}
+                      </td>
+                      <td style="padding: 0.5rem 0.25rem; color: var(--color-dark-text-secondary);">${this.getDayNameShort(p.day_of_week)}</td>
+                      <td style="padding: 0.5rem 0.25rem; color: var(--color-dark-text-secondary);">${p.hour}h</td>
+                      <td style="padding: 0.5rem 0.25rem; color: var(--color-dark-text-secondary);">${p.occurrences}</td>
+                      <td style="padding: 0.5rem 0.25rem;">
+                        <span style="color: ${p.confidence >= 0.7 ? '#22c55e' : p.confidence >= 0.4 ? '#fb923c' : '#9ca3af'}; font-weight: 600;">
+                          ${Math.round(p.confidence * 100)}%
+                        </span>
+                      </td>
+                    </tr>
+                  `)}
+                </tbody>
+              </table>
+            </div>
+          ` : html`
+            <div style="text-align: center; padding: 1.5rem; color: var(--color-dark-text-tertiary); font-size: 0.85rem;">
+              Aucun pattern appris. Le systeme apprend de vos habitudes au fil du temps.
+            </div>
+          `}
+        </div>
+
+        <!-- Configuration Section -->
+        ${config ? html`
+          <div class="section-card" style="background: rgba(30, 35, 45, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+              <span style="font-size: 1rem;">⚙️</span>
+              <h3 style="margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--color-dark-text-primary);">Configuration Intelligence</h3>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem;">
+              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.25rem;">Seuil Auto-apply</div>
+                <div style="font-size: 1rem; font-weight: 600; color: #22c55e;">${Math.round(config.auto_apply_threshold * 100)}%</div>
+              </div>
+              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.25rem;">Seuil Suggestion</div>
+                <div style="font-size: 1rem; font-weight: 600; color: #fb923c;">${Math.round(config.suggestion_threshold * 100)}%</div>
+              </div>
+              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.25rem;">Intervalle check</div>
+                <div style="font-size: 1rem; font-weight: 600; color: var(--color-dark-text-primary);">${config.check_interval_seconds}s</div>
+              </div>
+              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.25rem;">Auto-create</div>
+                <div style="font-size: 1rem; font-weight: 600; color: ${config.auto_create_automations ? '#22c55e' : '#ef4444'};">
+                  ${config.auto_create_automations ? 'Oui' : 'Non'}
+                </div>
+              </div>
+            </div>
+            <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.05);">
+              <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.5rem;">Poids des signaux</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                ${Object.entries(config.weights || {}).map(([k, v]) => html`
+                  <span style="padding: 0.25rem 0.5rem; background: rgba(139, 92, 246, 0.1); border-radius: 10px; font-size: 0.7rem; color: var(--color-dark-text-secondary);">
+                    ${this.getFactorLabel(k)}: ${Math.round(v * 100)}%
+                  </span>
+                `)}
+              </div>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `
+  }
+
+  getFactorLabel(factor) {
+    const labels = {
+      'temporal': 'Temporel',
+      'behavioral': 'Comportement',
+      'agent_activity': 'Activite',
+      'environmental': 'Environnement',
+      'environment': 'Environnement',
+      'momentum': 'Momentum'
+    }
+    return labels[factor] || factor
+  }
+
+  getDayNameShort(day) {
+    const days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
+    return days[day] || '?'
+  }
+
+  getDayNameFull(day) {
+    const days = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+    return days[day] || '?'
   }
 
   renderConfigTab() {
@@ -1629,6 +5406,585 @@ class ContextEnginePage extends LitElement {
       </button>
     `
   }
+
+  // ============ MODES TAB (Unified: Current Mode + Mode Management) ============
+
+  renderModesTab() {
+    const state = this.contextState
+    // Prefer mode_slug (dynamic) over mode (legacy enum)
+    const mode = state?.mode_slug || state?.mode?.toLowerCase() || 'veille'
+    const hasOverride = !!state?.manual_override
+
+    return html`
+      <div class="modes-container">
+        <!-- Section 1: Mode Actuel -->
+        <div class="current-mode-section">
+          <div class="section-header">
+            <h3>Mode Actuel</h3>
+          </div>
+
+          ${!state ? html`
+            <div class="loading-state">⏳ Chargement...</div>
+          ` : html`
+            <div class="current-mode-display">
+              <div class="mode-status">
+                <span class="current-mode-icon">${this.getModeIcon(mode)}</span>
+                <div class="mode-info">
+                  <span class="current-mode-name">${this.getModeName(mode)}</span>
+                  <span class="mode-reason">${state.reason || 'Détection automatique'}</span>
+                </div>
+                <!-- Confidence indicator removed - now displayed in Intelligence Widget -->
+              </div>
+
+              ${hasOverride ? html`
+                <div class="override-banner">
+                  ⚠️ Override manuel jusqu'à ${new Date(state.manual_override.until).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  <button class="btn btn-sm" @click="${this.clearOverride}">Annuler</button>
+                </div>
+              ` : ''}
+
+              <div class="quick-mode-controls">
+                <div class="mode-buttons-row">
+                  ${this.modes.map(m => html`
+                    <button
+                      class="mode-quick-btn ${mode === m.slug ? 'active' : ''}"
+                      style="--btn-color: ${m.theme?.primary || '#6b7280'}"
+                      @click="${() => this.setModeOverride(m.slug)}"
+                      title="${m.name}"
+                    >
+                      ${m.icon} ${m.name}
+                    </button>
+                  `)}
+                </div>
+                <div class="duration-selector">
+                  ${[60, 120, 240, 480].map(d => html`
+                    <button
+                      class="duration-btn ${this.selectedDuration === d ? 'active' : ''}"
+                      @click="${() => this.selectedDuration = d}"
+                    >
+                      ${this.formatDuration(d)}
+                    </button>
+                  `)}
+                </div>
+              </div>
+            </div>
+          `}
+        </div>
+
+        <!-- Section 2: Gestion des Modes -->
+        <div class="modes-management-section">
+          <div class="section-header">
+            <h3>Gestion des Modes</h3>
+            <button class="btn btn-primary btn-sm" @click="${() => this.openModeForm()}">
+              + Nouveau Mode
+            </button>
+          </div>
+
+          <div class="modes-grid">
+            ${this.modes.map(mode => this.renderModeCard(mode))}
+          </div>
+        </div>
+
+        ${this.showModeForm ? this.renderModeForm() : ''}
+      </div>
+    `
+  }
+
+  renderModeCard(mode) {
+    return html`
+      <div class="mode-card" style="--mode-primary: ${mode.theme?.primary || '#6b7280'}; --mode-bg: ${mode.theme?.background || '#f9fafb'}; --mode-accent: ${mode.theme?.accent || '#4b5563'}">
+        <div class="mode-card-header">
+          <span class="mode-card-icon">${mode.icon}</span>
+          <span class="mode-card-name">${mode.name}</span>
+          ${mode.is_system ? html`<span class="system-badge">Système</span>` : ''}
+        </div>
+        <div class="mode-card-preview">
+          <div class="color-preview" style="background: ${mode.theme?.primary}"></div>
+          <div class="color-preview" style="background: ${mode.theme?.background}; border: 1px solid rgba(0,0,0,0.1);"></div>
+          <div class="color-preview" style="background: ${mode.theme?.accent}"></div>
+        </div>
+        <div class="mode-card-slug">/${mode.slug}</div>
+        <div class="mode-card-actions">
+          <button class="btn btn-sm" @click="${() => this.openModeForm(mode)}" title="Modifier">
+            ✏️
+          </button>
+          ${!mode.is_system ? html`
+            <button class="btn btn-sm btn-danger" @click="${() => this.deleteMode(mode.id)}" title="Supprimer">
+              🗑️
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `
+  }
+
+  renderModeForm() {
+    const isEditing = !!this.editingMode
+    return html`
+      <div class="modal-overlay" @click="${() => this.closeModeForm()}">
+        <div class="mode-form" @click="${e => e.stopPropagation()}">
+          <div class="form-header">
+            <h3 style="margin: 0;">${isEditing ? 'Modifier le Mode' : 'Nouveau Mode'}</h3>
+            <button class="close-btn" @click="${() => this.closeModeForm()}">✕</button>
+          </div>
+
+          <div class="form-body">
+            <div class="form-group">
+              <label>Nom du mode</label>
+              <input type="text" class="form-input"
+                .value="${this.modeFormData.name}"
+                @input="${e => this.modeFormData = {...this.modeFormData, name: e.target.value}}"
+                placeholder="Ex: Travail, Sport, Lecture..."
+              >
+            </div>
+
+            <div class="form-group">
+              <label>Icône (emoji)</label>
+              <div class="emoji-picker">
+                ${['🎯', '👔', '🏡', '🌱', '📚', '💪', '🎮', '🎵', '☕', '🌙', '🔥', '💼'].map(emoji => html`
+                  <button
+                    class="emoji-btn ${this.modeFormData.icon === emoji ? 'selected' : ''}"
+                    @click="${() => this.modeFormData = {...this.modeFormData, icon: emoji}}"
+                  >${emoji}</button>
+                `)}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Couleurs du thème</label>
+              <div class="color-pickers">
+                <div class="color-picker-group">
+                  <label>Principale</label>
+                  <input type="color"
+                    .value="${this.modeFormData.theme.primary}"
+                    @input="${e => this.modeFormData = {...this.modeFormData, theme: {...this.modeFormData.theme, primary: e.target.value}}}"
+                  >
+                </div>
+                <div class="color-picker-group">
+                  <label>Fond</label>
+                  <input type="color"
+                    .value="${this.modeFormData.theme.background}"
+                    @input="${e => this.modeFormData = {...this.modeFormData, theme: {...this.modeFormData.theme, background: e.target.value}}}"
+                  >
+                </div>
+                <div class="color-picker-group">
+                  <label>Accent</label>
+                  <input type="color"
+                    .value="${this.modeFormData.theme.accent}"
+                    @input="${e => this.modeFormData = {...this.modeFormData, theme: {...this.modeFormData.theme, accent: e.target.value}}}"
+                  >
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Aperçu</label>
+              <div class="mode-preview" style="--preview-primary: ${this.modeFormData.theme.primary}; --preview-bg: ${this.modeFormData.theme.background}; --preview-accent: ${this.modeFormData.theme.accent}">
+                <span class="preview-icon">${this.modeFormData.icon}</span>
+                <span class="preview-name">${this.modeFormData.name || 'Nom du mode'}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn" @click="${() => this.closeModeForm()}">Annuler</button>
+            <button class="btn btn-primary" @click="${() => this.saveMode()}">
+              ${isEditing ? 'Mettre à jour' : 'Créer'}
+            </button>
+          </div>
+        </div>
+      </div>
+    `
+  }
+
+  openModeForm(mode = null) {
+    if (mode) {
+      this.editingMode = mode
+      this.modeFormData = {
+        name: mode.name,
+        icon: mode.icon,
+        theme: { ...mode.theme }
+      }
+    } else {
+      this.editingMode = null
+      this.modeFormData = {
+        name: '',
+        icon: '🎯',
+        theme: { primary: '#2563eb', background: '#f8fafc', accent: '#1e40af' }
+      }
+    }
+    this.showModeForm = true
+  }
+
+  closeModeForm() {
+    this.showModeForm = false
+    this.editingMode = null
+  }
+
+  async saveMode() {
+    try {
+      const isEditing = !!this.editingMode
+      const url = isEditing ? `/v1/modes/${this.editingMode.id}` : '/v1/modes'
+      const method = isEditing ? 'PUT' : 'POST'
+
+      const res = await csrfService.fetchWithCsrf(url, {
+        method,
+        body: JSON.stringify(this.modeFormData)
+      })
+
+      if (res.ok) {
+        console.log(`[context-engine] Mode ${isEditing ? 'updated' : 'created'} successfully`)
+        this.closeModeForm()
+        await this.loadModes()
+      } else {
+        const error = await res.text()
+        console.error('[context-engine] Failed to save mode:', error)
+        alert(`Erreur: ${error}`)
+      }
+    } catch (e) {
+      console.error('[context-engine] Failed to save mode:', e)
+      alert(`Erreur: ${e.message}`)
+    }
+  }
+
+  async deleteMode(id) {
+    if (!confirm('Supprimer ce mode ?')) return
+
+    try {
+      const res = await csrfService.fetchWithCsrf(`/v1/modes/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (res.ok) {
+        console.log('[context-engine] Mode deleted successfully')
+        await this.loadModes()
+      } else {
+        const error = await res.text()
+        console.error('[context-engine] Failed to delete mode:', error)
+        alert(`Erreur: ${error}`)
+      }
+    } catch (e) {
+      console.error('[context-engine] Failed to delete mode:', e)
+      alert(`Erreur: ${e.message}`)
+    }
+  }
+
+  // ============ PLANNING TAB ============
+
+  renderPlanningTab() {
+    const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+    const hours = [6, 8, 10, 12, 14, 16, 18, 20, 22]
+
+    return html`
+      <div class="planning-container">
+        <div class="planning-header">
+          <h3 style="margin: 0; color: var(--color-dark-text-primary);">Planning Horaire</h3>
+          <button class="btn btn-primary btn-sm" @click="${() => this.openRuleForm()}">
+            + Nouvelle Règle
+          </button>
+        </div>
+
+        <div class="planning-default">
+          <span>Mode par défaut :</span>
+          <select class="form-input" style="width: auto; margin-left: 0.5rem;"
+            .value="${this.schedule?.default_mode_id || 'mode-veille'}"
+            @change="${e => this.setDefaultMode(e.target.value)}">
+            ${this.modes.map(m => html`
+              <option value="${m.id}" ?selected="${m.id === this.schedule?.default_mode_id}">${m.icon} ${m.name}</option>
+            `)}
+          </select>
+        </div>
+
+        <div class="planning-grid">
+          <div class="grid-header">
+            <div class="grid-hour-label"></div>
+            ${dayNames.map(day => html`<div class="grid-day-header">${day}</div>`)}
+          </div>
+          ${hours.map(hour => html`
+            <div class="grid-row">
+              <div class="grid-hour-label">${hour}h</div>
+              ${[0, 1, 2, 3, 4, 5, 6].map(day => {
+                const rule = this.findRuleAt(hour, day)
+                const mode = rule ? this.modes.find(m => m.id === rule.mode_id) : null
+                return html`
+                  <div class="grid-cell ${rule ? 'has-rule' : ''}"
+                    style="${mode ? `background: ${mode.theme?.primary}20; border-color: ${mode.theme?.primary}` : ''}"
+                    @click="${() => rule ? this.openRuleForm(rule) : this.openRuleFormForSlot(hour, day)}">
+                    ${mode ? html`<span class="cell-icon">${mode.icon}</span>` : ''}
+                  </div>
+                `
+              })}
+            </div>
+          `)}
+        </div>
+
+        <div class="planning-rules-list">
+          <h4 style="margin: 1rem 0 0.5rem; color: var(--color-dark-text-secondary);">Règles actives (${this.schedule?.rules?.length || 0})</h4>
+          ${this.schedule?.rules?.length === 0 ? html`
+            <div class="empty-state" style="padding: 1rem;">
+              <div class="empty-text">Aucune règle configurée</div>
+            </div>
+          ` : ''}
+          ${this.schedule?.rules?.map(rule => this.renderRuleCard(rule))}
+        </div>
+
+        ${this.showRuleForm ? this.renderRuleForm() : ''}
+      </div>
+    `
+  }
+
+  findRuleAt(hour, day) {
+    if (!this.schedule?.rules) return null
+    return this.schedule.rules.find(rule => {
+      if (!rule.enabled || !rule.days.includes(day)) return false
+      const [startH] = rule.start_time.split(':').map(Number)
+      const [endH] = rule.end_time.split(':').map(Number)
+      return hour >= startH && hour < endH
+    })
+  }
+
+  renderRuleCard(rule) {
+    const mode = this.modes.find(m => m.id === rule.mode_id)
+    const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+
+    return html`
+      <div class="rule-card ${!rule.enabled ? 'disabled' : ''}"
+        style="${mode ? `border-left: 3px solid ${mode.theme?.primary}` : ''}">
+        <div class="rule-card-header">
+          <span class="rule-icon">${mode?.icon || '?'}</span>
+          <span class="rule-name">${rule.name || mode?.name || 'Sans nom'}</span>
+          <div class="rule-actions">
+            <button class="btn btn-sm" @click="${() => this.toggleRule(rule)}" title="${rule.enabled ? 'Désactiver' : 'Activer'}">
+              ${rule.enabled ? '✓' : '○'}
+            </button>
+            <button class="btn btn-sm" @click="${() => this.openRuleForm(rule)}" title="Modifier">
+              ✏️
+            </button>
+            <button class="btn btn-sm btn-danger" @click="${() => this.deleteRule(rule.id)}" title="Supprimer">
+              🗑️
+            </button>
+          </div>
+        </div>
+        <div class="rule-details">
+          <span class="rule-time">${rule.start_time} - ${rule.end_time}</span>
+          <span class="rule-days">${rule.days.map(d => dayNames[parseInt(d)] || d).join(', ')}</span>
+        </div>
+      </div>
+    `
+  }
+
+  renderRuleForm() {
+    const isEditing = !!this.editingRule
+    const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+
+    return html`
+      <div class="modal-overlay" @click="${() => this.closeRuleForm()}">
+        <div class="rule-form" @click="${e => e.stopPropagation()}">
+          <div class="form-header">
+            <h3 style="margin: 0;">${isEditing ? 'Modifier la Règle' : 'Nouvelle Règle'}</h3>
+            <button class="close-btn" @click="${() => this.closeRuleForm()}">✕</button>
+          </div>
+
+          <div class="form-body">
+            <div class="form-group">
+              <label>Nom (optionnel)</label>
+              <input type="text" class="form-input"
+                .value="${this.ruleFormData.name || ''}"
+                @input="${e => this.ruleFormData = {...this.ruleFormData, name: e.target.value}}"
+                placeholder="Ex: Travail matin, Weekend détente...">
+            </div>
+
+            <div class="form-group">
+              <label>Mode à activer</label>
+              <select class="form-input"
+                .value="${this.ruleFormData.mode_id}"
+                @change="${e => this.ruleFormData = {...this.ruleFormData, mode_id: e.target.value}}">
+                ${this.modes.map(m => html`
+                  <option value="${m.id}" ?selected="${m.id === this.ruleFormData.mode_id}">${m.icon} ${m.name}</option>
+                `)}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Jours</label>
+              <div class="days-picker">
+                ${dayNames.map((day, i) => html`
+                  <button
+                    class="day-btn ${this.ruleFormData.days.includes(i) ? 'selected' : ''}"
+                    @click="${() => this.toggleDay(i)}">
+                    ${day}
+                  </button>
+                `)}
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group" style="flex: 1;">
+                <label>Début</label>
+                <input type="time" class="form-input"
+                  .value="${this.ruleFormData.start_time}"
+                  @input="${e => this.ruleFormData = {...this.ruleFormData, start_time: e.target.value}}">
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label>Fin</label>
+                <input type="time" class="form-input"
+                  .value="${this.ruleFormData.end_time}"
+                  @input="${e => this.ruleFormData = {...this.ruleFormData, end_time: e.target.value}}">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Priorité (0 = basse, 10 = haute)</label>
+              <input type="number" class="form-input" min="0" max="10"
+                .value="${this.ruleFormData.priority}"
+                @input="${e => this.ruleFormData = {...this.ruleFormData, priority: parseInt(e.target.value) || 0}}">
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn" @click="${() => this.closeRuleForm()}">Annuler</button>
+            <button class="btn btn-primary" @click="${() => this.saveRule()}">
+              ${isEditing ? 'Mettre à jour' : 'Créer'}
+            </button>
+          </div>
+        </div>
+      </div>
+    `
+  }
+
+  toggleDay(day) {
+    const days = [...this.ruleFormData.days]
+    const idx = days.indexOf(day)
+    if (idx >= 0) {
+      days.splice(idx, 1)
+    } else {
+      days.push(day)
+      days.sort((a, b) => a - b)
+    }
+    this.ruleFormData = {...this.ruleFormData, days}
+  }
+
+  openRuleForm(rule = null) {
+    if (rule) {
+      this.editingRule = rule
+      this.ruleFormData = {
+        mode_id: rule.mode_id,
+        days: [...rule.days],
+        start_time: rule.start_time,
+        end_time: rule.end_time,
+        priority: rule.priority,
+        name: rule.name || ''
+      }
+    } else {
+      this.editingRule = null
+      this.ruleFormData = {
+        mode_id: 'mode-pro',
+        days: [0, 1, 2, 3, 4],
+        start_time: '09:00',
+        end_time: '18:00',
+        priority: 0,
+        name: ''
+      }
+    }
+    this.showRuleForm = true
+  }
+
+  openRuleFormForSlot(hour, day) {
+    this.editingRule = null
+    this.ruleFormData = {
+      mode_id: 'mode-pro',
+      days: [day],
+      start_time: `${hour.toString().padStart(2, '0')}:00`,
+      end_time: `${(hour + 2).toString().padStart(2, '0')}:00`,
+      priority: 0,
+      name: ''
+    }
+    this.showRuleForm = true
+  }
+
+  closeRuleForm() {
+    this.showRuleForm = false
+    this.editingRule = null
+  }
+
+  async saveRule() {
+    try {
+      const isEditing = !!this.editingRule
+      const url = isEditing ? `/v1/schedule/rules/${this.editingRule.id}` : '/v1/schedule/rules'
+      const method = isEditing ? 'PUT' : 'POST'
+
+      const res = await csrfService.fetchWithCsrf(url, {
+        method,
+        body: JSON.stringify(this.ruleFormData)
+      })
+
+      if (res.ok) {
+        console.log(`[context-engine] Rule ${isEditing ? 'updated' : 'created'} successfully`)
+        this.closeRuleForm()
+        await this.loadSchedule()
+      } else {
+        const error = await res.text()
+        console.error('[context-engine] Failed to save rule:', error)
+        alert(`Erreur: ${error}`)
+      }
+    } catch (e) {
+      console.error('[context-engine] Failed to save rule:', e)
+      alert(`Erreur: ${e.message}`)
+    }
+  }
+
+  async deleteRule(id) {
+    if (!confirm('Supprimer cette règle ?')) return
+
+    try {
+      const res = await csrfService.fetchWithCsrf(`/v1/schedule/rules/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (res.ok) {
+        console.log('[context-engine] Rule deleted successfully')
+        await this.loadSchedule()
+      } else {
+        const error = await res.text()
+        console.error('[context-engine] Failed to delete rule:', error)
+        alert(`Erreur: ${error}`)
+      }
+    } catch (e) {
+      console.error('[context-engine] Failed to delete rule:', e)
+      alert(`Erreur: ${e.message}`)
+    }
+  }
+
+  async toggleRule(rule) {
+    try {
+      const res = await csrfService.fetchWithCsrf(`/v1/schedule/rules/${rule.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ enabled: !rule.enabled })
+      })
+
+      if (res.ok) {
+        await this.loadSchedule()
+      }
+    } catch (e) {
+      console.error('[context-engine] Failed to toggle rule:', e)
+    }
+  }
+
+  async setDefaultMode(modeId) {
+    try {
+      const res = await csrfService.fetchWithCsrf('/v1/schedule/default', {
+        method: 'PUT',
+        body: JSON.stringify({ default_mode_id: modeId })
+      })
+
+      if (res.ok) {
+        await this.loadSchedule()
+      }
+    } catch (e) {
+      console.error('[context-engine] Failed to set default mode:', e)
+    }
+  }
+
 }
 
 customElements.define('context-engine-page', ContextEnginePage)

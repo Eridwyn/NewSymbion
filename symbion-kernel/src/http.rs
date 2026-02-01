@@ -182,13 +182,21 @@ pub struct AppState {
     pub sensors: crate::sensors::SharedSensorRegistry,
     // Dynamic Plugin Routing
     pub plugin_registry: crate::plugin_proxy::PluginRegistry,
-    // Notification Client (safe - vérifie si plugin dispo)
-    pub notification_client: crate::notification_client::NotificationClient,
     // Automations Engine
     pub automations: Arc<crate::automations::AutomationStore>,
     pub automation_dispatcher: crate::automations::EventDispatcher,
     // Pending Action Registry for post-approval execution
     pub pending_action_registry: crate::automations::SharedPendingActionRegistry,
+    // Dynamic Modes Registry
+    pub mode_registry: crate::modes::SharedModeRegistry,
+    // Schedule Registry for time-based mode changes
+    pub schedule_registry: crate::schedule::SharedScheduleRegistry,
+    // Notifications Manager (FCM, SMTP, ntfy.sh)
+    pub notifications_manager: crate::notifications::SharedNotificationManager,
+    // Notification Configuration Manager
+    pub notification_config: crate::notification_config::SharedNotificationConfigManager,
+    // Context Intelligence Engine
+    pub context_intelligence: std::sync::Arc<crate::context_intelligence::ContextIntelligence>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -249,6 +257,20 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/v1/agents/{id}", axum::routing::delete(delete_agent_endpoint))
         .route("/context/override", post(set_context_override))
         .route("/context/clear", post(clear_context_override))
+        // Dynamic Modes API (write operations)
+        .route("/modes", post(create_mode))
+        .route("/modes/{id}", axum::routing::put(update_mode).delete(delete_mode))
+        // Schedule API (write operations)
+        .route("/schedule/rules", post(create_schedule_rule))
+        .route("/schedule/rules/{id}", axum::routing::put(update_schedule_rule).delete(delete_schedule_rule))
+        .route("/schedule/default", axum::routing::put(set_schedule_default_mode))
+        // Notifications API (CSRF protected write operations)
+        .route("/notifications", post(send_notification))
+        .route("/notifications/{id}/acknowledge", post(acknowledge_notification))
+        .route("/notifications/{id}", axum::routing::delete(delete_notification))
+        .route("/notifications/tokens", post(register_fcm_token))
+        // Notification Config API (CSRF protected)
+        .route("/notification-types/{type_id}", axum::routing::put(update_notification_config))
         .route("/auth/reload", post(auth_reload_users))
         .route("/v1/users", post(create_user))
         .route("/v1/users/{username}", axum::routing::delete(delete_user))
@@ -265,6 +287,7 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/automations/{automation_id}", axum::routing::delete(crate::automations_http::delete_automation))
         .route("/automations/{automation_id}/enable", axum::routing::patch(crate::automations_http::toggle_automation))
         .route("/automations/{automation_id}/test", post(crate::automations_http::test_automation))
+        .route("/automations/{automation_id}/run", post(crate::automations_http::run_automation))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_csrf));
 
@@ -299,8 +322,22 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/context/current", get(get_context_current))
         .route("/context/history", get(get_context_history))
         .route("/context/stats", get(get_context_stats))
-        .route("/context/patterns", get(get_context_patterns))
+        // Note: /context/patterns removed - use /intelligence/patterns instead
         .route("/context/productivity", get(get_context_productivity))
+        // Dynamic Modes API
+        .route("/modes", get(list_modes))
+        .route("/modes/{id}", get(get_mode))
+        // Schedule API (read-only)
+        .route("/schedule", get(get_schedule))
+        .route("/schedule/rules", get(list_schedule_rules))
+        .route("/schedule/current", get(get_current_schedule_mode))
+        // Notifications API (read-only)
+        .route("/notifications", get(list_notifications))
+        .route("/notifications/active", get(list_active_notifications))
+        .route("/notifications/tokens", get(list_fcm_tokens))
+        // Notification Config API (read-only)
+        .route("/notification-types", get(list_notification_configs))
+        .route("/notification-types/{type_id}", get(get_notification_config))
         .route("/v1/users", get(list_users))
         // Decision Engine API (read-only endpoints)
         .route("/decision/audit", get(decision_get_audit))
@@ -330,6 +367,11 @@ pub fn build_router(app_state: AppState) -> Router {
     let environment_routes = crate::environment_http::build_environment_routes(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
 
+    // Context Intelligence routes (protected by auth)
+    let intelligence_routes = crate::intelligence_http::intelligence_routes()
+        .layer(middleware::from_fn_with_state(app_state.clone(), require_auth))
+        .with_state(app_state.clone());
+
     // Dynamic Plugin Routing - fallback handler with auth middleware
     let plugin_router = Router::new()
         .fallback(crate::plugin_proxy::proxy_to_plugin)
@@ -346,6 +388,7 @@ pub fn build_router(app_state: AppState) -> Router {
         .merge(decision_csrf_routes)
         .merge(websocket_routes)
         .nest("/environment", environment_routes)
+        .nest("/intelligence", intelligence_routes)
         .merge(plugin_router);
 
     // Router principal avec versioning
@@ -600,7 +643,7 @@ async fn get_context_current(State(app): State<AppState>) -> Result<Json<crate::
 // POST /context/override (forcer manuellement un mode)
 #[derive(serde::Deserialize)]
 struct ContextOverrideRequest {
-    mode: String,  // "cravate", "intime", "neutre"
+    mode: String,  // Slug du mode dynamique: "pro", "focus", "maison", "veille", ou custom
     duration_minutes: i64,
     reason: Option<String>,
 }
@@ -609,26 +652,38 @@ async fn set_context_override(
     State(app): State<AppState>,
     Json(req): Json<ContextOverrideRequest>,
 ) -> Result<Json<crate::context::ContextState>, StatusCode> {
-    use crate::context::Mode;
+    let mode_slug = req.mode.to_lowercase();
 
-    let mode = match req.mode.to_lowercase().as_str() {
-        "cravate" => Mode::Cravate,
-        "intime" => Mode::Intime,
-        "neutre" => Mode::Neutre,
-        _ => return Err(StatusCode::BAD_REQUEST),
+    // Look up mode from mode_registry to validate and get theme
+    let dynamic_mode = app.mode_registry.get_by_slug(&mode_slug)
+        .ok_or_else(|| {
+            eprintln!("[context] Unknown mode slug: {}", mode_slug);
+            StatusCode::BAD_REQUEST
+        })?;
+
+    // Convert DynamicMode theme to context::Theme
+    let theme = crate::context::Theme {
+        primary: dynamic_mode.theme.primary,
+        bg: dynamic_mode.theme.background,
+        accent: dynamic_mode.theme.accent,
     };
 
     let reason = req.reason.unwrap_or_else(|| "Override manuel".to_string());
 
-    // Get current mode before override
+    // Get current mode before override (use mode_slug for proper comparison)
     let old_mode = app.context_engine.get_state()
-        .map(|s| mode_to_str(&s.mode))
+        .and_then(|s| s.mode_slug)
         .unwrap_or_else(|| "unknown".to_string());
 
-    match app.context_engine.set_override(mode, req.duration_minutes, reason.clone()) {
+    match app.context_engine.set_override_dynamic(
+        dynamic_mode.slug.clone(),
+        theme,
+        req.duration_minutes,
+        reason.clone(),
+    ) {
         Some(state) => {
-            // Dispatch mode change event for automations (set_override doesn't do it)
-            let new_mode = mode_to_str(&state.mode);
+            // Dispatch mode change event for automations
+            let new_mode = state.mode_slug.clone().unwrap_or_else(|| dynamic_mode.slug.clone());
             if old_mode != new_mode {
                 app.automation_dispatcher.dispatch_mode_change(&old_mode, &new_mode, &reason);
             }
@@ -668,10 +723,7 @@ async fn get_context_stats(State(app): State<AppState>) -> Json<Vec<crate::conte
     Json(app.context_engine.calculate_stats())
 }
 
-// GET /context/patterns (patterns détectés)
-async fn get_context_patterns(State(app): State<AppState>) -> Json<Vec<crate::context::DetectedPattern>> {
-    Json(app.context_engine.detect_patterns())
-}
+// Note: GET /context/patterns removed - use /intelligence/patterns instead
 
 // GET /context/productivity (métriques de productivité par mode)
 async fn get_context_productivity(State(app): State<AppState>) -> Json<Vec<crate::context::ProductivityMetrics>> {
@@ -1435,30 +1487,41 @@ async fn auth_login(
 
             // Notification sécurité selon type d'échec
             let is_rate_limited = error_msg.contains("Too many login attempts");
-            let notification = if is_rate_limited {
+            let (priority, title, body) = if is_rate_limited {
                 // P0 : Attaque brute-force détectée
-                crate::notification_client::NotificationPayload::new(
-                    crate::notification_client::NotificationPriority::P0,
+                (
+                    crate::notifications::NotificationPriority::P0,
                     format!("🚨 Attaque bloquée - {}", payload.username),
                     format!("Trop de tentatives de connexion pour '{}'. L'accès a été temporairement bloqué. {}",
                         payload.username, error_msg),
-                    "auth-security",
                 )
             } else {
                 // P1 : Tentative échouée (credentials invalides)
-                crate::notification_client::NotificationPayload::new(
-                    crate::notification_client::NotificationPriority::P1,
+                (
+                    crate::notifications::NotificationPriority::P1,
                     format!("🔐 Échec login - {}", payload.username),
                     format!("Tentative de connexion échouée pour '{}': {}",
                         payload.username, error_msg),
-                    "auth-security",
                 )
             };
 
+            let notification = crate::notifications::Notification {
+                id: String::new(),
+                priority,
+                title,
+                body,
+                source: "auth-security".to_string(),
+                timestamp: OffsetDateTime::now_utc(),
+                acknowledged: false,
+                acknowledged_at: None,
+                actions: vec![],
+                data: None,
+            };
+
             // Envoi async (ne bloque pas la réponse)
-            let notif_client = app.notification_client.clone();
+            let notif_manager = app.notifications_manager.clone();
             tokio::spawn(async move {
-                let _ = notif_client.send(notification).await;
+                let _ = notif_manager.send(notification).await;
             });
 
             Err((
@@ -2103,7 +2166,8 @@ async fn decision_resolve_validation(
                 &pending.action,
                 &app.agents,
                 &app.context_engine,
-                &app.notification_client,
+                &app.notifications_manager,
+                &app.mode_registry,
             ).await;
 
             match &exec_result {
@@ -2230,15 +2294,31 @@ async fn execute_pending_action(
     action: &crate::automations::ActionDefinition,
     agents: &crate::agents::SharedAgentRegistry,
     context_engine: &std::sync::Arc<crate::context::ContextEngine>,
-    notification_client: &crate::notification_client::NotificationClient,
+    notifications_manager: &crate::notifications::SharedNotificationManager,
+    mode_registry: &crate::modes::SharedModeRegistry,
 ) -> Result<(), String> {
     use crate::automations::ActionDefinition;
-    use crate::context::Mode;
 
     match action {
         ActionDefinition::SendNotification { priority, title, body, .. } => {
-            notification_client
-                .send_notification(priority, title, body)
+            let notification = crate::notifications::Notification {
+                id: String::new(),
+                priority: match priority.as_str() {
+                    "P0" => crate::notifications::NotificationPriority::P0,
+                    "P1" => crate::notifications::NotificationPriority::P1,
+                    _ => crate::notifications::NotificationPriority::P2,
+                },
+                title: title.clone(),
+                body: body.clone(),
+                source: "pending-action".to_string(),
+                timestamp: OffsetDateTime::now_utc(),
+                acknowledged: false,
+                acknowledged_at: None,
+                actions: vec![],
+                data: None,
+            };
+            notifications_manager
+                .send(notification)
                 .await
                 .map_err(|e| format!("Notification failed: {}", e))?;
             eprintln!("[pending_action] ✉️ Notification sent: {}", title);
@@ -2246,20 +2326,26 @@ async fn execute_pending_action(
         }
 
         ActionDefinition::ForceMode { mode, duration_minutes, reason, .. } => {
-            let target_mode = match mode.to_lowercase().as_str() {
-                "cravate" | "work" | "professional" => Mode::Cravate,
-                "intime" | "home" | "domestic" => Mode::Intime,
-                "neutre" | "neutral" | "eco" => Mode::Neutre,
-                _ => return Err(format!("Unknown mode: {}", mode)),
+            let mode_slug = mode.to_lowercase();
+
+            // Look up mode from mode_registry
+            let dynamic_mode = mode_registry.get_by_slug(&mode_slug)
+                .ok_or_else(|| format!("Unknown mode: {}", mode))?;
+
+            // Convert DynamicMode theme to context::Theme
+            let theme = crate::context::Theme {
+                primary: dynamic_mode.theme.primary.clone(),
+                bg: dynamic_mode.theme.background.clone(),
+                accent: dynamic_mode.theme.accent.clone(),
             };
 
             let duration = duration_minutes.unwrap_or(60);
             context_engine
-                .set_override(target_mode, duration, reason.clone())
+                .set_override_dynamic(dynamic_mode.slug.clone(), theme, duration, reason.clone())
                 .ok_or_else(|| "Failed to set mode override".to_string())?;
             eprintln!(
                 "[pending_action] 🎯 Forced mode '{}' for {} minutes",
-                mode, duration
+                dynamic_mode.slug, duration
             );
             Ok(())
         }
@@ -3106,4 +3192,288 @@ async fn prometheus_metrics_endpoint(
     // Requires instrumentation with prometheus middleware
 
     Ok(output)
+}
+
+// ============================================================================
+// Dynamic Modes API
+// ============================================================================
+
+/// GET /modes - Liste tous les modes
+async fn list_modes(
+    State(app): State<AppState>,
+) -> Json<Vec<crate::modes::DynamicMode>> {
+    Json(app.mode_registry.list_all())
+}
+
+/// GET /modes/:id - Récupère un mode par ID
+async fn get_mode(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<crate::modes::DynamicMode>, StatusCode> {
+    // Essayer par ID d'abord, puis par slug
+    if let Some(mode) = app.mode_registry.get(&id) {
+        return Ok(Json(mode));
+    }
+    if let Some(mode) = app.mode_registry.get_by_slug(&id) {
+        return Ok(Json(mode));
+    }
+    Err(StatusCode::NOT_FOUND)
+}
+
+/// POST /modes - Crée un nouveau mode
+async fn create_mode(
+    State(app): State<AppState>,
+    Json(request): Json<crate::modes::CreateModeRequest>,
+) -> Result<Json<crate::modes::DynamicMode>, (StatusCode, String)> {
+    app.mode_registry.create(request)
+        .map(Json)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))
+}
+
+/// PUT /modes/:id - Met à jour un mode
+async fn update_mode(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+    Json(request): Json<crate::modes::UpdateModeRequest>,
+) -> Result<Json<crate::modes::DynamicMode>, (StatusCode, String)> {
+    app.mode_registry.update(&id, request)
+        .map(Json)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))
+}
+
+/// DELETE /modes/:id - Supprime un mode
+async fn delete_mode(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    app.mode_registry.delete(&id)
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))
+}
+
+// ============================================================================
+// Schedule API
+// ============================================================================
+
+/// GET /schedule - Récupère le planning complet
+async fn get_schedule(
+    State(app): State<AppState>,
+) -> Json<crate::schedule::Schedule> {
+    Json(app.schedule_registry.get_schedule())
+}
+
+/// GET /schedule/rules - Liste toutes les règles
+async fn list_schedule_rules(
+    State(app): State<AppState>,
+) -> Json<Vec<crate::schedule::ScheduleRule>> {
+    Json(app.schedule_registry.list_rules())
+}
+
+/// GET /schedule/current - Récupère le mode actif selon le planning
+async fn get_current_schedule_mode(
+    State(app): State<AppState>,
+) -> Json<crate::schedule::CurrentScheduleInfo> {
+    Json(app.schedule_registry.get_current_mode())
+}
+
+/// POST /schedule/rules - Crée une nouvelle règle
+async fn create_schedule_rule(
+    State(app): State<AppState>,
+    Json(request): Json<crate::schedule::CreateRuleRequest>,
+) -> Result<Json<crate::schedule::ScheduleRule>, (StatusCode, String)> {
+    app.schedule_registry.create_rule(request)
+        .map(Json)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))
+}
+
+/// PUT /schedule/rules/:id - Met à jour une règle
+async fn update_schedule_rule(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+    Json(request): Json<crate::schedule::UpdateRuleRequest>,
+) -> Result<Json<crate::schedule::ScheduleRule>, (StatusCode, String)> {
+    app.schedule_registry.update_rule(&id, request)
+        .map(Json)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))
+}
+
+/// DELETE /schedule/rules/:id - Supprime une règle
+async fn delete_schedule_rule(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    app.schedule_registry.delete_rule(&id)
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))
+}
+
+/// PUT /schedule/default - Définit le mode par défaut
+async fn set_schedule_default_mode(
+    State(app): State<AppState>,
+    Json(request): Json<crate::schedule::UpdateDefaultModeRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    app.schedule_registry.set_default_mode(request.default_mode_id)
+        .map(|_| StatusCode::OK)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))
+}
+
+// ============================================================================
+// Notifications Endpoints
+// ============================================================================
+
+/// GET /notifications - Liste toutes les notifications (historique)
+async fn list_notifications(
+    State(app): State<AppState>,
+) -> Json<Vec<crate::notifications::Notification>> {
+    Json(app.notifications_manager.list_all())
+}
+
+/// GET /notifications/active - Liste les notifications non acquittées
+async fn list_active_notifications(
+    State(app): State<AppState>,
+) -> Json<Vec<crate::notifications::Notification>> {
+    Json(app.notifications_manager.list_active())
+}
+
+/// GET /notifications/tokens - Liste les tokens FCM enregistrés
+async fn list_fcm_tokens(
+    State(app): State<AppState>,
+) -> Json<Vec<crate::notifications::FcmToken>> {
+    Json(app.notifications_manager.list_fcm_tokens())
+}
+
+/// Request body pour envoyer une notification
+#[derive(Debug, Deserialize)]
+struct SendNotificationRequest {
+    title: String,
+    body: String,
+    #[serde(default)]
+    priority: Option<String>,
+    #[serde(default)]
+    source: Option<String>,
+    #[serde(default)]
+    actions: Vec<crate::notifications::NotificationAction>,
+    #[serde(default)]
+    data: Option<serde_json::Value>,
+}
+
+/// POST /notifications - Envoie une nouvelle notification
+async fn send_notification(
+    State(app): State<AppState>,
+    Json(request): Json<SendNotificationRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let priority = match request.priority.as_deref() {
+        Some("P0") | Some("p0") => crate::notifications::NotificationPriority::P0,
+        Some("P1") | Some("p1") => crate::notifications::NotificationPriority::P1,
+        _ => crate::notifications::NotificationPriority::P2,
+    };
+
+    let notification = crate::notifications::Notification {
+        id: String::new(), // Will be assigned by manager
+        priority,
+        title: request.title,
+        body: request.body,
+        source: request.source.unwrap_or_else(|| "api".to_string()),
+        timestamp: time::OffsetDateTime::now_utc(),
+        acknowledged: false,
+        acknowledged_at: None,
+        actions: request.actions,
+        data: request.data,
+    };
+
+    app.notifications_manager.send(notification).await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "Notification sent"
+    })))
+}
+
+/// POST /notifications/{id}/acknowledge - Acquitte une notification
+async fn acknowledge_notification(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    app.notifications_manager.acknowledge(&id)
+        .map_err(|e| (StatusCode::NOT_FOUND, e.to_string()))?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "Notification acknowledged"
+    })))
+}
+
+/// DELETE /notifications/{id} - Supprime une notification
+async fn delete_notification(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    app.notifications_manager.delete(&id)
+        .map_err(|e| (StatusCode::NOT_FOUND, e.to_string()))?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "Notification deleted"
+    })))
+}
+
+/// Request body pour enregistrer un token FCM
+#[derive(Debug, Deserialize)]
+struct RegisterFcmTokenRequest {
+    user_id: String,
+    token: String,
+    #[serde(default)]
+    device_name: Option<String>,
+}
+
+/// POST /notifications/tokens - Enregistre un token FCM
+async fn register_fcm_token(
+    State(app): State<AppState>,
+    Json(request): Json<RegisterFcmTokenRequest>,
+) -> Json<serde_json::Value> {
+    app.notifications_manager.register_fcm_token(
+        request.user_id,
+        request.token,
+        request.device_name,
+    );
+
+    Json(serde_json::json!({
+        "success": true,
+        "message": "FCM token registered"
+    }))
+}
+
+// =============================================================================
+// Notification Config API
+// =============================================================================
+
+/// GET /notifications/config - Liste toutes les configurations de notifications
+async fn list_notification_configs(
+    State(app): State<AppState>,
+) -> Json<Vec<crate::notification_config::NotificationTypeConfig>> {
+    Json(app.notification_config.list_all())
+}
+
+/// GET /notifications/config/{type_id} - Récupère une configuration spécifique
+async fn get_notification_config(
+    State(app): State<AppState>,
+    Path(type_id): Path<String>,
+) -> Result<Json<crate::notification_config::NotificationTypeConfig>, (StatusCode, String)> {
+    app.notification_config
+        .get(&type_id)
+        .map(Json)
+        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Notification type '{}' not found", type_id)))
+}
+
+/// PUT /notifications/config/{type_id} - Met à jour une configuration
+async fn update_notification_config(
+    State(app): State<AppState>,
+    Path(type_id): Path<String>,
+    Json(update): Json<crate::notification_config::NotificationConfigUpdate>,
+) -> Result<Json<crate::notification_config::NotificationTypeConfig>, (StatusCode, String)> {
+    app.notification_config
+        .update(&type_id, update)
+        .map(Json)
+        .map_err(|e| (StatusCode::NOT_FOUND, e))
 }

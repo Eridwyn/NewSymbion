@@ -19,7 +19,11 @@ use std::sync::Arc;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use super::types::{Automation, AutomationRequest, ExecutionRecord};
+use super::types::{
+    Automation, AutomationRequest, ExecutionRecord, Trigger, ActionDefinition,
+    AlertLevel, PluginHealthStatus, TriggerGroup, TriggerItem, LogicalOperator
+};
+use crate::decision::ImpactLevel;
 
 /// Storage for automation rules
 #[derive(Clone)]
@@ -143,18 +147,33 @@ impl AutomationStore {
 
     /// Create new automation
     pub fn create(&self, request: AutomationRequest) -> Result<Automation> {
+        // Validate that at least one trigger is provided
+        if !request.has_triggers() {
+            anyhow::bail!("At least one trigger is required");
+        }
+
         let id = format!("auto_{}", Uuid::new_v4().to_string().split('-').next().unwrap());
         let now = OffsetDateTime::now_utc();
+
+        // Normalize triggers: convert old format to new TriggerGroup
+        let triggers = request.get_trigger_group();
 
         let automation = Automation {
             id: id.clone(),
             name: request.name,
             description: request.description,
+            category: request.category.clone().or(Some("custom".to_string())),
             enabled: request.enabled,
-            trigger: request.trigger,
+            trigger: None, // Don't use old format anymore
+            triggers,
             conditions: request.conditions,
             actions: request.actions,
             cooldown_seconds: request.cooldown_seconds,
+            // Intelligence flags
+            trusted: request.trusted,
+            skip_if_same_mode: request.skip_if_same_mode,
+            auto_created: request.auto_created,
+            // Execution tracking
             last_executed_at: None,
             execution_count: 0,
             created_at: Some(now),
@@ -177,7 +196,15 @@ impl AutomationStore {
 
     /// Update existing automation
     pub fn update(&self, id: &str, request: AutomationRequest) -> Result<Option<Automation>> {
+        // Validate that at least one trigger is provided
+        if !request.has_triggers() {
+            anyhow::bail!("At least one trigger is required");
+        }
+
         let now = OffsetDateTime::now_utc();
+
+        // Normalize triggers
+        let triggers = request.get_trigger_group();
 
         let updated = {
             let mut automations = self.automations.write();
@@ -188,11 +215,23 @@ impl AutomationStore {
 
                 automation.name = request.name;
                 automation.description = request.description;
+                automation.category = request.category.clone();
                 automation.enabled = request.enabled;
-                automation.trigger = request.trigger;
+                automation.trigger = None; // Don't use old format anymore
+                automation.triggers = triggers;
                 automation.conditions = request.conditions;
                 automation.actions = request.actions;
                 automation.cooldown_seconds = request.cooldown_seconds;
+                // Intelligence flags (preserve if not set in request)
+                if request.trusted.is_some() {
+                    automation.trusted = request.trusted;
+                }
+                if request.skip_if_same_mode.is_some() {
+                    automation.skip_if_same_mode = request.skip_if_same_mode;
+                }
+                if request.auto_created.is_some() {
+                    automation.auto_created = request.auto_created;
+                }
                 automation.updated_at = Some(now);
 
                 Some(automation.clone())
@@ -370,6 +409,184 @@ impl AutomationStore {
             .count();
         (total, enabled)
     }
+
+    /// Ensure default system automations exist
+    /// Called at startup to create system automations if they don't exist
+    #[allow(dead_code)]
+    pub fn ensure_system_defaults(&self) -> Result<usize> {
+        let mut created_count = 0;
+
+        // Check if system automations already exist (by checking for a known system automation)
+        let existing = self.list();
+        let has_system_automations = existing.iter().any(|a| a.name.starts_with("[Système]"));
+
+        if has_system_automations {
+            eprintln!("[automations] System automations already exist, skipping creation");
+            return Ok(0);
+        }
+
+        // Create environment alert automations
+        let env_automations = vec![
+            // Danger - P0 (highest priority)
+            AutomationRequest {
+                name: "[Système] Alerte Environnement - Danger".to_string(),
+                description: Some("Notification P0 quand risque moisissure critique".to_string()),
+                category: Some("systeme".to_string()),
+                enabled: true,
+                trigger: Some(Trigger::SensorAlert {
+                    room_id: None, // Any room
+                    alert_level: Some(AlertLevel::Critical), // Maps to "danger" or "critical"
+                }),
+                triggers: None,
+                conditions: None,
+                actions: vec![ActionDefinition::SendNotification {
+                    priority: "P0".to_string(),
+                    title: "🚨 DANGER Environnement".to_string(),
+                    body: "Risque moisissure critique détecté. Action immédiate requise!".to_string(),
+                    impact_level: ImpactLevel::Low,
+                }],
+                cooldown_seconds: 300, // 5 min cooldown
+                trusted: None,
+                skip_if_same_mode: None,
+                auto_created: None,
+            },
+            // Critical - P1
+            AutomationRequest {
+                name: "[Système] Alerte Environnement - Critique".to_string(),
+                description: Some("Notification P1 quand alerte environnement élevée".to_string()),
+                category: Some("systeme".to_string()),
+                enabled: true,
+                trigger: Some(Trigger::SensorAlert {
+                    room_id: None,
+                    alert_level: Some(AlertLevel::High), // Maps to "strong" or "high"
+                }),
+                triggers: None,
+                conditions: None,
+                actions: vec![ActionDefinition::SendNotification {
+                    priority: "P1".to_string(),
+                    title: "⚠️ Alerte Environnement".to_string(),
+                    body: "Niveau d'alerte élevé détecté. Surveillez l'humidité.".to_string(),
+                    impact_level: ImpactLevel::Low,
+                }],
+                cooldown_seconds: 600, // 10 min cooldown
+                trusted: None,
+                skip_if_same_mode: None,
+                auto_created: None,
+            },
+            // Moderate - P2
+            AutomationRequest {
+                name: "[Système] Alerte Environnement - Modéré".to_string(),
+                description: Some("Notification P2 quand alerte environnement modérée".to_string()),
+                category: Some("systeme".to_string()),
+                enabled: true,
+                trigger: Some(Trigger::SensorAlert {
+                    room_id: None,
+                    alert_level: Some(AlertLevel::Moderate),
+                }),
+                triggers: None,
+                conditions: None,
+                actions: vec![ActionDefinition::SendNotification {
+                    priority: "P2".to_string(),
+                    title: "📊 Info Environnement".to_string(),
+                    body: "Niveau d'humidité à surveiller.".to_string(),
+                    impact_level: ImpactLevel::Low,
+                }],
+                cooldown_seconds: 1800, // 30 min cooldown
+                trusted: None,
+                skip_if_same_mode: None,
+                auto_created: None,
+            },
+        ];
+
+        // Create plugin health automations
+        let plugin_automations = vec![
+            // Plugin unhealthy - P1
+            AutomationRequest {
+                name: "[Système] Plugin Défaillant".to_string(),
+                description: Some("Notification P1 quand un plugin devient défaillant".to_string()),
+                category: Some("systeme".to_string()),
+                enabled: true,
+                trigger: Some(Trigger::PluginHealth {
+                    plugin_name: None, // Any plugin
+                    status: PluginHealthStatus::Unhealthy,
+                }),
+                triggers: None,
+                conditions: None,
+                actions: vec![ActionDefinition::SendNotification {
+                    priority: "P1".to_string(),
+                    title: "⚠️ Plugin Défaillant".to_string(),
+                    body: "Un plugin a cessé de répondre. Recovery en cours...".to_string(),
+                    impact_level: ImpactLevel::Low,
+                }],
+                cooldown_seconds: 300,
+                trusted: None,
+                skip_if_same_mode: None,
+                auto_created: None,
+            },
+            // Plugin recovery failed - P0
+            AutomationRequest {
+                name: "[Système] Échec Récupération Plugin".to_string(),
+                description: Some("Notification P0 quand la récupération d'un plugin échoue".to_string()),
+                category: Some("systeme".to_string()),
+                enabled: true,
+                trigger: Some(Trigger::PluginHealth {
+                    plugin_name: None,
+                    status: PluginHealthStatus::RecoveryFailed,
+                }),
+                triggers: None,
+                conditions: None,
+                actions: vec![ActionDefinition::SendNotification {
+                    priority: "P0".to_string(),
+                    title: "🚨 Plugin Non Récupérable".to_string(),
+                    body: "La récupération du plugin a échoué. Intervention manuelle requise.".to_string(),
+                    impact_level: ImpactLevel::Low,
+                }],
+                cooldown_seconds: 600,
+                trusted: None,
+                skip_if_same_mode: None,
+                auto_created: None,
+            },
+            // Plugin recovery success - P2
+            AutomationRequest {
+                name: "[Système] Plugin Récupéré".to_string(),
+                description: Some("Notification P2 quand un plugin est récupéré".to_string()),
+                category: Some("systeme".to_string()),
+                enabled: true,
+                trigger: Some(Trigger::PluginHealth {
+                    plugin_name: None,
+                    status: PluginHealthStatus::RecoverySuccess,
+                }),
+                triggers: None,
+                conditions: None,
+                actions: vec![ActionDefinition::SendNotification {
+                    priority: "P2".to_string(),
+                    title: "✅ Plugin Récupéré".to_string(),
+                    body: "Le plugin a été restauré avec succès.".to_string(),
+                    impact_level: ImpactLevel::Low,
+                }],
+                cooldown_seconds: 60,
+                trusted: None,
+                skip_if_same_mode: None,
+                auto_created: None,
+            },
+        ];
+
+        // Create all automations
+        for request in env_automations.into_iter().chain(plugin_automations.into_iter()) {
+            match self.create(request) {
+                Ok(automation) => {
+                    eprintln!("[automations] Created system automation: {}", automation.name);
+                    created_count += 1;
+                }
+                Err(e) => {
+                    eprintln!("[automations] Failed to create system automation: {}", e);
+                }
+            }
+        }
+
+        eprintln!("[automations] Created {} system automations", created_count);
+        Ok(created_count)
+    }
 }
 
 #[cfg(test)]
@@ -391,8 +608,10 @@ mod tests {
         let request = AutomationRequest {
             name: "Test Automation".to_string(),
             description: Some("Test description".to_string()),
+            category: Some("custom".to_string()),
             enabled: true,
-            trigger: Trigger::Manual,
+            trigger: Some(Trigger::Manual),
+            triggers: None,
             conditions: None,
             actions: vec![ActionDefinition::Delay { seconds: 1 }],
             cooldown_seconds: 60,
@@ -404,6 +623,8 @@ mod tests {
 
         let retrieved = store.get(&created.id).unwrap();
         assert_eq!(retrieved.name, created.name);
+        // Verify triggers were normalized
+        assert!(retrieved.triggers.is_some());
     }
 
     #[test]
@@ -413,8 +634,10 @@ mod tests {
         let request = AutomationRequest {
             name: "To Delete".to_string(),
             description: None,
+            category: None,
             enabled: true,
-            trigger: Trigger::Manual,
+            trigger: Some(Trigger::Manual),
+            triggers: None,
             conditions: None,
             actions: vec![],
             cooldown_seconds: 60,
@@ -434,8 +657,10 @@ mod tests {
         let request = AutomationRequest {
             name: "Toggle Test".to_string(),
             description: None,
+            category: None,
             enabled: true,
-            trigger: Trigger::Manual,
+            trigger: Some(Trigger::Manual),
+            triggers: None,
             conditions: None,
             actions: vec![],
             cooldown_seconds: 60,
@@ -455,8 +680,10 @@ mod tests {
         let request1 = AutomationRequest {
             name: "Enabled".to_string(),
             description: None,
+            category: None,
             enabled: true,
-            trigger: Trigger::Manual,
+            trigger: Some(Trigger::Manual),
+            triggers: None,
             conditions: None,
             actions: vec![],
             cooldown_seconds: 60,
@@ -465,8 +692,10 @@ mod tests {
         let request2 = AutomationRequest {
             name: "Disabled".to_string(),
             description: None,
+            category: None,
             enabled: false,
-            trigger: Trigger::Manual,
+            trigger: Some(Trigger::Manual),
+            triggers: None,
             conditions: None,
             actions: vec![],
             cooldown_seconds: 60,
