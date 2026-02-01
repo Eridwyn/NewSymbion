@@ -686,6 +686,11 @@ async fn set_context_override(
             let new_mode = state.mode_slug.clone().unwrap_or_else(|| dynamic_mode.slug.clone());
             if old_mode != new_mode {
                 app.automation_dispatcher.dispatch_mode_change(&old_mode, &new_mode, &reason);
+
+                // Record feedback for intelligence learning (manual override = user preference)
+                let signals = app.context_intelligence.collect_signals().await;
+                app.context_intelligence.record_feedback(&new_mode, signals);
+                eprintln!("[context] 📚 Override recorded for learning: {} → {}", old_mode, new_mode);
             }
             Ok(Json(state))
         }

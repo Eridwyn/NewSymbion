@@ -89,9 +89,9 @@ pub struct SignalWeights {
 impl Default for SignalWeights {
     fn default() -> Self {
         Self {
-            temporal: 0.40,      // Increased: time patterns are reliable
-            behavioral: 0.35,   // Increased: learned patterns matter
-            agent_activity: 0.10, // Reduced: less reliable
+            temporal: 0.35,       // Time patterns are reliable
+            behavioral: 0.35,     // Learned patterns matter
+            agent_activity: 0.15, // Increased: active apps are strong signal
             environmental: 0.05,
             momentum: 0.10,
         }
@@ -107,7 +107,7 @@ impl Default for SignalWeights {
 pub struct ContextSignals {
     // Temporal
     pub hour: u8,                    // 0-23
-    pub day_of_week: u8,             // 0-6 (Sun-Sat)
+    pub day_of_week: u8,             // 0-6 (Mon-Sun) - Monday-based indexing
     pub is_weekend: bool,
     pub is_holiday: bool,            // Future: API for holidays
 
@@ -414,7 +414,8 @@ impl ContextIntelligence {
 
         for ((mode, day, hour), count) in pattern_map {
             if count >= 2 {
-                let confidence = (count as f32 / 10.0).min(1.0);
+                // More aggressive confidence: /5 instead of /10, max 0.85 for bootstrap patterns
+                let confidence = (count as f32 / 5.0).min(0.85);
                 patterns.push(LearnedPattern {
                     mode,
                     day_of_week: day,
@@ -564,7 +565,7 @@ impl ContextIntelligence {
         // 1. TEMPORAL SIGNAL (35%)
         let temporal = self.predict_from_temporal(signals);
         self.add_weighted_score(&mut scores, &temporal, config.weights.temporal);
-        if temporal.confidence > 0.5 {
+        if temporal.confidence > 0.2 {  // Lowered from 0.5 to show more factors
             reasons.push(temporal.reason.clone());
             factors.push(("temporal".into(), temporal.confidence));
         }
@@ -572,7 +573,7 @@ impl ContextIntelligence {
         // 2. BEHAVIORAL PATTERNS (25%)
         let behavioral = self.predict_from_patterns(signals);
         self.add_weighted_score(&mut scores, &behavioral, config.weights.behavioral);
-        if behavioral.confidence > 0.5 {
+        if behavioral.confidence > 0.2 {  // Lowered from 0.5
             reasons.push(behavioral.reason.clone());
             factors.push(("behavioral".into(), behavioral.confidence));
         }
@@ -580,7 +581,7 @@ impl ContextIntelligence {
         // 3. AGENT ACTIVITY (20%)
         let activity = self.predict_from_agent_activity(signals);
         self.add_weighted_score(&mut scores, &activity, config.weights.agent_activity);
-        if activity.confidence > 0.5 {
+        if activity.confidence > 0.2 {  // Lowered from 0.5
             reasons.push(activity.reason.clone());
             factors.push(("agent_activity".into(), activity.confidence));
         }
@@ -588,7 +589,7 @@ impl ContextIntelligence {
         // 4. ENVIRONMENT (10%)
         let environment = self.predict_from_environment(signals);
         self.add_weighted_score(&mut scores, &environment, config.weights.environmental);
-        if environment.confidence > 0.3 {
+        if environment.confidence > 0.1 {  // Lowered from 0.3
             factors.push(("environment".into(), environment.confidence));
         }
 
@@ -642,22 +643,36 @@ impl ContextIntelligence {
         let patterns = self.learned_patterns.read();
 
         // Find matching pattern (same day, hour ±1)
+        // Use occurrences as primary sort (most frequent wins), then confidence as tiebreaker
         let matching = patterns.iter()
             .filter(|p| {
                 p.day_of_week == signals.day_of_week &&
                 (p.hour as i8 - signals.hour as i8).abs() <= 1
             })
-            .max_by(|a, b| a.confidence.partial_cmp(&b.confidence).unwrap_or(std::cmp::Ordering::Equal));
+            .max_by(|a, b| {
+                a.occurrences.cmp(&b.occurrences)
+                    .then_with(|| a.confidence.partial_cmp(&b.confidence).unwrap_or(std::cmp::Ordering::Equal))
+            });
 
         if let Some(pattern) = matching {
+            // Apply temporal decay: older patterns have less influence
+            let days_since = (OffsetDateTime::now_utc() - pattern.last_seen).whole_days();
+            let decay = if days_since < 7 { 1.0 }
+                       else if days_since < 30 { 0.8 }
+                       else if days_since < 90 { 0.5 }
+                       else { 0.2 };
+            let effective_confidence = pattern.confidence * decay;
+
             return SinglePrediction {
                 mode: pattern.mode.clone(),
-                confidence: pattern.confidence,
+                confidence: effective_confidence,
                 reason: format!(
-                    "Pattern détecté: {} à {}h le {}",
+                    "Pattern détecté: {} à {}h le {} ({} occ{})",
                     mode_display_name(&pattern.mode),
                     pattern.hour,
-                    day_name(pattern.day_of_week)
+                    day_name(pattern.day_of_week),
+                    pattern.occurrences,
+                    if days_since > 7 { format!(", decay {:.0}%", decay * 100.0) } else { String::new() }
                 ),
             };
         }
@@ -842,26 +857,32 @@ impl ContextIntelligence {
             }
         }
 
-        // If correction, learn from it
-        if was_correction {
-            self.learn_from_correction(&feedback);
-        }
+        // ALWAYS learn from manual changes (not just corrections)
+        // This reinforces patterns even when user confirms our prediction
+        self.learn_from_manual_change(chosen_mode, &feedback.signals_snapshot, was_correction);
     }
 
-    /// Learn from a user correction
-    fn learn_from_correction(&self, feedback: &UserFeedback) {
-        eprintln!(
-            "[intelligence] 📚 Correction: prédit {} mais utilisateur choisit {}",
-            feedback.predicted_mode, feedback.actual_mode
-        );
+    /// Learn from any manual mode change (correction or confirmation)
+    fn learn_from_manual_change(&self, chosen_mode: &str, signals: &ContextSignals, was_correction: bool) {
+        if was_correction {
+            eprintln!(
+                "[intelligence] 📚 Correction apprise: {} (prédit différent)",
+                chosen_mode
+            );
+        } else {
+            eprintln!(
+                "[intelligence] 📚 Confirmation apprise: {} (prédit correct)",
+                chosen_mode
+            );
+        }
 
         let new_pattern = LearnedPattern {
-            mode: feedback.actual_mode.clone(),
-            day_of_week: feedback.signals_snapshot.day_of_week,
-            hour: feedback.signals_snapshot.hour,
-            confidence: 0.3, // Start low
+            mode: chosen_mode.to_string(),
+            day_of_week: signals.day_of_week,
+            hour: signals.hour,
+            confidence: if was_correction { 0.3 } else { 0.2 }, // Corrections have slightly higher initial weight
             occurrences: 1,
-            last_seen: feedback.timestamp,
+            last_seen: OffsetDateTime::now_utc(),
             source: PatternSource::UserCorrection,
         };
 
@@ -880,7 +901,8 @@ impl ContextIntelligence {
         }) {
             // Reinforce existing pattern
             existing.occurrences += 1;
-            existing.confidence = (existing.occurrences as f32 / 10.0).min(0.95);
+            // More aggressive confidence: /5 instead of /10
+            existing.confidence = (existing.occurrences as f32 / 5.0).min(0.95);
             existing.last_seen = new_pattern.last_seen;
             eprintln!(
                 "[intelligence] 📈 Pattern renforcé: {} à {}h ({} occurrences, {:.0}% confidence)",
@@ -932,15 +954,17 @@ impl ContextIntelligence {
 // Helper Functions
 // ============================================================================
 
+/// Convert day number to French name
+/// Uses Monday-based indexing: 0=Lundi, 6=Dimanche (matches number_from_monday() - 1)
 fn day_name(day: u8) -> &'static str {
     match day {
-        0 => "dimanche",
-        1 => "lundi",
-        2 => "mardi",
-        3 => "mercredi",
-        4 => "jeudi",
-        5 => "vendredi",
-        6 => "samedi",
+        0 => "lundi",
+        1 => "mardi",
+        2 => "mercredi",
+        3 => "jeudi",
+        4 => "vendredi",
+        5 => "samedi",
+        6 => "dimanche",
         _ => "inconnu",
     }
 }
@@ -997,6 +1021,11 @@ impl ContextIntelligence {
                     current_mode,
                     if prediction.mode == current_mode { "SAME" } else { "DIFFERENT" }
                 );
+
+                // Auto-mark prediction as correct if mode is stable for 30+ minutes
+                if prediction.mode == current_mode && signals.time_in_current_mode_minutes > 30 {
+                    intelligence.mark_last_prediction_correct();
+                }
 
                 // Check for active override - NEVER change mode while override is active
                 let has_active_override = intelligence.context_engine.get_state()
@@ -1155,8 +1184,8 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = IntelligenceConfig::default();
-        assert_eq!(config.auto_apply_threshold, 0.90);
-        assert_eq!(config.suggestion_threshold, 0.70);
+        assert_eq!(config.auto_apply_threshold, 0.60);  // Lowered for learning phase
+        assert_eq!(config.suggestion_threshold, 0.40);
         assert_eq!(config.min_pattern_occurrences, 3);
         assert!(config.auto_create_automations);
     }
