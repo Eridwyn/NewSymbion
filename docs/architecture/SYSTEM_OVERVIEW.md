@@ -22,7 +22,7 @@ Vue d'ensemble de l'architecture IoT distribuée.
 - ✅ **Plugin Orchestration** - Modules de vie (cuisine, santé, finance)
 - ✅ **Context Engine** - Apprentissage habitudes et détection situations
 - ✅ **Decision Engine** - Évaluation intelligente et garde-fous sécurité (trust scoring, validation multi-niveaux, audit trail)
-- ✅ **API REST** - Interface pour contrôles et automatisations (~100 endpoints)
+- ✅ **API REST** - Interface pour contrôles et automatisations (~107 endpoints)
 - ✅ **Health Monitoring** - Surveillance automatique + alertes proactives
 
 ### 🤖 symbion-agent-host - Assistants Domestiques
@@ -108,48 +108,72 @@ Vue d'ensemble de l'architecture IoT distribuée.
 
 ### Kernel (Rust - `symbion-kernel/src/`)
 
-**Note** : Le kernel contient 36 fichiers Rust au total (21 modules racine + 14 dans decision/ + 1 dans ports/).
+**Note** : Le kernel contient 60 fichiers Rust au total (33 modules racine + 16 dans decision/ + 11 dans automations/).
 
 ```
 symbion-kernel/src/
-├── main.rs              # Entry point, setup server
-├── http.rs              # API REST (~100 routes, TLS)
-├── auth.rs              # JWT, MFA, WebAuthn, sessions
-├── csrf.rs              # CSRF protection tokens
-├── mqtt.rs              # MQTT client, pub/sub handlers
-├── agents.rs            # Agent registry, discovery (single file)
-├── context.rs           # Context detection engine (single file)
-├── contracts.rs         # MQTT schema validation (single file)
-├── state.rs             # Shared application state
-├── config.rs            # Configuration management
-├── models.rs            # Data models
-├── health.rs            # Health check endpoint
-├── mfa.rs               # Multi-factor authentication
-├── webauthn.rs          # Passkey biometric auth
-├── device_trust.rs      # Trusted device management
-├── notes_bridge.rs      # Notes plugin bridge
-├── notes_ws.rs          # WebSocket notes streaming
-├── plugins.rs           # Plugin orchestration
-├── wol.rs               # Wake-on-LAN functionality
-├── dashboard_events.rs  # Real-time PWA updates
-├── decision_http.rs     # Decision engine HTTP endpoints
-├── decision/            # Decision Engine (14 modules)
-│   ├── mod.rs           # Module exports
-│   ├── engine.rs        # Decision evaluation core
-│   ├── trust.rs         # Trust score calculation (332 LOC)
-│   ├── guards.rs        # Pre-decision validation
-│   ├── idempotence.rs   # Command deduplication (231 LOC)
-│   ├── validation.rs    # User approval workflow
-│   ├── audit.rs         # Audit trail logging
-│   ├── metrics.rs       # Decision metrics tracking
-│   ├── config.rs        # Decision config management
-│   ├── agent_status.rs  # Agent health monitoring
-│   ├── override.rs      # Manual override handling
-│   ├── persistence.rs   # State persistence
-│   ├── clock.rs         # Time management & testing
-│   └── types.rs         # Type definitions
-└── ports/
-    └── mod.rs           # Plugin port management
+├── main.rs                # Entry point, setup server
+├── http.rs                # API REST (~100 routes, TLS)
+├── auth.rs                # JWT, MFA, WebAuthn, sessions
+├── csrf.rs                # CSRF protection tokens
+├── mqtt.rs                # MQTT client, pub/sub handlers
+├── agents.rs              # Agent registry, discovery
+├── context.rs             # Context detection engine
+├── context_intelligence.rs # Pattern learning & predictions
+├── contracts.rs           # MQTT schema validation
+├── state.rs               # Shared application state
+├── config.rs              # Configuration management
+├── models.rs              # Data models
+├── health.rs              # Health check endpoint
+├── mfa.rs                 # Multi-factor authentication
+├── webauthn.rs            # Passkey biometric auth
+├── device_trust.rs        # Trusted device management
+├── notes_bridge.rs        # Notes plugin bridge
+├── notes_ws.rs            # WebSocket notes streaming
+├── wol.rs                 # Wake-on-LAN functionality
+├── dashboard_events.rs    # Real-time PWA updates
+├── decision_http.rs       # Decision engine HTTP endpoints
+├── intelligence_http.rs   # Intelligence HTTP endpoints
+├── environment.rs         # Environment state management
+├── environment_http.rs    # Environment HTTP endpoints
+├── environment_alerts.rs  # Temperature/humidity alerts
+├── dew_point_alerts.rs    # Dew point calculations
+├── sensors.rs             # Sensor registry & handlers
+├── notifications.rs       # Notification manager
+├── notification_config.rs # Notification type configs
+├── mobile.rs              # Mobile API endpoints
+├── plugin_proxy.rs        # Plugin HTTP proxy
+├── plugin_health.rs       # Plugin health monitoring
+├── automations_http.rs    # Automations HTTP endpoints
+├── decision/              # Decision Engine (16 modules)
+│   ├── mod.rs             # Module exports
+│   ├── engine.rs          # Decision evaluation core
+│   ├── trust.rs           # Trust score calculation
+│   ├── trust_tracker.rs   # Trust score tracking
+│   ├── guards.rs          # Pre-decision validation
+│   ├── idempotence.rs     # Command deduplication
+│   ├── validation.rs      # User approval workflow
+│   ├── audit.rs           # Audit trail logging
+│   ├── metrics.rs         # Decision metrics tracking
+│   ├── config.rs          # Decision config management
+│   ├── agent_status.rs    # Agent health monitoring
+│   ├── override.rs        # Manual override handling
+│   ├── persistence.rs     # State persistence
+│   ├── clock.rs           # Time management & testing
+│   ├── environment.rs     # Environment decision rules
+│   └── types.rs           # Type definitions
+└── automations/           # Automations Engine (11 modules)
+    ├── mod.rs             # Module exports
+    ├── types.rs           # Automation types
+    ├── engine.rs          # Automation execution core
+    ├── listener.rs        # Event listener
+    ├── events.rs          # Event definitions
+    ├── executors.rs       # Action executors
+    ├── registry.rs        # Automation registry
+    ├── scheduler.rs       # Scheduled automations
+    ├── persistence.rs     # State persistence
+    ├── decision_bridge.rs # Decision engine integration
+    └── pending_actions.rs # Pending action management
 ```
 
 ### Agent (Rust - `symbion-agent-host/src/`)
@@ -243,8 +267,8 @@ pwa-dashboard/src/
 
 ### 📡 Bus de Communication
 
-- **MQTT**: Événements temps réel entre appareils (19 topics actifs: 13 documentés + 6 nouveaux dashboard/*)
-- **REST API**: Contrôles synchrones et intégrations externes (~100 endpoints)
+- **MQTT**: Événements temps réel entre appareils (17 topics actifs documentés)
+- **REST API**: Contrôles synchrones et intégrations externes (~107 endpoints)
 - **WebSocket PWA**: Interface temps réel responsive
 - **Contracts Registry**: Validation et versioning événements IoT
 

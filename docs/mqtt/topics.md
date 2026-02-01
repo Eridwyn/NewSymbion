@@ -1109,7 +1109,7 @@ Les topics suivants ont été remplacés par les 6 topics spécifiques ci-dessus
 
 ---
 
-**Dernière mise à jour** : 19 Novembre 2025 (Ajout sensor topics F1 Environment)
+**Dernière mise à jour** : 1 Février 2026 (Sync avec audit documentation)
 **Fichiers sources** :
 - `symbion-kernel/src/mqtt.rs` (subscriptions Kernel + sensor topics)
 - `symbion-kernel/src/dashboard_events.rs` (6 topics dashboard)
