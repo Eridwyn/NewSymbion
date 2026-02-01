@@ -2,13 +2,16 @@
 
 > 📍 Documentation exhaustive de l'API Symbion Kernel
 >
-> ✅ **Mise à jour complète (26 Novembre 2025)**: Documentation 100% synchronisée avec `symbion-kernel/src/http.rs` + Service Discovery
+> ✅ **Mise à jour complète (1 Février 2026)**: Documentation 100% synchronisée avec `symbion-kernel/src/http.rs` + Service Discovery
 >
-> **Endpoints documentés** : 81 endpoints (73 kernel + 8 plugin API)
+> **Endpoints documentés** : 107 endpoints (99 kernel + 8 plugin API)
 > - ✅ Tous les endpoints implémentés sont documentés
 > - ✅ Service Discovery Plugin API (+8 endpoints dynamiques)
 > - ✅ Parameterized routes supportés (`:room_id`, `:id`)
 > - ✅ 3 plugins actifs (sensors, notes, notifications)
+> - ✅ Automations Engine (10 endpoints)
+> - ✅ Modes Dynamiques (6 endpoints)
+> - ✅ Notifications Système (10 endpoints)
 
 ---
 
@@ -2460,7 +2463,10 @@ E2E tests disponibles : `/home/eridwyn/RustroverProjects/NewSymbion/scripts/test
 | **Plugin API (Service Discovery)** | 8 | ✅ |
 | **Decision Engine** | 13 | ✅ |
 | **Système & Config** | 2 | ✅ |
-| **TOTAL** | **81** | **✅ 100% sync** |
+| **Automations Engine** | 10 | ✅ 🆕 |
+| **Modes Dynamiques** | 6 | ✅ 🆕 |
+| **Notifications Système** | 10 | ✅ 🆕 |
+| **TOTAL** | **107** | **✅ 100% sync** |
 
 ### Changements Effectués
 - ✅ **7 path mismatches corrigés**:
@@ -2488,12 +2494,364 @@ E2E tests disponibles : `/home/eridwyn/RustroverProjects/NewSymbion/scripts/test
 
 ---
 
-**Dernière mise à jour** : 26 Novembre 2025
-**Fichier source** : `symbion-kernel/src/http.rs` (lignes 189-311) + Service Discovery
-**Total endpoints documentés** : 81 (73 kernel + 8 plugin API)
+## 🤖 Automations Engine (PR5 - Janvier 2026)
+
+> 🆕 **Feature Automations** (Janvier 2026): Moteur d'automatisations basé sur événements avec triggers, conditions et actions.
+>
+> **Source**: `symbion-kernel/src/automations.rs`, `symbion-kernel/src/automations_http.rs`
+
+### `GET /v1/automations`
+**Description** : Liste toutes les automations
+**Auth** : JWT
+**Response** :
+```json
+{
+  "automations": [
+    {
+      "id": "auto-123",
+      "name": "Éteindre PC Salon si inactif",
+      "enabled": true,
+      "trigger": { "type": "sensor_threshold", "sensor_id": "..." },
+      "conditions": [],
+      "actions": [{ "type": "agent_command", "agent_id": "...", "command_type": "shutdown" }],
+      "cooldown_seconds": 3600,
+      "last_executed_at": "2026-01-31T22:00:00Z"
+    }
+  ],
+  "count": 5,
+  "enabled_count": 3
+}
+```
+
+### `GET /v1/automations/{id}`
+**Description** : Détails d'une automation spécifique
+**Auth** : JWT
+**Response** : Objet Automation complet
+
+### `GET /v1/automations/schema`
+**Description** : Schéma pour le rule builder (triggers, conditions, actions disponibles)
+**Auth** : JWT
+**Response** :
+```json
+{
+  "triggers": [
+    { "type": "sensor_threshold", "label": "Seuil capteur", "params": [...] },
+    { "type": "schedule", "label": "Horaire", "params": [...] },
+    { "type": "mode_change", "label": "Changement de mode", "params": [...] }
+  ],
+  "conditions": [...],
+  "actions": [...],
+  "dynamic_values": {
+    "agents": [...],
+    "rooms": [...],
+    "sensors": [...],
+    "modes": [...]
+  }
+}
+```
+
+### `GET /v1/automations/history`
+**Description** : Historique d'exécution des automations
+**Auth** : JWT
+**Query** : `?limit=50`
+**Response** :
+```json
+[
+  {
+    "automation_id": "auto-123",
+    "automation_name": "Éteindre PC Salon",
+    "executed_at": "2026-01-31T22:00:00Z",
+    "trigger_event": "sensor_threshold",
+    "conditions_met": true,
+    "success": true,
+    "actions_executed": [...]
+  }
+]
+```
+
+### `POST /v1/automations`
+**Description** : Création d'une nouvelle automation
+**Auth** : JWT
+**CSRF** : Requis
+**Request** :
+```json
+{
+  "name": "Alerte humidité chambre",
+  "trigger": { "type": "sensor_threshold", "sensor_id": "esp32-chambre", "threshold": 70 },
+  "conditions": [],
+  "actions": [{ "type": "send_notification", "title": "Humidité élevée", "body": "..." }],
+  "cooldown_seconds": 1800
+}
+```
+**Response** : `201 Created` avec l'automation créée
+
+### `PUT /v1/automations/{id}`
+**Description** : Mise à jour d'une automation
+**Auth** : JWT
+**CSRF** : Requis
+**Response** : Automation mise à jour
+
+### `DELETE /v1/automations/{id}`
+**Description** : Suppression (soft-delete) d'une automation
+**Auth** : JWT
+**CSRF** : Requis
+**Response** : `204 No Content`
+
+### `PATCH /v1/automations/{id}/enable`
+**Description** : Activer/Désactiver une automation
+**Auth** : JWT
+**CSRF** : Requis
+**Request** :
+```json
+{
+  "enabled": true
+}
+```
+**Response** : Automation avec statut mis à jour
+
+### `POST /v1/automations/{id}/test`
+**Description** : Test dry-run (preview sans exécution)
+**Auth** : JWT
+**CSRF** : Requis
+**Response** :
+```json
+{
+  "automation_id": "auto-123",
+  "automation_name": "...",
+  "would_execute": true,
+  "cooldown": null,
+  "actions_preview": ["Send notification: Humidité élevée", "..."]
+}
+```
+
+### `POST /v1/automations/{id}/run`
+**Description** : Exécution manuelle d'une automation
+**Auth** : JWT
+**CSRF** : Requis
+**Response** :
+```json
+{
+  "automation_id": "auto-123",
+  "automation_name": "...",
+  "executed": true,
+  "success": true,
+  "actions_count": 2,
+  "actions": [
+    { "action_type": "send_notification", "success": true, "duration_ms": 45 }
+  ],
+  "trust_score": 0.85,
+  "decision_outcome": "auto_approve"
+}
+```
+
+---
+
+## 🎨 Modes Contextuels (PR5 - Janvier 2026)
+
+> 🆕 **Gestion Modes Dynamiques** (Janvier 2026): Création et gestion de modes personnalisés au-delà de Cravate/Intime/Neutre.
+>
+> **Source**: `symbion-kernel/src/http.rs`
+
+### `GET /v1/modes`
+**Description** : Liste tous les modes disponibles (prédéfinis + personnalisés)
+**Auth** : JWT
+**Response** :
+```json
+{
+  "modes": [
+    { "id": "cravate", "slug": "cravate", "name": "Cravate", "icon": "👔", "theme": {...}, "is_builtin": true },
+    { "id": "intime", "slug": "intime", "name": "Intime", "icon": "🏡", "theme": {...}, "is_builtin": true },
+    { "id": "custom-focus", "slug": "focus", "name": "Focus Profond", "icon": "🎯", "theme": {...}, "is_builtin": false }
+  ]
+}
+```
+
+### `GET /v1/modes/{id}`
+**Description** : Détails d'un mode spécifique
+**Auth** : JWT
+**Response** : Objet Mode complet
+
+### `POST /v1/modes`
+**Description** : Création d'un nouveau mode personnalisé
+**Auth** : JWT
+**CSRF** : Requis
+**Request** :
+```json
+{
+  "name": "Gaming",
+  "icon": "🎮",
+  "theme": { "primary": "#8b5cf6", "bg": "#1e1b4b", "accent": "#a78bfa" }
+}
+```
+**Response** : `201 Created` avec mode créé
+
+### `PUT /v1/modes/{id}`
+**Description** : Mise à jour d'un mode
+**Auth** : JWT
+**CSRF** : Requis
+**Response** : Mode mis à jour
+
+### `DELETE /v1/modes/{id}`
+**Description** : Suppression d'un mode personnalisé (modes builtin non supprimables)
+**Auth** : JWT
+**CSRF** : Requis
+**Response** : `204 No Content`
+
+### `GET /v1/schedule/current`
+**Description** : Mode actuel selon le planning horaire
+**Auth** : JWT
+**Response** :
+```json
+{
+  "current_mode": "cravate",
+  "scheduled_until": "2026-02-01T18:00:00Z",
+  "next_mode": "intime"
+}
+```
+
+### `PUT /v1/schedule/default`
+**Description** : Définir le mode par défaut du planning
+**Auth** : JWT
+**CSRF** : Requis
+**Request** :
+```json
+{
+  "default_mode": "veille"
+}
+```
+**Response** : Confirmation
+
+---
+
+## 🔔 Notifications Système (PR5 - Janvier 2026)
+
+> 🆕 **Système Notifications Centralisé** (Janvier 2026): Gestion des notifications, FCM tokens, et configurations par type.
+>
+> **Source**: `symbion-kernel/src/notifications.rs`, `symbion-kernel/src/http.rs`
+
+### `GET /v1/notifications`
+**Description** : Liste toutes les notifications
+**Auth** : JWT
+**Response** :
+```json
+{
+  "notifications": [
+    {
+      "id": "notif-123",
+      "title": "Humidité chambre élevée",
+      "body": "79% - Risque moisissure",
+      "priority": "P2",
+      "source": "automation",
+      "timestamp": "2026-02-01T15:30:00Z",
+      "acknowledged": false
+    }
+  ],
+  "total": 15,
+  "unread": 3
+}
+```
+
+### `GET /v1/notifications/active`
+**Description** : Notifications non-acquittées uniquement
+**Auth** : JWT
+**Response** : Liste filtrée
+
+### `POST /v1/notifications`
+**Description** : Envoi d'une nouvelle notification
+**Auth** : JWT
+**CSRF** : Requis
+**Request** :
+```json
+{
+  "title": "Test notification",
+  "body": "Contenu du message",
+  "priority": "P2",
+  "source": "manual"
+}
+```
+**Response** : Notification créée
+
+### `POST /v1/notifications/{id}/acknowledge`
+**Description** : Marquer notification comme lue
+**Auth** : JWT
+**CSRF** : Requis
+**Response** : Notification mise à jour
+
+### `DELETE /v1/notifications/{id}`
+**Description** : Supprimer une notification
+**Auth** : JWT
+**CSRF** : Requis
+**Response** : `204 No Content`
+
+### `GET /v1/notifications/tokens`
+**Description** : Liste des tokens FCM enregistrés
+**Auth** : JWT
+**Response** :
+```json
+{
+  "tokens": [
+    { "user_id": "admin", "device_name": "Pixel 7", "registered_at": "..." }
+  ]
+}
+```
+
+### `POST /v1/notifications/tokens`
+**Description** : Enregistrer un nouveau token FCM
+**Auth** : JWT
+**CSRF** : Requis
+**Request** :
+```json
+{
+  "token": "fcm-token-abc...",
+  "device_name": "iPhone 14"
+}
+```
+**Response** : Confirmation
+
+### `GET /v1/notification-types`
+**Description** : Liste des types de notifications configurables
+**Auth** : JWT
+**Response** :
+```json
+{
+  "types": [
+    { "type_id": "humidity_alert", "enabled": true, "priority": "P2", "channels": ["push", "mqtt"] }
+  ]
+}
+```
+
+### `GET /v1/notification-types/{type_id}`
+**Description** : Configuration d'un type de notification
+**Auth** : JWT
+**Response** : Configuration complète
+
+### `PUT /v1/notification-types/{type_id}`
+**Description** : Mettre à jour configuration d'un type
+**Auth** : JWT
+**CSRF** : Requis
+**Request** :
+```json
+{
+  "enabled": true,
+  "priority": "P1",
+  "channels": ["push", "mqtt", "email"]
+}
+```
+**Response** : Configuration mise à jour
+
+---
+
+**Dernière mise à jour** : 1 Février 2026
+**Fichier source** : `symbion-kernel/src/http.rs` (103 routes) + Service Discovery
+**Total endpoints documentés** : 107 (99 kernel + 8 plugin API)
 **Synchronisation** : ✅ 100% (tous les endpoints implémentés sont documentés)
 
-### Nouveaux Endpoints (26 Nov 2025)
+### Nouveaux Endpoints (Février 2026)
+- ✅ **Automations Engine** (10 endpoints): CRUD + schema + history + test + run
+- ✅ **Modes Dynamiques** (6 endpoints): CRUD + schedule
+- ✅ **Notifications Système** (10 endpoints): CRUD + FCM tokens + configs
+
+### Endpoints (26 Nov 2025)
 - ✅ **Service Discovery - Plugin API** (8 endpoints):
   - sensors: `/v1/plugin-api/sensors/sensors`, `/v1/plugin-api/sensors/environment/:room_id`
   - notes: `/v1/plugin-api/notes/notes`, `/v1/plugin-api/notes/notes/:id`
