@@ -23,6 +23,7 @@ pub struct PendingAction {
     pub action: ActionDefinition,
     pub action_index: usize, // Index in automation's action list
     pub trust_score: f32, // Original trust score from decision
+    pub target_mode: Option<String>, // Target mode for Intelligence feedback (from automation)
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
 }
@@ -48,6 +49,7 @@ impl PendingActionRegistry {
         action: ActionDefinition,
         action_index: usize,
         trust_score: f32,
+        target_mode: Option<String>,
     ) {
         let pending = PendingAction {
             validation_id: validation_id.clone(),
@@ -56,6 +58,7 @@ impl PendingActionRegistry {
             action,
             action_index,
             trust_score,
+            target_mode,
             created_at: OffsetDateTime::now_utc(),
         };
 
@@ -156,6 +159,7 @@ mod tests {
             action,
             0,
             0.45, // trust_score
+            Some("focus".to_string()), // target_mode
         );
 
         assert_eq!(registry.count(), 1);
@@ -186,6 +190,7 @@ mod tests {
             action,
             0,
             0.5, // trust_score
+            None, // target_mode
         );
 
         assert!(registry.remove("val-456"));

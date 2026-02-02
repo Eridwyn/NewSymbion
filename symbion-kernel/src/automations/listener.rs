@@ -18,6 +18,7 @@ use crate::automations::{
     TriggerGroup, TriggerItem, LogicalOperator,
 };
 use crate::context::ContextEngine;
+use crate::context_intelligence::SharedContextIntelligence;
 use crate::decision::{DecisionEngine, SharedTrustTracker, ValidationManager};
 use crate::notifications::SharedNotificationManager;
 use crate::sensors::SensorRegistry;
@@ -41,6 +42,8 @@ pub struct AutomationListener {
     validation_manager: Option<Arc<ValidationManager>>,
     /// Pending Action Registry for post-approval execution
     pending_action_registry: Option<SharedPendingActionRegistry>,
+    /// Context Intelligence for feedback loop (Decision → Intelligence)
+    context_intelligence: Option<SharedContextIntelligence>,
 }
 
 impl AutomationListener {
@@ -54,6 +57,7 @@ impl AutomationListener {
         trust_tracker: Option<SharedTrustTracker>,
         validation_manager: Option<Arc<ValidationManager>>,
         pending_action_registry: Option<SharedPendingActionRegistry>,
+        context_intelligence: Option<SharedContextIntelligence>,
     ) -> Self {
         Self {
             store,
@@ -65,6 +69,7 @@ impl AutomationListener {
             trust_tracker,
             validation_manager,
             pending_action_registry,
+            context_intelligence,
         }
     }
 
@@ -130,7 +135,7 @@ impl AutomationListener {
                 automation.name, automation.id
             );
 
-            // Create execution context with Decision Engine, Trust Tracker, ValidationManager, and PendingActionRegistry
+            // Create execution context with Decision Engine, Trust Tracker, ValidationManager, PendingActionRegistry, and Intelligence
             let ctx = ExecutionContext {
                 context_engine: self.context_engine.clone(),
                 agents: self.agents.clone(),
@@ -141,6 +146,7 @@ impl AutomationListener {
                 trust_tracker: self.trust_tracker.clone(),
                 validation_manager: self.validation_manager.clone(),
                 pending_action_registry: self.pending_action_registry.clone(),
+                context_intelligence: self.context_intelligence.clone(),
             };
 
             // Evaluate conditions
@@ -437,6 +443,7 @@ pub fn spawn_automation_listener(
     trust_tracker: Option<SharedTrustTracker>,
     validation_manager: Option<Arc<ValidationManager>>,
     pending_action_registry: Option<SharedPendingActionRegistry>,
+    context_intelligence: Option<SharedContextIntelligence>,
 ) {
     let listener = AutomationListener::new(
         store,
@@ -448,6 +455,7 @@ pub fn spawn_automation_listener(
         trust_tracker,
         validation_manager,
         pending_action_registry,
+        context_intelligence,
     );
     listener.spawn(receiver);
 }
