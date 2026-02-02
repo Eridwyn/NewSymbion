@@ -312,6 +312,7 @@ mod tests {
         blocked.outcome = DecisionOutcome::Blocked {
             reasons: vec!["test".into()],
             explanation_codes: vec!["TEST".into()],
+            categories: vec![],
         };
         audit.add_record(blocked);
 

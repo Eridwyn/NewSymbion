@@ -310,6 +310,7 @@ pub async fn run_automation(
         trust_tracker: None, // Not available in HTTP context
         validation_manager: Some(app.decision_validation_manager.clone()),
         pending_action_registry: Some(app.pending_action_registry.clone()),
+        context_intelligence: Some(app.context_intelligence.clone()),
     };
 
     // Execute actions

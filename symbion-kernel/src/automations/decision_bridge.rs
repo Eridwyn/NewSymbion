@@ -92,6 +92,7 @@ mod tests {
             name: "Test Automation".to_string(),
             description: None,
             category: Some("custom".to_string()),
+            goal_mode: None,
             enabled: true,
             trigger: Some(Trigger::Manual),
             triggers: None,

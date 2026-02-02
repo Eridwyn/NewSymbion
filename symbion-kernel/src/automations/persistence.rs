@@ -163,6 +163,7 @@ impl AutomationStore {
             name: request.name,
             description: request.description,
             category: request.category.clone().or(Some("custom".to_string())),
+            goal_mode: request.goal_mode,
             enabled: request.enabled,
             trigger: None, // Don't use old format anymore
             triggers,
@@ -216,6 +217,7 @@ impl AutomationStore {
                 automation.name = request.name;
                 automation.description = request.description;
                 automation.category = request.category.clone();
+                automation.goal_mode = request.goal_mode.clone();
                 automation.enabled = request.enabled;
                 automation.trigger = None; // Don't use old format anymore
                 automation.triggers = triggers;
@@ -432,6 +434,7 @@ impl AutomationStore {
                 name: "[Système] Alerte Environnement - Danger".to_string(),
                 description: Some("Notification P0 quand risque moisissure critique".to_string()),
                 category: Some("systeme".to_string()),
+                goal_mode: None, // System automation - no learning intent
                 enabled: true,
                 trigger: Some(Trigger::SensorAlert {
                     room_id: None, // Any room
@@ -455,6 +458,7 @@ impl AutomationStore {
                 name: "[Système] Alerte Environnement - Critique".to_string(),
                 description: Some("Notification P1 quand alerte environnement élevée".to_string()),
                 category: Some("systeme".to_string()),
+                goal_mode: None,
                 enabled: true,
                 trigger: Some(Trigger::SensorAlert {
                     room_id: None,
@@ -478,6 +482,7 @@ impl AutomationStore {
                 name: "[Système] Alerte Environnement - Modéré".to_string(),
                 description: Some("Notification P2 quand alerte environnement modérée".to_string()),
                 category: Some("systeme".to_string()),
+                goal_mode: None,
                 enabled: true,
                 trigger: Some(Trigger::SensorAlert {
                     room_id: None,
@@ -505,6 +510,7 @@ impl AutomationStore {
                 name: "[Système] Plugin Défaillant".to_string(),
                 description: Some("Notification P1 quand un plugin devient défaillant".to_string()),
                 category: Some("systeme".to_string()),
+                goal_mode: None,
                 enabled: true,
                 trigger: Some(Trigger::PluginHealth {
                     plugin_name: None, // Any plugin
@@ -528,6 +534,7 @@ impl AutomationStore {
                 name: "[Système] Échec Récupération Plugin".to_string(),
                 description: Some("Notification P0 quand la récupération d'un plugin échoue".to_string()),
                 category: Some("systeme".to_string()),
+                goal_mode: None,
                 enabled: true,
                 trigger: Some(Trigger::PluginHealth {
                     plugin_name: None,
@@ -551,6 +558,7 @@ impl AutomationStore {
                 name: "[Système] Plugin Récupéré".to_string(),
                 description: Some("Notification P2 quand un plugin est récupéré".to_string()),
                 category: Some("systeme".to_string()),
+                goal_mode: None,
                 enabled: true,
                 trigger: Some(Trigger::PluginHealth {
                     plugin_name: None,

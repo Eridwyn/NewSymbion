@@ -366,6 +366,7 @@ mod tests {
         let outcome = DecisionOutcome::Blocked {
             reasons: vec!["test".into()],
             explanation_codes: vec!["TEST".into()],
+            categories: vec![],
         };
 
         metrics.record_decision(&outcome);
@@ -537,6 +538,7 @@ mod tests {
             metrics.record_decision(&DecisionOutcome::Blocked {
                 reasons: vec!["test".into()],
                 explanation_codes: vec!["TEST".into()],
+                categories: vec![],
             });
         }
 

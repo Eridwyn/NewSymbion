@@ -285,6 +285,7 @@ mod tests {
         record.outcome = DecisionOutcome::Blocked {
             reasons: vec!["test".to_string()],
             explanation_codes: vec!["TEST".to_string()],
+            categories: vec![],
         };
         manager.persist(&record).expect("Failed to persist");
 
