@@ -888,7 +888,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             if let Ok(json) = serde_json::to_string(&health) {
-                if let Err(e) = heartbeat_client.publish(topics::HEALTH, QoS::AtMostOnce, false, json).await {
+                // [P0-6] Use QoS::AtLeastOnce (QoS 1) for health - loss of health msg is critical
+                if let Err(e) = heartbeat_client.publish(topics::HEALTH, QoS::AtLeastOnce, false, json).await {
                     eprintln!("[notes] heartbeat failed: {:?}", e);
                 }
             }
