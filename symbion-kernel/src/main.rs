@@ -43,6 +43,7 @@ mod notifications;  // Notification manager with FCM, SMTP, ntfy.sh
 mod notification_config;  // Notification configuration (enable/disable, templates)
 mod context_intelligence;  // Intelligent context adaptation system
 mod intelligence_http;  // Intelligence API endpoints
+mod plugins;  // Plugin Contract v1 - Plugin system structures and types
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
