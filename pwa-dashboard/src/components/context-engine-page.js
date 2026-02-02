@@ -8,6 +8,7 @@
 import { LitElement, html, css } from 'lit'
 import csrfService from '../services/csrf-service.js'
 import automationsService from '../services/automations-service.js'
+import { getDayNameShort, getDayNameFull, getAllDayNamesShort, utcHourToLocal } from '../utils/time-utils.js'
 
 // Import du composant timeline (utilisé dans le template)
 import './automation-timeline.js'
@@ -3256,6 +3257,20 @@ class ContextEnginePage extends LitElement {
         </select>
       </div>
 
+      <div class="form-group">
+        <label>Mode cible (apprentissage)</label>
+        <select class="form-input"
+          @change="${e => { this.editingAutomation.goal_mode = e.target.value || null; this.requestUpdate() }}">
+          <option value="" ?selected="${!auto.goal_mode}">Aucun (pas d'apprentissage)</option>
+          ${(this.schema?.dynamic_values?.modes || []).map(mode => html`
+            <option value="${mode.value}" ?selected="${auto.goal_mode === mode.value}">${mode.label}</option>
+          `)}
+        </select>
+        <small style="color: var(--color-dark-text-tertiary); font-size: 0.75rem; margin-top: 0.25rem; display: block;">
+          Le mode que cette automation vise à atteindre. Permet à l'Intelligence d'apprendre.
+        </small>
+      </div>
+
       <!-- Règles Section (Triggers + Conditions unifiés) -->
       ${this.renderRulesSection(auto)}
 
@@ -5154,7 +5169,7 @@ Exemple :
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem;">
               <div style="padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
                 <div style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); text-transform: uppercase;">Jour/Heure</div>
-                <div style="font-size: 0.85rem; color: var(--color-dark-text-primary);">${this.getDayNameFull(signals.day_of_week)} ${signals.hour}h</div>
+                <div style="font-size: 0.85rem; color: var(--color-dark-text-primary);">${this.getDayNameFull(signals.day_of_week)} ${utcHourToLocal(signals.hour)}h</div>
               </div>
               <div style="padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
                 <div style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); text-transform: uppercase;">Mode actuel</div>
@@ -5210,7 +5225,7 @@ Exemple :
                         ${this.getModeIcon(p.mode)} ${this.getModeName(p.mode)}
                       </td>
                       <td style="padding: 0.5rem 0.25rem; color: var(--color-dark-text-secondary);">${this.getDayNameShort(p.day_of_week)}</td>
-                      <td style="padding: 0.5rem 0.25rem; color: var(--color-dark-text-secondary);">${p.hour}h</td>
+                      <td style="padding: 0.5rem 0.25rem; color: var(--color-dark-text-secondary);">${utcHourToLocal(p.hour)}h</td>
                       <td style="padding: 0.5rem 0.25rem; color: var(--color-dark-text-secondary);">${p.occurrences}</td>
                       <td style="padding: 0.5rem 0.25rem;">
                         <span style="color: ${p.confidence >= 0.7 ? '#22c55e' : p.confidence >= 0.4 ? '#fb923c' : '#9ca3af'}; font-weight: 600;">
@@ -5285,13 +5300,13 @@ Exemple :
   }
 
   getDayNameShort(day) {
-    const days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
-    return days[day] || '?'
+    // Use centralized ISO convention (0=Monday from kernel)
+    return getDayNameShort(day)
   }
 
   getDayNameFull(day) {
-    const days = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
-    return days[day] || '?'
+    // Use centralized ISO convention (0=Monday from kernel)
+    return getDayNameFull(day)
   }
 
   renderConfigTab() {
@@ -5672,7 +5687,7 @@ Exemple :
   // ============ PLANNING TAB ============
 
   renderPlanningTab() {
-    const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+    const dayNames = getAllDayNamesShort() // ISO order (Mon-Sun)
     const hours = [6, 8, 10, 12, 14, 16, 18, 20, 22]
 
     return html`
@@ -5745,7 +5760,7 @@ Exemple :
 
   renderRuleCard(rule) {
     const mode = this.modes.find(m => m.id === rule.mode_id)
-    const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+    const dayNames = getAllDayNamesShort() // ISO order (Mon-Sun)
 
     return html`
       <div class="rule-card ${!rule.enabled ? 'disabled' : ''}"
@@ -5775,7 +5790,7 @@ Exemple :
 
   renderRuleForm() {
     const isEditing = !!this.editingRule
-    const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+    const dayNames = getAllDayNamesShort() // ISO order (Mon-Sun)
 
     return html`
       <div class="modal-overlay" @click="${() => this.closeRuleForm()}">
