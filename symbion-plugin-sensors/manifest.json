@@ -1,0 +1,51 @@
+{
+  "spec_version": "1.0",
+  "plugin_id": "sensors",
+  "name": "Symbion Environment Sensors",
+  "version": "1.1.0",
+  "description": "Gestion des capteurs IoT environnementaux (température, humidité, présence)",
+  "capabilities": [
+    {
+      "action_type": "list_sensors",
+      "description": "Lister tous les capteurs enregistrés",
+      "impact_level": "low",
+      "parameters": {}
+    },
+    {
+      "action_type": "get_environment",
+      "description": "Récupérer l'état environnemental d'une pièce",
+      "impact_level": "low",
+      "parameters": {
+        "room_id": { "type": "string", "required": true }
+      }
+    },
+    {
+      "action_type": "get_sensor",
+      "description": "Récupérer les infos d'un capteur spécifique",
+      "impact_level": "low",
+      "parameters": {
+        "sensor_id": { "type": "string", "required": true }
+      }
+    }
+  ],
+  "events": [
+    {
+      "event_type": "sensor_registered",
+      "description": "Un nouveau capteur s'est enregistré"
+    },
+    {
+      "event_type": "sensor_reading",
+      "description": "Nouvelle lecture environnementale reçue"
+    },
+    {
+      "event_type": "environment_alert",
+      "description": "Alerte environnementale déclenchée (mold risk, temp low)"
+    },
+    {
+      "event_type": "sensor_offline",
+      "description": "Un capteur est devenu hors ligne"
+    }
+  ],
+  "health_endpoint": "/health",
+  "socket_path": "/run/symbion-plugins/sensors.sock"
+}

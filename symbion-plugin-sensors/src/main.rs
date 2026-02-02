@@ -1,13 +1,21 @@
 /**
- * SYMBION PLUGIN - Environment Sensors (F1)
+ * SYMBION PLUGIN - Environment Sensors
  *
- * RÔLE : Plugin standalone pour gestion sensors IoT environnementaux
+ * Contract v1.0 compliant plugin for IoT environmental sensors
  *
- * COMMUNICATION MQTT :
- * - Subscribe : symbion/sensors/registration@v1 (auto-registration ESP32)
- * - Subscribe : symbion/sensors/+/env@v1 (lectures environnement)
- * - Publish   : symbion/plugin/sensors/response@v1 (réponses API)
- * - Publish   : symbion/dashboard/environment@v1 (push dashboard)
+ * ARCHITECTURE:
+ * - Plugin = exécutant pur (pas de décision)
+ * - Actions reçues via POST /actions (Kernel → Plugin)
+ * - Events émis via MQTT (Plugin → Kernel)
+ *
+ * MQTT TOPICS (Contract v1.0):
+ * - symbion/plugins/sensors/manifest  (publish at startup)
+ * - symbion/plugins/sensors/events    (emit events)
+ * - symbion/plugins/sensors/health    (heartbeat every 30s)
+ *
+ * LEGACY TOPICS (backward compatibility):
+ * - symbion/sensors/registration@v1   (ESP32 auto-registration)
+ * - symbion/sensors/+/env@v1          (environment readings)
  */
 
 use parking_lot::RwLock;
@@ -28,6 +36,119 @@ use axum::{
 use symbion_plugin_common::{PluginHttpServer, PluginRegistrationBuilder};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::broadcast;
+use uuid::Uuid;
+
+// ============================================================================
+// CONTRACT v1.0 CONSTANTS
+// ============================================================================
+
+const SPEC_VERSION: &str = "1.0";
+const PLUGIN_ID: &str = "sensors";
+const PLUGIN_VERSION: &str = "1.1.0";
+
+// ============================================================================
+// CONTRACT v1.0 MQTT TOPICS
+// ============================================================================
+
+mod topics {
+    pub const MANIFEST: &str = "symbion/plugins/sensors/manifest";
+    pub const EVENTS: &str = "symbion/plugins/sensors/events";
+    pub const HEALTH: &str = "symbion/plugins/sensors/health";
+    // Legacy topics (backward compatibility)
+    pub const LEGACY_REGISTRATION: &str = "symbion/sensors/registration@v1";
+    pub const LEGACY_ENV_PATTERN: &str = "symbion/sensors/+/env@v1";
+}
+
+// ============================================================================
+// CONTRACT v1.0 STRUCTURES
+// ============================================================================
+
+/// Action request from Kernel (Contract v1.0)
+#[derive(Debug, Clone, Deserialize)]
+pub struct ActionRequest {
+    pub spec_version: String,
+    pub action_id: Uuid,
+    pub action_type: String,
+    pub payload: serde_json::Value,
+    #[serde(default)]
+    pub metadata: serde_json::Value,
+}
+
+/// Action response to Kernel (Contract v1.0)
+#[derive(Debug, Clone, Serialize)]
+pub struct ActionResponse {
+    pub spec_version: String,
+    pub action_id: Uuid,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<serde_json::Value>,
+    pub execution_time_ms: u64,
+}
+
+impl ActionResponse {
+    fn success(action_id: Uuid, result: serde_json::Value, execution_time_ms: u64) -> Self {
+        Self {
+            spec_version: SPEC_VERSION.to_string(),
+            action_id,
+            status: "success".to_string(),
+            result: Some(result),
+            error: None,
+            execution_time_ms,
+        }
+    }
+
+    fn error(action_id: Uuid, error_msg: &str, execution_time_ms: u64) -> Self {
+        Self {
+            spec_version: SPEC_VERSION.to_string(),
+            action_id,
+            status: "error".to_string(),
+            result: None,
+            error: Some(serde_json::json!({ "message": error_msg })),
+            execution_time_ms,
+        }
+    }
+}
+
+/// Event message to Kernel (Contract v1.0)
+#[derive(Debug, Clone, Serialize)]
+pub struct EventMessage {
+    pub spec_version: String,
+    pub event_type: String,
+    pub plugin_id: String,
+    pub payload: serde_json::Value,
+    pub timestamp: String,
+}
+
+impl EventMessage {
+    fn new(event_type: &str, payload: serde_json::Value) -> Self {
+        Self {
+            spec_version: SPEC_VERSION.to_string(),
+            event_type: event_type.to_string(),
+            plugin_id: PLUGIN_ID.to_string(),
+            payload,
+            timestamp: time::OffsetDateTime::now_utc()
+                .format(&time::format_description::well_known::Rfc3339)
+                .unwrap_or_else(|_| "unknown".to_string()),
+        }
+    }
+}
+
+/// Health status for heartbeat (Contract v1.0)
+#[derive(Debug, Clone, Serialize)]
+pub struct HealthStatus {
+    pub spec_version: String,
+    pub plugin_id: String,
+    pub status: String,
+    pub uptime_seconds: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_action_at: Option<String>,
+}
+
+// ============================================================================
+// PLUGIN DATA STRUCTURES
+// ============================================================================
 
 /// Sensor metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,7 +210,7 @@ struct SensorRegistration {
 }
 
 /// Environment reading from MQTT
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct EnvReadingMqtt {
     sensor_id: String,
     temperature_c: f32,
@@ -270,13 +391,13 @@ impl SensorRegistry {
     }
 }
 
-// ========== HTTP REST API Handlers ==========
+// ========== HTTP REST API Handlers (Legacy + Contract v1.0 compatible) ==========
 
 /// GET /sensors - Liste tous les sensors enregistrés
 async fn list_sensors_http(
-    State(registry): State<Arc<SensorRegistry>>,
+    State(state): State<AppState>,
 ) -> Json<serde_json::Value> {
-    let sensors = registry.list_sensors();
+    let sensors = state.registry.list_sensors();
     Json(serde_json::json!({
         "sensors": sensors,
         "count": sensors.len()
@@ -285,10 +406,10 @@ async fn list_sensors_http(
 
 /// GET /environment/:room_id - Récupère l'état environnemental d'une pièce
 async fn get_environment_http(
-    State(registry): State<Arc<SensorRegistry>>,
+    State(state): State<AppState>,
     AxumPath(room_id): AxumPath<String>,
 ) -> Result<Json<RoomEnvironmentState>, (StatusCode, String)> {
-    match registry.get_environment(&room_id) {
+    match state.registry.get_environment(&room_id) {
         Some(env) => Ok(Json(env)),
         None => Err((
             StatusCode::NOT_FOUND,
@@ -297,7 +418,7 @@ async fn get_environment_http(
     }
 }
 
-/// Health check endpoint
+/// Health check endpoint (Contract v1.0)
 async fn health_check() -> Json<serde_json::Value> {
     use std::sync::OnceLock;
     static START_TIME: OnceLock<std::time::Instant> = OnceLock::new();
@@ -306,32 +427,163 @@ async fn health_check() -> Json<serde_json::Value> {
 
     Json(serde_json::json!({
         "status": "healthy",
-        "plugin": "sensors",
-        "version": "0.1.0",
+        "plugin_id": PLUGIN_ID,
+        "spec_version": SPEC_VERSION,
         "uptime_seconds": uptime_secs
     }))
 }
 
-/// Construit le router HTTP pour le plugin sensors
-fn build_router(registry: Arc<SensorRegistry>) -> Router {
+// ============================================================================
+// CONTRACT v1.0 ACTION HANDLERS
+// ============================================================================
+
+/// AppState for Contract v1.0 handlers
+#[derive(Clone)]
+pub struct AppState {
+    registry: Arc<SensorRegistry>,
+    mqtt_client: AsyncClient,
+}
+
+/// POST /actions - Contract v1.0 action endpoint
+async fn handle_action(
+    State(state): State<AppState>,
+    Json(request): Json<ActionRequest>,
+) -> Json<serde_json::Value> {
+    let start = std::time::Instant::now();
+
+    println!(
+        "[sensors] Contract v1.0 action received: {} (id: {})",
+        request.action_type, request.action_id
+    );
+
+    let response = match request.action_type.as_str() {
+        "list_sensors" => handle_list_sensors(&state, &request).await,
+        "get_environment" => handle_get_environment(&state, &request).await,
+        "get_sensor" => handle_get_sensor(&state, &request).await,
+        _ => ActionResponse::error(
+            request.action_id,
+            &format!("Unknown action type: {}", request.action_type),
+            start.elapsed().as_millis() as u64,
+        ),
+    };
+
+    Json(serde_json::to_value(response).unwrap_or_else(|_| serde_json::json!({"error": "serialization failed"})))
+}
+
+async fn handle_list_sensors(state: &AppState, request: &ActionRequest) -> ActionResponse {
+    let start = std::time::Instant::now();
+    let sensors = state.registry.list_sensors();
+
+    ActionResponse::success(
+        request.action_id,
+        serde_json::json!({
+            "sensors": sensors,
+            "count": sensors.len()
+        }),
+        start.elapsed().as_millis() as u64,
+    )
+}
+
+async fn handle_get_environment(state: &AppState, request: &ActionRequest) -> ActionResponse {
+    let start = std::time::Instant::now();
+
+    let room_id = request.payload.get("room_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    if room_id.is_empty() {
+        return ActionResponse::error(
+            request.action_id,
+            "Missing required parameter: room_id",
+            start.elapsed().as_millis() as u64,
+        );
+    }
+
+    match state.registry.get_environment(room_id) {
+        Some(env) => ActionResponse::success(
+            request.action_id,
+            serde_json::to_value(env).unwrap_or_default(),
+            start.elapsed().as_millis() as u64,
+        ),
+        None => ActionResponse::error(
+            request.action_id,
+            &format!("No environment data for room '{}'", room_id),
+            start.elapsed().as_millis() as u64,
+        ),
+    }
+}
+
+async fn handle_get_sensor(state: &AppState, request: &ActionRequest) -> ActionResponse {
+    let start = std::time::Instant::now();
+
+    let sensor_id = request.payload.get("sensor_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    if sensor_id.is_empty() {
+        return ActionResponse::error(
+            request.action_id,
+            "Missing required parameter: sensor_id",
+            start.elapsed().as_millis() as u64,
+        );
+    }
+
+    let sensors = state.registry.sensors.read();
+    match sensors.get(sensor_id) {
+        Some(sensor) => ActionResponse::success(
+            request.action_id,
+            serde_json::to_value(sensor).unwrap_or_default(),
+            start.elapsed().as_millis() as u64,
+        ),
+        None => ActionResponse::error(
+            request.action_id,
+            &format!("Sensor '{}' not found", sensor_id),
+            start.elapsed().as_millis() as u64,
+        ),
+    }
+}
+
+// ============================================================================
+// CONTRACT v1.0 EVENT EMISSION
+// ============================================================================
+
+/// Emit an event to MQTT (Contract v1.0)
+async fn emit_event(client: &AsyncClient, event: EventMessage) {
+    match serde_json::to_string(&event) {
+        Ok(payload) => {
+            if let Err(e) = client.publish(topics::EVENTS, QoS::AtLeastOnce, false, payload).await {
+                eprintln!("[sensors] failed to emit event {}: {:?}", event.event_type, e);
+            } else {
+                println!("[sensors] emitted event: {}", event.event_type);
+            }
+        }
+        Err(e) => {
+            eprintln!("[sensors] failed to serialize event: {:?}", e);
+        }
+    }
+}
+
+/// Construit le router HTTP pour le plugin sensors (Contract v1.0)
+fn build_router(state: AppState) -> Router {
+    use axum::routing::post;
+
     Router::new()
         .route("/health", get(health_check))
+        .route("/actions", post(handle_action))
         .route("/sensors", get(list_sensors_http))
         .route("/environment/:room_id", get(get_environment_http))
-        .with_state(registry)
+        .with_state(state)
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("[sensors-plugin] Symbion Environment Sensors Plugin v0.1.0");
-    println!("[sensors-plugin] Starting...");
-
-    let registry = Arc::new(SensorRegistry::new());
+    println!("[sensors] Symbion Environment Sensors Plugin {} (Contract v{})", PLUGIN_VERSION, SPEC_VERSION);
+    println!("[sensors] Starting...");
 
     // Unix socket path
     let socket_path = "/run/symbion-plugins/sensors.sock";
 
-    // Cleanup old socket at startup (triple safety net)
+    // Cleanup old socket at startup
     if std::path::Path::new(socket_path).exists() {
         eprintln!("[sensors] cleaning up old socket at startup");
         let _ = std::fs::remove_file(socket_path);
@@ -340,22 +592,77 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create shutdown channel for graceful termination
     let (shutdown_tx, mut shutdown_rx) = broadcast::channel::<()>(1);
 
-    // Construire le router HTTP
-    let app = build_router(registry.clone());
+    // MQTT setup (before HTTP so we can pass client to AppState)
+    let mut mqttoptions = MqttOptions::new("symbion-plugin-sensors", "127.0.0.1", 1883);
+    mqttoptions.set_keep_alive(Duration::from_secs(30));
+    mqttoptions.set_clean_session(true);
 
-    // Démarrer le serveur HTTP en arrière-plan
+    let (client, mut eventloop) = AsyncClient::new(mqttoptions, 10);
+
+    // Create registry and AppState
+    let registry = Arc::new(SensorRegistry::new());
+    let app_state = AppState {
+        registry: registry.clone(),
+        mqtt_client: client.clone(),
+    };
+
+    // Build router with AppState (Contract v1.0)
+    let app = build_router(app_state);
+
+    // Start HTTP server
     let socket_path_clone = socket_path.to_string();
     tokio::spawn(async move {
-        println!("[sensors-plugin] Starting HTTP server on Unix socket: {}", socket_path_clone);
+        println!("[sensors] Starting HTTP server on Unix socket: {}", socket_path_clone);
         if let Err(e) = PluginHttpServer::new(&socket_path_clone, app).serve().await {
-            eprintln!("[sensors-plugin] HTTP server error: {:?}", e);
+            eprintln!("[sensors] HTTP server error: {:?}", e);
         }
     });
 
-    // Attendre que le socket soit créé
+    // Wait for socket to be created
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    // Service Discovery: Auto-registration avec le kernel
+    // Publish manifest (Contract v1.0)
+    let manifest = include_str!("../manifest.json");
+    if let Err(e) = client.publish(topics::MANIFEST, QoS::AtLeastOnce, true, manifest).await {
+        eprintln!("[sensors] failed to publish manifest: {:?}", e);
+    } else {
+        println!("[sensors] ✅ manifest published on {}", topics::MANIFEST);
+    }
+
+    // Subscribe to legacy sensor topics (backward compatibility)
+    client
+        .subscribe(topics::LEGACY_REGISTRATION, QoS::AtLeastOnce)
+        .await?;
+    client
+        .subscribe(topics::LEGACY_ENV_PATTERN, QoS::AtLeastOnce)
+        .await?;
+
+    println!("[sensors] MQTT subscriptions active, Contract v1.0 ready");
+
+    // Heartbeat loop (Contract v1.0 - every 30 seconds)
+    let heartbeat_client = client.clone();
+    tokio::spawn(async move {
+        use std::sync::OnceLock;
+        static START_TIME: OnceLock<std::time::Instant> = OnceLock::new();
+        let start = START_TIME.get_or_init(std::time::Instant::now);
+
+        let mut interval = tokio::time::interval(Duration::from_secs(30));
+        loop {
+            interval.tick().await;
+            let health = HealthStatus {
+                spec_version: SPEC_VERSION.to_string(),
+                plugin_id: PLUGIN_ID.to_string(),
+                status: "healthy".to_string(),
+                uptime_seconds: start.elapsed().as_secs(),
+                last_action_at: None,
+            };
+            if let Ok(payload) = serde_json::to_string(&health) {
+                let _ = heartbeat_client.publish(topics::HEALTH, QoS::AtLeastOnce, false, payload).await;
+            }
+        }
+    });
+
+    // Service Discovery (legacy, but still useful)
     let socket_path_clone = socket_path.to_string();
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(500)).await;
@@ -364,33 +671,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .route("/sensors")
             .route("/environment/:room_id")
             .route("/health")
-            .version("1.0.0")
-            .description("Environment sensors plugin with MQTT and HTTP API")
+            .route("/actions")
+            .version(PLUGIN_VERSION)
+            .description("Environment sensors plugin (Contract v1.0)")
             .register()
             .await
         {
-            Ok(_) => println!("[sensors-plugin] ✅ Registered with kernel via Service Discovery"),
-            Err(e) => eprintln!("[sensors-plugin] ❌ Failed to register with kernel: {}", e),
+            Ok(_) => println!("[sensors] ✅ Registered with kernel via Service Discovery"),
+            Err(e) => eprintln!("[sensors] ❌ Failed to register with kernel: {}", e),
         }
     });
-
-    // MQTT setup
-    let mut mqttoptions = MqttOptions::new("symbion-plugin-sensors", "127.0.0.1", 1883);
-    mqttoptions.set_keep_alive(Duration::from_secs(30));
-    mqttoptions.set_clean_session(true);
-
-    let (client, mut eventloop) = AsyncClient::new(mqttoptions, 10);
-
-    // Subscribe to sensor topics
-    client
-        .subscribe("symbion/sensors/registration@v1", QoS::AtLeastOnce)
-        .await?;
-    client
-        .subscribe("symbion/sensors/+/env@v1", QoS::AtLeastOnce)
-        .await?;
-
-    println!("[sensors-plugin] MQTT subscriptions active");
-    println!("[sensors-plugin] Waiting for sensor data...");
 
     // Signal handlers for graceful shutdown (SIGTERM from systemd, SIGINT from Ctrl+C)
     let socket_path_for_cleanup = socket_path.to_string();
@@ -450,36 +740,81 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn handle_mqtt_message(
     registry: &Arc<SensorRegistry>,
-    _client: &AsyncClient,
+    client: &AsyncClient,
     publish: Publish,
 ) {
     let topic = publish.topic.as_str();
     let payload = String::from_utf8_lossy(&publish.payload);
 
-    if topic == "symbion/sensors/registration@v1" {
+    if topic == topics::LEGACY_REGISTRATION {
         // Sensor registration
         match serde_json::from_str::<SensorRegistration>(&payload) {
             Ok(reg) => {
                 let sensor = registry.register_sensor(reg);
                 println!(
-                    "[sensors-plugin] sensor registered: {} ({})",
+                    "[sensors] sensor registered: {} ({})",
                     sensor.sensor_id, sensor.room_id
                 );
+
+                // Emit Contract v1.0 event
+                let event = EventMessage::new(
+                    "sensor_registered",
+                    serde_json::json!({
+                        "sensor_id": sensor.sensor_id,
+                        "room_id": sensor.room_id,
+                        "sensor_type": sensor.sensor_type
+                    }),
+                );
+                emit_event(client, event).await;
             }
             Err(e) => {
-                eprintln!("[sensors-plugin] failed to parse registration: {}", e);
+                eprintln!("[sensors] failed to parse registration: {}", e);
             }
         }
     } else if topic.starts_with("symbion/sensors/") && topic.ends_with("/env@v1") {
         // Environment reading
         match serde_json::from_str::<EnvReadingMqtt>(&payload) {
             Ok(reading) => {
-                if let Err(e) = registry.add_reading(reading) {
-                    eprintln!("[sensors-plugin] failed to add reading: {}", e);
+                let sensor_id = reading.sensor_id.clone();
+
+                // Get previous status before adding reading
+                let prev_status = {
+                    let sensors = registry.sensors.read();
+                    sensors.get(&sensor_id).and_then(|s| {
+                        registry.environments.read().get(&s.room_id).map(|e| e.status)
+                    })
+                };
+
+                if let Err(e) = registry.add_reading(reading.clone()) {
+                    eprintln!("[sensors] failed to add reading: {}", e);
+                } else {
+                    // Check if status changed (for alert events)
+                    let new_status = {
+                        let sensors = registry.sensors.read();
+                        sensors.get(&sensor_id).and_then(|s| {
+                            registry.environments.read().get(&s.room_id).map(|e| e.status)
+                        })
+                    };
+
+                    // Emit environment_alert if status changed to an alert state
+                    if let (Some(prev), Some(new)) = (prev_status, new_status) {
+                        if prev != new && (new == EnvironmentStatus::MoldRisk || new == EnvironmentStatus::TempLow) {
+                            let event = EventMessage::new(
+                                "environment_alert",
+                                serde_json::json!({
+                                    "sensor_id": sensor_id,
+                                    "status": format!("{:?}", new),
+                                    "temperature_c": reading.temperature_c,
+                                    "humidity_pct": reading.humidity_pct
+                                }),
+                            );
+                            emit_event(client, event).await;
+                        }
+                    }
                 }
             }
             Err(e) => {
-                eprintln!("[sensors-plugin] failed to parse env reading: {}", e);
+                eprintln!("[sensors] failed to parse env reading: {}", e);
             }
         }
     }
