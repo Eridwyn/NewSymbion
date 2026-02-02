@@ -204,7 +204,9 @@ impl ModeRegistry {
     /// Récupère le mode par défaut (Veille)
     pub fn get_default(&self) -> DynamicMode {
         self.get("mode-veille")
-            .unwrap_or_else(|| default_system_modes().last().unwrap().clone())
+            .unwrap_or_else(|| default_system_modes().last()
+                .expect("[P0-4] default_system_modes() is hardcoded non-empty Vec")
+                .clone())
     }
 
     /// Compte le nombre de modes

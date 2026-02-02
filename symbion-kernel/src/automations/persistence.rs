@@ -152,7 +152,9 @@ impl AutomationStore {
             anyhow::bail!("At least one trigger is required");
         }
 
-        let id = format!("auto_{}", Uuid::new_v4().to_string().split('-').next().unwrap());
+        // [P0-4] UUID v4 format is always xxxxxxxx-xxxx-..., first segment always exists
+        let id = format!("auto_{}", Uuid::new_v4().to_string().split('-').next()
+            .expect("[P0-4] UUID v4 always has at least one hyphen-separated segment"));
         let now = OffsetDateTime::now_utc();
 
         // Normalize triggers: convert old format to new TriggerGroup
