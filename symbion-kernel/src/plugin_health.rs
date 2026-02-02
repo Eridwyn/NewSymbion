@@ -160,8 +160,33 @@ impl PluginHealthMonitor {
         })
     }
 
+    /// [SECURITY] P0-2: Validate plugin_name before shell execution
+    /// Only allows alphanumeric characters, underscores, and hyphens.
+    /// Prevents command injection via malicious plugin names.
+    fn validate_plugin_name(name: &str) -> Result<(), String> {
+        // Whitelist pattern: only [a-zA-Z0-9_-]+
+        if name.is_empty() {
+            return Err("Plugin name cannot be empty".to_string());
+        }
+        if name.len() > 64 {
+            return Err("Plugin name too long (max 64 chars)".to_string());
+        }
+        for c in name.chars() {
+            if !c.is_ascii_alphanumeric() && c != '_' && c != '-' {
+                return Err(format!(
+                    "Invalid character '{}' in plugin name. Only [a-zA-Z0-9_-] allowed.",
+                    c
+                ));
+            }
+        }
+        Ok(())
+    }
+
     /// Tente un auto-recovery d'un plugin via systemctl restart
     async fn attempt_recovery(&self, plugin_name: &str) -> Result<(), String> {
+        // [SECURITY] P0-2: Validate plugin_name before shell execution
+        Self::validate_plugin_name(plugin_name)?;
+
         let service_name = format!("symbion-plugin-{}", plugin_name);
 
         println!("[plugin-health] 🔄 Attempting auto-recovery for plugin '{}'...", plugin_name);
