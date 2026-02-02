@@ -20,24 +20,35 @@ class AgentsService extends LitElement {
     this.agents = []
     this.status = 'loading'
     this.apiService = null
+    // [P0-5] Store handler reference for cleanup
+    this._statusChangeHandler = null
   }
-  
+
   connectedCallback() {
     super.connectedCallback()
     this.initApiService()
   }
-  
+
+  // [P0-5] Cleanup event listeners to prevent memory leaks
+  disconnectedCallback() {
+    super.disconnectedCallback()
+    if (this.apiService && this._statusChangeHandler) {
+      this.apiService.removeEventListener('status-change', this._statusChangeHandler)
+    }
+  }
+
   async initApiService() {
-    // Utilise le service API existant 
+    // Utilise le service API existant
     this.apiService = document.querySelector('api-service') || new ApiService()
     if (!document.querySelector('api-service')) {
       document.body.appendChild(this.apiService)
     }
-    
-    // Écoute les changements de statut API
-    this.apiService.addEventListener('status-change', (e) => {
+
+    // [P0-5] Store handler for cleanup, then add listener
+    this._statusChangeHandler = (e) => {
       this.status = e.detail.status
-    })
+    }
+    this.apiService.addEventListener('status-change', this._statusChangeHandler)
   }
   
   // ===== Agents Management =====
