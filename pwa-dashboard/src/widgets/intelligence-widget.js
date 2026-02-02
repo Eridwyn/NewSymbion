@@ -366,12 +366,127 @@ class IntelligenceWidget extends LitElement {
       margin-bottom: 0.5rem;
       opacity: 0.5;
     }
+
+    /* Health Section (v1.1.9 P1) */
+    .health-section {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      background: rgba(139, 92, 246, 0.05);
+      border: 1px solid rgba(139, 92, 246, 0.15);
+      border-radius: 10px;
+    }
+
+    .health-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .health-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--color-dark-text-secondary, #adb5bd);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .health-period {
+      font-size: 0.65rem;
+      color: var(--color-dark-text-tertiary, #6c757d);
+      padding: 0.15rem 0.4rem;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+    }
+
+    .health-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.5rem;
+    }
+
+    .health-stat {
+      padding: 0.5rem;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .health-stat-value {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--color-dark-text-primary, #f8f9fa);
+    }
+
+    .health-stat-value.success {
+      color: #22c55e;
+    }
+
+    .health-stat-value.warning {
+      color: #fb923c;
+    }
+
+    .health-stat-value.na {
+      color: var(--color-dark-text-tertiary, #6c757d);
+      font-size: 0.9rem;
+    }
+
+    .health-stat-label {
+      font-size: 0.65rem;
+      color: var(--color-dark-text-tertiary, #6c757d);
+      margin-top: 0.2rem;
+    }
+
+    .health-divider {
+      grid-column: span 2;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.06);
+      margin: 0.25rem 0;
+    }
+
+    .accuracy-detail {
+      grid-column: span 2;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+    }
+
+    .accuracy-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .accuracy-main {
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .accuracy-main.na {
+      color: var(--color-dark-text-tertiary, #6c757d);
+    }
+
+    .accuracy-sub {
+      font-size: 0.6rem;
+      color: var(--color-dark-text-tertiary, #6c757d);
+    }
+
+    .accuracy-warning {
+      font-size: 0.6rem;
+      color: #fb923c;
+      font-style: italic;
+    }
   `
 
   static properties = {
     intelligenceStatus: { type: Object },
     signals: { type: Object },
     patterns: { type: Array },
+    health: { type: Object },
     loading: { type: Boolean },
     showAdvanced: { type: Boolean },
   }
@@ -381,6 +496,7 @@ class IntelligenceWidget extends LitElement {
     this.intelligenceStatus = null
     this.signals = null
     this.patterns = []
+    this.health = null
     this.loading = true
     this.showAdvanced = false
   }
@@ -405,16 +521,18 @@ class IntelligenceWidget extends LitElement {
         return
       }
 
-      // Load status, signals, and patterns in parallel
-      const [status, signalsData, patternsData] = await Promise.all([
+      // Load status, signals, patterns, and health in parallel
+      const [status, signalsData, patternsData, healthData] = await Promise.all([
         apiService.request('/v1/intelligence/status').catch(() => null),
         apiService.request('/v1/intelligence/signals').catch(() => null),
         apiService.request('/v1/intelligence/patterns').catch(() => ({ patterns: [] })),
+        apiService.request('/v1/intelligence/health').catch(() => null),
       ])
 
       this.intelligenceStatus = status
       this.signals = signalsData
       this.patterns = patternsData?.patterns || []
+      this.health = healthData
       this.loading = false
     } catch (e) {
       console.error('[intelligence-widget] Failed to load data:', e)
@@ -501,6 +619,79 @@ class IntelligenceWidget extends LitElement {
     } catch (e) {
       console.error('[intelligence-widget] Export failed:', e)
     }
+  }
+
+  renderHealthSection() {
+    if (!this.health) return ''
+
+    const counters = this.health.counters || {}
+    const accuracy = this.health.accuracy || {}
+    const patternsActive = this.health.patterns_active || 0
+    const patternsEstablished = this.health.patterns_established || 0
+
+    // Accuracy display logic: null = N/A (sample too small)
+    const hasEnoughSamples = accuracy.accuracy_strict !== null
+    const accuracyValue = hasEnoughSamples
+      ? `${Math.round(accuracy.accuracy_strict)}%`
+      : 'N/A'
+    const accuracyClass = hasEnoughSamples
+      ? (accuracy.accuracy_strict >= 70 ? 'success' : 'warning')
+      : 'na'
+
+    return html`
+      <div class="health-section">
+        <div class="health-header">
+          <span class="health-title">📊 Health</span>
+          <span class="health-period">24h</span>
+        </div>
+
+        <div class="health-grid">
+          <!-- 24h Counters -->
+          <div class="health-stat">
+            <div class="health-stat-value">${counters.push_sent || 0}</div>
+            <div class="health-stat-label">Push envoyés</div>
+          </div>
+          <div class="health-stat">
+            <div class="health-stat-value">${counters.suggestions_generated || 0}</div>
+            <div class="health-stat-label">Suggestions</div>
+          </div>
+          <div class="health-stat">
+            <div class="health-stat-value ${counters.auto_applied > 0 ? 'success' : ''}">${counters.auto_applied || 0}</div>
+            <div class="health-stat-label">Auto-apply</div>
+          </div>
+          <div class="health-stat">
+            <div class="health-stat-value ${counters.denied > 0 ? 'warning' : ''}">${counters.denied || 0}</div>
+            <div class="health-stat-label">Refusés</div>
+          </div>
+
+          <div class="health-divider"></div>
+
+          <!-- Patterns -->
+          <div class="health-stat">
+            <div class="health-stat-value">${patternsActive}</div>
+            <div class="health-stat-label">Patterns actifs</div>
+          </div>
+          <div class="health-stat">
+            <div class="health-stat-value ${patternsEstablished > 0 ? 'success' : ''}">${patternsEstablished}</div>
+            <div class="health-stat-label">Établis</div>
+          </div>
+
+          <div class="health-divider"></div>
+
+          <!-- Accuracy detail -->
+          <div class="accuracy-detail">
+            <div class="accuracy-info">
+              <span class="accuracy-main ${accuracyClass}">${accuracyValue}</span>
+              <span class="accuracy-sub">${accuracy.predictions_total || 0} prédictions (7j)</span>
+              ${!hasEnoughSamples ? html`
+                <span class="accuracy-warning">Échantillon faible (&lt;${accuracy.min_sample_size || 20})</span>
+              ` : ''}
+            </div>
+            <span class="health-stat-label">Précision</span>
+          </div>
+        </div>
+      </div>
+    `
   }
 
   render() {
@@ -632,6 +823,9 @@ class IntelligenceWidget extends LitElement {
               ` : ''}
             </div>
           ` : ''}
+
+          <!-- Health Section (v1.1.9 P1) -->
+          ${this.renderHealthSection()}
         </div>
       </div>
     `
