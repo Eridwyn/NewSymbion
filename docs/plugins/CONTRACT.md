@@ -325,23 +325,93 @@ Fréquence : toutes les 30 secondes
 
 ---
 
-## Hors Scope (Session 1)
+## Plugin Registry (Session 2)
 
-Les éléments suivants sont explicitement hors scope pour cette version :
+Le kernel maintient un registre centralisé de tous les plugins.
+
+### États Plugin
+
+| État | Description | Accepte Actions |
+|------|-------------|-----------------|
+| `available` | Plugin healthy, pleinement opérationnel | Oui |
+| `degraded` | Plugin répond mais signale des problèmes | Oui (avec prudence) |
+| `offline` | Plugin ne répond pas ou arrêté | Non |
+
+### Transitions d'état
+
+```
+                    health: healthy
+        ┌────────────────────────────────┐
+        │                                │
+        ▼                                │
+   ┌─────────┐   health: degraded   ┌─────────┐
+   │Available│◄────────────────────►│Degraded │
+   └────┬────┘                      └────┬────┘
+        │                                │
+        │   3 health failures            │   3 health failures
+        │   OR health: unhealthy         │   OR health: unhealthy
+        ▼                                ▼
+   ┌─────────────────────────────────────────┐
+   │               Offline                   │
+   └─────────────────────────────────────────┘
+```
+
+### Validation Dispatch
+
+Avant d'envoyer une action, le kernel vérifie :
+
+1. **Plugin existe** dans le registry
+2. **Plugin accepte les actions** (available ou degraded)
+3. **Capability déclarée** pour le type d'action
+
+```rust
+// Erreurs possibles
+DispatchError::PluginNotFound      // Plugin inconnu
+DispatchError::PluginOffline       // Plugin hors ligne
+DispatchError::CapabilityNotFound  // Action non supportée
+```
+
+### Health Monitoring
+
+- Heartbeat attendu : toutes les 30 secondes
+- Seuil offline : 3 échecs consécutifs
+- Récupération : un seul heartbeat `healthy` suffit
+
+### Principe Fondamental
+
+> **Pas de routing intelligent, pas de magie, pas d'orchestration cachée.**
+
+Le registry est une table de lookup simple :
+- Plugin ID → État + Capabilities
+- Pas de load balancing
+- Pas de failover automatique
+- Pas de redirection
+
+---
+
+## Hors Scope (Sessions 1-2)
+
+Les éléments suivants sont explicitement hors scope :
 
 - Bus custom (MQTT suffit)
 - Capabilities dynamiques (rechargement à chaud)
 - Multi-version spec (négociation version)
 - Sandbox/permissions granulaires
 - UI gestion plugins
-- Plugin Registry centralisé (Session 2)
+- Load balancing / failover
 - Adaptation notes en plugin (Session 3)
 
 ---
 
 ## Changelog
 
-### v1.0.0 (2 Février 2026)
+### v1.1.0 (2 Février 2026) - Session 2
+- Plugin Registry avec états (available/degraded/offline)
+- Validation dispatch avant envoi d'action
+- Health monitoring avec seuil d'échecs
+- Structures Rust : PluginRegistry, PluginState, DispatchError
+
+### v1.0.0 (2 Février 2026) - Session 1
 - Règles fondamentales Action vs Event
 - Convention topics MQTT
 - Structures ActionRequest, ActionResponse, EventMessage

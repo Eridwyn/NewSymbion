@@ -11,5 +11,10 @@
 //! See `docs/plugins/CONTRACT.md` for the full specification.
 
 pub mod contract;
+pub mod registry;
 
 pub use contract::*;
+pub use registry::{
+    DispatchError, PluginRegistry, PluginState, RegisteredPlugin, RegistryError,
+    RegistryStats, SharedPluginRegistry, new_shared_registry,
+};
