@@ -202,13 +202,88 @@ async fn get_config(State(app): State<AppState>) -> Json<ConfigResponse> {
 }
 
 /// PUT /v1/intelligence/config
-/// Update intelligence configuration
+/// Update intelligence configuration with validation (v1.1.9 security)
 async fn put_config(
     State(app): State<AppState>,
-    Json(config): Json<IntelligenceConfig>,
-) -> Json<ConfigResponse> {
+    Json(mut config): Json<IntelligenceConfig>,
+) -> Json<ConfigUpdateResponse> {
+    // Get previous config for diff and rollback
+    let previous = app.context_intelligence.get_config();
+
+    // Validate and clamp values to safe ranges
+    config.auto_apply_threshold = config.auto_apply_threshold.clamp(0.50, 0.95);
+    config.suggestion_threshold = config.suggestion_threshold.clamp(0.20, 0.80);
+    config.min_pattern_occurrences = config.min_pattern_occurrences.clamp(1, 10);
+    config.check_interval_seconds = config.check_interval_seconds.clamp(10, 300);
+    config.max_push_per_day = config.max_push_per_day.clamp(0, 50);
+    config.suggestion_cooldown_minutes = config.suggestion_cooldown_minutes.clamp(5, 180);
+    config.purge_threshold_days = config.purge_threshold_days.clamp(30, 365);
+    config.quiet_hours_start = config.quiet_hours_start.clamp(0, 23);
+    config.quiet_hours_end = config.quiet_hours_end.clamp(0, 23);
+
+    // Clamp decay coefficients
+    for coeff in config.decay_coefficients.iter_mut() {
+        *coeff = coeff.clamp(0.1, 1.0);
+    }
+
+    // Log the diff
+    let changes = diff_config(&previous, &config);
+    if !changes.is_empty() {
+        eprintln!(
+            "[intelligence] 🔧 Config updated: {}",
+            changes.join(", ")
+        );
+    }
+
+    // Update config
     app.context_intelligence.update_config(config.clone());
-    Json(ConfigResponse { config })
+
+    Json(ConfigUpdateResponse {
+        config,
+        previous_config: previous,
+        changes_applied: changes,
+        timestamp: time::OffsetDateTime::now_utc().to_string(),
+    })
+}
+
+/// Response for config update with audit trail
+#[derive(Serialize)]
+pub struct ConfigUpdateResponse {
+    pub config: IntelligenceConfig,
+    pub previous_config: IntelligenceConfig,
+    pub changes_applied: Vec<String>,
+    pub timestamp: String,
+}
+
+/// Generate diff between two configs
+fn diff_config(old: &IntelligenceConfig, new: &IntelligenceConfig) -> Vec<String> {
+    let mut changes = Vec::new();
+
+    if old.auto_apply_threshold != new.auto_apply_threshold {
+        changes.push(format!("auto_apply_threshold: {:.2}→{:.2}", old.auto_apply_threshold, new.auto_apply_threshold));
+    }
+    if old.suggestion_threshold != new.suggestion_threshold {
+        changes.push(format!("suggestion_threshold: {:.2}→{:.2}", old.suggestion_threshold, new.suggestion_threshold));
+    }
+    if old.max_push_per_day != new.max_push_per_day {
+        changes.push(format!("max_push_per_day: {}→{}", old.max_push_per_day, new.max_push_per_day));
+    }
+    if old.suggestion_cooldown_minutes != new.suggestion_cooldown_minutes {
+        changes.push(format!("cooldown: {}→{} min", old.suggestion_cooldown_minutes, new.suggestion_cooldown_minutes));
+    }
+    if old.purge_threshold_days != new.purge_threshold_days {
+        changes.push(format!("purge_days: {}→{}", old.purge_threshold_days, new.purge_threshold_days));
+    }
+    if old.quiet_hours_start != new.quiet_hours_start || old.quiet_hours_end != new.quiet_hours_end {
+        changes.push(format!("quiet_hours: {}h-{}h→{}h-{}h",
+            old.quiet_hours_start, old.quiet_hours_end,
+            new.quiet_hours_start, new.quiet_hours_end));
+    }
+    if old.decay_coefficients != new.decay_coefficients {
+        changes.push(format!("decay_coefficients: {:?}→{:?}", old.decay_coefficients, new.decay_coefficients));
+    }
+
+    changes
 }
 
 /// GET /v1/intelligence/patterns/export
