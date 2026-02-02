@@ -9,6 +9,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { getDayNameShort, utcHourToLocal } from '../utils/time-utils.js'
 
 class IntelligenceWidget extends LitElement {
   static styles = css`
@@ -559,8 +560,8 @@ class IntelligenceWidget extends LitElement {
   }
 
   getDayName(day) {
-    const days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
-    return days[day] || '?'
+    // Use centralized ISO convention (0=Monday from kernel)
+    return getDayNameShort(day)
   }
 
   getConfidenceClass(confidence) {
@@ -800,7 +801,7 @@ class IntelligenceWidget extends LitElement {
                       ${this.getModeIcon(p.mode)} ${this.getModeName(p.mode)}
                     </span>
                     <span class="pattern-when">
-                      ${this.getDayName(p.day_of_week)} ${p.hour}h
+                      ${this.getDayName(p.day_of_week)} ${utcHourToLocal(p.hour)}h
                     </span>
                     <span class="pattern-confidence">
                       ${Math.round(p.confidence * 100)}%

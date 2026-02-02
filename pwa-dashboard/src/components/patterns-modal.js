@@ -5,6 +5,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { getDayNameShort, utcHourToLocal } from '../utils/time-utils.js'
 
 class PatternsModal extends LitElement {
   static styles = css`
@@ -391,8 +392,8 @@ class PatternsModal extends LitElement {
   }
 
   getDayName(dayNumber) {
-    const days = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
-    return days[dayNumber] || dayNumber
+    // Use centralized ISO convention (0=Monday from kernel)
+    return getDayNameShort(dayNumber)
   }
 
   formatDate(dateString) {
@@ -448,7 +449,7 @@ class PatternsModal extends LitElement {
                   <div class="pattern-icon">${this.getModeIcon(pattern.mode)}</div>
                   <div class="pattern-info">
                     <div class="pattern-description">
-                      ${this.getModeName(pattern.mode)} - ${this.getDayName(pattern.day_of_week)} à ${pattern.hour}h
+                      ${this.getModeName(pattern.mode)} - ${this.getDayName(pattern.day_of_week)} à ${utcHourToLocal(pattern.hour)}h
                     </div>
                     <div class="pattern-meta">
                       ${pattern.occurrences} fois • Dernière: ${this.formatDate(pattern.last_seen)}
