@@ -1,0 +1,68 @@
+{
+  "spec_version": "1.0",
+  "plugin_id": "notes",
+  "name": "Symbion Notes",
+  "version": "1.1.0",
+  "description": "Gestion des notes contextuelles avec tags et filtres",
+  "capabilities": [
+    {
+      "action_type": "create_note",
+      "description": "Créer une nouvelle note",
+      "impact_level": "low",
+      "parameters": {
+        "content": { "type": "string", "required": true },
+        "urgent": { "type": "boolean", "required": false },
+        "context": { "type": "string", "required": false },
+        "tags": { "type": "array", "items": "string", "required": false },
+        "status": { "type": "string", "required": false }
+      }
+    },
+    {
+      "action_type": "update_note",
+      "description": "Mettre à jour une note existante",
+      "impact_level": "low",
+      "parameters": {
+        "note_id": { "type": "uuid", "required": true },
+        "content": { "type": "string", "required": false },
+        "urgent": { "type": "boolean", "required": false },
+        "context": { "type": "string", "required": false },
+        "tags": { "type": "array", "items": "string", "required": false },
+        "status": { "type": "string", "required": false }
+      }
+    },
+    {
+      "action_type": "delete_note",
+      "description": "Supprimer une note",
+      "impact_level": "medium",
+      "parameters": {
+        "note_id": { "type": "uuid", "required": true }
+      }
+    },
+    {
+      "action_type": "list_notes",
+      "description": "Lister les notes avec filtres optionnels",
+      "impact_level": "low",
+      "parameters": {
+        "context": { "type": "string", "required": false },
+        "tags": { "type": "array", "items": "string", "required": false },
+        "status": { "type": "string", "required": false }
+      }
+    }
+  ],
+  "events": [
+    {
+      "event_type": "note_created",
+      "description": "Une note a été créée"
+    },
+    {
+      "event_type": "note_updated",
+      "description": "Une note a été modifiée"
+    },
+    {
+      "event_type": "note_deleted",
+      "description": "Une note a été supprimée"
+    }
+  ],
+  "health_endpoint": "/health",
+  "socket_path": "/run/symbion-plugins/notes.sock"
+}
