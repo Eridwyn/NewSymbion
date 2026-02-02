@@ -784,6 +784,14 @@ class DashboardApp extends LitElement {
     this.mqttService = null
     this.agentsService = null
     this.timeInterval = null
+
+    // [P0-5] Store bound handlers for cleanup
+    this._boundHandlers = {
+      apiStatus: null,
+      mqttStatus: null,
+      systemHealth: null,
+      contextChange: null
+    }
   }
 
   formatTime(date) {
@@ -814,13 +822,14 @@ class DashboardApp extends LitElement {
     // Écouter les événements du context-engine-widget
     this.addEventListener('open-context-engine', this.handleOpenContextEngine.bind(this))
 
-    // Écouter les changements de contexte pour adapter le logo
-    window.addEventListener('context-change', (e) => {
+    // [P0-5] Écouter les changements de contexte pour adapter le logo (avec cleanup)
+    this._boundHandlers.contextChange = (e) => {
       const mode = e.detail?.context?.mode || 'intime'
       // Capitaliser première lettre pour matcher les sélecteurs CSS
       this.contextMode = mode.charAt(0).toUpperCase() + mode.slice(1)
       console.log(`[dashboard-app] Context changed: ${mode} → logo color updated`)
-    })
+    }
+    window.addEventListener('context-change', this._boundHandlers.contextChange)
 
     try {
       // Initialiser les services
@@ -853,6 +862,22 @@ class DashboardApp extends LitElement {
       clearInterval(this.timeInterval)
       this.timeInterval = null
     }
+
+    // [P0-5] Cleanup all stored event handlers to prevent memory leaks
+    if (this._boundHandlers.contextChange) {
+      window.removeEventListener('context-change', this._boundHandlers.contextChange)
+    }
+    if (this.apiService && this._boundHandlers.apiStatus) {
+      this.apiService.removeEventListener('status-change', this._boundHandlers.apiStatus)
+    }
+    if (this.mqttService) {
+      if (this._boundHandlers.mqttStatus) {
+        this.mqttService.removeEventListener('status-change', this._boundHandlers.mqttStatus)
+      }
+      if (this._boundHandlers.systemHealth) {
+        this.mqttService.removeEventListener('system-health', this._boundHandlers.systemHealth)
+      }
+    }
   }
   
   async initializeServices() {
@@ -864,7 +889,9 @@ class DashboardApp extends LitElement {
       this.apiService = document.createElement('api-service')
       document.body.appendChild(this.apiService)
     }
-    this.apiService.addEventListener('status-change', this.handleApiStatus.bind(this))
+    // [P0-5] Store bound handlers for cleanup
+    this._boundHandlers.apiStatus = this.handleApiStatus.bind(this)
+    this.apiService.addEventListener('status-change', this._boundHandlers.apiStatus)
 
     // Service MQTT - réutiliser si existant (créé par main.js)
     this.mqttService = document.querySelector('mqtt-service')
@@ -872,8 +899,11 @@ class DashboardApp extends LitElement {
       this.mqttService = document.createElement('mqtt-service')
       document.body.appendChild(this.mqttService)
     }
-    this.mqttService.addEventListener('status-change', this.handleMqttStatus.bind(this))
-    this.mqttService.addEventListener('system-health', this.handleSystemHealth.bind(this))
+    // [P0-5] Store bound handlers for cleanup
+    this._boundHandlers.mqttStatus = this.handleMqttStatus.bind(this)
+    this._boundHandlers.systemHealth = this.handleSystemHealth.bind(this)
+    this.mqttService.addEventListener('status-change', this._boundHandlers.mqttStatus)
+    this.mqttService.addEventListener('system-health', this._boundHandlers.systemHealth)
 
     // Service Agents - réutiliser si existant
     this.agentsService = document.querySelector('agents-service')
