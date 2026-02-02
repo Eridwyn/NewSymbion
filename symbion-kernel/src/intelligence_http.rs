@@ -205,25 +205,57 @@ async fn get_config(State(app): State<AppState>) -> Json<ConfigResponse> {
 /// Update intelligence configuration with validation (v1.1.9 security)
 async fn put_config(
     State(app): State<AppState>,
-    Json(mut config): Json<IntelligenceConfig>,
+    Json(requested): Json<IntelligenceConfig>,
 ) -> Json<ConfigUpdateResponse> {
     // Get previous config for diff and rollback
     let previous = app.context_intelligence.get_config();
 
-    // Validate and clamp values to safe ranges
-    config.auto_apply_threshold = config.auto_apply_threshold.clamp(0.50, 0.95);
-    config.suggestion_threshold = config.suggestion_threshold.clamp(0.20, 0.80);
-    config.min_pattern_occurrences = config.min_pattern_occurrences.clamp(1, 10);
-    config.check_interval_seconds = config.check_interval_seconds.clamp(10, 300);
-    config.max_push_per_day = config.max_push_per_day.clamp(0, 50);
-    config.suggestion_cooldown_minutes = config.suggestion_cooldown_minutes.clamp(5, 180);
-    config.purge_threshold_days = config.purge_threshold_days.clamp(30, 365);
-    config.quiet_hours_start = config.quiet_hours_start.clamp(0, 23);
-    config.quiet_hours_end = config.quiet_hours_end.clamp(0, 23);
+    // Clone requested to track what was clamped
+    let mut config = requested.clone();
+    let mut clamped_fields = Vec::new();
+
+    // Validate and clamp values to safe ranges, tracking clamps
+    macro_rules! clamp_field {
+        ($field:ident, $min:expr, $max:expr) => {
+            let clamped = config.$field.clamp($min, $max);
+            if clamped != requested.$field {
+                clamped_fields.push(format!(
+                    "{}: {} → {} (range {}-{})",
+                    stringify!($field), requested.$field, clamped, $min, $max
+                ));
+            }
+            config.$field = clamped;
+        };
+    }
+
+    clamp_field!(auto_apply_threshold, 0.50, 0.95);
+    clamp_field!(suggestion_threshold, 0.20, 0.80);
+    clamp_field!(min_pattern_occurrences, 1, 10);
+    clamp_field!(check_interval_seconds, 10, 300);
+    clamp_field!(max_push_per_day, 0, 50);
+    clamp_field!(suggestion_cooldown_minutes, 5, 180);
+    clamp_field!(purge_threshold_days, 30, 365);
+    clamp_field!(quiet_hours_start, 0, 23);
+    clamp_field!(quiet_hours_end, 0, 23);
 
     // Clamp decay coefficients
-    for coeff in config.decay_coefficients.iter_mut() {
-        *coeff = coeff.clamp(0.1, 1.0);
+    for (i, coeff) in config.decay_coefficients.iter_mut().enumerate() {
+        let clamped = coeff.clamp(0.1, 1.0);
+        if clamped != requested.decay_coefficients[i] {
+            clamped_fields.push(format!(
+                "decay_coefficients[{}]: {} → {} (range 0.1-1.0)",
+                i, requested.decay_coefficients[i], clamped
+            ));
+        }
+        *coeff = clamped;
+    }
+
+    // Log clamped fields as warning
+    if !clamped_fields.is_empty() {
+        eprintln!(
+            "[intelligence] ⚠️ Config clamped: {}",
+            clamped_fields.join(", ")
+        );
     }
 
     // Log the diff
@@ -242,6 +274,7 @@ async fn put_config(
         config,
         previous_config: previous,
         changes_applied: changes,
+        clamped_fields,
         timestamp: time::OffsetDateTime::now_utc().to_string(),
     })
 }
@@ -252,6 +285,8 @@ pub struct ConfigUpdateResponse {
     pub config: IntelligenceConfig,
     pub previous_config: IntelligenceConfig,
     pub changes_applied: Vec<String>,
+    /// Fields that were clamped to safe ranges (empty if all values were valid)
+    pub clamped_fields: Vec<String>,
     pub timestamp: String,
 }
 

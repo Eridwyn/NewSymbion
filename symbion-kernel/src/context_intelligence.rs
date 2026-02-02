@@ -352,6 +352,10 @@ pub struct HealthCounters {
     pub suggestions_generated: u32,
     pub auto_applied: u32,
     pub denied: u32,
+    // Purge tracking (P0.5)
+    #[serde(with = "time::serde::iso8601::option", default)]
+    pub purge_last_run_at: Option<OffsetDateTime>,
+    pub purge_removed_count_last_run: u32,
 }
 
 /// Detailed accuracy stats with denominators (v1.1.9 P0 fix)
@@ -369,12 +373,14 @@ pub struct AccuracyStats {
     pub predictions_ignored: u32,
     /// Correct predictions out of scored
     pub correct_count: u32,
-    /// Accuracy strict: correct / total (harsh, includes unscored as wrong)
-    pub accuracy_strict: f32,
-    /// Accuracy feedback-only: correct / scored (biased but useful)
-    pub accuracy_feedback: f32,
+    /// Accuracy strict: correct / total (None if < 20 predictions = unreliable)
+    pub accuracy_strict: Option<f32>,
+    /// Accuracy feedback-only: correct / scored (None if < 20 predictions)
+    pub accuracy_feedback: Option<f32>,
     /// Warning if sample size is too small
     pub warning: Option<String>,
+    /// Minimum sample size for reliable accuracy (20)
+    pub min_sample_size: u32,
 }
 
 impl ContextIntelligence {
@@ -501,10 +507,19 @@ impl ContextIntelligence {
         });
 
         let purged = initial_count - patterns.len();
+        drop(patterns);  // Release lock before updating counters
+
+        // Record purge stats (P0.5)
+        {
+            let mut counters = self.health_counters.write();
+            counters.purge_last_run_at = Some(now);
+            counters.purge_removed_count_last_run = purged as u32;
+        }
+
         if purged > 0 {
             eprintln!(
-                "[intelligence] 🗑️ Purge: {} patterns supprimés (>{}j, <0.15 conf, <5 occ), {} restants",
-                purged, purge_days, patterns.len()
+                "[intelligence] 🗑️ Purge: {} patterns supprimés (>{}j, <0.15 conf, <5 occ)",
+                purged, purge_days
             );
         }
         purged
@@ -590,26 +605,29 @@ impl ContextIntelligence {
             .filter(|r| r.was_correct == Some(true))
             .count() as u32;
 
-        // Two accuracy metrics
-        let accuracy_feedback = if predictions_scored > 0 {
-            (correct_count as f32 / predictions_scored as f32) * 100.0
+        const MIN_SAMPLE_SIZE: u32 = 20;
+
+        // Two accuracy metrics - None if sample too small (< 20 = unreliable)
+        let (accuracy_feedback, accuracy_strict) = if predictions_total >= MIN_SAMPLE_SIZE {
+            let feedback = if predictions_scored > 0 {
+                Some((correct_count as f32 / predictions_scored as f32) * 100.0)
+            } else {
+                None
+            };
+            let strict = Some((correct_count as f32 / predictions_total as f32) * 100.0);
+            (feedback, strict)
         } else {
-            0.0
+            // Sample too small - don't report accuracy, it's misleading
+            (None, None)
         };
 
-        // Strict: unscored predictions count as wrong
-        let accuracy_strict = if predictions_total > 0 {
-            (correct_count as f32 / predictions_total as f32) * 100.0
-        } else {
-            0.0
-        };
-
-        // Warning if sample too small or biased
-        let warning = if predictions_total < 10 {
-            Some(format!("Échantillon trop petit ({} prédictions)", predictions_total))
+        // Warning explains why accuracy is null or suspicious
+        let warning = if predictions_total < MIN_SAMPLE_SIZE {
+            Some(format!("Échantillon insuffisant ({}/{} min) - accuracy non fiable",
+                predictions_total, MIN_SAMPLE_SIZE))
         } else if predictions_scored < 5 {
             Some(format!("Peu de feedback ({}/{} scorées)", predictions_scored, predictions_total))
-        } else if accuracy_feedback > 95.0 && predictions_scored < 20 {
+        } else if accuracy_feedback.map(|a| a > 95.0).unwrap_or(false) && predictions_scored < 30 {
             Some("Accuracy élevée avec peu de données - méfiance".to_string())
         } else {
             None
@@ -625,6 +643,7 @@ impl ContextIntelligence {
             accuracy_strict,
             accuracy_feedback,
             warning,
+            min_sample_size: MIN_SAMPLE_SIZE,
         }
     }
 
