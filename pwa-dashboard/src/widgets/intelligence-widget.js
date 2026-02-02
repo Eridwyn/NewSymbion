@@ -269,6 +269,52 @@ class IntelligenceWidget extends LitElement {
       color: var(--context-primary, #00d4aa);
     }
 
+    /* Advanced section (v1.1.9) */
+    .advanced-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      margin-top: 0.75rem;
+      padding: 0.4rem;
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      color: var(--color-dark-text-tertiary, #6c757d);
+      font-size: 0.7rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .advanced-toggle:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      color: var(--color-dark-text-secondary, #adb5bd);
+    }
+
+    .advanced-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    .export-btn {
+      flex: 1;
+      padding: 0.5rem 0.75rem;
+      background: rgba(139, 92, 246, 0.1);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      border-radius: 8px;
+      color: #a78bfa;
+      font-size: 0.7rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .export-btn:hover {
+      background: rgba(139, 92, 246, 0.2);
+      border-color: rgba(139, 92, 246, 0.5);
+    }
+
     .patterns-list {
       display: flex;
       flex-direction: column;
@@ -327,6 +373,7 @@ class IntelligenceWidget extends LitElement {
     signals: { type: Object },
     patterns: { type: Array },
     loading: { type: Boolean },
+    showAdvanced: { type: Boolean },
   }
 
   constructor() {
@@ -335,6 +382,7 @@ class IntelligenceWidget extends LitElement {
     this.signals = null
     this.patterns = []
     this.loading = true
+    this.showAdvanced = false
   }
 
   connectedCallback() {
@@ -427,6 +475,32 @@ class IntelligenceWidget extends LitElement {
       'momentum': 'Momentum'
     }
     return labels[factor] || factor
+  }
+
+  toggleAdvanced() {
+    this.showAdvanced = !this.showAdvanced
+  }
+
+  async exportPatterns() {
+    try {
+      const apiService = document.querySelector('api-service')
+      if (!apiService) return
+
+      const data = await apiService.request('/v1/intelligence/patterns/export')
+
+      // Create and download JSON file
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `symbion-patterns-${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('[intelligence-widget] Export failed:', e)
+    }
   }
 
   render() {
@@ -543,6 +617,19 @@ class IntelligenceWidget extends LitElement {
                   </div>
                 `)}
               </div>
+
+              <!-- Advanced toggle (v1.1.9) -->
+              <button class="advanced-toggle" @click=${this.toggleAdvanced}>
+                ${this.showAdvanced ? '▼' : '▶'} Avancé
+              </button>
+
+              ${this.showAdvanced ? html`
+                <div class="advanced-actions">
+                  <button class="export-btn" @click=${this.exportPatterns}>
+                    📥 Exporter JSON
+                  </button>
+                </div>
+              ` : ''}
             </div>
           ` : ''}
         </div>

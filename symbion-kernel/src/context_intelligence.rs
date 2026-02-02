@@ -55,18 +55,49 @@ pub struct IntelligenceConfig {
 
     /// Check interval in seconds for the intelligence monitor
     pub check_interval_seconds: u64,
+
+    // ========== v1.1.9 Stabilization Parameters ==========
+
+    /// Decay coefficients for pattern aging [<7d, <30d, <90d, >90d]
+    /// Default: [1.0, 0.9, 0.7, 0.4] - softer decay for seasonal patterns
+    pub decay_coefficients: [f32; 4],
+
+    /// Days before a dead pattern is eligible for purge
+    /// Default: 90 (acceptable), 120 for margin
+    pub purge_threshold_days: u32,
+
+    /// Maximum push notifications per day
+    /// Default: 5
+    pub max_push_per_day: u32,
+
+    /// Cooldown in minutes between suggestions for same mode
+    /// Default: 60
+    pub suggestion_cooldown_minutes: u32,
+
+    /// Quiet hours start (23 = 23:00, no push except 0.9+ established)
+    pub quiet_hours_start: u8,
+
+    /// Quiet hours end (7 = 07:00)
+    pub quiet_hours_end: u8,
 }
 
 impl Default for IntelligenceConfig {
     fn default() -> Self {
         Self {
-            auto_apply_threshold: 0.60,  // Lowered temporarily while learning
+            auto_apply_threshold: 0.70,  // v1.1.9: raised with adaptive modifiers
             suggestion_threshold: 0.40,
             min_pattern_occurrences: 3,
             weights: SignalWeights::default(),
             auto_create_automations: true,
             auto_adapt: true,
             check_interval_seconds: 30,
+            // v1.1.9 stabilization
+            decay_coefficients: [1.0, 0.9, 0.7, 0.4],  // Softer than 1.0/0.8/0.5/0.2
+            purge_threshold_days: 90,
+            max_push_per_day: 5,
+            suggestion_cooldown_minutes: 60,
+            quiet_hours_start: 23,
+            quiet_hours_end: 7,
         }
     }
 }
@@ -199,6 +230,41 @@ pub struct UserFeedback {
     pub was_correction: bool,      // true if different from prediction
 }
 
+/// Pattern with computed decay for export/debug (v1.1.9)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PatternExport {
+    pub mode: String,
+    pub day_of_week: u8,
+    pub hour: u8,
+    pub confidence: f32,
+    pub decayed_confidence: f32,
+    pub occurrences: u32,
+    #[serde(with = "time::serde::iso8601")]
+    pub last_seen: OffsetDateTime,
+    pub source: PatternSource,
+    pub days_since_seen: u32,
+}
+
+// ============================================================================
+// Decision Engine Feedback
+// ============================================================================
+
+/// Signal type from Decision Engine outcomes
+/// Used to provide feedback to Intelligence from automated decisions
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DecisionSignal {
+    /// Action approved automatically (high trust) → Strong positive reinforcement
+    ApprovedAuto,
+    /// Action approved after MFA validation → Weak positive (needed human confirmation)
+    ApprovedMFA,
+    /// Action denied by user (MFA refused) → Strong negative signal
+    Denied,
+    /// MFA validation expired (user didn't respond) → Ambiguous, no learning
+    Expired,
+    /// Action blocked by guards (context changed, expired, etc.) → Context was invalid
+    Blocked,
+}
+
 // ============================================================================
 // Drift Detection
 // ============================================================================
@@ -249,6 +315,29 @@ pub struct ContextIntelligence {
 
     // Last prediction (for status)
     last_prediction: RwLock<Option<ModePrediction>>,
+
+    // Last collected signals (for Decision Engine feedback loop)
+    last_signals_cache: RwLock<Option<ContextSignals>>,
+
+    // Anti-spam for notifications (v1.1.9)
+    // Per-mode: last suggestion time (60 min cooldown)
+    suggestion_cooldowns: RwLock<std::collections::HashMap<String, OffsetDateTime>>,
+    // Daily count: (date, count) - max 5/day
+    daily_suggestion_count: RwLock<(time::Date, u32)>,
+
+    // Health counters (v1.1.9) - reset daily
+    // (date, push_sent, suggestions_generated, auto_applied, denied)
+    health_counters: RwLock<HealthCounters>,
+}
+
+/// Health counters for observability (v1.1.9)
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct HealthCounters {
+    pub date: Option<time::Date>,
+    pub push_sent: u32,
+    pub suggestions_generated: u32,
+    pub auto_applied: u32,
+    pub denied: u32,
 }
 
 impl ContextIntelligence {
@@ -295,6 +384,12 @@ impl ContextIntelligence {
             prediction_history: RwLock::new(VecDeque::with_capacity(1000)),
             feedback_history: RwLock::new(VecDeque::with_capacity(500)),
             last_prediction: RwLock::new(None),
+            last_signals_cache: RwLock::new(None),
+            // Anti-spam (v1.1.9)
+            suggestion_cooldowns: RwLock::new(std::collections::HashMap::new()),
+            daily_suggestion_count: RwLock::new((OffsetDateTime::now_utc().date(), 0)),
+            // Health counters (v1.1.9)
+            health_counters: RwLock::new(HealthCounters::default()),
         }
     }
 
@@ -336,8 +431,53 @@ impl ContextIntelligence {
         self.prediction_history.read().iter().cloned().collect()
     }
 
-    /// Save learned patterns to disk
+    /// Purge dead patterns (v1.1.9)
+    /// Criteria: last_seen > purge_threshold_days AND decayed_confidence < 0.15 AND occurrences < 5
+    /// Protections: UserCorrection with occurrences >= 3 are kept
+    pub fn purge_dead_patterns(&self) -> usize {
+        // Read config once before locking patterns
+        let config = self.config.read();
+        let decay_coeffs = config.decay_coefficients;
+        let purge_days = config.purge_threshold_days as i64;
+        drop(config);  // Release lock
+
+        let mut patterns = self.learned_patterns.write();
+        let now = OffsetDateTime::now_utc();
+        let initial_count = patterns.len();
+
+        patterns.retain(|p| {
+            let days_since = (now - p.last_seen).whole_days();
+            let decay = if days_since < 7 { decay_coeffs[0] }
+                       else if days_since < 30 { decay_coeffs[1] }
+                       else if days_since < 90 { decay_coeffs[2] }
+                       else { decay_coeffs[3] };
+            let decayed_conf = p.confidence * decay;
+
+            // Purge criteria (uses config threshold)
+            let is_dead = days_since > purge_days && decayed_conf < 0.15 && p.occurrences < 5;
+
+            // Protection: UserCorrection with enough occurrences = intentional habit
+            let is_protected = p.source == PatternSource::UserCorrection && p.occurrences >= 3;
+
+            // Keep if not dead OR if protected
+            !is_dead || is_protected
+        });
+
+        let purged = initial_count - patterns.len();
+        if purged > 0 {
+            eprintln!(
+                "[intelligence] 🗑️ Purge: {} patterns supprimés (>{}j, <0.15 conf, <5 occ), {} restants",
+                purged, purge_days, patterns.len()
+            );
+        }
+        purged
+    }
+
+    /// Save learned patterns to disk (with periodic purge)
     pub fn save_patterns(&self) {
+        // Purge dead patterns before saving (keeps JSON clean)
+        self.purge_dead_patterns();
+
         let patterns = self.learned_patterns.read();
         let path = std::path::PathBuf::from("learned_patterns.json");
 
@@ -467,7 +607,7 @@ impl ContextIntelligence {
         };
         let last_manual = self.get_last_manual_change();
 
-        ContextSignals {
+        let signals = ContextSignals {
             hour,
             day_of_week,
             is_weekend,
@@ -481,7 +621,12 @@ impl ContextIntelligence {
             current_mode,
             time_in_current_mode_minutes: time_in_mode,
             last_manual_change: last_manual,
-        }
+        };
+
+        // Cache signals for Decision Engine feedback loop
+        *self.last_signals_cache.write() = Some(signals.clone());
+
+        signals
     }
 
     /// Get metrics from the primary agent (pc-bureau preferred, or first online)
@@ -643,24 +788,21 @@ impl ContextIntelligence {
         let patterns = self.learned_patterns.read();
 
         // Find matching pattern (same day, hour ±1)
-        // Use occurrences as primary sort (most frequent wins), then confidence as tiebreaker
+        // UNIFIED (v1.1.9): Sort by confidence only - occurrences kept for diagnostics
         let matching = patterns.iter()
             .filter(|p| {
                 p.day_of_week == signals.day_of_week &&
                 (p.hour as i8 - signals.hour as i8).abs() <= 1
             })
             .max_by(|a, b| {
-                a.occurrences.cmp(&b.occurrences)
-                    .then_with(|| a.confidence.partial_cmp(&b.confidence).unwrap_or(std::cmp::Ordering::Equal))
+                a.confidence.partial_cmp(&b.confidence)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             });
 
         if let Some(pattern) = matching {
             // Apply temporal decay: older patterns have less influence
             let days_since = (OffsetDateTime::now_utc() - pattern.last_seen).whole_days();
-            let decay = if days_since < 7 { 1.0 }
-                       else if days_since < 30 { 0.8 }
-                       else if days_since < 90 { 0.5 }
-                       else { 0.2 };
+            let decay = self.calculate_decay(days_since);
             let effective_confidence = pattern.confidence * decay;
 
             return SinglePrediction {
@@ -890,6 +1032,7 @@ impl ContextIntelligence {
     }
 
     /// Merge with existing pattern or create new
+    /// UNIFIED (v1.1.9): Uses additive confidence with adaptive modifier (no occurrences/5 formula)
     fn merge_or_create_pattern(&self, new_pattern: LearnedPattern) {
         let mut patterns = self.learned_patterns.write();
 
@@ -900,13 +1043,17 @@ impl ContextIntelligence {
             (p.hour as i8 - new_pattern.hour as i8).abs() <= 1
         }) {
             // Reinforce existing pattern
-            existing.occurrences += 1;
-            // More aggressive confidence: /5 instead of /10
-            existing.confidence = (existing.occurrences as f32 / 5.0).min(0.95);
+            existing.occurrences += 1; // Keep for diagnostics
+            // UNIFIED: Additive confidence with adaptive modifier
+            let was_correction = new_pattern.source == PatternSource::UserCorrection;
+            let base_modifier = if was_correction { 0.25 } else { 0.15 };
+            let effective_modifier = adaptive_modifier(base_modifier, existing.confidence);
+            let old_conf = existing.confidence;
+            existing.confidence = (existing.confidence + effective_modifier).clamp(0.05, 0.95);
             existing.last_seen = new_pattern.last_seen;
             eprintln!(
-                "[intelligence] 📈 Pattern renforcé: {} à {}h ({} occurrences, {:.0}% confidence)",
-                existing.mode, existing.hour, existing.occurrences, existing.confidence * 100.0
+                "[intelligence] 📈 Pattern renforcé: {} à {}h ({} occ, {:.0}% → {:.0}% conf, modifier {:.2})",
+                existing.mode, existing.hour, existing.occurrences, old_conf * 100.0, existing.confidence * 100.0, effective_modifier
             );
         } else {
             // Create new pattern
@@ -948,11 +1095,185 @@ impl ContextIntelligence {
             }
         }
     }
+
+    // ========================================================================
+    // Pattern Queries
+    // ========================================================================
+
+    /// Check if there's an established pattern (occurrences >= min) for the given mode/day/hour
+    /// Used as guard-fou for auto-apply: confidence alone isn't enough for automatic execution
+    pub fn has_established_pattern(&self, mode: &str, day_of_week: u8, hour: u8, min_occurrences: u32) -> bool {
+        let patterns = self.learned_patterns.read();
+        patterns.iter().any(|p| {
+            p.mode == mode &&
+            p.day_of_week == day_of_week &&
+            (p.hour as i8 - hour as i8).abs() <= 1 &&
+            p.occurrences >= min_occurrences
+        })
+    }
+
+    /// Get pattern with decayed confidence for export/debug
+    pub fn get_patterns_with_decay(&self) -> Vec<PatternExport> {
+        // Read config coefficients once
+        let decay_coeffs = self.config.read().decay_coefficients;
+        let patterns = self.learned_patterns.read();
+        let now = OffsetDateTime::now_utc();
+
+        patterns.iter().map(|p| {
+            let days_since = (now - p.last_seen).whole_days();
+            let decay = if days_since < 7 { decay_coeffs[0] }
+                       else if days_since < 30 { decay_coeffs[1] }
+                       else if days_since < 90 { decay_coeffs[2] }
+                       else { decay_coeffs[3] };
+
+            PatternExport {
+                mode: p.mode.clone(),
+                day_of_week: p.day_of_week,
+                hour: p.hour,
+                confidence: p.confidence,
+                decayed_confidence: p.confidence * decay,
+                occurrences: p.occurrences,
+                last_seen: p.last_seen,
+                source: p.source.clone(),
+                days_since_seen: days_since as u32,
+            }
+        }).collect()
+    }
+
+    // ========================================================================
+    // Decision Engine Feedback Loop
+    // ========================================================================
+
+    /// Get the last collected signals (for external use by Decision Engine)
+    pub fn last_signals(&self) -> Option<ContextSignals> {
+        self.last_signals_cache.read().clone()
+    }
+
+    /// Record feedback from Decision Engine outcome
+    /// This closes the loop: Intelligence learns from automated decisions, not just user corrections
+    /// target_mode: The mode the automation was trying to achieve (None = no learning)
+    /// blocked_categories: For Blocked signals, categories determine learning modifier
+    pub fn record_decision_outcome(
+        &self,
+        signal: DecisionSignal,
+        target_mode: Option<&str>,
+        signals: &ContextSignals,
+        blocked_categories: Option<&[crate::decision::BlockedReasonCategory]>,
+    ) {
+        // No target mode = no learning (rule: intent → goal_mode → None, NOT current_mode)
+        let mode = match target_mode {
+            Some(m) if !m.is_empty() => m,
+            _ => {
+                eprintln!("[intelligence] 🎯 No explicit intent (target_mode=None), skipping feedback");
+                return;
+            }
+        };
+
+        let modifier: f32 = match signal {
+            DecisionSignal::ApprovedAuto => 0.3,    // Strong positive: system was right
+            DecisionSignal::ApprovedMFA => 0.15,    // Weak positive: needed human validation
+            DecisionSignal::Denied => {
+                // Health counter: denied
+                self.increment_counter(|c| c.denied += 1);
+                -0.3  // Strong negative: human said no
+            }
+            DecisionSignal::Expired => 0.0,         // Ambiguous: no learning
+            DecisionSignal::Blocked => {
+                // Use category-specific modifier if available
+                blocked_categories
+                    .map(|cats| {
+                        cats.iter()
+                            .map(|c| c.learning_modifier())
+                            .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                            .unwrap_or(-0.1)
+                    })
+                    .unwrap_or(-0.1)
+            }
+        };
+
+        if modifier.abs() < 0.01 {
+            eprintln!("[intelligence] 🎯 Decision outcome: {:?} (no learning - modifier ~0)", signal);
+            return;
+        }
+
+        self.apply_decision_modifier(mode, signals, modifier, signal);
+    }
+
+    /// Apply a modifier to an existing pattern based on Decision Engine feedback
+    /// ADAPTIVE (v1.1.9): Uses diminishing returns at extremes
+    fn apply_decision_modifier(
+        &self,
+        mode: &str,
+        signals: &ContextSignals,
+        base_modifier: f32,
+        signal: DecisionSignal,
+    ) {
+        let mut patterns = self.learned_patterns.write();
+
+        // Find matching pattern (same day, hour ±1)
+        if let Some(existing) = patterns.iter_mut().find(|p| {
+            p.mode == mode &&
+            p.day_of_week == signals.day_of_week &&
+            (p.hour as i8 - signals.hour as i8).abs() <= 1
+        }) {
+            // ADAPTIVE: Apply diminishing returns at extremes
+            let effective_modifier = adaptive_modifier(base_modifier, existing.confidence);
+            let old_conf = existing.confidence;
+            existing.confidence = (existing.confidence + effective_modifier).clamp(0.05, 0.95);
+            existing.last_seen = OffsetDateTime::now_utc();
+
+            let action = if base_modifier > 0.0 { "reinforced" } else { "penalized" };
+            eprintln!(
+                "[intelligence] 🎯 Decision feedback ({:?}): {} pattern {} {:.0}% → {:.0}% (adaptive: {:.2})",
+                signal, mode, action, old_conf * 100.0, existing.confidence * 100.0, effective_modifier
+            );
+        } else if base_modifier > 0.0 {
+            // Create new pattern only for positive signals
+            let new_pattern = LearnedPattern {
+                mode: mode.to_string(),
+                day_of_week: signals.day_of_week,
+                hour: signals.hour,
+                confidence: base_modifier.min(0.3),
+                occurrences: 1,
+                last_seen: OffsetDateTime::now_utc(),
+                source: PatternSource::Automation,
+            };
+            patterns.push(new_pattern);
+            eprintln!(
+                "[intelligence] 🎯 Decision feedback ({:?}): new pattern {} created at {}h",
+                signal, mode, signals.hour
+            );
+        } else {
+            // Negative signal but no existing pattern to penalize
+            eprintln!(
+                "[intelligence] 🎯 Decision feedback ({:?}): no pattern to penalize for {} at {}h",
+                signal, mode, signals.hour
+            );
+        }
+
+        drop(patterns);
+        self.save_patterns();
+    }
 }
 
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+/// Adaptive modifier with diminishing returns at extremes (v1.1.9)
+///
+/// Prevents oscillations by damping changes when confidence is already extreme.
+/// Examples:
+/// - current=0.50 → damping=1.0  → +0.30 * 1.0 = +0.30 (full effect)
+/// - current=0.70 → damping=0.6  → +0.30 * 0.6 = +0.18
+/// - current=0.90 → damping=0.3  → +0.30 * 0.3 = +0.09 (minimum)
+fn adaptive_modifier(base: f32, current: f32) -> f32 {
+    // Distance from center (0.5)
+    let distance = (current - 0.5).abs();  // 0.0 to 0.45
+    // Damping: near center = full effect, extremes = attenuated (min 0.3)
+    let damping = (1.0 - distance * 2.0).max(0.3);
+    base * damping
+}
 
 /// Convert day number to French name
 /// Uses Monday-based indexing: 0=Lundi, 6=Dimanche (matches number_from_monday() - 1)
@@ -1052,10 +1373,18 @@ impl ContextIntelligence {
                         })
                         .unwrap_or(false);
 
-                    if prediction.confidence >= config.auto_apply_threshold && !recent_manual_change {
-                        // AUTO-APPLY: Very high confidence AND no recent manual change
+                    // v1.1.9: Auto-apply requires BOTH high confidence AND established pattern
+                    let has_established = intelligence.has_established_pattern(
+                        &prediction.mode,
+                        signals.day_of_week,
+                        signals.hour,
+                        config.min_pattern_occurrences,
+                    );
+
+                    if prediction.confidence >= config.auto_apply_threshold && !recent_manual_change && has_established {
+                        // AUTO-APPLY: High confidence + established pattern + no recent manual change
                         eprintln!(
-                            "[intelligence] 🎯 Auto-apply: {} → {} (confiance {:.0}%)",
+                            "[intelligence] 🎯 Auto-apply: {} → {} (confiance {:.0}%, pattern établi)",
                             current_mode, prediction.mode, prediction.confidence * 100.0
                         );
 
@@ -1090,27 +1419,58 @@ impl ContextIntelligence {
                         // Mark prediction as correct for accuracy tracking
                         intelligence.mark_last_prediction_correct();
 
+                        // Health counter: auto-applied
+                        intelligence.increment_counter(|c| c.auto_applied += 1);
+
                     } else if prediction.confidence >= config.suggestion_threshold {
-                        // SUGGEST: Medium confidence - notify user
-                        // Also triggered when auto-apply was blocked by recent manual change
-                        if recent_manual_change && prediction.confidence >= config.auto_apply_threshold {
-                            eprintln!(
-                                "[intelligence] ⏸️ Auto-apply bloqué (changement manuel récent) → suggestion: {} → {} (confiance {:.0}%)",
-                                current_mode, prediction.mode, prediction.confidence * 100.0
-                            );
+                        // SUGGEST: Medium confidence OR missing established pattern
+                        let block_reason = if recent_manual_change {
+                            "changement manuel récent"
+                        } else if prediction.confidence >= config.auto_apply_threshold && !has_established {
+                            "pattern non établi (<3 occ)"
                         } else {
+                            ""
+                        };
+
+                        // v1.1.9: Anti-spam rules for push notifications
+                        let (can_push, spam_reason) = intelligence.can_send_push_notification(
+                            &prediction.mode,
+                            prediction.confidence,
+                            has_established,
+                        );
+
+                        if can_push {
+                            // Log and send push notification
+                            if !block_reason.is_empty() {
+                                eprintln!(
+                                    "[intelligence] ⏸️ Auto-apply bloqué ({}) → push: {} → {} (confiance {:.0}%)",
+                                    block_reason, current_mode, prediction.mode, prediction.confidence * 100.0
+                                );
+                            } else {
+                                eprintln!(
+                                    "[intelligence] 💡 Suggestion push: {} → {} (confiance {:.0}%)",
+                                    current_mode, prediction.mode, prediction.confidence * 100.0
+                                );
+                            }
+
+                            Self::send_suggestion_notification(
+                                &notifications_manager,
+                                &prediction,
+                                &current_mode,
+                            ).await;
+
+                            // Record for rate limiting (also increments push_sent counter)
+                            intelligence.record_notification_sent(&prediction.mode);
+                        } else {
+                            // Silent suggestion (visible in PWA status, no push)
                             eprintln!(
-                                "[intelligence] 💡 Suggestion: {} → {} (confiance {:.0}%)",
-                                current_mode, prediction.mode, prediction.confidence * 100.0
+                                "[intelligence] 💭 Suggestion silencieuse: {} → {} (confiance {:.0}%, pas de push: {})",
+                                current_mode, prediction.mode, prediction.confidence * 100.0, spam_reason
                             );
                         }
 
-                        // Send non-intrusive notification
-                        Self::send_suggestion_notification(
-                            &notifications_manager,
-                            &prediction,
-                            &current_mode,
-                        ).await;
+                        // Health counter: suggestion generated (both push and silent)
+                        intelligence.increment_counter(|c| c.suggestions_generated += 1);
                     } else if recent_manual_change {
                         // OBSERVE: Confidence too low but we log that we're respecting manual choice
                         eprintln!(
@@ -1122,6 +1482,123 @@ impl ContextIntelligence {
                 }
             }
         });
+    }
+
+    /// Check if we can send a push notification (anti-spam rules v1.1.9)
+    /// Returns (can_send, reason)
+    fn can_send_push_notification(&self, mode: &str, confidence: f32, has_established: bool) -> (bool, &'static str) {
+        let now = OffsetDateTime::now_utc();
+        let today = now.date();
+        let config = self.config.read();
+
+        // Rule 0: Quiet hours (23h-7h by default) - no push except very strong established
+        let hour = now.hour();
+        let in_quiet_hours = if config.quiet_hours_start > config.quiet_hours_end {
+            // Wraps around midnight (e.g., 23-7)
+            hour >= config.quiet_hours_start || hour < config.quiet_hours_end
+        } else {
+            hour >= config.quiet_hours_start && hour < config.quiet_hours_end
+        };
+        if in_quiet_hours {
+            // Exception: very strong established pattern (0.90+)
+            if !(has_established && confidence >= 0.90) {
+                return (false, "quiet hours (23h-7h)");
+            }
+        }
+
+        // Rule 1: Check daily limit
+        {
+            let mut daily = self.daily_suggestion_count.write();
+            if daily.0 != today {
+                // New day, reset counter
+                *daily = (today, 0);
+            }
+            if daily.1 >= config.max_push_per_day {
+                return (false, "quota journalier atteint");
+            }
+        }
+
+        // Rule 2: Check per-mode cooldown
+        {
+            let cooldowns = self.suggestion_cooldowns.read();
+            if let Some(last_time) = cooldowns.get(mode) {
+                let minutes_since = (now - *last_time).whole_minutes();
+                if minutes_since < config.suggestion_cooldown_minutes as i64 {
+                    return (false, "cooldown mode");
+                }
+            }
+        }
+
+        // Rule 3: Require established pattern OR very high confidence
+        // - confidence >= 0.70 AND established pattern: OK
+        // - confidence >= 0.80 even if not established: OK (but rate limited by rules 1&2)
+        if has_established && confidence >= 0.70 {
+            return (true, "pattern établi");
+        }
+        if confidence >= 0.80 {
+            return (true, "confiance très haute");
+        }
+
+        (false, "pattern non établi et confiance < 0.80")
+    }
+
+    /// Record that a notification was sent (update anti-spam counters)
+    fn record_notification_sent(&self, mode: &str) {
+        let now = OffsetDateTime::now_utc();
+
+        // Update per-mode cooldown
+        self.suggestion_cooldowns.write().insert(mode.to_string(), now);
+
+        // Update daily count
+        let mut daily = self.daily_suggestion_count.write();
+        if daily.0 == now.date() {
+            daily.1 += 1;
+        } else {
+            *daily = (now.date(), 1);
+        }
+
+        // Update health counters
+        self.increment_counter(|c| c.push_sent += 1);
+    }
+
+    /// Increment a health counter (auto-resets daily)
+    fn increment_counter<F: FnOnce(&mut HealthCounters)>(&self, updater: F) {
+        let today = OffsetDateTime::now_utc().date();
+        let mut counters = self.health_counters.write();
+        if counters.date != Some(today) {
+            // New day, reset all counters
+            *counters = HealthCounters {
+                date: Some(today),
+                ..Default::default()
+            };
+        }
+        updater(&mut counters);
+    }
+
+    /// Get current health counters (24h)
+    pub fn get_health_counters(&self) -> HealthCounters {
+        let today = OffsetDateTime::now_utc().date();
+        let counters = self.health_counters.read();
+        if counters.date == Some(today) {
+            counters.clone()
+        } else {
+            // New day, return empty
+            HealthCounters {
+                date: Some(today),
+                ..Default::default()
+            }
+        }
+    }
+
+    /// Calculate decay coefficient for a given number of days since last seen
+    /// Uses config.decay_coefficients: [<7d, <30d, <90d, >90d]
+    fn calculate_decay(&self, days_since: i64) -> f32 {
+        let config = self.config.read();
+        let coeffs = config.decay_coefficients;
+        if days_since < 7 { coeffs[0] }
+        else if days_since < 30 { coeffs[1] }
+        else if days_since < 90 { coeffs[2] }
+        else { coeffs[3] }
     }
 
     /// Send a suggestion notification to the user
@@ -1184,7 +1661,7 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = IntelligenceConfig::default();
-        assert_eq!(config.auto_apply_threshold, 0.60);  // Lowered for learning phase
+        assert_eq!(config.auto_apply_threshold, 0.70);  // v1.1.9: raised with adaptive modifiers
         assert_eq!(config.suggestion_threshold, 0.40);
         assert_eq!(config.min_pattern_occurrences, 3);
         assert!(config.auto_create_automations);

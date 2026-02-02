@@ -12,6 +12,7 @@
 
 use crate::agents::SharedAgentRegistry;
 use crate::context::{ContextEngine, Mode};
+use crate::context_intelligence::{SharedContextIntelligence, DecisionSignal};
 use crate::decision::{DecisionEngine, DecisionContext, DecisionOutcome, SharedTrustTracker, ValidationManager};
 use crate::notifications::SharedNotificationManager;
 use crate::sensors::SensorRegistry;
@@ -40,6 +41,8 @@ pub struct ExecutionContext {
     pub validation_manager: Option<Arc<ValidationManager>>,
     /// Pending Action Registry for post-approval execution
     pub pending_action_registry: Option<SharedPendingActionRegistry>,
+    /// Context Intelligence for feedback loop (Decision → Intelligence)
+    pub context_intelligence: Option<SharedContextIntelligence>,
 }
 
 /// Automation engine - evaluates conditions and executes actions
@@ -320,6 +323,28 @@ impl AutomationEngine {
                         tracker.record_blocked(action.type_name());
                     }
 
+                    // Notify Intelligence: action blocked (context was invalid)
+                    // Use automation's target mode (goal_mode → action → trigger → None)
+                    // NO fallback to current_mode - if no explicit intent, no learning
+                    if let Some(ref intelligence) = ctx.context_intelligence {
+                        if let Some(signals) = intelligence.last_signals() {
+                            let target_mode = automation.target_mode();
+                            if target_mode.is_none() {
+                                eprintln!(
+                                    "[automations] No explicit intent for '{}', skipping Intelligence feedback",
+                                    automation.name
+                                );
+                            }
+                            // TODO: extract categories from DecisionOutcome::Blocked when available
+                            intelligence.record_decision_outcome(
+                                DecisionSignal::Blocked,
+                                target_mode.as_deref(),
+                                &signals,
+                                None, // blocked_categories - would need to thread from evaluate_with_decision
+                            );
+                        }
+                    }
+
                     results.push(ActionResult {
                         action_type: Self::action_type_name(action),
                         success: false,
@@ -379,6 +404,7 @@ impl AutomationEngine {
                                         action.clone(),
                                         action_index,
                                         ts, // trust_score from decision
+                                        automation.target_mode(), // For Intelligence feedback
                                     );
                                 }
                             }
@@ -437,6 +463,27 @@ impl AutomationEngine {
                     action_description(action),
                     ts
                 );
+
+                // Notify Intelligence: action approved automatically (strong positive)
+                // Use automation's target mode (goal_mode → action → trigger → None)
+                // NO fallback to current_mode - if no explicit intent, no learning
+                if let Some(ref intelligence) = ctx.context_intelligence {
+                    if let Some(signals) = intelligence.last_signals() {
+                        let target_mode = automation.target_mode();
+                        if target_mode.is_none() {
+                            eprintln!(
+                                "[automations] No explicit intent for '{}', skipping Intelligence feedback",
+                                automation.name
+                            );
+                        }
+                        intelligence.record_decision_outcome(
+                            DecisionSignal::ApprovedAuto,
+                            target_mode.as_deref(),
+                            &signals,
+                            None, // blocked_categories not applicable for ApprovedAuto
+                        );
+                    }
+                }
             }
 
             let (success, error) = Self::execute_action(action, ctx).await;

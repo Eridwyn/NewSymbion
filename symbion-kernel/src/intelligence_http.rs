@@ -5,6 +5,7 @@
  *
  * ENDPOINTS:
  * - GET  /v1/intelligence/status   - Current engine status
+ * - GET  /v1/intelligence/health   - Health counters (24h) (v1.1.9)
  * - GET  /v1/intelligence/patterns - Learned patterns
  * - GET  /v1/intelligence/predictions - Prediction history
  * - GET  /v1/intelligence/signals  - Current context signals
@@ -19,10 +20,11 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
+use axum::extract::Query;
 use crate::http::AppState;
 use crate::context_intelligence::{
-    ContextSignals, IntelligenceConfig, IntelligenceStatus,
-    LearnedPattern, ModePrediction, PredictionRecord,
+    ContextSignals, HealthCounters, IntelligenceConfig, IntelligenceStatus,
+    LearnedPattern, ModePrediction, PredictionRecord, PatternExport,
 };
 
 // ============================================================================
@@ -70,6 +72,37 @@ pub struct ConfigResponse {
     pub config: IntelligenceConfig,
 }
 
+/// Query params for pattern export (v1.1.9)
+#[derive(Deserialize, Default)]
+pub struct PatternExportQuery {
+    /// Filter by mode (e.g., "pro", "maison")
+    pub mode: Option<String>,
+    /// Filter by day of week (0=Mon, 6=Sun)
+    pub day: Option<u8>,
+    /// Minimum confidence filter
+    pub min_confidence: Option<f32>,
+    /// Sort by: "confidence" (default), "occurrences", "last_seen"
+    pub sort_by: Option<String>,
+    /// Limit results (default: all)
+    pub limit: Option<usize>,
+}
+
+#[derive(Serialize)]
+pub struct PatternExportResponse {
+    pub patterns: Vec<PatternExport>,
+    pub count: usize,
+    pub filters_applied: Vec<String>,
+}
+
+/// Health counters response (v1.1.9)
+#[derive(Serialize)]
+pub struct HealthResponse {
+    pub counters: HealthCounters,
+    pub accuracy_7_days: f32,
+    pub patterns_active: usize,
+    pub patterns_established: usize,
+}
+
 // ============================================================================
 // Handlers
 // ============================================================================
@@ -83,6 +116,27 @@ async fn get_status(State(app): State<AppState>) -> Json<IntelligenceStatusRespo
     Json(IntelligenceStatusResponse {
         status,
         current_prediction,
+    })
+}
+
+/// GET /v1/intelligence/health
+/// Returns health counters (24h) and key metrics (v1.1.9)
+async fn get_health(State(app): State<AppState>) -> Json<HealthResponse> {
+    let counters = app.context_intelligence.get_health_counters();
+    let accuracy = app.context_intelligence.calculate_accuracy(7);
+    let patterns = app.context_intelligence.get_patterns();
+    let config = app.context_intelligence.get_config();
+
+    // Count established patterns (occurrences >= min_pattern_occurrences)
+    let patterns_established = patterns.iter()
+        .filter(|p| p.occurrences >= config.min_pattern_occurrences)
+        .count();
+
+    Json(HealthResponse {
+        counters,
+        accuracy_7_days: accuracy,
+        patterns_active: patterns.len(),
+        patterns_established,
     })
 }
 
@@ -156,6 +210,56 @@ async fn put_config(
     Json(ConfigResponse { config })
 }
 
+/// GET /v1/intelligence/patterns/export
+/// Export patterns with decay calculation and filtering (v1.1.9)
+async fn get_patterns_export(
+    State(app): State<AppState>,
+    Query(query): Query<PatternExportQuery>,
+) -> Json<PatternExportResponse> {
+    let mut patterns = app.context_intelligence.get_patterns_with_decay();
+    let mut filters = Vec::new();
+
+    // Apply filters
+    if let Some(ref mode) = query.mode {
+        patterns.retain(|p| p.mode.eq_ignore_ascii_case(mode));
+        filters.push(format!("mode={}", mode));
+    }
+
+    if let Some(day) = query.day {
+        patterns.retain(|p| p.day_of_week == day);
+        filters.push(format!("day={}", day));
+    }
+
+    if let Some(min_conf) = query.min_confidence {
+        patterns.retain(|p| p.decayed_confidence >= min_conf);
+        filters.push(format!("min_confidence={:.2}", min_conf));
+    }
+
+    // Sort
+    let sort_by = query.sort_by.as_deref().unwrap_or("confidence");
+    match sort_by {
+        "occurrences" => patterns.sort_by(|a, b| b.occurrences.cmp(&a.occurrences)),
+        "last_seen" => patterns.sort_by(|a, b| b.last_seen.cmp(&a.last_seen)),
+        _ => patterns.sort_by(|a, b| b.decayed_confidence.partial_cmp(&a.decayed_confidence).unwrap_or(std::cmp::Ordering::Equal)),
+    }
+    if sort_by != "confidence" {
+        filters.push(format!("sort_by={}", sort_by));
+    }
+
+    // Limit
+    if let Some(limit) = query.limit {
+        patterns.truncate(limit);
+        filters.push(format!("limit={}", limit));
+    }
+
+    let count = patterns.len();
+    Json(PatternExportResponse {
+        patterns,
+        count,
+        filters_applied: filters,
+    })
+}
+
 // ============================================================================
 // Router
 // ============================================================================
@@ -163,7 +267,9 @@ async fn put_config(
 pub fn intelligence_routes() -> Router<AppState> {
     Router::new()
         .route("/status", get(get_status))
+        .route("/health", get(get_health))
         .route("/patterns", get(get_patterns))
+        .route("/patterns/export", get(get_patterns_export))
         .route("/predictions", get(get_predictions))
         .route("/signals", get(get_signals))
         .route("/feedback", post(post_feedback))

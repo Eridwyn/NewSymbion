@@ -32,6 +32,7 @@ use crate::models::{HostState, HostsMap};
 use crate::state::Shared;
 use crate::config::HostsConfig;
 use crate::notes_bridge::{self, SharedNotesBridge};
+use crate::context_intelligence::DecisionSignal;
 use crate::wol::trigger_wol_udp;
 use serde::Deserialize;
 use axum::middleware::{self, Next};
@@ -2182,6 +2183,23 @@ async fn decision_resolve_validation(
                         validation_id
                     );
 
+                    // Notify Intelligence: action approved after MFA (weak positive)
+                    // Use automation's target mode - NO fallback to current_mode
+                    if let Some(signals) = app.context_intelligence.last_signals() {
+                        if pending.target_mode.is_none() {
+                            eprintln!(
+                                "[http] No explicit intent for '{}', skipping Intelligence feedback",
+                                pending.automation_name
+                            );
+                        }
+                        app.context_intelligence.record_decision_outcome(
+                            DecisionSignal::ApprovedMFA,
+                            pending.target_mode.as_deref(),
+                            &signals,
+                            None, // blocked_categories not applicable for ApprovedMFA
+                        );
+                    }
+
                     // Add success record to history
                     let action_result = crate::automations::ActionResult {
                         action_type: format!("{:?}", pending.action).split('{').next().unwrap_or("unknown").trim().to_string(),
@@ -2260,6 +2278,23 @@ async fn decision_resolve_validation(
                 "[http] ❌ Validation {} rejected for automation '{}'",
                 validation_id, pending.automation_name
             );
+
+            // Notify Intelligence: action denied by user (strong negative)
+            // Use automation's target mode - NO fallback to current_mode
+            if let Some(signals) = app.context_intelligence.last_signals() {
+                if pending.target_mode.is_none() {
+                    eprintln!(
+                        "[http] No explicit intent for '{}', skipping Intelligence feedback",
+                        pending.automation_name
+                    );
+                }
+                app.context_intelligence.record_decision_outcome(
+                    DecisionSignal::Denied,
+                    pending.target_mode.as_deref(),
+                    &signals,
+                    None, // blocked_categories not applicable for Denied
+                );
+            }
 
             let action_result = crate::automations::ActionResult {
                 action_type: format!("{:?}", pending.action).split('{').next().unwrap_or("unknown").trim().to_string(),

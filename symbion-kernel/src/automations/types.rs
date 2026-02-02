@@ -37,6 +37,10 @@ pub struct Automation {
     /// Category for organizing automations (systeme, alertes, modes, notifications, custom)
     #[serde(default)]
     pub category: Option<String>,
+    /// Goal mode - what context mode this automation aims to achieve/maintain
+    /// Used for Intelligence feedback learning. If None, no learning occurs.
+    #[serde(default)]
+    pub goal_mode: Option<String>,
     #[serde(default = "default_true")]
     pub enabled: bool,
     /// Legacy single trigger (for backward compatibility)
@@ -432,6 +436,10 @@ pub struct AutomationRequest {
     /// Category for organizing automations (systeme, alertes, modes, notifications, custom)
     #[serde(default)]
     pub category: Option<String>,
+    /// Goal mode - what context mode this automation aims to achieve/maintain
+    /// Used for Intelligence feedback learning. If None, no learning occurs.
+    #[serde(default)]
+    pub goal_mode: Option<String>,
     #[serde(default = "default_true")]
     pub enabled: bool,
     /// Legacy single trigger (for backward compatibility)
@@ -606,6 +614,19 @@ impl Automation {
             self.trigger.is_some()
         }
     }
+
+    /// Extract the target mode from this automation (for Intelligence feedback)
+    ///
+    /// SIMPLIFIED (v1.1.9): Only goal_mode is used for learning.
+    /// ForceMode actions are EXECUTED but don't influence Intelligence learning.
+    /// This prevents side-effect actions from polluting the learning model.
+    ///
+    /// If None is returned, NO LEARNING should occur.
+    pub fn target_mode(&self) -> Option<String> {
+        // ONLY source: explicit goal_mode
+        // ForceMode/ModeChange are still executed but don't drive learning
+        self.goal_mode.clone()
+    }
 }
 
 #[cfg(test)]
@@ -700,6 +721,7 @@ mod tests {
             name: "Test".to_string(),
             description: None,
             category: Some("custom".to_string()),
+            goal_mode: None,
             enabled: true,
             trigger: Some(Trigger::Manual),
             triggers: None,

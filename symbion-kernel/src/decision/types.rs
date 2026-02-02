@@ -74,6 +74,66 @@ pub struct DecisionResult {
     pub warnings: Vec<GuardWarning>,
 }
 
+/// Category of blocked reason for selective learning
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BlockedReasonCategory {
+    /// TTL expired - no learning (timing issue, not context)
+    TtlExpired,
+    /// Security guard blocked - no learning (security, not context)
+    SecurityGuard,
+    /// Agent unavailable - no learning (infrastructure, not context)
+    AgentUnavailable,
+    /// Context mismatch - learn negative (wrong mode prediction)
+    ContextMismatch,
+}
+
+impl BlockedReasonCategory {
+    /// Learning modifier for this category
+    pub fn learning_modifier(&self) -> f32 {
+        match self {
+            Self::TtlExpired => 0.0,
+            Self::SecurityGuard => 0.0,
+            Self::AgentUnavailable => 0.0,
+            Self::ContextMismatch => -0.10,
+        }
+    }
+
+    /// Parse from guard explanation code (explicit mapping, no substring matching)
+    pub fn from_code(code: &str) -> Option<Self> {
+        match code {
+            // Time guards
+            "GUARD.TIME.EXPIRED" | "GUARD.TIME.NIGHT_HIGH_IMPACT" => Some(Self::TtlExpired),
+
+            // Agent guards
+            "GUARD.AGENT.NOT_FOUND" | "GUARD.AGENT.MAINTENANCE" | "GUARD.AGENT.DEGRADED" => {
+                Some(Self::AgentUnavailable)
+            }
+
+            // Context guards
+            "GUARD.CONTEXT.MODE_MISMATCH" | "GUARD.CONTEXT.SSID_MISMATCH" => {
+                Some(Self::ContextMismatch)
+            }
+
+            // Security guards
+            "GUARD.SECURITY.HIGH_IMPACT" | "GUARD.SECURITY.REQUIRE_MFA" => {
+                Some(Self::SecurityGuard)
+            }
+
+            // Unknown = None (explicit, no silent fallback)
+            unknown => {
+                eprintln!("[decision] Unknown explanation_code: {}", unknown);
+                None
+            }
+        }
+    }
+
+    /// Deprecated: use from_code() instead
+    #[deprecated(since = "1.1.9", note = "Use from_code() for explicit mapping")]
+    pub fn from_explanation(code: &str) -> Self {
+        Self::from_code(code).unwrap_or(Self::SecurityGuard)
+    }
+}
+
 /// Issue d'une decision
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -92,6 +152,9 @@ pub enum DecisionOutcome {
     Blocked {
         reasons: Vec<String>,
         explanation_codes: Vec<String>,
+        /// Categories for selective learning
+        #[serde(default)]
+        categories: Vec<BlockedReasonCategory>,
     },
     DryRun {
         would_approve: bool,
