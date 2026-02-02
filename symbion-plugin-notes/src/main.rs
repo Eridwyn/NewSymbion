@@ -1,24 +1,21 @@
 /**
  * SYMBION PLUGIN NOTES - Service distribué de gestion des notes
- * 
+ *
  * RÔLE :
- * Plugin autonome qui gère les notes/mémos/rappels via MQTT.
- * Remplace le port memo intégré du kernel pour une architecture plus modulaire.
- * 
+ * Plugin autonome qui gère les notes/mémos/rappels.
+ * Conforme au Plugin Contract v1.0.
+ *
  * FONCTIONNEMENT :
  * - Stockage JSON local (./notes.json)
- * - Écoute MQTT : create, list, delete, update notes
- * - Répond sur MQTT : résultats des opérations
- * 
- * UTILITÉ DANS SYMBION :
- * 🎯 Découplement : Notes séparées du kernel central
- * 🎯 Extensibilité : Plugin peut évoluer indépendamment  
- * 🎯 Distribution : Peut tourner sur machine dédiée
- * 🎯 Résilience : Crash plugin n'affecte pas le kernel
- * 
- * COMMUNICATION MQTT :
- * Écoute: symbion/notes/create@v1, symbion/notes/list@v1
- * Publie: symbion/notes/response@v1
+ * - Actions via HTTP POST /actions (ACK synchrone)
+ * - Events via MQTT symbion/plugins/notes/events
+ * - Health via MQTT heartbeat + HTTP /health
+ *
+ * CONTRACT v1.0 :
+ * - Actions: create_note, update_note, delete_note, list_notes
+ * - Events: note_created, note_updated, note_deleted
+ * - Manifest publié sur symbion/plugins/notes/manifest
+ * - Heartbeat sur symbion/plugins/notes/health (30s)
  */
 
 use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, QoS};
@@ -27,6 +24,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 use tokio::time::Duration;
 use uuid::Uuid;
 use parking_lot::Mutex;
@@ -35,12 +33,106 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::Json,
-    routing::get,
+    routing::{get, post},
     Router,
 };
-use symbion_plugin_common::{PluginHttpServer, PluginRegistrationBuilder};
+use symbion_plugin_common::PluginHttpServer;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::broadcast;
+
+// ============================================================================
+// CONTRACT v1.0 STRUCTURES
+// ============================================================================
+
+const SPEC_VERSION: &str = "1.0";
+const PLUGIN_ID: &str = "notes";
+
+/// Action request from Kernel (HTTP POST /actions)
+#[derive(Debug, Clone, Deserialize)]
+pub struct ActionRequest {
+    pub spec_version: String,
+    pub action_id: Uuid,
+    pub action_type: String,
+    pub payload: serde_json::Value,
+    #[serde(default)]
+    pub metadata: serde_json::Value,
+}
+
+/// Action response to Kernel (HTTP response = ACK)
+#[derive(Debug, Clone, Serialize)]
+pub struct ActionResponse {
+    pub spec_version: String,
+    pub action_id: Uuid,
+    pub status: ActionStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<ActionError>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_time_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ActionStatus {
+    Success,
+    Error,
+    Rejected,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ActionError {
+    pub code: String,
+    pub message: String,
+    pub retryable: bool,
+}
+
+/// Event message to Kernel (MQTT)
+#[derive(Debug, Clone, Serialize)]
+pub struct EventMessage {
+    pub spec_version: String,
+    pub event_type: String,
+    pub plugin_id: String,
+    pub payload: serde_json::Value,
+    pub timestamp: String,
+}
+
+impl EventMessage {
+    pub fn new(event_type: &str, payload: serde_json::Value) -> Self {
+        Self {
+            spec_version: SPEC_VERSION.to_string(),
+            event_type: event_type.to_string(),
+            plugin_id: PLUGIN_ID.to_string(),
+            payload,
+            timestamp: OffsetDateTime::now_utc()
+                .format(&Rfc3339)
+                .unwrap_or_else(|_| "unknown".to_string()),
+        }
+    }
+}
+
+/// Health status for MQTT heartbeat
+#[derive(Debug, Clone, Serialize)]
+pub struct HealthStatus {
+    pub spec_version: String,
+    pub plugin_id: String,
+    pub status: String,
+    pub uptime_seconds: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_action_at: Option<String>,
+}
+
+// ============================================================================
+// MQTT TOPICS (Contract v1.0)
+// ============================================================================
+
+mod topics {
+    pub const MANIFEST: &str = "symbion/plugins/notes/manifest";
+    pub const EVENTS: &str = "symbion/plugins/notes/events";
+    pub const HEALTH: &str = "symbion/plugins/notes/health";
+    // Legacy topic for backward compatibility during migration
+    pub const LEGACY_COMMAND: &str = "symbion/notes/command@v1";
+}
 
 /// Structure des données de note (identique au kernel)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -317,55 +409,9 @@ impl NotesStorage {
 }
 
 // ===== HTTP Handlers =====
+// Note: All legacy handlers (*_http) replaced by _v2 versions using AppState with MQTT client
 
-/// GET /notes - Liste toutes les notes
-async fn list_notes_http(
-    State(storage): State<Arc<NotesStorage>>,
-) -> Json<serde_json::Value> {
-    let notes = storage.list_notes(None);
-    Json(serde_json::json!({
-        "notes": notes,
-        "count": notes.len()
-    }))
-}
-
-/// POST /notes - Crée une nouvelle note
-async fn create_note_http(
-    State(storage): State<Arc<NotesStorage>>,
-    Json(content): Json<NoteContent>,
-) -> Result<Json<Note>, (StatusCode, String)> {
-    match storage.create_note(content) {
-        Ok(note) => Ok(Json(note)),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
-}
-
-/// DELETE /notes/:id - Supprime une note
-async fn delete_note_http(
-    State(storage): State<Arc<NotesStorage>>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    match storage.delete_note(&id) {
-        Ok(true) => Ok(Json(serde_json::json!({"deleted": true, "id": id}))),
-        Ok(false) => Err((StatusCode::NOT_FOUND, "Note not found".to_string())),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
-}
-
-/// PUT /notes/:id - Met à jour une note
-async fn update_note_http(
-    State(storage): State<Arc<NotesStorage>>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-    Json(content): Json<NoteContent>,
-) -> Result<Json<Note>, (StatusCode, String)> {
-    match storage.update_note(&id, content) {
-        Ok(Some(note)) => Ok(Json(note)),
-        Ok(None) => Err((StatusCode::NOT_FOUND, "Note not found".to_string())),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
-}
-
-/// Health check endpoint
+/// Health check endpoint (Contract v1.0 format)
 async fn health_check() -> Json<serde_json::Value> {
     use std::sync::OnceLock;
     static START_TIME: OnceLock<std::time::Instant> = OnceLock::new();
@@ -373,26 +419,405 @@ async fn health_check() -> Json<serde_json::Value> {
     let uptime_secs = start.elapsed().as_secs();
 
     Json(serde_json::json!({
+        "spec_version": SPEC_VERSION,
+        "plugin_id": PLUGIN_ID,
         "status": "healthy",
-        "plugin": "notes",
-        "version": "0.1.0",
         "uptime_seconds": uptime_secs
     }))
 }
 
+// ============================================================================
+// CONTRACT v1.0 ACTION HANDLER
+// ============================================================================
+
+/// App state for routes needing MQTT client
+#[derive(Clone)]
+pub struct AppState {
+    storage: Arc<NotesStorage>,
+    mqtt_client: AsyncClient,
+}
+
+/// POST /actions - Contract v1.0 action endpoint (synchronous ACK)
+#[axum::debug_handler]
+async fn handle_action(
+    State(state): State<AppState>,
+    Json(request): Json<ActionRequest>,
+) -> Json<serde_json::Value> {
+    let start = std::time::Instant::now();
+    eprintln!("[notes] received action: {} (id: {})", request.action_type, request.action_id);
+
+    let response = match request.action_type.as_str() {
+        "create_note" => handle_create_note(&state, &request).await,
+        "update_note" => handle_update_note(&state, &request).await,
+        "delete_note" => handle_delete_note(&state, &request).await,
+        "list_notes" => handle_list_notes(&state, &request).await,
+        _ => ActionResponse {
+            spec_version: SPEC_VERSION.to_string(),
+            action_id: request.action_id,
+            status: ActionStatus::Rejected,
+            result: None,
+            error: Some(ActionError {
+                code: "UNKNOWN_ACTION".to_string(),
+                message: format!("Unknown action type: {}", request.action_type),
+                retryable: false,
+            }),
+            execution_time_ms: None,
+        },
+    };
+
+    let mut response = response;
+    response.execution_time_ms = Some(start.elapsed().as_millis() as u64);
+
+    eprintln!(
+        "[notes] action {} completed: {:?} ({}ms)",
+        request.action_id,
+        response.status,
+        response.execution_time_ms.unwrap_or(0)
+    );
+
+    Json(serde_json::to_value(response).unwrap_or_default())
+}
+
+async fn handle_create_note(state: &AppState, request: &ActionRequest) -> ActionResponse {
+    // Parse payload into NoteContent
+    let content: NoteContent = match serde_json::from_value(request.payload.clone()) {
+        Ok(c) => c,
+        Err(e) => {
+            return ActionResponse {
+                spec_version: SPEC_VERSION.to_string(),
+                action_id: request.action_id,
+                status: ActionStatus::Error,
+                result: None,
+                error: Some(ActionError {
+                    code: "INVALID_PAYLOAD".to_string(),
+                    message: format!("Failed to parse note content: {}", e),
+                    retryable: false,
+                }),
+                execution_time_ms: None,
+            };
+        }
+    };
+
+    // Execute storage and extract all data BEFORE any await (for Send safety)
+    let (response, maybe_event) = {
+        match state.storage.create_note(content) {
+            Ok(note) => {
+                let note_id = note.id.clone();
+                let context = note.data.context.clone();
+                let event = EventMessage::new("note_created", serde_json::json!({
+                    "note_id": &note_id,
+                    "context": &context
+                }));
+                let response = ActionResponse {
+                    spec_version: SPEC_VERSION.to_string(),
+                    action_id: request.action_id,
+                    status: ActionStatus::Success,
+                    result: Some(serde_json::json!({
+                        "note_id": note_id,
+                        "note": note
+                    })),
+                    error: None,
+                    execution_time_ms: None,
+                };
+                (response, Some(event))
+            }
+            Err(e) => {
+                let response = ActionResponse {
+                    spec_version: SPEC_VERSION.to_string(),
+                    action_id: request.action_id,
+                    status: ActionStatus::Error,
+                    result: None,
+                    error: Some(ActionError {
+                        code: "STORAGE_ERROR".to_string(),
+                        message: e.to_string(),
+                        retryable: true,
+                    }),
+                    execution_time_ms: None,
+                };
+                (response, None)
+            }
+        }
+    };
+
+    // Now safe to await - no non-Send types in scope
+    if let Some(event) = maybe_event {
+        emit_event(&state.mqtt_client, event).await;
+    }
+
+    response
+}
+
+async fn handle_update_note(state: &AppState, request: &ActionRequest) -> ActionResponse {
+    let note_id_str = request.payload.get("note_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    if note_id_str.is_empty() {
+        return ActionResponse {
+            spec_version: SPEC_VERSION.to_string(),
+            action_id: request.action_id,
+            status: ActionStatus::Error,
+            result: None,
+            error: Some(ActionError {
+                code: "MISSING_NOTE_ID".to_string(),
+                message: "note_id is required".to_string(),
+                retryable: false,
+            }),
+            execution_time_ms: None,
+        };
+    }
+
+    // Build NoteContent from payload (excluding note_id)
+    let mut payload = request.payload.clone();
+    if let Some(obj) = payload.as_object_mut() {
+        obj.remove("note_id");
+    }
+
+    let content: NoteContent = match serde_json::from_value(payload) {
+        Ok(c) => c,
+        Err(e) => {
+            return ActionResponse {
+                spec_version: SPEC_VERSION.to_string(),
+                action_id: request.action_id,
+                status: ActionStatus::Error,
+                result: None,
+                error: Some(ActionError {
+                    code: "INVALID_PAYLOAD".to_string(),
+                    message: format!("Failed to parse note content: {}", e),
+                    retryable: false,
+                }),
+                execution_time_ms: None,
+            };
+        }
+    };
+
+    // Execute storage and extract all data BEFORE any await
+    let (response, maybe_event) = {
+        match state.storage.update_note(&note_id_str, content) {
+            Ok(Some(note)) => {
+                let event = EventMessage::new("note_updated", serde_json::json!({
+                    "note_id": &note.id
+                }));
+                let response = ActionResponse {
+                    spec_version: SPEC_VERSION.to_string(),
+                    action_id: request.action_id,
+                    status: ActionStatus::Success,
+                    result: Some(serde_json::json!({ "note": note })),
+                    error: None,
+                    execution_time_ms: None,
+                };
+                (response, Some(event))
+            }
+            Ok(None) => {
+                let response = ActionResponse {
+                    spec_version: SPEC_VERSION.to_string(),
+                    action_id: request.action_id,
+                    status: ActionStatus::Error,
+                    result: None,
+                    error: Some(ActionError {
+                        code: "NOT_FOUND".to_string(),
+                        message: format!("Note {} not found", note_id_str),
+                        retryable: false,
+                    }),
+                    execution_time_ms: None,
+                };
+                (response, None)
+            }
+            Err(e) => {
+                let response = ActionResponse {
+                    spec_version: SPEC_VERSION.to_string(),
+                    action_id: request.action_id,
+                    status: ActionStatus::Error,
+                    result: None,
+                    error: Some(ActionError {
+                        code: "STORAGE_ERROR".to_string(),
+                        message: e.to_string(),
+                        retryable: true,
+                    }),
+                    execution_time_ms: None,
+                };
+                (response, None)
+            }
+        }
+    };
+
+    if let Some(event) = maybe_event {
+        emit_event(&state.mqtt_client, event).await;
+    }
+
+    response
+}
+
+async fn handle_delete_note(state: &AppState, request: &ActionRequest) -> ActionResponse {
+    let note_id_str = request.payload.get("note_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    if note_id_str.is_empty() {
+        return ActionResponse {
+            spec_version: SPEC_VERSION.to_string(),
+            action_id: request.action_id,
+            status: ActionStatus::Error,
+            result: None,
+            error: Some(ActionError {
+                code: "MISSING_NOTE_ID".to_string(),
+                message: "note_id is required".to_string(),
+                retryable: false,
+            }),
+            execution_time_ms: None,
+        };
+    }
+
+    // Execute storage and extract all data BEFORE any await
+    let (response, maybe_event) = {
+        match state.storage.delete_note(&note_id_str) {
+            Ok(true) => {
+                let event = EventMessage::new("note_deleted", serde_json::json!({
+                    "note_id": &note_id_str
+                }));
+                let response = ActionResponse {
+                    spec_version: SPEC_VERSION.to_string(),
+                    action_id: request.action_id,
+                    status: ActionStatus::Success,
+                    result: Some(serde_json::json!({ "deleted": true, "note_id": &note_id_str })),
+                    error: None,
+                    execution_time_ms: None,
+                };
+                (response, Some(event))
+            }
+            Ok(false) => {
+                let response = ActionResponse {
+                    spec_version: SPEC_VERSION.to_string(),
+                    action_id: request.action_id,
+                    status: ActionStatus::Error,
+                    result: None,
+                    error: Some(ActionError {
+                        code: "NOT_FOUND".to_string(),
+                        message: format!("Note {} not found", note_id_str),
+                        retryable: false,
+                    }),
+                    execution_time_ms: None,
+                };
+                (response, None)
+            }
+            Err(e) => {
+                let response = ActionResponse {
+                    spec_version: SPEC_VERSION.to_string(),
+                    action_id: request.action_id,
+                    status: ActionStatus::Error,
+                    result: None,
+                    error: Some(ActionError {
+                        code: "STORAGE_ERROR".to_string(),
+                        message: e.to_string(),
+                        retryable: true,
+                    }),
+                    execution_time_ms: None,
+                };
+                (response, None)
+            }
+        }
+    };
+
+    if let Some(event) = maybe_event {
+        emit_event(&state.mqtt_client, event).await;
+    }
+
+    response
+}
+
+async fn handle_list_notes(state: &AppState, request: &ActionRequest) -> ActionResponse {
+    // Convert payload to filters if present
+    let filters: Option<HashMap<String, serde_json::Value>> =
+        serde_json::from_value(request.payload.clone()).ok();
+
+    let notes = state.storage.list_notes(filters);
+
+    ActionResponse {
+        spec_version: SPEC_VERSION.to_string(),
+        action_id: request.action_id,
+        status: ActionStatus::Success,
+        result: Some(serde_json::json!({
+            "notes": notes,
+            "count": notes.len()
+        })),
+        error: None,
+        execution_time_ms: None,
+    }
+}
+
+/// Emit event on MQTT
+async fn emit_event(client: &AsyncClient, event: EventMessage) {
+    if let Ok(json) = serde_json::to_string(&event) {
+        if let Err(e) = client.publish(topics::EVENTS, QoS::AtLeastOnce, false, json).await {
+            eprintln!("[notes] failed to emit event {}: {:?}", event.event_type, e);
+        } else {
+            eprintln!("[notes] emitted event: {}", event.event_type);
+        }
+    }
+}
+
+// Legacy HTTP handlers adapted for AppState
+async fn list_notes_http_v2(
+    State(state): State<AppState>,
+) -> Json<serde_json::Value> {
+    let notes = state.storage.list_notes(None);
+    Json(serde_json::json!({
+        "notes": notes,
+        "count": notes.len()
+    }))
+}
+
+async fn create_note_http_v2(
+    State(state): State<AppState>,
+    Json(content): Json<NoteContent>,
+) -> Result<Json<Note>, (StatusCode, String)> {
+    match state.storage.create_note(content) {
+        Ok(note) => Ok(Json(note)),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn delete_note_http_v2(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    match state.storage.delete_note(&id) {
+        Ok(true) => Ok(Json(serde_json::json!({"deleted": true, "id": id}))),
+        Ok(false) => Err((StatusCode::NOT_FOUND, "Note not found".to_string())),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn update_note_http_v2(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(content): Json<NoteContent>,
+) -> Result<Json<Note>, (StatusCode, String)> {
+    match state.storage.update_note(&id, content) {
+        Ok(Some(note)) => Ok(Json(note)),
+        Ok(None) => Err((StatusCode::NOT_FOUND, "Note not found".to_string())),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
 /// Construit le router HTTP pour le plugin
-fn build_router(storage: Arc<NotesStorage>) -> Router {
+fn build_router(state: AppState) -> Router {
     Router::new()
+        // Contract v1.0 routes
         .route("/health", get(health_check))
-        .route("/notes", get(list_notes_http).post(create_note_http))
-        .route("/notes/:id", axum::routing::delete(delete_note_http).put(update_note_http))
-        .with_state(storage)
+        .route("/actions", post(handle_action))
+        // Legacy routes (will be deprecated)
+        .route("/notes", get(list_notes_http_v2).post(create_note_http_v2))
+        .route("/notes/:id", axum::routing::delete(delete_note_http_v2).put(update_note_http_v2))
+        .with_state(state)
 }
 
 /// Point d'entrée principal du plugin
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    eprintln!("[notes] symbion plugin notes starting...");
+    eprintln!("[notes] symbion plugin notes v1.1.0 (Contract v1.0) starting...");
 
     // Initialisation du stockage
     let storage = NotesStorage::new("./notes.json")?;
@@ -410,8 +835,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create shutdown channel for graceful termination
     let (shutdown_tx, mut shutdown_rx) = broadcast::channel::<()>(1);
 
-    // Construire le router HTTP
-    let app = build_router(storage.clone());
+    // Configuration MQTT (avant le router pour créer AppState)
+    let mut mqttopts = MqttOptions::new("symbion-plugin-notes", "localhost", 1883);
+    mqttopts.set_keep_alive(Duration::from_secs(30));
+    mqttopts.set_clean_session(true);
+    mqttopts.set_max_packet_size(1024 * 1024, 1024 * 1024);
+
+    let (client, mut eventloop) = AsyncClient::new(mqttopts, 200);
+
+    // Create AppState with storage and MQTT client
+    let app_state = AppState {
+        storage: storage.clone(),
+        mqtt_client: client.clone(),
+    };
+
+    // Construire le router HTTP avec Contract v1.0
+    let app = build_router(app_state);
 
     // Démarrer le serveur HTTP en arrière-plan
     let socket_path_clone = socket_path.to_string();
@@ -425,38 +864,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Attendre que le socket soit créé
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    // Service Discovery: Auto-registration avec le kernel
-    let socket_path_clone = socket_path.to_string();
-    tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(500)).await;
+    // Contract v1.0: Publish manifest on MQTT at startup
+    let manifest = include_str!("../manifest.json");
+    if let Err(e) = client.publish(topics::MANIFEST, QoS::AtLeastOnce, true, manifest).await {
+        eprintln!("[notes] failed to publish manifest: {:?}", e);
+    } else {
+        eprintln!("[notes] ✅ manifest published on {}", topics::MANIFEST);
+    }
 
-        match PluginRegistrationBuilder::new("notes", &socket_path_clone)
-            .route("/notes")
-            .route("/notes/:id")
-            .route("/health")
-            .version("1.0.0")
-            .description("Notes plugin with MQTT streaming and HTTP API")
-            .register()
-            .await
-        {
-            Ok(_) => eprintln!("[notes] ✅ Registered with kernel via Service Discovery"),
-            Err(e) => eprintln!("[notes] ❌ Failed to register with kernel: {}", e),
+    // Contract v1.0: Heartbeat every 30 seconds
+    let heartbeat_client = client.clone();
+    tokio::spawn(async move {
+        let start = std::time::Instant::now();
+        loop {
+            tokio::time::sleep(Duration::from_secs(30)).await;
+
+            let health = HealthStatus {
+                spec_version: SPEC_VERSION.to_string(),
+                plugin_id: PLUGIN_ID.to_string(),
+                status: "healthy".to_string(),
+                uptime_seconds: start.elapsed().as_secs(),
+                last_action_at: None,
+            };
+
+            if let Ok(json) = serde_json::to_string(&health) {
+                if let Err(e) = heartbeat_client.publish(topics::HEALTH, QoS::AtMostOnce, false, json).await {
+                    eprintln!("[notes] heartbeat failed: {:?}", e);
+                }
+            }
         }
     });
 
-    // Configuration MQTT
-    let mut mqttopts = MqttOptions::new("symbion-plugin-notes", "localhost", 1883);
-    mqttopts.set_keep_alive(Duration::from_secs(30));
-    mqttopts.set_clean_session(true); // Nettoie la session à la déconnexion (évite collision client ID)
-    mqttopts.set_max_packet_size(1024 * 1024, 1024 * 1024); // 1 MB max pour les gros payloads (notes)
+    // Legacy: S'abonner aux anciens topics de commandes (backward compatibility)
+    client.subscribe(topics::LEGACY_COMMAND, QoS::AtLeastOnce).await?;
 
-    // Buffer de 200 messages pour supporter le streaming de notes sans deadlock
-    let (client, mut eventloop) = AsyncClient::new(mqttopts, 200);
-
-    // S'abonner aux topics de commandes
-    client.subscribe("symbion/notes/command@v1", QoS::AtLeastOnce).await?;
-
-    eprintln!("[notes] connected to MQTT, listening for commands...");
+    eprintln!("[notes] connected to MQTT, Contract v1.0 active");
 
     // Signal handlers for graceful shutdown (SIGTERM from systemd, SIGINT from Ctrl+C)
     let socket_path_for_cleanup = socket_path.to_string();
@@ -492,18 +934,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 eprintln!("[notes] shutdown signal received, exiting main loop");
                 break;
             }
-            // Process MQTT events
+            // Process MQTT events (legacy commands only - Contract v1.0 uses HTTP /actions)
             event = eventloop.poll() => {
                 match event {
                     Ok(Event::Incoming(Incoming::Publish(publish))) => {
-                        if publish.topic == "symbion/notes/command@v1" {
-                            // IMPORTANT: Spawner dans une task séparée pour ne PAS bloquer l'eventloop
-                            // Sinon deadlock quand handle_command fait client.publish().await
+                        if publish.topic == topics::LEGACY_COMMAND {
+                            // Legacy MQTT commands (backward compatibility)
                             let client_clone = client.clone();
                             let storage_clone = storage.clone();
                             let payload = publish.payload.to_vec();
                             tokio::spawn(async move {
-                                handle_command(&client_clone, &storage_clone, &payload).await;
+                                handle_legacy_command(&client_clone, &storage_clone, &payload).await;
                             });
                         }
                     }
@@ -524,8 +965,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Traite une commande MQTT reçue
-async fn handle_command(
+/// Legacy: Traite une commande MQTT (backward compatibility, deprecated)
+async fn handle_legacy_command(
     client: &AsyncClient,
     storage: &NotesStorage,
     payload: &[u8],
