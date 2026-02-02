@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use axum::extract::Query;
 use crate::http::AppState;
 use crate::context_intelligence::{
-    ContextSignals, HealthCounters, IntelligenceConfig, IntelligenceStatus,
+    AccuracyStats, ContextSignals, HealthCounters, IntelligenceConfig, IntelligenceStatus,
     LearnedPattern, ModePrediction, PredictionRecord, PatternExport,
 };
 
@@ -98,7 +98,8 @@ pub struct PatternExportResponse {
 #[derive(Serialize)]
 pub struct HealthResponse {
     pub counters: HealthCounters,
-    pub accuracy_7_days: f32,
+    /// Detailed accuracy with denominators (v1.1.9 P0 fix)
+    pub accuracy: AccuracyStats,
     pub patterns_active: usize,
     pub patterns_established: usize,
 }
@@ -120,10 +121,10 @@ async fn get_status(State(app): State<AppState>) -> Json<IntelligenceStatusRespo
 }
 
 /// GET /v1/intelligence/health
-/// Returns health counters (24h) and key metrics (v1.1.9)
+/// Returns health counters (24h) and detailed accuracy metrics (v1.1.9)
 async fn get_health(State(app): State<AppState>) -> Json<HealthResponse> {
     let counters = app.context_intelligence.get_health_counters();
-    let accuracy = app.context_intelligence.calculate_accuracy(7);
+    let accuracy = app.context_intelligence.calculate_accuracy_detailed(7);
     let patterns = app.context_intelligence.get_patterns();
     let config = app.context_intelligence.get_config();
 
@@ -134,7 +135,7 @@ async fn get_health(State(app): State<AppState>) -> Json<HealthResponse> {
 
     Json(HealthResponse {
         counters,
-        accuracy_7_days: accuracy,
+        accuracy,
         patterns_active: patterns.len(),
         patterns_established,
     })
