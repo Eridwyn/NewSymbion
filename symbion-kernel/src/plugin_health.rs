@@ -57,13 +57,17 @@ pub struct PluginHealthStatus {
     pub auto_recovery_count: u32,
 }
 
-/// Health check response attendue du plugin
+/// Health check response attendue du plugin (Contract v1.0)
 #[derive(Debug, Deserialize)]
 struct PluginHealthResponse {
-    plugin: String,
+    /// Plugin ID (Contract v1.0 uses "plugin_id", legacy uses "plugin")
+    #[serde(alias = "plugin")]
+    plugin_id: String,
     status: String,
     uptime_seconds: u64,
-    version: String,
+    /// Spec version (Contract v1.0 uses "spec_version", legacy uses "version")
+    #[serde(alias = "version")]
+    spec_version: String,
 }
 
 /// Moniteur de santé des plugins avec tracking persistant
@@ -148,7 +152,7 @@ impl PluginHealthMonitor {
             plugin_name: plugin_name.to_string(),
             status: health_response.status,
             uptime_seconds: health_response.uptime_seconds,
-            version: health_response.version,
+            version: health_response.spec_version,
             response_time_ms,
             consecutive_failures: 0,
             last_check: chrono::Utc::now(),

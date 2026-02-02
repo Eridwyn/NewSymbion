@@ -235,20 +235,22 @@ impl PluginRegistry {
         // Read response body
         let body_bytes = res.into_body().collect().await?.to_bytes();
 
-        // Parse JSON response
+        // Parse JSON response (Contract v1.0 compatible)
         #[derive(serde::Deserialize)]
         struct HealthResponse {
-            plugin: String,
-            version: String,
+            #[serde(alias = "plugin")]
+            plugin_id: String,
+            #[serde(alias = "version")]
+            spec_version: String,
             #[serde(default)]
             description: Option<String>,
         }
 
         let health: HealthResponse = serde_json::from_slice(&body_bytes)?;
 
-        println!("[plugin-proxy] Health check OK: {} v{}", health.plugin, health.version);
+        println!("[plugin-proxy] Health check OK: {} v{}", health.plugin_id, health.spec_version);
 
-        Ok((health.version, health.description))
+        Ok((health.spec_version, health.description))
     }
 
     /// Find Unix socket for a given path
