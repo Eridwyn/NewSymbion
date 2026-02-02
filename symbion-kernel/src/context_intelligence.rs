@@ -217,6 +217,20 @@ pub struct PredictionRecord {
     pub actual_mode: Option<String>,  // Set when user corrects
     pub confidence: f32,
     pub was_correct: Option<bool>,
+    /// Source of outcome (v1.1.9): auto_applied, suggestion, ignored
+    #[serde(default)]
+    pub outcome_source: Option<PredictionOutcome>,
+}
+
+/// How a prediction was handled (v1.1.9)
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum PredictionOutcome {
+    /// Auto-applied (high confidence + established)
+    AutoApplied,
+    /// Suggestion sent (push or silent)
+    Suggestion,
+    /// Ignored (confidence too low)
+    Ignored,
 }
 
 /// User feedback on a prediction
@@ -338,6 +352,29 @@ pub struct HealthCounters {
     pub suggestions_generated: u32,
     pub auto_applied: u32,
     pub denied: u32,
+}
+
+/// Detailed accuracy stats with denominators (v1.1.9 P0 fix)
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AccuracyStats {
+    /// Total predictions made in period
+    pub predictions_total: u32,
+    /// Predictions that received feedback (was_correct is Some)
+    pub predictions_scored: u32,
+    /// Predictions that were auto-applied
+    pub predictions_auto_applied: u32,
+    /// Predictions with user feedback (manual correction or approval)
+    pub predictions_user_feedback: u32,
+    /// Predictions ignored (confidence < suggestion_threshold)
+    pub predictions_ignored: u32,
+    /// Correct predictions out of scored
+    pub correct_count: u32,
+    /// Accuracy strict: correct / total (harsh, includes unscored as wrong)
+    pub accuracy_strict: f32,
+    /// Accuracy feedback-only: correct / scored (biased but useful)
+    pub accuracy_feedback: f32,
+    /// Warning if sample size is too small
+    pub warning: Option<String>,
 }
 
 impl ContextIntelligence {
@@ -509,6 +546,86 @@ impl ContextIntelligence {
 
         let correct = recent.iter().filter(|r| r.was_correct == Some(true)).count();
         (correct as f32 / recent.len() as f32) * 100.0
+    }
+
+    /// Calculate detailed accuracy stats with all denominators (v1.1.9 P0)
+    pub fn calculate_accuracy_detailed(&self, days: i64) -> AccuracyStats {
+        let history = self.prediction_history.read();
+        let config = self.config.read();
+        let cutoff = OffsetDateTime::now_utc() - time::Duration::days(days);
+
+        let recent: Vec<&PredictionRecord> = history
+            .iter()
+            .filter(|r| r.timestamp > cutoff)
+            .collect();
+
+        let predictions_total = recent.len() as u32;
+
+        // Count by outcome source
+        let predictions_auto_applied = recent.iter()
+            .filter(|r| r.outcome_source == Some(PredictionOutcome::AutoApplied))
+            .count() as u32;
+
+        let predictions_suggested = recent.iter()
+            .filter(|r| r.outcome_source == Some(PredictionOutcome::Suggestion))
+            .count() as u32;
+
+        let predictions_ignored = recent.iter()
+            .filter(|r| r.outcome_source == Some(PredictionOutcome::Ignored)
+                || r.confidence < config.suggestion_threshold)
+            .count() as u32;
+
+        // Scored = has feedback
+        let scored: Vec<&&PredictionRecord> = recent.iter()
+            .filter(|r| r.was_correct.is_some())
+            .collect();
+        let predictions_scored = scored.len() as u32;
+
+        // User feedback = was_correct set AND actual_mode differs from predicted
+        let predictions_user_feedback = recent.iter()
+            .filter(|r| r.was_correct.is_some() && r.actual_mode.is_some())
+            .count() as u32;
+
+        let correct_count = scored.iter()
+            .filter(|r| r.was_correct == Some(true))
+            .count() as u32;
+
+        // Two accuracy metrics
+        let accuracy_feedback = if predictions_scored > 0 {
+            (correct_count as f32 / predictions_scored as f32) * 100.0
+        } else {
+            0.0
+        };
+
+        // Strict: unscored predictions count as wrong
+        let accuracy_strict = if predictions_total > 0 {
+            (correct_count as f32 / predictions_total as f32) * 100.0
+        } else {
+            0.0
+        };
+
+        // Warning if sample too small or biased
+        let warning = if predictions_total < 10 {
+            Some(format!("Échantillon trop petit ({} prédictions)", predictions_total))
+        } else if predictions_scored < 5 {
+            Some(format!("Peu de feedback ({}/{} scorées)", predictions_scored, predictions_total))
+        } else if accuracy_feedback > 95.0 && predictions_scored < 20 {
+            Some("Accuracy élevée avec peu de données - méfiance".to_string())
+        } else {
+            None
+        };
+
+        AccuracyStats {
+            predictions_total,
+            predictions_scored,
+            predictions_auto_applied,
+            predictions_user_feedback,
+            predictions_ignored,
+            correct_count,
+            accuracy_strict,
+            accuracy_feedback,
+            warning,
+        }
     }
 
     /// Initialize patterns from existing context history
@@ -1076,6 +1193,7 @@ impl ContextIntelligence {
             actual_mode: None,
             confidence: prediction.confidence,
             was_correct: None,
+            outcome_source: None,  // Updated later by monitor loop
         };
 
         let mut history = self.prediction_history.write();
@@ -1110,6 +1228,28 @@ impl ContextIntelligence {
             (p.hour as i8 - hour as i8).abs() <= 1 &&
             p.occurrences >= min_occurrences
         })
+    }
+
+    /// Check if pattern is established AND return days since last seen (v1.1.9)
+    /// Returns (is_established, days_since_seen) - None if no pattern found
+    pub fn get_pattern_recency(&self, mode: &str, day_of_week: u8, hour: u8, min_occurrences: u32) -> (bool, Option<i64>) {
+        let patterns = self.learned_patterns.read();
+        let now = OffsetDateTime::now_utc();
+
+        let matching = patterns.iter().find(|p| {
+            p.mode == mode &&
+            p.day_of_week == day_of_week &&
+            (p.hour as i8 - hour as i8).abs() <= 1
+        });
+
+        match matching {
+            Some(p) => {
+                let days_since = (now - p.last_seen).whole_days();
+                let is_established = p.occurrences >= min_occurrences;
+                (is_established, Some(days_since))
+            }
+            None => (false, None)
+        }
     }
 
     /// Get pattern with decayed confidence for export/debug
@@ -1374,7 +1514,7 @@ impl ContextIntelligence {
                         .unwrap_or(false);
 
                     // v1.1.9: Auto-apply requires BOTH high confidence AND established pattern
-                    let has_established = intelligence.has_established_pattern(
+                    let (has_established, days_since_seen) = intelligence.get_pattern_recency(
                         &prediction.mode,
                         signals.day_of_week,
                         signals.hour,
@@ -1437,6 +1577,7 @@ impl ContextIntelligence {
                             &prediction.mode,
                             prediction.confidence,
                             has_established,
+                            days_since_seen,
                         );
 
                         if can_push {
@@ -1486,12 +1627,13 @@ impl ContextIntelligence {
 
     /// Check if we can send a push notification (anti-spam rules v1.1.9)
     /// Returns (can_send, reason)
-    fn can_send_push_notification(&self, mode: &str, confidence: f32, has_established: bool) -> (bool, &'static str) {
+    /// days_since_seen: None if no pattern, Some(days) if pattern exists
+    fn can_send_push_notification(&self, mode: &str, confidence: f32, has_established: bool, days_since_seen: Option<i64>) -> (bool, &'static str) {
         let now = OffsetDateTime::now_utc();
         let today = now.date();
         let config = self.config.read();
 
-        // Rule 0: Quiet hours (23h-7h by default) - no push except very strong established
+        // Rule 0: Quiet hours (23h-7h by default) - no push except very strong established + recent
         let hour = now.hour();
         let in_quiet_hours = if config.quiet_hours_start > config.quiet_hours_end {
             // Wraps around midnight (e.g., 23-7)
@@ -1500,8 +1642,10 @@ impl ContextIntelligence {
             hour >= config.quiet_hours_start && hour < config.quiet_hours_end
         };
         if in_quiet_hours {
-            // Exception: very strong established pattern (0.90+)
-            if !(has_established && confidence >= 0.90) {
+            // Exception: very strong established pattern (0.90+) AND seen recently (< 14 days)
+            // Avoids being woken by ghost patterns
+            let is_recent = days_since_seen.map(|d| d < 14).unwrap_or(false);
+            if !(has_established && confidence >= 0.90 && is_recent) {
                 return (false, "quiet hours (23h-7h)");
             }
         }
