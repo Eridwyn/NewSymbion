@@ -64,6 +64,39 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::io::Write;
 
+/// [SECURITY] P0-1: Validation des secrets obligatoires au démarrage
+/// Le kernel REFUSE de démarrer si ces variables ne sont pas définies.
+/// Aucun fallback, aucune valeur par défaut - sécurité non négociable.
+fn validate_required_secrets() {
+    let mut missing = Vec::new();
+
+    // JWT_SECRET: Obligatoire pour l'authentification
+    if std::env::var("SYMBION_JWT_SECRET").is_err() {
+        missing.push("SYMBION_JWT_SECRET");
+    }
+
+    // API_KEY: Obligatoire pour les WebSockets et fallback auth
+    if std::env::var("SYMBION_API_KEY").is_err() {
+        missing.push("SYMBION_API_KEY");
+    }
+
+    if !missing.is_empty() {
+        eprintln!("\n╔════════════════════════════════════════════════════════════════╗");
+        eprintln!("║ 🔴 SECURITY: Missing required environment variables            ║");
+        eprintln!("╠════════════════════════════════════════════════════════════════╣");
+        for var in &missing {
+            eprintln!("║   ❌ {}                                       ║", var);
+        }
+        eprintln!("╠════════════════════════════════════════════════════════════════╣");
+        eprintln!("║ The kernel CANNOT start without these secrets configured.      ║");
+        eprintln!("║ See .env.example for required configuration.                   ║");
+        eprintln!("╚════════════════════════════════════════════════════════════════╝\n");
+        std::process::exit(1);
+    }
+
+    println!("[SECURITY] All required secrets validated ✓");
+}
+
 #[tokio::main]
 async fn main() {
     // Force line-buffered stdout for systemd journal capture
@@ -72,6 +105,10 @@ async fn main() {
 
     // Charger les variables d'environnement depuis .env (si présent)
     dotenvy::dotenv().ok(); // Ok si .env n'existe pas
+
+    // [SECURITY] P0-1: Validation obligatoire des secrets au démarrage
+    // Le kernel REFUSE de démarrer si les secrets critiques sont absents
+    validate_required_secrets();
 
     // PR5: Panic hook pour logging avant crash (aide au debugging)
     std::panic::set_hook(Box::new(|panic_info| {
