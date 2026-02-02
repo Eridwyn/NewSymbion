@@ -2,8 +2,8 @@
 // Spec: PR3 P0 v3.1 REFINED
 
 use crate::decision::{
-    Action, DecisionConfig, DecisionContext, DecisionOutcome, DecisionResult,
-    GuardsEvaluator, TrustCalculator, ImpactLevel, GuardWarning,
+    Action, BlockedReasonCategory, DecisionConfig, DecisionContext, DecisionOutcome,
+    DecisionResult, GuardsEvaluator, TrustCalculator, ImpactLevel, GuardWarning,
 };
 use std::sync::RwLock;
 use uuid::Uuid;
@@ -60,12 +60,18 @@ impl DecisionEngine {
                 .iter()
                 .map(|b| b.explanation_code.clone())
                 .collect();
+            // Compute categories for selective learning
+            let categories: Vec<BlockedReasonCategory> = explanation_codes
+                .iter()
+                .map(|code| BlockedReasonCategory::from_explanation(code))
+                .collect();
 
             return DecisionResult {
                 decision_id,
                 outcome: DecisionOutcome::Blocked {
                     reasons,
                     explanation_codes,
+                    categories,
                 },
                 trace_id: action.trace_id.clone(),
                 warnings,
