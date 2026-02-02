@@ -391,9 +391,16 @@ pub async fn proxy_to_plugin(
     let (parts, body) = req.into_parts();
     let mut new_uri_parts = parts.uri.into_parts();
     new_uri_parts.path_and_query = Some(
-        forwarded_path.parse().unwrap_or_else(|_| "/".parse().unwrap())
+        forwarded_path.parse().unwrap_or_else(|_| "/".parse().expect("static / path"))
     );
-    let new_uri = Uri::from_parts(new_uri_parts).unwrap();
+    // [SECURITY] P0-4: Handle URI parsing errors gracefully
+    let new_uri = match Uri::from_parts(new_uri_parts) {
+        Ok(uri) => uri,
+        Err(e) => {
+            eprintln!("[plugin-proxy] Failed to build forwarded URI: {}", e);
+            return (StatusCode::BAD_REQUEST, "Invalid request URI").into_response();
+        }
+    };
 
     let forwarded_req = hyper::Request::builder()
         .method(parts.method)
@@ -415,9 +422,14 @@ pub async fn proxy_to_plugin(
         }
     };
 
-    let forwarded_req = forwarded_req
-        .body(Full::new(body_bytes))
-        .unwrap();
+    // [SECURITY] P0-4: Handle request building errors gracefully
+    let forwarded_req = match forwarded_req.body(Full::new(body_bytes)) {
+        Ok(req) => req,
+        Err(e) => {
+            eprintln!("[plugin-proxy] Failed to build forwarded request: {}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to build request").into_response();
+        }
+    };
 
     // Send request via Unix socket using hyper client
     let io = TokioIo::new(stream);
@@ -465,7 +477,14 @@ pub async fn proxy_to_plugin(
         response = response.header(name, value);
     }
 
-    response.body(Body::from(body_bytes)).unwrap()
+    // [SECURITY] P0-4: Handle response building errors gracefully
+    match response.body(Body::from(body_bytes)) {
+        Ok(resp) => resp,
+        Err(e) => {
+            eprintln!("[plugin-proxy] Failed to build response: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to build response").into_response()
+        }
+    }
 }
 
 /// HTTP handler for plugin registration endpoint
