@@ -44,6 +44,7 @@ mod notification_config;  // Notification configuration (enable/disable, templat
 mod context_intelligence;  // Intelligent context adaptation system
 mod intelligence_http;  // Intelligence API endpoints
 mod plugins;  // Plugin Contract v1 - Plugin system structures and types
+mod mqtt_watchdog;  // MQTT connection watchdog - detects half-dead connections
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -227,6 +228,10 @@ async fn main() {
     let dashboard_events = dashboard_events::DashboardEventPublisher::new(mqtt_client.clone());
     println!("[kernel] initialized dashboard event publisher");
 
+    // MQTT Watchdog - détecte les connexions half-dead (pub OK, sub KO)
+    let mqtt_watchdog = mqtt_watchdog::create_watchdog();
+    println!("[kernel] initialized MQTT watchdog");
+
     // Bridge notes pour API /ports/memo → plugin via MQTT
     let notes_bridge: Option<SharedNotesBridge> = Some(Arc::new(NotesBridge::new(mqtt_client.clone())));
 
@@ -292,7 +297,31 @@ async fn main() {
     agents.set_automation_dispatcher(automation_dispatcher.clone()).await;
 
     // MQTT remplit les states + agents + sensors (F1)
-    mqtt::spawn_mqtt_listener(states.clone(), cfg.clone(), notes_bridge.clone(), Some(agents.clone()), Some(sensor_registry.clone()), Some(health_tracker.clone()), Some(dashboard_events.clone()));
+    mqtt::spawn_mqtt_listener(states.clone(), cfg.clone(), notes_bridge.clone(), Some(agents.clone()), Some(sensor_registry.clone()), Some(health_tracker.clone()), Some(dashboard_events.clone()), Some(mqtt_watchdog.clone()));
+
+    // Spawn MQTT watchdog task - détecte les connexions half-dead
+    {
+        let watchdog_state = mqtt_watchdog.clone();
+        let watchdog_agents = agents.clone();
+        tokio::spawn(async move {
+            let config = mqtt_watchdog::MqttWatchdogConfig::default();
+            mqtt_watchdog::run_watchdog(
+                watchdog_state,
+                config,
+                move || {
+                    // Vérifie si des agents sont enregistrés (sync check via blocking)
+                    // Note: Cette closure est appelée périodiquement par le watchdog
+                    let agents_clone = watchdog_agents.clone();
+                    tokio::task::block_in_place(|| {
+                        tokio::runtime::Handle::current().block_on(async {
+                            agents_clone.list_agents().await.len() > 0
+                        })
+                    })
+                }
+            ).await;
+        });
+        println!("[kernel] spawned MQTT watchdog task");
+    }
 
     // démarre le monitoring des agents (timeout 2min)
     AgentRegistry::start_agent_monitoring(agents.clone(), 2);
