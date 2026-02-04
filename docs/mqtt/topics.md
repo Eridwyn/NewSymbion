@@ -1,6 +1,6 @@
 # MQTT Topics - Référence Complète
 
-> 📡 Documentation exhaustive des 17 topics actifs MQTT de l'écosystème Symbion
+> 📡 Documentation exhaustive des 18 topics actifs MQTT de l'écosystème Symbion
 
 ## 🗂️ Classification des Topics
 
@@ -11,9 +11,9 @@
 | **Environment Sensors (F1)** | 2 | Sensors → Kernel | Enregistrement ESP32, telemetry env |
 | **Plugin Communication** | 2 | Bidirectionnel | Requêtes/réponses notes |
 | **Dashboard Updates** | 6 | Kernel → PWA | Événements temps réel |
-| **System Events** | 2 | Multicast | Health, notifications globales |
+| **System Events** | 3 | Multicast | Health, notifications globales + ack |
 
-**Total** : 17 topics actifs + 1 legacy (symbion/context/mode sans version)
+**Total** : 18 topics actifs + 1 legacy (symbion/context/mode sans version)
 
 ---
 
@@ -1014,6 +1014,43 @@ Les topics suivants ont été remplacés par les 6 topics spécifiques ci-dessus
 
 ---
 
+### `symbion/notifications/acknowledge@v1`
+
+**Direction** : PWA → Kernel
+**QoS** : 1 (At least once)
+**Fréquence** : Événements utilisateur (clic sur toast)
+
+**Description** : Acquittement des notifications toast PWA. Envoyé quand l'utilisateur ferme une notification toast.
+
+**Payload** :
+```json
+{
+  "notification_id": "notif-2026-02-04-123456"
+}
+```
+
+**Fichier source** :
+- **Publisher** : `pwa-dashboard/src/components/toast-notifications.js`
+- **Subscriber** : `symbion-kernel/src/mqtt.rs:115`
+
+**Traitement Kernel** :
+```rust
+// symbion-kernel/src/mqtt.rs
+else if p.topic == "symbion/notifications/acknowledge@v1" {
+    if let Some(ref notif_mgr) = notifications_manager {
+        let req: NotificationAckRequest = serde_json::from_slice(&payload)?;
+        notif_mgr.acknowledge(&req.notification_id)?;
+        println!("[kernel] notification {} acknowledged via MQTT", req.notification_id);
+    }
+}
+```
+
+**Voir Aussi** :
+- [`symbion/dashboard/notification@v1`](#symbiondashboardnotificationv1) - Topic sortant (Kernel → PWA)
+- [Notifications Manager](../../symbion-kernel/src/notifications.rs) - Gestion notifications
+
+---
+
 ## 📖 Récapitulatif Topics
 
 ### Topics Actifs (Implémentés)
@@ -1036,9 +1073,10 @@ Les topics suivants ont été remplacés par les 6 topics spécifiques ci-dessus
 | `symbion/dashboard/stats@v1` | Kernel → PWA | 1 | Mise à jour stats | ✅ |
 | `symbion/dashboard/pattern@v1` | Kernel → PWA | 1 | Détection pattern | ✅ |
 | `symbion/kernel/health@v1` | Kernel → Tous | 1 | 5 min | ✅ |
+| `symbion/notifications/acknowledge@v1` | PWA → Kernel | 1 | Événements | ✅ |
 | `symbion/context/mode` | Kernel → Tous | 1 (retain) | Temps réel | ⚠️ No version |
 
-**Total** : 17 topics actifs
+**Total** : 18 topics actifs
 
 ### Topics Planifiés (Non Implémentés)
 
