@@ -765,14 +765,19 @@ impl ContextIntelligence {
         signals
     }
 
-    /// Get metrics from the primary agent (pc-bureau preferred, or first online)
+    /// Get metrics from the primary user agent (Windows PC preferred, excludes server)
     async fn get_agent_metrics(&self) -> (u64, f32, Vec<String>) {
         let agents = self.agents.list_agents().await;
 
-        // Find primary agent (pc-bureau preferred, or first online)
+        // Find primary USER agent (excludes the kernel server):
+        // 1. Windows agent that's online (user's primary workstation)
+        // 2. Any online agent that's NOT the kernel server (hostname != "symbion")
+        // Note: We explicitly do NOT fallback to the server - showing server CPU would be misleading
         let primary = agents.iter()
-            .find(|(id, a)| *id == "pc-bureau" && a.status.status == "online")
-            .or_else(|| agents.iter().find(|(_, a)| a.status.status == "online"));
+            .find(|(_, a)| a.os == "windows" && a.status.status == "online")
+            .or_else(|| agents.iter().find(|(_, a)| {
+                a.status.status == "online" && a.hostname != "symbion"
+            }));
 
         if let Some((_, agent)) = primary {
             // Calculate idle from last heartbeat
