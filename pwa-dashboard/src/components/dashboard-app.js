@@ -904,6 +904,10 @@ class DashboardApp extends LitElement {
     this._boundHandlers.systemHealth = this.handleSystemHealth.bind(this)
     this.mqttService.addEventListener('status-change', this._boundHandlers.mqttStatus)
     this.mqttService.addEventListener('system-health', this._boundHandlers.systemHealth)
+    // Sync initial MQTT status (service may already be connected)
+    if (this.mqttService.status) {
+      this.mqttStatus = this.mqttService.status
+    }
 
     // Service Agents - réutiliser si existant
     this.agentsService = document.querySelector('agents-service')

@@ -402,6 +402,9 @@ class NotificationCenter extends LitElement {
     if (this._notificationHandler) {
       document.body.removeEventListener('notification-received', this._notificationHandler)
     }
+    if (this._ackHandler) {
+      document.body.removeEventListener('notification-acknowledged', this._ackHandler)
+    }
     this._removeModalContainer()
   }
 
@@ -649,11 +652,9 @@ class NotificationCenter extends LitElement {
   async loadNotifications() {
     this.isLoading = true
     try {
-      // Utilise le nouvel endpoint kernel (intégré)
-      const response = await fetch('/notifications', {
-        headers: {
-          'X-API-Key': window.SYMBION_CONFIG?.API_KEY || ''
-        }
+      // Utilise le nouvel endpoint kernel (intégré) avec authentification CSRF/JWT
+      const response = await csrfService.fetchWithCsrf('/notifications', {
+        method: 'GET'
       })
       if (response.ok) {
         // Le kernel retourne directement un array (pas {notifications: []})
@@ -681,6 +682,20 @@ class NotificationCenter extends LitElement {
     }
     document.body.addEventListener('notification-received', this._notificationHandler)
     console.log('[notification-center] MQTT listener registered on document.body')
+
+    // Écouter les acquittements depuis les toasts
+    this._ackHandler = (e) => {
+      const notificationId = e.detail?.notificationId
+      if (notificationId) {
+        console.log('[notification-center] Notification acknowledged from toast:', notificationId)
+        // Marquer comme acknowledged dans la liste locale
+        this.notifications = this.notifications.map(n =>
+          (n.id === notificationId) ? { ...n, acknowledged: true } : n
+        )
+        this.requestUpdate()
+      }
+    }
+    document.body.addEventListener('notification-acknowledged', this._ackHandler)
   }
 
   get unreadCount() {

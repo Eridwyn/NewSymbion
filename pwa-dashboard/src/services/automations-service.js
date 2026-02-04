@@ -33,9 +33,16 @@ class AutomationsService extends EventTarget {
    * Charger la liste des automations
    */
   async fetchAutomations() {
+    // Wait for initialization if not ready (max 2 seconds)
     if (!this.apiService) {
-      console.error('[automations-service] API service not initialized')
-      return []
+      for (let i = 0; i < 20; i++) {
+        await new Promise(r => setTimeout(r, 100))
+        if (this.apiService) break
+      }
+      if (!this.apiService) {
+        console.warn('[automations-service] API service not initialized after timeout')
+        return []
+      }
     }
 
     try {
@@ -99,7 +106,14 @@ class AutomationsService extends EventTarget {
    * Récupérer l'historique d'exécution
    */
   async fetchHistory(limit = 50) {
-    if (!this.apiService) return []
+    // Wait for initialization if not ready (max 1 second)
+    if (!this.apiService) {
+      for (let i = 0; i < 10; i++) {
+        await new Promise(r => setTimeout(r, 100))
+        if (this.apiService) break
+      }
+      if (!this.apiService) return []
+    }
 
     try {
       return await this.apiService.request(`/v1/automations/history?limit=${limit}`)

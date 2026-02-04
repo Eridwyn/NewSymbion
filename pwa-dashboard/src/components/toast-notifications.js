@@ -254,6 +254,11 @@ class ToastNotifications extends LitElement {
       mqttService.publish('symbion/notifications/acknowledge@v1', payload)
     }
 
+    // Notifier notification-center pour mettre à jour le badge
+    document.body.dispatchEvent(new CustomEvent('notification-acknowledged', {
+      detail: { notificationId: toast.id || toast._id }
+    }))
+
     // Retirer du DOM avec animation
     this.dismissToast(toast._id)
   }
