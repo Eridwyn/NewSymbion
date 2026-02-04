@@ -84,8 +84,8 @@ pub struct IntelligenceConfig {
 impl Default for IntelligenceConfig {
     fn default() -> Self {
         Self {
-            auto_apply_threshold: 0.70,  // v1.1.9: raised with adaptive modifiers
-            suggestion_threshold: 0.40,
+            auto_apply_threshold: 0.60,  // v1.1.10: lowered for more responsiveness
+            suggestion_threshold: 0.30,  // v1.1.10: lowered to show more suggestions
             min_pattern_occurrences: 3,
             weights: SignalWeights::default(),
             auto_create_automations: true,
@@ -1661,10 +1661,10 @@ impl ContextIntelligence {
             hour >= config.quiet_hours_start && hour < config.quiet_hours_end
         };
         if in_quiet_hours {
-            // Exception: very strong established pattern (0.90+) AND seen recently (< 14 days)
-            // Avoids being woken by ghost patterns
+            // Exception: strong established pattern (0.80+) AND seen recently (< 14 days)
+            // v1.1.10: lowered from 0.90 to 0.80
             let is_recent = days_since_seen.map(|d| d < 14).unwrap_or(false);
-            if !(has_established && confidence >= 0.90 && is_recent) {
+            if !(has_established && confidence >= 0.80 && is_recent) {
                 return (false, "quiet hours (23h-7h)");
             }
         }
@@ -1692,17 +1692,18 @@ impl ContextIntelligence {
             }
         }
 
-        // Rule 3: Require established pattern OR very high confidence
-        // - confidence >= 0.70 AND established pattern: OK
-        // - confidence >= 0.80 even if not established: OK (but rate limited by rules 1&2)
-        if has_established && confidence >= 0.70 {
+        // Rule 3: Require established pattern OR high confidence
+        // v1.1.10: lowered thresholds for more notifications
+        // - confidence >= 0.60 AND established pattern: OK
+        // - confidence >= 0.65 even if not established: OK (but rate limited by rules 1&2)
+        if has_established && confidence >= 0.60 {
             return (true, "pattern établi");
         }
-        if confidence >= 0.80 {
-            return (true, "confiance très haute");
+        if confidence >= 0.65 {
+            return (true, "confiance haute");
         }
 
-        (false, "pattern non établi et confiance < 0.80")
+        (false, "pattern non établi et confiance < 0.65")
     }
 
     /// Record that a notification was sent (update anti-spam counters)
@@ -1824,8 +1825,8 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = IntelligenceConfig::default();
-        assert_eq!(config.auto_apply_threshold, 0.70);  // v1.1.9: raised with adaptive modifiers
-        assert_eq!(config.suggestion_threshold, 0.40);
+        assert_eq!(config.auto_apply_threshold, 0.60);  // v1.1.10: lowered for responsiveness
+        assert_eq!(config.suggestion_threshold, 0.30);  // v1.1.10: lowered
         assert_eq!(config.min_pattern_occurrences, 3);
         assert!(config.auto_create_automations);
     }
