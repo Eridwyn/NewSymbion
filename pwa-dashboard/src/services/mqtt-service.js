@@ -43,7 +43,11 @@ class MqttService extends LitElement {
     this.client = mqtt.connect(brokerUrl, {
       clientId: `symbion-dashboard-${Math.random().toString(16).substr(2, 8)}`,
       reconnectPeriod: 3000,
-      connectTimeout: 10000
+      connectTimeout: 30000,
+      keepalive: 15,  // Ping every 15 seconds to keep connection alive
+      clean: true,
+      resubscribe: true,
+      protocolVersion: 4  // MQTT 3.1.1
     })
     
     this.client.on('connect', this.handleConnect.bind(this))
@@ -111,7 +115,7 @@ class MqttService extends LitElement {
       'symbion/hosts/wake@v1',
       'symbion/notes/response@v1',
       'symbion/dashboard/context@v1',
-      'symbion/dashboard/agents/+@v1',  // NOUVEAU: wildcard pour topics individuels par agent
+      'symbion/dashboard/agents/+',  // Wildcard pour topics individuels par agent (ex: agents/abc123@v1)
       // 'symbion/dashboard/agents@v1', // ANCIEN: tous les agents dans un seul message
       'symbion/dashboard/health@v1',
       'symbion/dashboard/notes@v1',
@@ -136,7 +140,8 @@ class MqttService extends LitElement {
   
   routeMessage(topic, payload) {
     // NOUVEAU: Gestion des topics individuels par agent (wildcard)
-    const agentTopicMatch = topic.match(/^symbion\/dashboard\/agents\/([^@]+)@v1$/)
+    // Match topics like: symbion/dashboard/agents/abc123@v1 -> extract "abc123"
+    const agentTopicMatch = topic.match(/^symbion\/dashboard\/agents\/([^@]+)@v\d+$/)
     if (agentTopicMatch) {
       const agentId = agentTopicMatch[1]
       this.handleIndividualAgent(agentId, payload)
