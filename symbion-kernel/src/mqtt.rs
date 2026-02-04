@@ -14,6 +14,7 @@ use crate::config::HostsConfig;
 use crate::notes_bridge::{SharedNotesBridge, NoteResponse};
 use crate::agents::{SharedAgentRegistry, AgentRegistrationMessage, AgentHeartbeatMessage, AgentResponse};
 use crate::sensors::{SharedSensorRegistry, SensorRegistrationMessage, SensorEnvMessage};
+use crate::notifications::SharedNotificationManager;
 use crate::wol::trigger_wol_udp;
 use rumqttc::{AsyncClient, Event, MqttOptions, QoS};
 use serde::Deserialize;
@@ -24,6 +25,12 @@ use tokio::task;
 #[derive(Debug, Deserialize)]
 struct WakeRequest {
     agent_id: String,
+}
+
+/// Message d'acquittement notification via MQTT (PWA toast)
+#[derive(Debug, Deserialize)]
+struct NotificationAckRequest {
+    notification_id: String,
 }
 
 /// Crée un client MQTT configuré pour le kernel avec son eventloop
@@ -51,7 +58,7 @@ pub fn create_mqtt_client(config: &HostsConfig) -> Result<AsyncClient, Box<dyn s
     Ok(client)
 }
 
-pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>, notes_bridge: Option<SharedNotesBridge>, agents: Option<SharedAgentRegistry>, sensors: Option<SharedSensorRegistry>, health_tracker: Option<crate::health::HealthTracker>, dashboard_events: Option<crate::dashboard_events::DashboardEventPublisher>, mqtt_watchdog: Option<crate::mqtt_watchdog::SharedMqttWatchdog>) {
+pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>, notes_bridge: Option<SharedNotesBridge>, agents: Option<SharedAgentRegistry>, sensors: Option<SharedSensorRegistry>, health_tracker: Option<crate::health::HealthTracker>, dashboard_events: Option<crate::dashboard_events::DashboardEventPublisher>, mqtt_watchdog: Option<crate::mqtt_watchdog::SharedMqttWatchdog>, notifications_manager: Option<SharedNotificationManager>) {
     task::spawn(async move {
         let cfg = config.lock().clone();
         let mqtt_cfg = cfg.mqtt.clone().unwrap_or_else(|| crate::config::MqttConf {
@@ -100,6 +107,13 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
             }
             if let Err(e) = client.subscribe("symbion/sensors/+/env@v1", QoS::AtLeastOnce).await {
                 eprintln!("[kernel] subscribe sensors env readings failed: {e:?}");
+            }
+        }
+
+        // S'abonner aux acquittements notifications PWA (toast)
+        if notifications_manager.is_some() {
+            if let Err(e) = client.subscribe("symbion/notifications/acknowledge@v1", QoS::AtLeastOnce).await {
+                eprintln!("[kernel] subscribe notifications acknowledge failed: {e:?}");
             }
         }
 
@@ -251,6 +265,22 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                                 }
                             }
                             Err(e) => eprintln!("[kernel] wake request JSON invalide: {txt}, error: {}", e),
+                        }
+                    }
+                } else if p.topic == "symbion/notifications/acknowledge@v1" {
+                    // Acquittement notification PWA (toast)
+                    if let Some(ref notif_mgr) = notifications_manager {
+                        if let Ok(txt) = String::from_utf8(p.payload.to_vec()) {
+                            println!("[kernel] received notification ack MQTT: {}", txt);
+                            match serde_json::from_str::<NotificationAckRequest>(&txt) {
+                                Ok(req) => {
+                                    match notif_mgr.acknowledge(&req.notification_id) {
+                                        Ok(()) => println!("[kernel] notification {} acknowledged via MQTT", req.notification_id),
+                                        Err(e) => eprintln!("[kernel] failed to acknowledge notification {}: {}", req.notification_id, e),
+                                    }
+                                }
+                                Err(e) => eprintln!("[kernel] notification ack JSON invalide: {txt}, error: {}", e),
+                            }
                         }
                     }
                 }
