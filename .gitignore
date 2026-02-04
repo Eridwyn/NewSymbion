@@ -102,3 +102,5 @@ test-integration/
 
 # Incidents résolus (archives locales)
 incidents/resolu/
+context-state.json
+learned_patterns.json

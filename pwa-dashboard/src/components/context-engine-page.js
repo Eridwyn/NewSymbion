@@ -994,6 +994,17 @@ class ContextEnginePage extends LitElement {
     .automation-category-badge.notifications { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
     .automation-category-badge.custom { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
 
+    .automation-trust-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.1rem 0.3rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      background: rgba(0, 212, 170, 0.15);
+      color: #00d4aa;
+      animation: glow-pulse 2s ease-in-out infinite;
+    }
+
     .automation-subtitle {
       font-size: 0.8rem;
       color: var(--color-dark-text-tertiary, #6c757d);
@@ -3372,6 +3383,33 @@ class ContextEnginePage extends LitElement {
         </label>
       </div>
 
+      <!-- Trust Settings -->
+      <div class="form-group" style="background: rgba(0, 212, 170, 0.05); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(0, 212, 170, 0.2);">
+        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: #00d4aa;">🛡️ Niveau de confiance</label>
+
+        <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+          <input type="checkbox" ?checked="${auto.trusted === true}"
+            @change="${e => { this.editingAutomation.trusted = e.target.checked || null; this.requestUpdate() }}">
+          <span>Trusted</span>
+          <span style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">— Auto-approuvée sans validation</span>
+        </label>
+
+        <label style="display: flex; align-items: center; gap: 0.5rem;">
+          <input type="checkbox" ?checked="${auto.skip_if_same_mode === true}"
+            @change="${e => { this.editingAutomation.skip_if_same_mode = e.target.checked || null; this.requestUpdate() }}">
+          <span>Skip si même mode</span>
+          <span style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">— Ne pas exécuter si déjà dans ce mode</span>
+        </label>
+
+        <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.1); font-size: 0.75rem; color: var(--color-dark-text-tertiary);">
+          ${auto.trusted ? html`
+            <span style="color: #22c55e;">✓ Cette automation sera exécutée automatiquement sans demander de validation.</span>
+          ` : html`
+            <span>Le trust score augmente de +1% à chaque exécution réussie (max +20%).</span>
+          `}
+        </div>
+      </div>
+
       <!-- Actions Section -->
       <div class="form-group">
         <label>Actions (${auto.actions?.length || 0})</label>
@@ -4584,6 +4622,7 @@ Exemple :
             <div class="automation-info">
               <div class="automation-title-row">
                 <span class="automation-title">${auto.name}</span>
+                ${auto.trusted ? html`<span class="automation-trust-badge" title="Auto-approuvée sans validation">🛡️</span>` : ''}
                 <span class="automation-category-badge ${category}">${categoryIcon} ${category}</span>
               </div>
               <div class="automation-subtitle">
