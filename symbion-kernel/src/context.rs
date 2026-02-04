@@ -270,19 +270,68 @@ impl ContextEngine {
         let mut state = self.state.lock().ok()?;
 
         // Vérifier override manuel
-        if let Some(ref override_data) = state.manual_override {
+        let override_just_expired = if let Some(ref override_data) = state.manual_override {
             if OffsetDateTime::now_utc() < override_data.until {
                 // Override encore valide
                 return None;
             } else {
-                // Override expiré
+                // Override expiré - marquer pour forcer re-détection
                 println!("[context] Override manuel expiré, retour détection automatique");
                 state.manual_override = None;
+                true
+            }
+        } else {
+            false
+        };
+
+        // Détecter nouveau mode candidat
+        let detection_result = self.detect_mode(agents);
+
+        // Si l'override vient d'expirer, forcer la mise à jour
+        if override_just_expired {
+            match detection_result {
+                Some((candidate_mode, reason, confidence)) => {
+                    println!("[context] Forçage mise à jour post-override: mode détecté = {:?}", candidate_mode);
+                    let slug = Self::mode_to_slug(candidate_mode);
+                    state.mode = candidate_mode;
+                    state.mode_slug = Some(slug.clone());
+                    state.changed_at = OffsetDateTime::now_utc();
+                    state.reason = format!("Retour auto après override: {}", reason);
+                    state.confidence = confidence;
+                    state.theme = candidate_mode.theme();
+
+                    let result = state.clone();
+                    drop(state);
+
+                    self.add_to_history(candidate_mode, Some(slug), reason, false);
+                    self.save_state();
+
+                    return Some(result);
+                }
+                None => {
+                    // Détection échouée mais override expiré - fallback vers mode Neutre
+                    println!("[context] Override expiré, détection échouée - fallback vers Veille");
+                    state.mode = Mode::Neutre;
+                    state.mode_slug = Some("veille".to_string());
+                    state.changed_at = OffsetDateTime::now_utc();
+                    state.reason = "Override expiré, retour mode par défaut".to_string();
+                    state.confidence = 0.5;
+                    state.theme = Mode::Neutre.theme();
+
+                    let result = state.clone();
+                    drop(state);
+
+                    self.add_to_history(Mode::Neutre, Some("veille".to_string()),
+                        "Override expiré, détection échouée".to_string(), false);
+                    self.save_state();
+
+                    return Some(result);
+                }
             }
         }
 
-        // Détecter nouveau mode candidat
-        let (candidate_mode, reason, confidence) = self.detect_mode(agents)?;
+        // Comportement normal si pas d'override qui vient d'expirer
+        let (candidate_mode, reason, confidence) = detection_result?;
 
         // Si le candidat == mode actuel, annuler pending si existe
         if candidate_mode == state.mode {
