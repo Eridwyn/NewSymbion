@@ -1692,18 +1692,17 @@ impl ContextIntelligence {
             }
         }
 
-        // Rule 3: Require established pattern OR high confidence
-        // v1.1.10: lowered thresholds for more notifications
-        // - confidence >= 0.60 AND established pattern: OK
-        // - confidence >= 0.65 even if not established: OK (but rate limited by rules 1&2)
-        if has_established && confidence >= 0.60 {
-            return (true, "pattern établi");
-        }
-        if confidence >= 0.65 {
-            return (true, "confiance haute");
+        // Rule 3: Require minimum confidence for push
+        // v1.1.10: unified threshold at 50% for both established and non-established
+        if confidence >= 0.50 {
+            if has_established {
+                return (true, "pattern établi");
+            } else {
+                return (true, "confiance suffisante");
+            }
         }
 
-        (false, "pattern non établi et confiance < 0.65")
+        (false, "confiance < 0.50")
     }
 
     /// Record that a notification was sent (update anti-spam counters)
