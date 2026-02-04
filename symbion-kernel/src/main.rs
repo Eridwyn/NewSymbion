@@ -296,8 +296,8 @@ async fn main() {
     // Connecter le dispatcher aux agents pour événements status
     agents.set_automation_dispatcher(automation_dispatcher.clone()).await;
 
-    // MQTT remplit les states + agents + sensors (F1)
-    mqtt::spawn_mqtt_listener(states.clone(), cfg.clone(), notes_bridge.clone(), Some(agents.clone()), Some(sensor_registry.clone()), Some(health_tracker.clone()), Some(dashboard_events.clone()), Some(mqtt_watchdog.clone()));
+    // MQTT remplit les states + agents + sensors (F1) + notifications ack
+    mqtt::spawn_mqtt_listener(states.clone(), cfg.clone(), notes_bridge.clone(), Some(agents.clone()), Some(sensor_registry.clone()), Some(health_tracker.clone()), Some(dashboard_events.clone()), Some(mqtt_watchdog.clone()), Some(notifications_manager.clone()));
 
     // Spawn MQTT watchdog task - détecte les connexions half-dead
     {
