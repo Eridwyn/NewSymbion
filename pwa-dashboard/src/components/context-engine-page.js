@@ -88,6 +88,37 @@ class ContextEnginePage extends LitElement {
       100% { background-position: 200% 0; }
     }
 
+    /* Intelligence Tab Animations */
+    @keyframes gauge-fill {
+      from { stroke-dashoffset: 283; }
+      to { stroke-dashoffset: var(--target-offset, 0); }
+    }
+
+    @keyframes glow-pulse {
+      0%, 100% { filter: drop-shadow(0 0 8px var(--glow-color, rgba(139, 92, 246, 0.5))); }
+      50% { filter: drop-shadow(0 0 20px var(--glow-color, rgba(139, 92, 246, 0.8))); }
+    }
+
+    @keyframes count-up {
+      from { opacity: 0; transform: scale(0.5); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes card-enter {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes bar-fill {
+      from { width: 0; }
+      to { width: var(--bar-width, 0%); }
+    }
+
+    @keyframes float-icon {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+
     /* Toast Notifications */
     .toast-container {
       position: fixed;
@@ -2118,6 +2149,9 @@ class ContextEnginePage extends LitElement {
     intelligenceSignals: { type: Object },
     intelligencePatterns: { type: Array },
     intelligenceConfig: { type: Object },
+    // Intelligence config editing
+    _configDirty: { type: Boolean },
+    _originalConfig: { type: Object },
     // UX Overlay states
     toasts: { type: Array },
     confirmDialog: { type: Object },
@@ -2191,6 +2225,9 @@ class ContextEnginePage extends LitElement {
     this.intelligenceSignals = null
     this.intelligencePatterns = []
     this.intelligenceConfig = null
+    // Intelligence config editing
+    this._configDirty = false
+    this._originalConfig = null
     // UX Overlay states
     this.toasts = []
     this.confirmDialog = null
@@ -2355,8 +2392,55 @@ class ContextEnginePage extends LitElement {
       this.intelligenceSignals = signals
       this.intelligencePatterns = patterns?.patterns || []
       this.intelligenceConfig = config?.config || null
+      // Store original for reset
+      this._originalConfig = config?.config ? JSON.parse(JSON.stringify(config.config)) : null
+      this._configDirty = false
     } catch (e) {
       console.error('[context-engine] Failed to load intelligence:', e)
+    }
+  }
+
+  // ============ Intelligence Config Editing ============
+  _updateIntelligenceConfig(field, value) {
+    if (!this.intelligenceConfig) return
+    this.intelligenceConfig = {
+      ...this.intelligenceConfig,
+      [field]: value
+    }
+    this._configDirty = true
+    this.requestUpdate()
+  }
+
+  _resetIntelligenceConfig() {
+    if (!this._originalConfig) return
+    this.intelligenceConfig = JSON.parse(JSON.stringify(this._originalConfig))
+    this._configDirty = false
+    this.requestUpdate()
+  }
+
+  async _saveIntelligenceConfig() {
+    if (!this.intelligenceConfig) return
+
+    try {
+      const response = await csrfService.fetchWithCsrf('/v1/intelligence/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.intelligenceConfig)
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: response.statusText }))
+        throw new Error(error.error || `HTTP ${response.status}`)
+      }
+
+      // Update original to current
+      this._originalConfig = JSON.parse(JSON.stringify(this.intelligenceConfig))
+      this._configDirty = false
+      this.showToast('Configuration sauvegardee', 'success')
+      this.requestUpdate()
+    } catch (e) {
+      console.error('[context-engine] Failed to save intelligence config:', e)
+      this.showToast(`Erreur: ${e.message}`, 'error')
     }
   }
 
@@ -4624,55 +4708,148 @@ Exemple :
     }
 
     return html`
-      <div class="controls-title">Demandes en attente (${this.validations.length})</div>
-      ${this.validations.map(v => this.renderValidationCard(v))}
+      <div class="controls-title" style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+        <span style="font-size: 1.25rem; animation: float-icon 3s ease-in-out infinite;">⚖️</span>
+        <span>Demandes en attente</span>
+        <span style="padding: 0.25rem 0.75rem; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 20px; font-size: 0.8rem; color: #f59e0b; font-weight: 600;">
+          ${this.validations.length}
+        </span>
+      </div>
+      ${this.validations.map((v, i) => this.renderValidationCard(v, i))}
     `
   }
 
-  renderValidationCard(v) {
+  renderValidationCard(v, index = 0) {
     const trustScore = v.trust_score || 0
     const trustClass = this.getTrustClass(trustScore)
     const actionType = v.action?.action_type || 'Action'
     const reasons = v.human_reasons || ['Validation requise']
+    const color = trustClass === 'high' ? '#22c55e' : trustClass === 'medium' ? '#f59e0b' : '#ef4444'
+    const glowColor = trustClass === 'high' ? 'rgba(34, 197, 94, 0.4)' : trustClass === 'medium' ? 'rgba(245, 158, 11, 0.4)' : 'rgba(239, 68, 68, 0.4)'
 
     return html`
-      <div class="validation-card" style="--validation-color: ${trustClass === 'high' ? '#22c55e' : trustClass === 'medium' ? '#f59e0b' : '#ef4444'}">
-        <div class="validation-header">
-          <div class="validation-icon">⚡</div>
-          <div class="validation-info">
-            <div class="validation-title">${actionType}</div>
-            <div class="validation-subtitle">Agent: ${v.action?.agent_id || 'Système'}</div>
+      <div class="validation-card" style="
+        --validation-color: ${color};
+        animation: card-enter 0.4s ease-out ${index * 0.1}s backwards;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.02) 100%);
+        border: 1px solid ${trustClass === 'high' ? 'rgba(34, 197, 94, 0.2)' : trustClass === 'medium' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(239, 68, 68, 0.2)'};
+      ">
+        <div class="validation-header" style="display: flex; align-items: flex-start; gap: 1rem;">
+          <!-- Mini Gauge -->
+          <div style="flex-shrink: 0;">
+            ${this.renderMiniGauge(trustScore, 70)}
           </div>
-          <div class="validation-trust-indicator">
-            <div class="validation-trust-bar">
-              <div class="validation-trust-fill ${trustClass}" style="width: ${trustScore * 100}%"></div>
+
+          <div class="validation-info" style="flex: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <span style="font-size: 1.25rem;">⚡</span>
+              <div class="validation-title" style="font-size: 1.1rem; font-weight: 600; color: var(--color-dark-text-primary);">${actionType}</div>
             </div>
-            <span style="font-size: 0.75rem; font-weight: 600; color: var(--color-dark-text-secondary);">
-              ${Math.round(trustScore * 100)}%
-            </span>
+            <div class="validation-subtitle" style="font-size: 0.85rem; color: var(--color-dark-text-secondary); display: flex; align-items: center; gap: 0.5rem;">
+              <span style="padding: 0.2rem 0.5rem; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.75rem;">
+                🤖 ${v.action?.agent_id || 'Système'}
+              </span>
+              <span style="padding: 0.2rem 0.5rem; background: ${glowColor}; border-radius: 6px; font-size: 0.75rem; color: ${color}; font-weight: 600;">
+                Seuil: ${Math.round((v.threshold || 0.7) * 100)}%
+              </span>
+            </div>
           </div>
         </div>
 
-        <div class="validation-reasons">
-          <div class="validation-reasons-title">Raisons de la validation</div>
-          ${reasons.map(r => html`
-            <div class="validation-reason-item">
-              <div class="validation-reason-bullet"></div>
-              <span>${r}</span>
+        <div class="validation-reasons" style="
+          background: rgba(0, 0, 0, 0.2);
+          border: 1px solid rgba(255,255,255,0.05);
+          border-radius: 12px;
+          padding: 1rem;
+          margin: 1rem 0;
+        ">
+          <div class="validation-reasons-title" style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-dark-text-tertiary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+            📋 Raisons de la validation
+          </div>
+          ${reasons.map((r, i) => html`
+            <div class="validation-reason-item" style="
+              display: flex;
+              align-items: flex-start;
+              gap: 0.75rem;
+              padding: 0.5rem 0;
+              animation: card-enter 0.3s ease-out ${(index * 0.1) + (i * 0.05)}s backwards;
+            ">
+              <div style="
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: ${color};
+                box-shadow: 0 0 8px ${glowColor};
+                margin-top: 0.35rem;
+                flex-shrink: 0;
+              "></div>
+              <span style="font-size: 0.875rem; color: var(--color-dark-text-secondary); line-height: 1.4;">${r}</span>
             </div>
           `)}
-          <div class="validation-reason-item" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.05);">
-            <span style="color: var(--color-dark-text-tertiary);">Seuil requis: ${Math.round((v.threshold || 0.7) * 100)}%</span>
-          </div>
         </div>
 
-        <div class="validation-actions">
-          <button class="validation-btn approve" @click="${() => this.handleApproveValidation(v.validation_id)}">
-            ✓ Approuver
+        <div class="validation-actions" style="display: flex; gap: 1rem;">
+          <button @click="${() => this.handleRejectValidation(v.validation_id)}" style="
+            flex: 1;
+            padding: 0.875rem 1.25rem;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 12px;
+            color: #ef4444;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+          ">
+            <span style="font-size: 1.1rem;">✗</span> Rejeter
           </button>
-          <button class="validation-btn reject" @click="${() => this.handleRejectValidation(v.validation_id)}">
-            ✗ Rejeter
+          <button @click="${() => this.handleApproveValidation(v.validation_id)}" style="
+            flex: 1;
+            padding: 0.875rem 1.25rem;
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%);
+            border: 1px solid rgba(34, 197, 94, 0.4);
+            border-radius: 12px;
+            color: #22c55e;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.15);
+          ">
+            <span style="font-size: 1.1rem;">✓</span> Approuver
           </button>
+        </div>
+      </div>
+    `
+  }
+
+  renderMiniGauge(value, size = 60) {
+    const percentage = Math.round(value * 100)
+    const radius = 22
+    const circumference = 2 * Math.PI * radius
+    const offset = circumference - (value * circumference)
+    const color = value >= 0.7 ? '#22c55e' : value >= 0.4 ? '#f59e0b' : '#ef4444'
+
+    return html`
+      <div style="position: relative; width: ${size}px; height: ${size}px;">
+        <svg width="${size}" height="${size}" viewBox="0 0 50 50" style="transform: rotate(-90deg);">
+          <circle cx="25" cy="25" r="${radius}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="5"/>
+          <circle cx="25" cy="25" r="${radius}" fill="none" stroke="${color}" stroke-width="5"
+            stroke-linecap="round"
+            stroke-dasharray="${circumference}"
+            stroke-dashoffset="${offset}"
+            style="transition: stroke-dashoffset 0.8s ease-out; filter: drop-shadow(0 0 6px ${color}80);"/>
+        </svg>
+        <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;">
+          <span style="font-size: ${size / 4}px; font-weight: 700; color: ${color};">${percentage}%</span>
         </div>
       </div>
     `
@@ -5095,180 +5272,183 @@ Exemple :
     const signals = this.intelligenceSignals?.signals
     const config = this.intelligenceConfig
     const status = this.intelligenceStatus?.status
-    const accuracy = Math.round((status?.accuracy_7_days || 0) * 100)
+    // accuracy_last_7_days is already in percentage (0-100), not decimal
+    const rawAccuracy = status?.accuracy_last_7_days ?? status?.accuracy_7_days ?? 0
+    const accuracy = Math.round(rawAccuracy > 1 ? rawAccuracy : rawAccuracy * 100)
+
+    // Group patterns by mode for better visualization
+    const patternsByMode = {}
+    if (this.intelligencePatterns?.length > 0) {
+      this.intelligencePatterns.forEach(p => {
+        if (!patternsByMode[p.mode]) patternsByMode[p.mode] = []
+        patternsByMode[p.mode].push(p)
+      })
+      // Sort each mode's patterns by confidence
+      Object.keys(patternsByMode).forEach(mode => {
+        patternsByMode[mode].sort((a, b) => b.confidence - a.confidence)
+      })
+    }
 
     return html`
-      <div class="intelligence-tab">
-        <!-- Prediction Section -->
-        <div class="section-card" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(109, 40, 217, 0.05) 100%); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
-          <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
-            <span style="font-size: 1.5rem;">🔮</span>
-            <h3 style="margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-dark-text-primary);">Prediction Actuelle</h3>
-            <span style="margin-left: auto; padding: 0.25rem 0.75rem; border-radius: 12px; background: ${accuracy >= 70 ? 'rgba(34, 197, 94, 0.15)' : 'rgba(251, 146, 60, 0.15)'}; color: ${accuracy >= 70 ? '#22c55e' : '#fb923c'}; font-size: 0.75rem; font-weight: 600;">
+      <div class="intelligence-tab" style="animation: card-enter 0.4s ease-out;">
+        <!-- Prediction Section - Redesigned with Gauge -->
+        <div class="section-card" style="
+          background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(109, 40, 217, 0.06) 100%);
+          border: 1px solid rgba(139, 92, 246, 0.25);
+          border-radius: 16px;
+          padding: 1.5rem;
+          margin-bottom: 1.25rem;
+          box-shadow: 0 4px 24px rgba(139, 92, 246, 0.1);
+        ">
+          <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem;">
+            <span style="font-size: 1.5rem; animation: float-icon 3s ease-in-out infinite;">🔮</span>
+            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 600; color: var(--color-dark-text-primary);">Prediction Intelligence</h3>
+            <span style="margin-left: auto; padding: 0.35rem 0.875rem; border-radius: 20px; background: ${accuracy >= 70 ? 'rgba(34, 197, 94, 0.15)' : 'rgba(251, 146, 60, 0.15)'}; border: 1px solid ${accuracy >= 70 ? 'rgba(34, 197, 94, 0.3)' : 'rgba(251, 146, 60, 0.3)'}; color: ${accuracy >= 70 ? '#22c55e' : '#fb923c'}; font-size: 0.75rem; font-weight: 600;">
               ${accuracy}% precision (7j)
             </span>
           </div>
 
           ${prediction ? html`
-            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-              <span style="font-size: 3rem;">${this.getModeIcon(prediction.mode)}</span>
-              <div style="flex: 1;">
-                <div style="font-size: 1.25rem; font-weight: 600; color: #8b5cf6; margin-bottom: 0.25rem;">${this.getModeName(prediction.mode)}</div>
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                  <div style="flex: 1; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
-                    <div style="height: 100%; width: ${prediction.confidence * 100}%; background: linear-gradient(90deg, ${prediction.confidence >= 0.7 ? '#22c55e' : prediction.confidence >= 0.4 ? '#fb923c' : '#ef4444'}, ${prediction.confidence >= 0.7 ? '#4ade80' : prediction.confidence >= 0.4 ? '#fdba74' : '#f87171'}); border-radius: 4px;"></div>
+            <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+              <!-- Confidence Gauge -->
+              <div style="flex-shrink: 0;">
+                ${this.renderConfidenceGauge(prediction.confidence, 130)}
+              </div>
+
+              <!-- Mode Info -->
+              <div style="flex: 1; min-width: 200px;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                  <span style="font-size: 3rem; animation: float-icon 4s ease-in-out infinite;">${this.getModeIcon(prediction.mode)}</span>
+                  <div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #a78bfa; margin-bottom: 0.25rem;">${this.getModeName(prediction.mode)}</div>
+                    <span style="display: inline-block; padding: 0.3rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+                      background: ${prediction.confidence >= 0.6 ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1))' : prediction.confidence >= 0.35 ? 'linear-gradient(135deg, rgba(251, 146, 60, 0.2), rgba(251, 146, 60, 0.1))' : 'linear-gradient(135deg, rgba(156, 163, 175, 0.2), rgba(156, 163, 175, 0.1))'};
+                      border: 1px solid ${prediction.confidence >= 0.6 ? 'rgba(34, 197, 94, 0.4)' : prediction.confidence >= 0.35 ? 'rgba(251, 146, 60, 0.4)' : 'rgba(156, 163, 175, 0.4)'};
+                      color: ${prediction.confidence >= 0.6 ? '#22c55e' : prediction.confidence >= 0.35 ? '#fb923c' : '#9ca3af'};">
+                      ${prediction.confidence >= 0.6 ? '✓ Auto-apply' : prediction.confidence >= 0.35 ? '💡 Suggestion' : '👁 Observation'}
+                    </span>
                   </div>
-                  <span style="font-size: 0.85rem; font-weight: 600; color: var(--color-dark-text-secondary);">${Math.round(prediction.confidence * 100)}%</span>
                 </div>
-                <span style="display: inline-block; margin-top: 0.5rem; padding: 0.2rem 0.5rem; border-radius: 10px; font-size: 0.7rem; background: ${prediction.confidence >= 0.9 ? 'rgba(34, 197, 94, 0.15)' : prediction.confidence >= 0.7 ? 'rgba(251, 146, 60, 0.15)' : 'rgba(156, 163, 175, 0.15)'}; color: ${prediction.confidence >= 0.9 ? '#22c55e' : prediction.confidence >= 0.7 ? '#fb923c' : '#9ca3af'};">
-                  ${prediction.confidence >= 0.9 ? 'Auto-apply' : prediction.confidence >= 0.7 ? 'Suggerer' : 'Observer'}
-                </span>
+
+                ${prediction.reasons?.length > 0 ? html`
+                  <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                    ${prediction.reasons.map(r => html`
+                      <span style="padding: 0.35rem 0.75rem; background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 20px; font-size: 0.8rem; color: var(--color-dark-text-secondary);">${r}</span>
+                    `)}
+                  </div>
+                ` : ''}
               </div>
             </div>
 
-            ${prediction.reasons?.length > 0 ? html`
-              <div style="margin-bottom: 1rem;">
-                <div style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-dark-text-tertiary); margin-bottom: 0.5rem;">Raisons</div>
-                <div style="display: flex; flex-wrap: wrap; gap: 0.4rem;">
-                  ${prediction.reasons.map(r => html`
-                    <span style="padding: 0.25rem 0.5rem; background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 12px; font-size: 0.75rem; color: var(--color-dark-text-secondary);">${r}</span>
-                  `)}
-                </div>
-              </div>
-            ` : ''}
-
+            <!-- Contributing Factors - Improved Bars -->
             ${prediction.contributing_factors?.length > 0 ? html`
-              <div>
-                <div style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-dark-text-tertiary); margin-bottom: 0.5rem;">Facteurs</div>
-                ${prediction.contributing_factors.map(([factor, weight]) => html`
-                  <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
-                    <span style="font-size: 0.75rem; color: var(--color-dark-text-tertiary); min-width: 90px;">${this.getFactorLabel(factor)}</span>
-                    <div style="flex: 1; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
-                      <div style="height: 100%; width: ${weight * 100}%; background: linear-gradient(90deg, #8b5cf6, #a78bfa); border-radius: 2px;"></div>
-                    </div>
-                    <span style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); min-width: 35px; text-align: right;">${Math.round(weight * 100)}%</span>
-                  </div>
-                `)}
+              <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid rgba(139, 92, 246, 0.15);">
+                <div style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-dark-text-tertiary); margin-bottom: 0.75rem;">Facteurs Contributifs</div>
+                ${prediction.contributing_factors.map(([factor, weight], i) => this.renderFactorBar(factor, weight, i))}
               </div>
             ` : ''}
           ` : html`
-            <div style="text-align: center; padding: 2rem; color: var(--color-dark-text-tertiary);">
-              <div style="font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.5;">🔮</div>
-              <div>Pas de prediction disponible</div>
+            <div style="text-align: center; padding: 3rem; color: var(--color-dark-text-tertiary);">
+              <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.4; animation: float-icon 3s ease-in-out infinite;">🔮</div>
+              <div style="font-size: 1rem;">Pas de prediction disponible</div>
+              <div style="font-size: 0.8rem; margin-top: 0.5rem; opacity: 0.7;">Le systeme collecte des donnees...</div>
             </div>
           `}
         </div>
 
-        <!-- Signals Section -->
+        <!-- Signals Section - Improved Cards -->
         ${signals ? html`
-          <div class="section-card" style="background: rgba(30, 35, 45, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1rem; margin-bottom: 1rem;">
-            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
-              <span style="font-size: 1rem;">📡</span>
-              <h3 style="margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--color-dark-text-primary);">Signaux Actuels</h3>
+          <div class="section-card" style="background: rgba(30, 35, 45, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 1.25rem; margin-bottom: 1.25rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+              <span style="font-size: 1.25rem; animation: float-icon 3s ease-in-out infinite;">📡</span>
+              <h3 style="margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-dark-text-primary);">Signaux Temps Reel</h3>
             </div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem;">
-              <div style="padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                <div style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); text-transform: uppercase;">Jour/Heure</div>
-                <div style="font-size: 0.85rem; color: var(--color-dark-text-primary);">${this.getDayNameFull(signals.day_of_week)} ${utcHourToLocal(signals.hour)}h</div>
-              </div>
-              <div style="padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                <div style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); text-transform: uppercase;">Mode actuel</div>
-                <div style="font-size: 0.85rem; color: var(--color-dark-text-primary);">${this.getModeIcon(signals.current_mode)} ${signals.current_mode || 'N/A'}</div>
-              </div>
-              <div style="padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                <div style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); text-transform: uppercase;">Idle</div>
-                <div style="font-size: 0.85rem; color: var(--color-dark-text-primary);">${Math.round(signals.agent_idle_seconds / 60)}min</div>
-              </div>
-              <div style="padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                <div style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); text-transform: uppercase;">CPU</div>
-                <div style="font-size: 0.85rem; color: var(--color-dark-text-primary);">${signals.cpu_usage?.toFixed(1) || 0}%</div>
-              </div>
-              ${signals.temperature != null ? html`
-                <div style="padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                  <div style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); text-transform: uppercase;">Temp</div>
-                  <div style="font-size: 0.85rem; color: var(--color-dark-text-primary);">${signals.temperature?.toFixed(1)}°C</div>
-                </div>
-              ` : ''}
-              ${signals.humidity != null ? html`
-                <div style="padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                  <div style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); text-transform: uppercase;">Humidite</div>
-                  <div style="font-size: 0.85rem; color: var(--color-dark-text-primary);">${signals.humidity?.toFixed(1)}%</div>
-                </div>
-              ` : ''}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem;">
+              ${this.renderSignalCard('🕐', 'Heure', `${utcHourToLocal(signals.hour)}h`, this.getDayNameFull(signals.day_of_week), 'neutral')}
+              ${this.renderSignalCard('🎯', 'Mode', signals.current_mode || 'N/A', `${signals.time_in_current_mode_minutes || 0} min`, 'good')}
+              ${this.renderSignalCard('💤', 'Idle', `${Math.round(signals.agent_idle_seconds / 60)} min`, signals.agent_idle_seconds < 60 ? '● Actif' : '○ Inactif', signals.agent_idle_seconds < 300 ? 'good' : 'warning')}
+              ${this.renderSignalCard('⚡', 'CPU', `${(signals.cpu_usage || 0).toFixed(1)}%`, signals.cpu_usage > 50 ? 'Charge haute' : 'Normal', signals.cpu_usage > 80 ? 'warning' : 'neutral')}
+              ${signals.temperature != null ? this.renderSignalCard('🌡', 'Temp', `${signals.temperature?.toFixed(1)}°C`, signals.temperature > 25 ? 'Chaud' : signals.temperature < 18 ? 'Frais' : 'Confort', signals.temperature > 28 || signals.temperature < 16 ? 'warning' : 'good') : ''}
+              ${signals.humidity != null ? this.renderSignalCard('💧', 'Humid', `${signals.humidity?.toFixed(0)}%`, signals.humidity > 70 ? 'Humide' : signals.humidity < 30 ? 'Sec' : 'Normal', signals.humidity > 70 || signals.humidity < 30 ? 'warning' : 'good') : ''}
             </div>
           </div>
         ` : ''}
 
-        <!-- Patterns Section -->
-        <div class="section-card" style="background: rgba(30, 35, 45, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1rem; margin-bottom: 1rem;">
-          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
-            <span style="font-size: 1rem;">📊</span>
-            <h3 style="margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--color-dark-text-primary);">Patterns Appris</h3>
-            <span style="margin-left: auto; font-size: 0.75rem; color: #8b5cf6; font-weight: 600;">${this.intelligencePatterns?.length || 0} patterns</span>
+        <!-- Patterns Section - Grouped Cards -->
+        <div class="section-card" style="background: rgba(30, 35, 45, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 1.25rem; margin-bottom: 1.25rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+            <span style="font-size: 1.25rem; animation: float-icon 3s ease-in-out infinite;">📊</span>
+            <h3 style="margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-dark-text-primary);">Patterns Appris</h3>
+            <span style="margin-left: auto; padding: 0.25rem 0.75rem; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 20px; font-size: 0.75rem; color: #a78bfa; font-weight: 600;">
+              ${this.intelligencePatterns?.length || 0} patterns
+            </span>
           </div>
-          ${this.intelligencePatterns?.length > 0 ? html`
-            <div style="max-height: 250px; overflow-y: auto;">
-              <table style="width: 100%; font-size: 0.8rem; border-collapse: collapse;">
-                <thead>
-                  <tr style="text-align: left; color: var(--color-dark-text-tertiary); font-size: 0.7rem; text-transform: uppercase;">
-                    <th style="padding: 0.5rem 0.25rem;">Mode</th>
-                    <th style="padding: 0.5rem 0.25rem;">Jour</th>
-                    <th style="padding: 0.5rem 0.25rem;">Heure</th>
-                    <th style="padding: 0.5rem 0.25rem;">Occurrences</th>
-                    <th style="padding: 0.5rem 0.25rem;">Confiance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${this.intelligencePatterns.slice(0, 20).map(p => html`
-                    <tr style="border-top: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 0.5rem 0.25rem; color: var(--color-dark-text-primary);">
-                        ${this.getModeIcon(p.mode)} ${this.getModeName(p.mode)}
-                      </td>
-                      <td style="padding: 0.5rem 0.25rem; color: var(--color-dark-text-secondary);">${this.getDayNameShort(p.day_of_week)}</td>
-                      <td style="padding: 0.5rem 0.25rem; color: var(--color-dark-text-secondary);">${utcHourToLocal(p.hour)}h</td>
-                      <td style="padding: 0.5rem 0.25rem; color: var(--color-dark-text-secondary);">${p.occurrences}</td>
-                      <td style="padding: 0.5rem 0.25rem;">
-                        <span style="color: ${p.confidence >= 0.7 ? '#22c55e' : p.confidence >= 0.4 ? '#fb923c' : '#9ca3af'}; font-weight: 600;">
-                          ${Math.round(p.confidence * 100)}%
-                        </span>
-                      </td>
-                    </tr>
-                  `)}
-                </tbody>
-              </table>
-            </div>
+
+          ${Object.keys(patternsByMode).length > 0 ? html`
+            ${Object.entries(patternsByMode).map(([mode, patterns]) => html`
+              <div style="margin-bottom: 1.25rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                  <span style="font-size: 1.25rem;">${this.getModeIcon(mode)}</span>
+                  <span style="font-size: 0.85rem; font-weight: 600; color: var(--color-dark-text-primary);">${this.getModeName(mode)}</span>
+                  <span style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">${patterns.length} patterns</span>
+                </div>
+                <div style="display: flex; gap: 0.75rem; overflow-x: auto; padding-bottom: 0.5rem; scrollbar-width: thin; scrollbar-color: rgba(139, 92, 246, 0.3) transparent;">
+                  ${patterns.slice(0, 8).map((p, i) => this.renderPatternCard(p, i, i < 3))}
+                </div>
+              </div>
+            `)}
           ` : html`
-            <div style="text-align: center; padding: 1.5rem; color: var(--color-dark-text-tertiary); font-size: 0.85rem;">
-              Aucun pattern appris. Le systeme apprend de vos habitudes au fil du temps.
+            <div style="text-align: center; padding: 2rem; color: var(--color-dark-text-tertiary);">
+              <div style="font-size: 2rem; margin-bottom: 0.75rem; opacity: 0.4;">📊</div>
+              <div style="font-size: 0.9rem;">Aucun pattern appris</div>
+              <div style="font-size: 0.8rem; margin-top: 0.5rem; opacity: 0.7;">Le systeme apprend de vos habitudes au fil du temps</div>
             </div>
           `}
         </div>
 
-        <!-- Configuration Section -->
+        <!-- Configuration Section (Editable) -->
         ${config ? html`
           <div class="section-card" style="background: rgba(30, 35, 45, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
               <span style="font-size: 1rem;">⚙️</span>
               <h3 style="margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--color-dark-text-primary);">Configuration Intelligence</h3>
+              ${this._configDirty ? html`
+                <span style="margin-left: auto; padding: 0.2rem 0.5rem; background: rgba(251, 146, 60, 0.2); border-radius: 10px; font-size: 0.65rem; color: #fb923c;">Non sauvegardé</span>
+              ` : ''}
             </div>
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem;">
               <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.25rem;">Seuil Auto-apply</div>
-                <div style="font-size: 1rem; font-weight: 600; color: #22c55e;">${Math.round(config.auto_apply_threshold * 100)}%</div>
+                <label style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.25rem; display: block;">Seuil Auto-apply (%)</label>
+                <input type="number" min="0" max="100" step="5"
+                  .value="${Math.round(config.auto_apply_threshold * 100)}"
+                  @change="${e => this._updateIntelligenceConfig('auto_apply_threshold', parseInt(e.target.value) / 100)}"
+                  style="width: 100%; padding: 0.4rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 6px; color: #22c55e; font-size: 1rem; font-weight: 600;">
               </div>
               <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.25rem;">Seuil Suggestion</div>
-                <div style="font-size: 1rem; font-weight: 600; color: #fb923c;">${Math.round(config.suggestion_threshold * 100)}%</div>
+                <label style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.25rem; display: block;">Seuil Suggestion (%)</label>
+                <input type="number" min="0" max="100" step="5"
+                  .value="${Math.round(config.suggestion_threshold * 100)}"
+                  @change="${e => this._updateIntelligenceConfig('suggestion_threshold', parseInt(e.target.value) / 100)}"
+                  style="width: 100%; padding: 0.4rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(251, 146, 60, 0.3); border-radius: 6px; color: #fb923c; font-size: 1rem; font-weight: 600;">
               </div>
               <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.25rem;">Intervalle check</div>
-                <div style="font-size: 1rem; font-weight: 600; color: var(--color-dark-text-primary);">${config.check_interval_seconds}s</div>
+                <label style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.25rem; display: block;">Intervalle check (s)</label>
+                <input type="number" min="10" max="300" step="10"
+                  .value="${config.check_interval_seconds}"
+                  @change="${e => this._updateIntelligenceConfig('check_interval_seconds', parseInt(e.target.value))}"
+                  style="width: 100%; padding: 0.4rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--color-dark-text-primary); font-size: 1rem; font-weight: 600;">
               </div>
               <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.25rem;">Auto-create</div>
-                <div style="font-size: 1rem; font-weight: 600; color: ${config.auto_create_automations ? '#22c55e' : '#ef4444'};">
-                  ${config.auto_create_automations ? 'Oui' : 'Non'}
-                </div>
+                <label style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.25rem; display: block;">Auto-create automations</label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                  <input type="checkbox"
+                    .checked="${config.auto_create_automations}"
+                    @change="${e => this._updateIntelligenceConfig('auto_create_automations', e.target.checked)}"
+                    style="width: 1.2rem; height: 1.2rem; accent-color: #22c55e;">
+                  <span style="font-size: 0.9rem; color: ${config.auto_create_automations ? '#22c55e' : '#ef4444'};">
+                    ${config.auto_create_automations ? 'Activé' : 'Désactivé'}
+                  </span>
+                </label>
               </div>
             </div>
             <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.05);">
@@ -5281,6 +5461,18 @@ Exemple :
                 `)}
               </div>
             </div>
+            ${this._configDirty ? html`
+              <div style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <button @click="${() => this._resetIntelligenceConfig()}"
+                  style="padding: 0.5rem 1rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: var(--color-dark-text-secondary); cursor: pointer; font-size: 0.8rem;">
+                  Annuler
+                </button>
+                <button @click="${() => this._saveIntelligenceConfig()}"
+                  style="padding: 0.5rem 1rem; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 8px; color: white; cursor: pointer; font-size: 0.8rem; font-weight: 600;">
+                  Sauvegarder
+                </button>
+              </div>
+            ` : ''}
           </div>
         ` : ''}
       </div>
@@ -5297,6 +5489,134 @@ Exemple :
       'momentum': 'Momentum'
     }
     return labels[factor] || factor
+  }
+
+  // ============ Intelligence UI Helpers ============
+
+  renderConfidenceGauge(value, size = 120) {
+    const percentage = Math.round(value * 100)
+    const radius = 45
+    const circumference = 2 * Math.PI * radius // ~283
+    const offset = circumference - (value * circumference)
+    const color = value >= 0.7 ? '#22c55e' : value >= 0.4 ? '#fb923c' : '#ef4444'
+    const glowColor = value >= 0.7 ? 'rgba(34, 197, 94, 0.6)' : value >= 0.4 ? 'rgba(251, 146, 60, 0.6)' : 'rgba(239, 68, 68, 0.6)'
+    const label = value >= 0.7 ? 'Haute' : value >= 0.4 ? 'Moyenne' : 'Faible'
+
+    return html`
+      <div style="position: relative; width: ${size}px; height: ${size}px;">
+        <svg width="${size}" height="${size}" viewBox="0 0 100 100" style="transform: rotate(-90deg); filter: drop-shadow(0 0 12px ${glowColor});">
+          <!-- Background circle -->
+          <circle cx="50" cy="50" r="${radius}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="8"/>
+          <!-- Progress circle -->
+          <circle cx="50" cy="50" r="${radius}" fill="none" stroke="url(#gauge-gradient-${percentage})" stroke-width="8"
+            stroke-linecap="round"
+            stroke-dasharray="${circumference}"
+            stroke-dashoffset="${offset}"
+            style="transition: stroke-dashoffset 1s ease-out;"/>
+          <defs>
+            <linearGradient id="gauge-gradient-${percentage}" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="${color}"/>
+              <stop offset="100%" stop-color="${value >= 0.7 ? '#4ade80' : value >= 0.4 ? '#fdba74' : '#f87171'}"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+          <span style="font-size: ${size / 4}px; font-weight: 700; color: ${color}; animation: count-up 0.5s ease-out;">${percentage}%</span>
+          <span style="font-size: ${size / 10}px; color: var(--color-dark-text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">${label}</span>
+        </div>
+      </div>
+    `
+  }
+
+  renderSignalCard(icon, label, value, sublabel = '', status = 'neutral') {
+    const statusColors = {
+      good: { bg: 'rgba(34, 197, 94, 0.1)', border: 'rgba(34, 197, 94, 0.3)', text: '#22c55e' },
+      warning: { bg: 'rgba(251, 146, 60, 0.1)', border: 'rgba(251, 146, 60, 0.3)', text: '#fb923c' },
+      neutral: { bg: 'rgba(255,255,255,0.03)', border: 'rgba(255,255,255,0.1)', text: 'var(--color-dark-text-primary)' }
+    }
+    const s = statusColors[status] || statusColors.neutral
+
+    return html`
+      <div style="
+        padding: 0.875rem;
+        background: ${s.bg};
+        border: 1px solid ${s.border};
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        animation: card-enter 0.4s ease-out backwards;
+      ">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.25rem; animation: float-icon 3s ease-in-out infinite;">${icon}</span>
+          <span style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">${label}</span>
+        </div>
+        <div style="font-size: 1.1rem; font-weight: 600; color: ${s.text};">${value}</div>
+        ${sublabel ? html`<div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">${sublabel}</div>` : ''}
+      </div>
+    `
+  }
+
+  renderFactorBar(factor, weight, index = 0) {
+    const colors = {
+      temporal: { start: '#8b5cf6', end: '#a78bfa' },
+      behavioral: { start: '#3b82f6', end: '#60a5fa' },
+      agent_activity: { start: '#22c55e', end: '#4ade80' },
+      environmental: { start: '#f59e0b', end: '#fbbf24' },
+      environment: { start: '#f59e0b', end: '#fbbf24' },
+      momentum: { start: '#ec4899', end: '#f472b6' }
+    }
+    const c = colors[factor] || { start: '#6b7280', end: '#9ca3af' }
+    const percentage = Math.round(weight * 100)
+
+    return html`
+      <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; animation: card-enter 0.4s ease-out ${index * 0.1}s backwards;">
+        <span style="font-size: 0.8rem; color: var(--color-dark-text-secondary); min-width: 100px; font-weight: 500;">${this.getFactorLabel(factor)}</span>
+        <div style="flex: 1; height: 10px; background: rgba(255,255,255,0.08); border-radius: 5px; overflow: hidden;">
+          <div style="
+            height: 100%;
+            width: ${percentage}%;
+            background: linear-gradient(90deg, ${c.start}, ${c.end});
+            border-radius: 5px;
+            box-shadow: 0 0 10px ${c.start}40;
+            animation: bar-fill 0.8s ease-out ${index * 0.1}s backwards;
+          "></div>
+        </div>
+        <span style="font-size: 0.85rem; font-weight: 600; color: ${c.start}; min-width: 45px; text-align: right;">${percentage}%</span>
+      </div>
+    `
+  }
+
+  renderPatternCard(pattern, index = 0, isTop = false) {
+    const confidence = pattern.confidence
+    const color = confidence >= 0.7 ? '#22c55e' : confidence >= 0.4 ? '#fb923c' : '#9ca3af'
+
+    return html`
+      <div style="
+        flex: 0 0 auto;
+        width: 130px;
+        padding: 0.875rem;
+        background: ${isTop ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(109, 40, 217, 0.08) 100%)' : 'rgba(255,255,255,0.03)'};
+        border: 1px solid ${isTop ? 'rgba(139, 92, 246, 0.3)' : 'rgba(255,255,255,0.08)'};
+        border-radius: 12px;
+        animation: card-enter 0.4s ease-out ${index * 0.05}s backwards;
+        ${isTop ? 'box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);' : ''}
+      ">
+        <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.5rem;">
+          ${this.getDayNameShort(pattern.day_of_week)} ${pattern.hour}h
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.25rem; margin-bottom: 0.5rem;">
+          <span style="font-size: 1.5rem;">${this.getModeIcon(pattern.mode)}</span>
+        </div>
+        <div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-bottom: 0.375rem;">
+          <div style="height: 100%; width: ${confidence * 100}%; background: ${color}; border-radius: 3px;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.7rem;">
+          <span style="color: ${color}; font-weight: 600;">${Math.round(confidence * 100)}%</span>
+          <span style="color: var(--color-dark-text-tertiary);">${pattern.occurrences}x</span>
+        </div>
+      </div>
+    `
   }
 
   getDayNameShort(day) {
