@@ -593,6 +593,13 @@ class EnvironmentWidget extends LitElement {
     return '📶 Faible'
   }
 
+  escapeHtml(text) {
+    if (!text) return ''
+    const div = document.createElement('div')
+    div.textContent = String(text)
+    return div.innerHTML
+  }
+
   async openRoomModal(roomId) {
     console.log('[environment-widget] Opening modal for room:', roomId)
     this.selectedRoom = roomId
@@ -669,7 +676,7 @@ class EnvironmentWidget extends LitElement {
         <div class="modal-content" id="modal-content">
           <div class="modal-header">
             <div class="modal-title">
-              📊 Historique - ${this.selectedRoom}
+              📊 Historique - ${this.escapeHtml(this.selectedRoom)}
             </div>
             <button class="modal-close" id="modal-close-btn">
               ✕
