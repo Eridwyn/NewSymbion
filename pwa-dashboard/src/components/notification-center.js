@@ -659,11 +659,22 @@ class NotificationCenter extends LitElement {
       if (response.ok) {
         // Le kernel retourne directement un array (pas {notifications: []})
         const data = await response.json()
-        this.notifications = Array.isArray(data) ? data : (data.notifications || [])
+        const apiNotifs = Array.isArray(data) ? data : (data.notifications || [])
+
+        // [Fix] Merger API avec notifications locales au lieu d'écraser
+        // Garder les notifications locales (MQTT) qui ne sont pas dans l'API
+        const apiIds = new Set(apiNotifs.map(n => n.id))
+        const localOnly = this.notifications.filter(n => !apiIds.has(n.id))
+
+        // API d'abord (source de vérité), puis locales non persistées
+        this.notifications = [...apiNotifs, ...localOnly]
         this._updateModalContent()
       }
+      // Si l'API échoue, on garde les notifications locales (pas d'écrasement)
     } catch (e) {
       console.error('[notification-center] Failed to load notifications:', e)
+      // Garder les notifications locales, juste mettre à jour le contenu modal
+      this._updateModalContent()
     }
     this.isLoading = false
   }
