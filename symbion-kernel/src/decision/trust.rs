@@ -3,6 +3,7 @@
 
 use crate::decision::{
     Action, DecisionConfig, DecisionContext, TrustCriteria, TrustScore, Clock,
+    SharedTrustTracker,
 };
 use std::sync::Arc;
 
@@ -10,11 +11,17 @@ use std::sync::Arc;
 pub struct TrustCalculator {
     config: DecisionConfig,
     clock: Arc<dyn Clock>,
+    trust_tracker: Option<SharedTrustTracker>,
 }
 
 impl TrustCalculator {
     pub fn new(config: DecisionConfig, clock: Arc<dyn Clock>) -> Self {
-        Self { config, clock }
+        Self { config, clock, trust_tracker: None }
+    }
+
+    /// Create with trust tracker for evolving statistics
+    pub fn with_trust_tracker(config: DecisionConfig, clock: Arc<dyn Clock>, trust_tracker: SharedTrustTracker) -> Self {
+        Self { config, clock, trust_tracker: Some(trust_tracker) }
     }
 
     /// Calculer le trust score complet
@@ -31,12 +38,57 @@ impl TrustCalculator {
             user_approval_history: self.calculate_user_approval_history(&action.action_type),
         };
 
-        let score = self.weighted_score(&breakdown);
+        let base_score = self.weighted_score(&breakdown);
+
+        // Add trust tracker modifier directly to the final score for faster evolution
+        // This gives +1% per successful approval (up to +20% max)
+        let modifier = self.get_combined_trust_modifier(&action.action_type, Some(&action.agent_id));
+        let score = (base_score + modifier).clamp(0.0, 1.0);
 
         TrustScore {
             score,
             breakdown,
             config_version: self.config.version,
+        }
+    }
+
+    /// Get combined trust modifier from trust tracker
+    fn get_combined_trust_modifier(&self, action_type: &str, agent_id: Option<&str>) -> f32 {
+        if let Some(ref tracker) = self.trust_tracker {
+            // Normalize action type: strip "automation." prefix
+            let normalized = action_type
+                .strip_prefix("automation.")
+                .unwrap_or(action_type);
+
+            // Get action modifier (try both PascalCase and snake_case)
+            let action_mod = {
+                let m = tracker.get_action_modifier(normalized);
+                if m == 0.0 {
+                    // Try snake_case version
+                    let lowercase = normalized
+                        .chars()
+                        .fold(String::new(), |mut acc, c| {
+                            if c.is_uppercase() && !acc.is_empty() {
+                                acc.push('_');
+                            }
+                            acc.push(c.to_lowercase().next().unwrap_or(c));
+                            acc
+                        });
+                    tracker.get_action_modifier(&lowercase)
+                } else {
+                    m
+                }
+            };
+
+            // Get agent modifier if available
+            let agent_mod = agent_id
+                .map(|a| tracker.get_agent_modifier(a))
+                .unwrap_or(0.0);
+
+            // Combine: action modifier has more weight
+            (action_mod * 0.7 + agent_mod * 0.3).clamp(-0.2, 0.2)
+        } else {
+            0.0
         }
     }
 
@@ -134,20 +186,48 @@ impl TrustCalculator {
         (freshness_score * 0.4 + cpu_score * 0.3 + ram_score * 0.3).max(0.0)
     }
 
-    /// Critère 4: Taux de succès récent (placeholder)
-    /// TODO: Nécessite historique de décisions
-    fn calculate_recent_success_rate(&self, _agent_id: &str) -> f32 {
-        // Pour l'instant, retourne score neutre
-        // Sera implémenté avec persistence.rs
-        0.7
+    /// Critère 4: Taux de succès récent basé sur l'historique de l'agent
+    fn calculate_recent_success_rate(&self, agent_id: &str) -> f32 {
+        if let Some(ref tracker) = self.trust_tracker {
+            // Base score of 0.7 + agent modifier (can be -0.2 to +0.2)
+            let modifier = tracker.get_agent_modifier(agent_id);
+            (0.7 + modifier).clamp(0.0, 1.0)
+        } else {
+            0.7 // Default neutral score
+        }
     }
 
-    /// Critère 5: Historique approbations utilisateur (placeholder)
-    /// TODO: Nécessite historique de décisions
-    fn calculate_user_approval_history(&self, _action_type: &str) -> f32 {
-        // Pour l'instant, retourne score neutre
-        // Sera implémenté avec persistence.rs
-        0.7
+    /// Critère 5: Historique approbations utilisateur basé sur l'historique de l'action
+    fn calculate_user_approval_history(&self, action_type: &str) -> f32 {
+        if let Some(ref tracker) = self.trust_tracker {
+            // Normalize action type: strip "automation." prefix and try both cases
+            let normalized = action_type
+                .strip_prefix("automation.")
+                .unwrap_or(action_type);
+
+            // Try exact match first, then try lowercase
+            let modifier = tracker.get_action_modifier(normalized);
+            let modifier = if modifier == 0.0 {
+                // Try lowercase version (e.g., "ForceMode" -> "force_mode")
+                let lowercase = normalized
+                    .chars()
+                    .fold(String::new(), |mut acc, c| {
+                        if c.is_uppercase() && !acc.is_empty() {
+                            acc.push('_');
+                        }
+                        acc.push(c.to_lowercase().next().unwrap_or(c));
+                        acc
+                    });
+                tracker.get_action_modifier(&lowercase)
+            } else {
+                modifier
+            };
+
+            // Base score of 0.7 + action modifier (can be -0.2 to +0.2)
+            (0.7 + modifier).clamp(0.0, 1.0)
+        } else {
+            0.7 // Default neutral score
+        }
     }
 
     /// Met à jour la configuration

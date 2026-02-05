@@ -3389,14 +3389,14 @@ class ContextEnginePage extends LitElement {
 
         <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
           <input type="checkbox" ?checked="${auto.trusted === true}"
-            @change="${e => { this.editingAutomation.trusted = e.target.checked || null; this.requestUpdate() }}">
+            @change="${e => { this.editingAutomation.trusted = e.target.checked; this.requestUpdate() }}">
           <span>Trusted</span>
           <span style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">— Auto-approuvée sans validation</span>
         </label>
 
         <label style="display: flex; align-items: center; gap: 0.5rem;">
           <input type="checkbox" ?checked="${auto.skip_if_same_mode === true}"
-            @change="${e => { this.editingAutomation.skip_if_same_mode = e.target.checked || null; this.requestUpdate() }}">
+            @change="${e => { this.editingAutomation.skip_if_same_mode = e.target.checked; this.requestUpdate() }}">
           <span>Skip si même mode</span>
           <span style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">— Ne pas exécuter si déjà dans ce mode</span>
         </label>

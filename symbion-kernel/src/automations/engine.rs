@@ -25,6 +25,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use time::OffsetDateTime;
+use time_tz::{timezones, OffsetDateTimeExt};
 
 /// Context available during condition evaluation and action execution
 pub struct ExecutionContext {
@@ -136,9 +137,10 @@ impl AutomationEngine {
             }
 
             Condition::TimeRange { start_hour, end_hour } => {
-                let now = OffsetDateTime::now_utc();
-                // Convert to local time (Paris = UTC+1 or UTC+2)
-                let hour = now.hour();
+                // Convert UTC to local time (Europe/Paris)
+                let now_utc = OffsetDateTime::now_utc();
+                let now_local = now_utc.to_timezone(timezones::db::europe::PARIS);
+                let hour = now_local.hour();
 
                 let in_range = if start_hour <= end_hour {
                     // Normal range (e.g., 8-22)
@@ -155,8 +157,10 @@ impl AutomationEngine {
             }
 
             Condition::DayOfWeek { days } => {
-                let now = OffsetDateTime::now_utc();
-                let weekday = now.weekday().number_days_from_sunday(); // 0=Sun, 6=Sat
+                // Convert UTC to local time (Europe/Paris) for day of week
+                let now_utc = OffsetDateTime::now_utc();
+                let now_local = now_utc.to_timezone(timezones::db::europe::PARIS);
+                let weekday = now_local.weekday().number_days_from_sunday(); // 0=Sun, 6=Sat
                 let matches = days.contains(&weekday);
                 (
                     matches,
@@ -165,10 +169,12 @@ impl AutomationEngine {
             }
 
             Condition::DayOfMonth { days } => {
-                let now = OffsetDateTime::now_utc();
-                let current_day = now.day();
+                // Convert UTC to local time (Europe/Paris)
+                let now_utc = OffsetDateTime::now_utc();
+                let now_local = now_utc.to_timezone(timezones::db::europe::PARIS);
+                let current_day = now_local.day();
                 // Get last day of current month using Month::length
-                let last_day = now.month().length(now.year());
+                let last_day = now_local.month().length(now_local.year());
                 // Check if current day matches any in list
                 // Special case: 31 = last day of month (whatever that is)
                 let matches = days.iter().any(|&d| {
@@ -186,8 +192,10 @@ impl AutomationEngine {
             }
 
             Condition::Month { months } => {
-                let now = OffsetDateTime::now_utc();
-                let current_month = now.month() as u8; // 1-12
+                // Convert UTC to local time (Europe/Paris)
+                let now_utc = OffsetDateTime::now_utc();
+                let now_local = now_utc.to_timezone(timezones::db::europe::PARIS);
+                let current_month = now_local.month() as u8; // 1-12
                 let matches = months.contains(&current_month);
                 (
                     matches,
