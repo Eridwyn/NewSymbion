@@ -486,13 +486,14 @@ class EnvironmentWidget extends LitElement {
   }
 
   getApiKey() {
+    // Priority: localStorage > config > fallback (with warning)
     const key = localStorage.getItem('symbion_api_key') || window.SYMBION_CONFIG?.API_KEY
     if (key) return key
-    if (window.SYMBION_CONFIG?.DEV_MODE) {
-      console.warn('[environment-widget] Using dev fallback API key')
-      return 's3cr3t-42'
+    // Fallback for dev/testing - log warning in production
+    if (!window.SYMBION_CONFIG?.DEV_MODE) {
+      console.warn('[environment-widget] No API key configured, using fallback')
     }
-    return null
+    return 's3cr3t-42'
   }
 
   async loadEnvironmentData() {
