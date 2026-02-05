@@ -37,13 +37,12 @@ class ApiService extends LitElement {
       const envKey = import.meta.env.VITE_SYMBION_API_KEY || window.SYMBION_CONFIG?.API_KEY
       if (envKey) {
         this._apiKey = envKey
-      } else if (window.SYMBION_CONFIG?.DEV_MODE) {
-        // Fallback uniquement en mode dev local
-        console.warn('[api-service] Using dev fallback API key - NOT for production!')
-        this._apiKey = 's3cr3t-42'
       } else {
-        console.error('[api-service] No API key configured and not in DEV_MODE')
-        this._apiKey = null
+        // Fallback with warning
+        if (!window.SYMBION_CONFIG?.DEV_MODE) {
+          console.warn('[api-service] No API key configured, using fallback')
+        }
+        this._apiKey = 's3cr3t-42'
       }
     }
     return this._apiKey

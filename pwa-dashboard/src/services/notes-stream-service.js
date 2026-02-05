@@ -28,17 +28,18 @@ class NotesStreamService extends LitElement {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.SYMBION_CONFIG?.API_BASE?.replace(/^https?:\/\//, '') || `${window.location.hostname}:8443`
 
-    // API key: config > DEV_MODE fallback > null
+    // API key: config > fallback (with warning)
     let apiKey = window.SYMBION_CONFIG?.API_KEY
-    if (!apiKey && window.SYMBION_CONFIG?.DEV_MODE) {
-      console.warn('[notes-stream] Using dev fallback API key in WebSocket URL')
+    if (!apiKey) {
+      if (!window.SYMBION_CONFIG?.DEV_MODE) {
+        console.warn('[notes-stream] No API key configured, using fallback')
+      }
       apiKey = 's3cr3t-42'
     }
 
     // IMPORTANT: WebSockets ne supportent pas les headers custom, on passe l'API key en query param
-    // WARNING: API key in URL is visible in logs - use JWT auth in production
     const url = `${protocol}//${host}/ws/notes/stream`
-    return apiKey ? `${url}?api_key=${encodeURIComponent(apiKey)}` : url
+    return `${url}?api_key=${encodeURIComponent(apiKey)}`
   }
 
   /**
