@@ -198,6 +198,7 @@ class ToastNotifications extends LitElement {
     this.mqttService = null
     this.maxToasts = 5
     this.autoHideDelay = 10000 // 10 secondes pour P2, pas d'auto-hide pour P0/P1
+    this._timeouts = new Map() // Track timeouts for cleanup
   }
 
   connectedCallback() {
@@ -210,6 +211,11 @@ class ToastNotifications extends LitElement {
     if (this._notificationHandler) {
       document.body.removeEventListener('notification-received', this._notificationHandler)
     }
+    // Clear all pending timeouts to prevent memory leaks
+    for (const timeoutId of this._timeouts.values()) {
+      clearTimeout(timeoutId)
+    }
+    this._timeouts.clear()
   }
 
   setupNotificationListener() {
@@ -238,9 +244,13 @@ class ToastNotifications extends LitElement {
     // Ajouter au début
     this.toasts = [toast, ...this.toasts].slice(0, this.maxToasts)
 
-    // Auto-hide pour P2 uniquement
+    // Auto-hide pour P2 uniquement - track timeout for cleanup
     if (notification.priority === 'P2') {
-      setTimeout(() => this.dismissToast(toast._id), this.autoHideDelay)
+      const timeoutId = setTimeout(() => {
+        this._timeouts.delete(toast._id)
+        this.dismissToast(toast._id)
+      }, this.autoHideDelay)
+      this._timeouts.set(toast._id, timeoutId)
     }
   }
 
@@ -264,13 +274,22 @@ class ToastNotifications extends LitElement {
   }
 
   dismissToast(toastId) {
+    // Clear any pending auto-hide timeout for this toast
+    if (this._timeouts.has(toastId)) {
+      clearTimeout(this._timeouts.get(toastId))
+      this._timeouts.delete(toastId)
+    }
+
     // Marquer pour animation de sortie
     const toastEl = this.shadowRoot.querySelector(`[data-id="${toastId}"]`)
     if (toastEl) {
       toastEl.classList.add('exiting')
-      setTimeout(() => {
+      const animKey = `anim_${toastId}`
+      const animTimeout = setTimeout(() => {
+        this._timeouts.delete(animKey)
         this.toasts = this.toasts.filter(t => t._id !== toastId)
       }, 300)
+      this._timeouts.set(animKey, animTimeout)
     } else {
       this.toasts = this.toasts.filter(t => t._id !== toastId)
     }
