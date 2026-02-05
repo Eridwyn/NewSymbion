@@ -63,14 +63,19 @@ class AuthService extends EventTarget {
 
   /**
    * Effacer token et user info de sessionStorage
-   * Note: device_token dans localStorage n'est PAS supprimé (survit au logout pour remember device 30j)
+   *
+   * SECURITY NOTE: device_token in localStorage is NOT deleted on logout.
+   * This is intentional for "remember this device" functionality (30 days).
+   * Trade-off: If XSS occurs, attacker could steal device_token.
+   * Mitigation: XSS protection via DOMPurify and escapeHtml.
+   * Alternative: HttpOnly cookie (requires backend changes).
    */
   clearStorage() {
     sessionStorage.removeItem(TOKEN_KEY)
     sessionStorage.removeItem(USER_KEY)
     sessionStorage.removeItem(LOGIN_TIME_KEY)
     sessionStorage.removeItem('symbion_boot_completed') // Reset boot pour prochaine session
-    // Note: Ne pas supprimer symbion_device_token (localStorage) - il persiste 30 jours
+    // SECURITY: symbion_device_token persists 30 days for device trust (see note above)
     this.token = null
     this.userInfo = null
     this.loginTime = null
@@ -148,10 +153,11 @@ class AuthService extends EventTarget {
       }
       this.loginTime = Date.now() // Enregistrer le timestamp du login
 
-      // Stocker le device token si renvoyé par le backend (remember_device=true)
+      // SECURITY: Device token stored in localStorage for 30-day device trust
+      // See clearStorage() for security trade-off documentation
       if (data.device_token) {
         localStorage.setItem('symbion_device_token', data.device_token)
-        console.log('[auth] Device token saved to localStorage:', data.device_token.substring(0, 8) + '... (30 days)')
+        console.log('[auth] Device token saved (30 days):', data.device_token.substring(0, 8) + '...')
       }
 
       this.saveToStorage()
