@@ -10,6 +10,7 @@
 
 import { LitElement, html, css } from 'lit'
 import { getDayNameShort, utcHourToLocal } from '../utils/time-utils.js'
+import pollingScheduler from '../services/polling-scheduler.js'
 
 class IntelligenceWidget extends LitElement {
   static styles = css`
@@ -504,14 +505,16 @@ class IntelligenceWidget extends LitElement {
 
   connectedCallback() {
     super.connectedCallback()
-    this.loadData()
-    // Refresh every 30 seconds
-    this._interval = setInterval(() => this.loadData(), 30000)
+    // Use centralized polling scheduler (auto-pauses when page hidden)
+    this._unsubscribePolling = pollingScheduler.subscribe('30s', () => this.loadData())
   }
 
   disconnectedCallback() {
     super.disconnectedCallback()
-    clearInterval(this._interval)
+    if (this._unsubscribePolling) {
+      this._unsubscribePolling()
+      this._unsubscribePolling = null
+    }
   }
 
   async loadData() {

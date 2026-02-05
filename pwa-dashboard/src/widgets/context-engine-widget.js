@@ -7,6 +7,7 @@
 
 import { LitElement, html, css } from 'lit'
 import automationsService from '../services/automations-service.js'
+import pollingScheduler from '../services/polling-scheduler.js'
 
 class ContextEngineWidget extends LitElement {
   static styles = css`
@@ -237,7 +238,6 @@ class ContextEngineWidget extends LitElement {
 
   connectedCallback() {
     super.connectedCallback()
-    this.loadData()
 
     // Listen for context changes
     this._contextHandler = () => this.loadContext()
@@ -247,15 +247,18 @@ class ContextEngineWidget extends LitElement {
     this._automationHandler = () => this.loadAutomations()
     document.body.addEventListener('automations:loaded', this._automationHandler)
 
-    // Refresh every 30 seconds
-    this._interval = setInterval(() => this.loadData(), 30000)
+    // Use centralized polling scheduler (auto-pauses when page hidden)
+    this._unsubscribePolling = pollingScheduler.subscribe('30s', () => this.loadData())
   }
 
   disconnectedCallback() {
     super.disconnectedCallback()
     document.body.removeEventListener('context-change', this._contextHandler)
     document.body.removeEventListener('automations:loaded', this._automationHandler)
-    clearInterval(this._interval)
+    if (this._unsubscribePolling) {
+      this._unsubscribePolling()
+      this._unsubscribePolling = null
+    }
   }
 
   async loadData() {

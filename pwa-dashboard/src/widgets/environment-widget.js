@@ -13,6 +13,7 @@ import { LitElement, html, css } from 'lit'
 import '../components/organic-loader.js'
 import { Chart, registerables } from 'chart.js'
 import csrfService from '../services/csrf-service.js'
+import pollingScheduler from '../services/polling-scheduler.js'
 
 // Register Chart.js components
 Chart.register(...registerables)
@@ -472,15 +473,15 @@ class EnvironmentWidget extends LitElement {
 
   connectedCallback() {
     super.connectedCallback()
-    this.loadEnvironmentData()
-    // Refresh data every 30 seconds
-    this.refreshInterval = setInterval(() => this.loadEnvironmentData(), 30000)
+    // Use centralized polling scheduler (auto-pauses when page hidden)
+    this._unsubscribePolling = pollingScheduler.subscribe('30s', () => this.loadEnvironmentData())
   }
 
   disconnectedCallback() {
     super.disconnectedCallback()
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval)
+    if (this._unsubscribePolling) {
+      this._unsubscribePolling()
+      this._unsubscribePolling = null
     }
   }
 
