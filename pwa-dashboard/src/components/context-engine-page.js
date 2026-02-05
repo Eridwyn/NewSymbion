@@ -2258,8 +2258,9 @@ class ContextEnginePage extends LitElement {
       // Si c'est une notification de validation, rafraîchir
       if (notif?.title?.includes('Validation') || notif?.title?.includes('validation')) {
         console.log('[context-engine] Validation notification received, refreshing...')
-        this.loadValidations()
-        this.loadAutomations() // Aussi l'historique
+        // [Audit] Add .catch() for fire-and-forget promises
+        this.loadValidations().catch(e => console.warn('[context-engine] Refresh validations failed:', e))
+        this.loadAutomations().catch(e => console.warn('[context-engine] Refresh automations failed:', e))
       }
     }
     document.body.addEventListener('notification-received', this._notificationHandler)
@@ -2267,7 +2268,8 @@ class ContextEnginePage extends LitElement {
     // Rafraîchir périodiquement les validations (toutes les 10s)
     this._refreshInterval = setInterval(() => {
       if (this.activeTab === 'validations') {
-        this.loadValidations()
+        // [Audit] Add .catch() for fire-and-forget promise
+        this.loadValidations().catch(e => console.warn('[context-engine] Periodic refresh failed:', e))
       }
     }, 10000)
   }
@@ -2965,19 +2967,20 @@ class ContextEnginePage extends LitElement {
   switchTab(id) {
     this.activeTab = id
     // Rafraîchir les données de l'onglet sélectionné
+    // [Audit] Add .catch() for fire-and-forget promises
     switch (id) {
       case 'validations':
-        this.loadValidations()
+        this.loadValidations().catch(e => console.warn('[context-engine] Load validations failed:', e))
         break
       case 'automations':
-        this.loadAutomations()
+        this.loadAutomations().catch(e => console.warn('[context-engine] Load automations failed:', e))
         break
       case 'modes':
-        this.loadModes()
-        this.loadContext()
+        this.loadModes().catch(e => console.warn('[context-engine] Load modes failed:', e))
+        this.loadContext().catch(e => console.warn('[context-engine] Load context failed:', e))
         break
       case 'intelligence':
-        this.loadIntelligence()
+        this.loadIntelligence().catch(e => console.warn('[context-engine] Load intelligence failed:', e))
         break
     }
   }

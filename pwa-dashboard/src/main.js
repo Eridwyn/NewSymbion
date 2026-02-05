@@ -34,14 +34,22 @@ class SymbionApp extends LitElement {
   constructor() {
     super()
     this.currentView = 'boot' // boot, dashboard
+    // [Audit] Store handler reference for cleanup
+    this._bootCompleteHandler = this.handleBootComplete.bind(this)
   }
 
   connectedCallback() {
     super.connectedCallback()
 
     // Écouter les événements de boot
-    this.addEventListener('boot-complete', this.handleBootComplete.bind(this))
+    this.addEventListener('boot-complete', this._bootCompleteHandler)
     console.log('[app] SymbionApp connected, listening for boot-complete events')
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback()
+    // [Audit] Cleanup event listener
+    this.removeEventListener('boot-complete', this._bootCompleteHandler)
   }
 
   handleBootComplete(event) {
@@ -132,32 +140,7 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 // Page Lifecycle Management - Empêcher le navigateur de décharger l'onglet
 // ============================================================================
 
-// Détection visibilité de la page
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) {
-    console.log('[lifecycle] 🌙 Page hidden - maintaining background connections')
-    // Page cachée mais on garde les connexions MQTT/WebSocket actives
-  } else {
-    console.log('[lifecycle] ☀️ Page visible - resuming activity')
-    // Page redevenue visible, on peut rafraîchir si besoin
-    // Mais on ne recharge PAS la page
-  }
-})
-
-// Page Lifecycle API - Empêcher freeze/discard
-document.addEventListener('freeze', (event) => {
-  console.log('[lifecycle] ❄️ Page about to freeze - preventing...')
-  // Le navigateur essaie de geler la page pour économiser RAM
-  // On ne peut pas vraiment empêcher ça mais on peut logger
-})
-
-document.addEventListener('resume', (event) => {
-  console.log('[lifecycle] ♻️ Page resumed from freeze')
-  // Page réactivée après freeze
-})
-
-// Empêcher le navigateur de décharger la page (experimental)
-// Utilise Wake Lock API pour garder l'onglet actif
+// Wake Lock API - garder l'onglet actif (déclaré en premier pour hoisting)
 let wakeLock = null
 
 async function requestWakeLock() {
@@ -175,14 +158,47 @@ async function requestWakeLock() {
   }
 }
 
-// Demander le Wake Lock quand la page devient visible
+// Détection visibilité de la page - [Audit] Unified handler with wake lock management
 document.addEventListener('visibilitychange', async () => {
-  if (!document.hidden && wakeLock === null) {
-    await requestWakeLock()
+  if (document.hidden) {
+    console.log('[lifecycle] 🌙 Page hidden - maintaining background connections')
+    // Page cachée mais on garde les connexions MQTT/WebSocket actives
+
+    // [Audit] Release wake lock when page hidden to save battery
+    if (wakeLock !== null) {
+      try {
+        await wakeLock.release()
+        wakeLock = null
+        console.log('[lifecycle] 🔓 Wake Lock released (page hidden)')
+      } catch (e) {
+        console.warn('[lifecycle] Wake Lock release failed:', e)
+      }
+    }
+  } else {
+    console.log('[lifecycle] ☀️ Page visible - resuming activity')
+    // Page redevenue visible, on peut rafraîchir si besoin
+    // Mais on ne recharge PAS la page
+
+    // [Audit] Re-acquire wake lock when page becomes visible
+    if (wakeLock === null) {
+      await requestWakeLock()
+    }
   }
 })
 
-// Demander dès le chargement
+// Page Lifecycle API - Empêcher freeze/discard
+document.addEventListener('freeze', (event) => {
+  console.log('[lifecycle] ❄️ Page about to freeze - preventing...')
+  // Le navigateur essaie de geler la page pour économiser RAM
+  // On ne peut pas vraiment empêcher ça mais on peut logger
+})
+
+document.addEventListener('resume', (event) => {
+  console.log('[lifecycle] ♻️ Page resumed from freeze')
+  // Page réactivée après freeze
+})
+
+// Demander le Wake Lock dès le chargement si page visible
 if (document.visibilityState === 'visible') {
   requestWakeLock()
 }

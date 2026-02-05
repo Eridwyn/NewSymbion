@@ -490,6 +490,7 @@ class NotesWidget extends LitElement {
           <button
             class="create-btn"
             @click="${this.openCreateNote}"
+            aria-label="Créer une note"
             title="Créer une note rapide">
             ➕
           </button>

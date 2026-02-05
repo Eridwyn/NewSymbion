@@ -784,6 +784,7 @@ class DashboardApp extends LitElement {
     this.mqttService = null
     this.agentsService = null
     this.timeInterval = null
+    this._realtimeInterval = null  // [Audit] Store for cleanup
 
     // [P0-5] Store bound handlers for cleanup
     this._boundHandlers = {
@@ -861,6 +862,11 @@ class DashboardApp extends LitElement {
     if (this.timeInterval) {
       clearInterval(this.timeInterval)
       this.timeInterval = null
+    }
+    // [Audit] Nettoyer l'intervalle realtime updates
+    if (this._realtimeInterval) {
+      clearInterval(this._realtimeInterval)
+      this._realtimeInterval = null
     }
 
     // [P0-5] Cleanup all stored event handlers to prevent memory leaks
@@ -996,8 +1002,8 @@ class DashboardApp extends LitElement {
     // Première mise à jour immédiate
     updateData()
 
-    // Puis mise à jour périodique
-    setInterval(updateData, 10000) // 10 secondes
+    // Puis mise à jour périodique - [Audit] Store for cleanup
+    this._realtimeInterval = setInterval(updateData, 10000)
   }
   
   handleApiStatus(event) {

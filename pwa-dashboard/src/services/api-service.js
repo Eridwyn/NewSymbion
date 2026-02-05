@@ -8,6 +8,7 @@
 import { LitElement } from 'lit'
 import authService from './auth-service.js'
 import csrfService from './csrf-service.js'
+import { notifyError, notifySuccess } from '../utils/notification-helper.js'
 
 class ApiService extends LitElement {
   static properties = {
@@ -22,6 +23,8 @@ class ApiService extends LitElement {
     // Ne pas définir baseUrl ici, sera lazy-loaded
     this._baseUrl = null
     this._apiKey = null
+    this._wasOffline = false  // [Audit] Track for reconnection toast
+    this._notifiedOffline = false  // [Audit] Prevent duplicate offline toasts
   }
 
   // Lazy getters pour résoudre la config au moment de l'utilisation
@@ -69,7 +72,22 @@ class ApiService extends LitElement {
   }
   
   updateStatus(status) {
+    const previousStatus = this.status
     this.status = status
+
+    // [Audit] Notifications on status change
+    if (status === 'offline' && previousStatus !== 'offline') {
+      this._wasOffline = true
+      if (!this._notifiedOffline) {
+        notifyError('Système indisponible', 'Impossible de joindre le serveur Symbion', 'api')
+        this._notifiedOffline = true
+      }
+    } else if (status === 'online' && this._wasOffline) {
+      notifySuccess('Connexion rétablie', 'Serveur Symbion accessible', 'api')
+      this._wasOffline = false
+      this._notifiedOffline = false
+    }
+
     this.dispatchEvent(new CustomEvent('status-change', {
       detail: { status },
       bubbles: true
@@ -101,17 +119,23 @@ class ApiService extends LitElement {
     // Remove timeout from config to avoid passing it to fetch
     delete config.timeout
 
-    console.log(`[api-service] request: ${options.method || 'GET'} ${url}${timeout ? ` (timeout: ${timeout}ms)` : ''}`)
-    console.log(`[api-service] baseUrl: ${this.baseUrl}`)
-    console.log(`[api-service] auth header:`, authHeader)
-    console.log(`[api-service] config:`, config)
+    // [Audit] Verbose logging only in DEV_MODE
+    if (window.SYMBION_CONFIG?.DEV_MODE) {
+      console.log(`[api-service] request: ${options.method || 'GET'} ${url}${timeout ? ` (timeout: ${timeout}ms)` : ''}`)
+      console.log(`[api-service] baseUrl: ${this.baseUrl}`)
+      console.log(`[api-service] auth header:`, authHeader)
+      console.log(`[api-service] config:`, config)
+    }
 
     try {
       const response = await fetch(url, config)
 
       // Clear timeout on success
       if (timeoutId) clearTimeout(timeoutId)
-      console.log(`[api-service] response status: ${response.status} ${response.statusText}`)
+      // [Audit] Verbose logging only in DEV_MODE
+      if (window.SYMBION_CONFIG?.DEV_MODE) {
+        console.log(`[api-service] response status: ${response.status} ${response.statusText}`)
+      }
       
       if (!response.ok) {
         // Différencier les erreurs de connection vs erreurs applicatives
