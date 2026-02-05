@@ -1,13 +1,12 @@
 /**
  * Service MQTT Symbion
- *
+ * 
  * Connexion temps réel aux événements MQTT du système
  * Écoute les heartbeats, health updates, etc.
  */
 
 import { LitElement } from 'lit'
 import mqtt from 'mqtt'
-import { notifyError, notifySuccess } from '../utils/notification-helper.js'
 
 class MqttService extends LitElement {
   static properties = {
@@ -21,8 +20,6 @@ class MqttService extends LitElement {
     this.client = null
     this.reconnectAttempts = 0
     this.maxReconnectAttempts = 5
-    this._wasDisconnected = false  // [Audit] Track disconnection for toast
-    this._notifiedOffline = false  // [Audit] Prevent duplicate offline toasts
   }
   
   connectedCallback() {
@@ -64,16 +61,9 @@ class MqttService extends LitElement {
   handleConnect() {
     console.log('✅ MQTT Connected')
     this.status = 'online'
-
-    // [Audit] Show success toast only if we were disconnected (not first connect)
-    if (this._wasDisconnected) {
-      notifySuccess('Connexion rétablie', 'Mises à jour temps réel actives', 'mqtt')
-      this._wasDisconnected = false
-    }
-    this._notifiedOffline = false
     this.reconnectAttempts = 0
     this.updateStatus('online')
-
+    
     // S'abonner aux topics Symbion
     this.subscribeToTopics()
   }
@@ -93,29 +83,16 @@ class MqttService extends LitElement {
   
   handleError(error) {
     console.error('❌ MQTT Error:', error)
-    this._wasDisconnected = true
-    // [Audit] Show error toast only once per disconnection
-    if (!this._notifiedOffline) {
-      notifyError('Connexion temps réel perdue', 'Tentative de reconnexion...', 'mqtt')
-      this._notifiedOffline = true
-    }
     this.updateStatus('offline')
   }
-
+  
   handleClose() {
     console.warn('⚠️ MQTT Connection closed')
-    this._wasDisconnected = true
     this.updateStatus('offline')
   }
-
+  
   handleOffline() {
     console.warn('⚠️ MQTT Offline')
-    this._wasDisconnected = true
-    // [Audit] Show error toast only once per disconnection
-    if (!this._notifiedOffline) {
-      notifyError('Connexion temps réel perdue', 'Tentative de reconnexion...', 'mqtt')
-      this._notifiedOffline = true
-    }
     this.updateStatus('offline')
   }
   
@@ -123,11 +100,9 @@ class MqttService extends LitElement {
     this.reconnectAttempts++
     console.log(`🔄 MQTT Reconnecting... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
     this.updateStatus('connecting')
-
+    
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('❌ Max reconnection attempts reached')
-      // [Audit] Show final failure notification
-      notifyError('Service temps réel hors ligne', 'Reconnexion échouée après 5 tentatives', 'mqtt')
       this.client.end()
       this.updateStatus('offline')
     }

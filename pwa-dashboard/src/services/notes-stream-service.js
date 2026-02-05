@@ -6,7 +6,6 @@
  */
 
 import { LitElement } from 'lit'
-import { notifyError, notifySuccess } from '../utils/notification-helper.js'
 
 class NotesStreamService extends LitElement {
   static properties = {
@@ -22,8 +21,6 @@ class NotesStreamService extends LitElement {
     this.reconnectAttempts = 0
     this.maxReconnectAttempts = 5
     this.reconnectDelay = 1000
-    this._wasDisconnected = false  // [Audit] Track for reconnection toast
-    this._notifiedOffline = false  // [Audit] Prevent duplicate offline toasts
   }
 
   get wsUrl() {
@@ -51,13 +48,6 @@ class NotesStreamService extends LitElement {
       this.ws.onopen = () => {
         console.log('[notes-stream] WebSocket connected')
         this.connected = true
-
-        // [Audit] Show success toast only on reconnection
-        if (this._wasDisconnected) {
-          notifySuccess('Notes reconnectées', '', 'notes')
-          this._wasDisconnected = false
-        }
-        this._notifiedOffline = false
         this.reconnectAttempts = 0
 
         this.dispatchEvent(new CustomEvent('ws-connected', {
@@ -77,13 +67,6 @@ class NotesStreamService extends LitElement {
 
       this.ws.onerror = (error) => {
         console.error('[notes-stream] WebSocket error:', error)
-        this._wasDisconnected = true
-
-        // [Audit] Show error toast only once per disconnection
-        if (!this._notifiedOffline) {
-          notifyError('Service notes indisponible', 'Tentative de reconnexion...', 'notes')
-          this._notifiedOffline = true
-        }
 
         this.dispatchEvent(new CustomEvent('ws-error', {
           detail: { error },
@@ -96,7 +79,6 @@ class NotesStreamService extends LitElement {
         console.log('[notes-stream] WebSocket closed')
         this.connected = false
         this.loading = false
-        this._wasDisconnected = true
 
         this.dispatchEvent(new CustomEvent('ws-closed', {
           bubbles: true,
@@ -112,8 +94,6 @@ class NotesStreamService extends LitElement {
           setTimeout(() => this.connect(), delay)
         } else {
           console.error('[notes-stream] Max reconnection attempts reached')
-          // [Audit] Show final failure notification
-          notifyError('Service notes hors ligne', 'Reconnexion échouée après 5 tentatives', 'notes')
         }
       }
     } catch (e) {

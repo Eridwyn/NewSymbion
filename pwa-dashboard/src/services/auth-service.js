@@ -9,8 +9,6 @@
  * - Events auth:login, auth:logout, auth:expired
  */
 
-import { notifyError } from '../utils/notification-helper.js'
-
 const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
 const TOKEN_KEY = 'symbion_auth_token'
 const USER_KEY = 'symbion_user_info'
@@ -133,8 +131,7 @@ class AuthService extends EventTarget {
             errorMessage = errorData.error
           }
         } catch (e) {
-          // [Audit] Si pas de JSON, utiliser le message par défaut
-          console.warn('[auth] Failed to parse error response:', e)
+          // Si pas de JSON, utiliser le message par défaut
         }
 
         throw new Error(errorMessage)
@@ -196,8 +193,6 @@ class AuthService extends EventTarget {
       }
     } catch (error) {
       console.warn('[auth] Logout API call failed:', error)
-      // [Audit] Notify user that server-side logout failed
-      notifyError('Erreur déconnexion', 'Session locale fermée, serveur injoignable', 'auth')
     } finally {
       const username = this.userInfo?.username || 'unknown'
 
