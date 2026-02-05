@@ -8,6 +8,7 @@
 import { LitElement, html, css } from 'lit'
 import { unsafeHTML } from 'lit/directives/unsafe-html.js'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import { calculatePriorityScore, sortNotesByPriority, isHighPriority } from '../utils/notes-scoring.js'
 import { applyAllFilters, extractAllTags } from '../utils/notes-filters.js'
 import notesStreamService from '../services/notes-stream-service.js'
@@ -1228,10 +1229,11 @@ class NotesPage extends LitElement {
   renderMarkdown(content) {
     if (!content) return ''
     try {
-      return marked.parse(content)
+      const rawHtml = marked.parse(content)
+      return DOMPurify.sanitize(rawHtml)
     } catch (error) {
       console.error('Failed to parse markdown:', error)
-      return content
+      return DOMPurify.sanitize(content)
     }
   }
 
