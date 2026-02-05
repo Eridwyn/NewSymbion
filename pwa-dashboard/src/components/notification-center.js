@@ -585,7 +585,7 @@ class NotificationCenter extends LitElement {
             <button class="notif-header-btn" id="mark-all-read-btn">✓ Tout lu</button>
             <button class="notif-header-btn danger" id="delete-all-btn">🗑 Tout suppr.</button>
           </div>
-          <button class="notif-close">✕</button>
+          <button class="notif-close" aria-label="Fermer" title="Fermer">✕</button>
         </div>
         <div class="notif-content"></div>
       </div>
@@ -832,9 +832,9 @@ class NotificationCenter extends LitElement {
 
   render() {
     return html`
-      <button class="bell-button" @click="${this.togglePanel}">
+      <button class="bell-button" @click="${this.togglePanel}" aria-label="Notifications" title="Notifications">
         🔔
-        <span class="badge ${this.unreadCount === 0 ? 'hidden' : ''}">
+        <span class="badge ${this.unreadCount === 0 ? 'hidden' : ''}" aria-label="${this.unreadCount} notifications non lues">
           ${this.unreadCount > 9 ? '9+' : this.unreadCount}
         </span>
       </button>
