@@ -484,6 +484,16 @@ class EnvironmentWidget extends LitElement {
     }
   }
 
+  getApiKey() {
+    const key = localStorage.getItem('symbion_api_key') || window.SYMBION_CONFIG?.API_KEY
+    if (key) return key
+    if (window.SYMBION_CONFIG?.DEV_MODE) {
+      console.warn('[environment-widget] Using dev fallback API key')
+      return 's3cr3t-42'
+    }
+    return null
+  }
+
   async loadEnvironmentData() {
     try {
       this.loading = true
@@ -491,10 +501,9 @@ class EnvironmentWidget extends LitElement {
 
       // Fetch all sensors
       const apiBase = window.SYMBION_CONFIG?.API_BASE || 'https://localhost:8443'
+      const apiKey = this.getApiKey()
       const sensorsResponse = await fetch(`${apiBase}/v1/environment/sensors`, {
-        headers: {
-          'X-API-Key': localStorage.getItem('symbion_api_key') || window.SYMBION_CONFIG?.API_KEY || 's3cr3t-42'
-        }
+        headers: apiKey ? { 'X-API-Key': apiKey } : {}
       })
 
       if (!sensorsResponse.ok) {
@@ -518,9 +527,7 @@ class EnvironmentWidget extends LitElement {
         uniqueRooms.map(async (roomId) => {
           try {
             const envResponse = await fetch(`${apiBase}/v1/environment/${roomId}`, {
-              headers: {
-                'X-API-Key': localStorage.getItem('symbion_api_key') || window.SYMBION_CONFIG?.API_KEY || 's3cr3t-42'
-              }
+              headers: apiKey ? { 'X-API-Key': apiKey } : {}
             })
 
             if (envResponse.ok) {
@@ -618,10 +625,9 @@ class EnvironmentWidget extends LitElement {
     try {
       // Fetch 7 days of history (168 hours)
       const apiBase = window.SYMBION_CONFIG?.API_BASE || 'https://localhost:8443'
+      const apiKey = this.getApiKey()
       const response = await fetch(`${apiBase}/v1/environment/${roomId}/history?hours=168`, {
-        headers: {
-          'X-API-Key': localStorage.getItem('symbion_api_key') || window.SYMBION_CONFIG?.API_KEY || 's3cr3t-42'
-        }
+        headers: apiKey ? { 'X-API-Key': apiKey } : {}
       })
 
       if (!response.ok) {
