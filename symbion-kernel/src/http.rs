@@ -198,6 +198,8 @@ pub struct AppState {
     pub notification_config: crate::notification_config::SharedNotificationConfigManager,
     // Context Intelligence Engine
     pub context_intelligence: std::sync::Arc<crate::context_intelligence::ContextIntelligence>,
+    // Trust Tracker for evolving action statistics
+    pub trust_tracker: crate::decision::SharedTrustTracker,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2183,6 +2185,15 @@ async fn decision_resolve_validation(
                         validation_id
                     );
 
+                    // Record success in trust tracker for evolving statistics
+                    let action_type = format!("{:?}", pending.action).split('{').next().unwrap_or("unknown").trim().to_string();
+                    let agent_id = pending.action.agent_id();
+                    app.trust_tracker.record_action(&action_type, agent_id.as_deref(), true);
+                    eprintln!(
+                        "[http] 📈 Trust tracker updated: {} (agent: {:?}) -> success",
+                        action_type, agent_id
+                    );
+
                     // Notify Intelligence: action approved after MFA (weak positive)
                     // Use automation's target mode - NO fallback to current_mode
                     if let Some(signals) = app.context_intelligence.last_signals() {
@@ -2233,6 +2244,15 @@ async fn decision_resolve_validation(
                     eprintln!(
                         "[http] ❌ Pending action failed for validation {}: {}",
                         validation_id, e
+                    );
+
+                    // Record failure in trust tracker (reduces trust faster)
+                    let action_type = format!("{:?}", pending.action).split('{').next().unwrap_or("unknown").trim().to_string();
+                    let agent_id = pending.action.agent_id();
+                    app.trust_tracker.record_action(&action_type, agent_id.as_deref(), false);
+                    eprintln!(
+                        "[http] 📉 Trust tracker updated: {} (agent: {:?}) -> failure",
+                        action_type, agent_id
                     );
 
                     // Add failure record to history

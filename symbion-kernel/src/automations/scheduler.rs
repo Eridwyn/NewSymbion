@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::{interval, Instant};
-use chrono::{Utc, Timelike};
+use chrono::{Timelike, Local};
 
 use crate::automations::events::EventDispatcher;
 use crate::automations::persistence::AutomationStore;
@@ -57,7 +57,7 @@ impl AutomationScheduler {
         let automations = self.store.list();
 
         let now = Instant::now();
-        let current_hour = Utc::now().hour() as u8;
+        let current_hour = Local::now().hour() as u8;
 
         for auto in automations {
             // Skip disabled automations

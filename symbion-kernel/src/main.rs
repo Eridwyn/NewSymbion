@@ -385,10 +385,16 @@ async fn main() {
         crate::decision::ShortCircuitStrategy::OnBlock
     );
 
-    // Trust Calculator
-    let trust_calculator = crate::decision::TrustCalculator::new(
+    // Trust Tracker for evolving trust statistics (Phase 7)
+    // Must be created BEFORE TrustCalculator so it can use the tracker
+    let trust_tracker = Arc::new(crate::decision::TrustTracker::new("./data"));
+    println!("[kernel] initialized Trust Tracker (evolving statistics)");
+
+    // Trust Calculator with Trust Tracker integration
+    let trust_calculator = crate::decision::TrustCalculator::with_trust_tracker(
         decision_config.clone(),
         decision_clock.clone(),
+        trust_tracker.clone(),
     );
 
     let decision_engine = Arc::new(crate::decision::DecisionEngine::new(
@@ -397,11 +403,7 @@ async fn main() {
         decision_config,
     ));
 
-    println!("[kernel] initialized Decision Engine PR3");
-
-    // Trust Tracker for evolving trust statistics (Phase 7)
-    let trust_tracker = Arc::new(crate::decision::TrustTracker::new("./data"));
-    println!("[kernel] initialized Trust Tracker (evolving statistics)");
+    println!("[kernel] initialized Decision Engine PR3 (with Trust Tracker)");
 
     // Pending Action Registry for post-approval execution
     let pending_action_registry = Arc::new(crate::automations::PendingActionRegistry::new());
@@ -489,6 +491,7 @@ async fn main() {
         notifications_manager,
         notification_config,
         context_intelligence: context_intelligence.clone(),
+        trust_tracker: trust_tracker.clone(),
     };
 
     // HTTPS avec TLS (PWA + mTLS)
