@@ -843,9 +843,21 @@ impl ContextIntelligence {
         let mut reasons: Vec<String> = Vec::new();
         let mut factors: Vec<(String, f32)> = Vec::new();
 
-        // Initialize mode scores (focus = travail PC, pro = extérieur)
-        for mode in ["pro", "focus", "maison", "veille"] {
-            scores.insert(mode.to_string(), 0.0);
+        // Initialize mode scores dynamiquement depuis les patterns appris + mode actuel
+        // Cela permet de supporter les modes créés par l'utilisateur via PWA
+        {
+            let patterns = self.learned_patterns.read();
+            for pattern in patterns.iter() {
+                scores.entry(pattern.mode.clone()).or_insert(0.0);
+            }
+        }
+        // Toujours inclure le mode actuel (momentum)
+        if !signals.current_mode.is_empty() {
+            scores.entry(signals.current_mode.clone()).or_insert(0.0);
+        }
+        // Modes de base au cas où aucun pattern
+        for mode in ["focus", "maison", "veille"] {
+            scores.entry(mode.to_string()).or_insert(0.0);
         }
 
         // 1. TEMPORAL SIGNAL (35%)
@@ -1455,12 +1467,20 @@ fn day_name(day: u8) -> &'static str {
     }
 }
 
-fn mode_display_name(mode: &str) -> &'static str {
+fn mode_display_name(mode: &str) -> String {
     match mode {
-        "pro" | "cravate" | "focus" => "Professionnel",
-        "maison" | "intime" => "Maison",
-        "veille" | "neutre" => "Veille",
-        _ => "Inconnu",
+        "pro" | "cravate" => "Professionnel".to_string(),
+        "focus" => "Focus".to_string(),
+        "maison" | "intime" => "Maison".to_string(),
+        "veille" | "neutre" => "Veille".to_string(),
+        // Modes custom: capitaliser la première lettre
+        other => {
+            let mut chars = other.chars();
+            match chars.next() {
+                Some(c) => c.to_uppercase().chain(chars).collect(),
+                None => "Inconnu".to_string(),
+            }
+        }
     }
 }
 
