@@ -63,7 +63,7 @@ class MqttService extends LitElement {
     this.status = 'online'
     this.reconnectAttempts = 0
     this.updateStatus('online')
-    
+
     // S'abonner aux topics Symbion
     this.subscribeToTopics()
   }
@@ -85,12 +85,12 @@ class MqttService extends LitElement {
     console.error('❌ MQTT Error:', error)
     this.updateStatus('offline')
   }
-  
+
   handleClose() {
     console.warn('⚠️ MQTT Connection closed')
     this.updateStatus('offline')
   }
-  
+
   handleOffline() {
     console.warn('⚠️ MQTT Offline')
     this.updateStatus('offline')

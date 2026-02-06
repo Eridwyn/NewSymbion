@@ -11,6 +11,7 @@
 
 import { LitElement, html, css } from 'lit'
 import '../services/agents-service.js'
+import pollingScheduler from '../services/polling-scheduler.js'
 
 class AgentControlWidget extends LitElement {
   static properties = {
@@ -756,7 +757,8 @@ class AgentControlWidget extends LitElement {
 
   startRefreshInterval() {
     this.stopRefreshInterval()
-    this.refreshInterval = setInterval(() => {
+    // Refresh via scheduler centralisé (15s, pause si onglet caché)
+    this._unsubscribeRefresh = pollingScheduler.subscribe('15s', () => {
       // Only refresh if modal is open and visible, and not currently loading
       if (this.isOpen && !this.loading) {
         if (this.currentTab === 'processes') {
@@ -765,13 +767,13 @@ class AgentControlWidget extends LitElement {
           this.loadMetrics()
         }
       }
-    }, 15000) // Refresh toutes les 15s (moins fréquent)
+    })
   }
 
   stopRefreshInterval() {
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval)
-      this.refreshInterval = null
+    if (this._unsubscribeRefresh) {
+      this._unsubscribeRefresh()
+      this._unsubscribeRefresh = null
     }
   }
 
