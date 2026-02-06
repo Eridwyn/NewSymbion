@@ -15,6 +15,7 @@ import { Chart, registerables } from 'chart.js'
 import csrfService from '../services/csrf-service.js'
 import authService from '../services/auth-service.js'
 import pollingScheduler from '../services/polling-scheduler.js'
+import { escapeHtml } from '../utils/sanitization.js'
 
 // Register Chart.js components
 Chart.register(...registerables)
@@ -666,13 +667,6 @@ class EnvironmentWidget extends LitElement {
     return '📶 Faible'
   }
 
-  escapeHtml(text) {
-    if (!text) return ''
-    const div = document.createElement('div')
-    div.textContent = String(text)
-    return div.innerHTML
-  }
-
   async openRoomModal(roomId) {
     console.log('[environment-widget] Opening modal for room:', roomId)
     this.selectedRoom = roomId
@@ -752,7 +746,7 @@ class EnvironmentWidget extends LitElement {
         <div class="modal-content" id="modal-content">
           <div class="modal-header">
             <div class="modal-title">
-              📊 Historique - ${this.escapeHtml(this.selectedRoom)}
+              📊 Historique - ${escapeHtml(this.selectedRoom)}
             </div>
             <button class="modal-close" id="modal-close-btn">
               ✕
