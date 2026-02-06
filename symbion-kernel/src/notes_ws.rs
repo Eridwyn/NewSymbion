@@ -28,12 +28,33 @@ pub async fn notes_stream_handler(
     ws: WebSocketUpgrade,
     State(app_state): State<AppState>,
 ) -> Response {
-    // Vérifier l'API key passée en query parameter (WebSockets ne supportent pas headers custom)
-    let expected_key = std::env::var("SYMBION_API_KEY").unwrap_or_default();
-    let provided_key = params.get("api_key").map(|s| s.as_str()).unwrap_or("");
+    // WebSockets ne supportent pas les headers custom, on accepte:
+    // 1. JWT token en query param (?token=...) - PREFERRED
+    // 2. API key en query param (?api_key=...) - LEGACY
 
-    if expected_key.is_empty() || provided_key != expected_key {
-        eprintln!("[notes-ws] Invalid or missing API key in query parameter");
+    let mut authenticated = false;
+
+    // Try JWT token first (preferred)
+    if let Some(token) = params.get("token") {
+        if app_state.auth_manager.verify_token(token).is_ok() {
+            authenticated = true;
+            eprintln!("[notes-ws] Authenticated via JWT token");
+        }
+    }
+
+    // Fallback to API key (legacy)
+    if !authenticated {
+        let expected_key = std::env::var("SYMBION_API_KEY").unwrap_or_default();
+        if let Some(provided_key) = params.get("api_key") {
+            if !expected_key.is_empty() && provided_key == &expected_key {
+                authenticated = true;
+                eprintln!("[notes-ws] Authenticated via API key");
+            }
+        }
+    }
+
+    if !authenticated {
+        eprintln!("[notes-ws] Invalid or missing authentication (token or api_key)");
         return StatusCode::UNAUTHORIZED.into_response();
     }
 
