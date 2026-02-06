@@ -2915,11 +2915,11 @@ class ContextEnginePage extends LitElement {
 
       <!-- Confirmation Dialog -->
       ${this.confirmDialog ? html`
-        <div class="confirm-overlay" @click="${() => this.handleConfirm(false)}">
-          <div class="confirm-dialog" @click="${e => e.stopPropagation()}">
-            <div class="confirm-icon">${this.confirmDialog.icon}</div>
-            <div class="confirm-title">${this.confirmDialog.title}</div>
-            <div class="confirm-message">${this.confirmDialog.message}</div>
+        <div class="confirm-overlay" @click="${() => this.handleConfirm(false)}" @keydown="${e => e.key === 'Escape' && this.handleConfirm(false)}">
+          <div class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message" @click="${e => e.stopPropagation()}">
+            <div class="confirm-icon" aria-hidden="true">${this.confirmDialog.icon}</div>
+            <h2 class="confirm-title" id="confirm-title">${this.confirmDialog.title}</h2>
+            <p class="confirm-message" id="confirm-message">${this.confirmDialog.message}</p>
             <div class="confirm-actions">
               <button class="btn" @click="${() => this.handleConfirm(false)}">
                 ${this.confirmDialog.cancelLabel}

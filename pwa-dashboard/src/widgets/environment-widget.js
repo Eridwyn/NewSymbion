@@ -16,6 +16,7 @@ import csrfService from '../services/csrf-service.js'
 import authService from '../services/auth-service.js'
 import pollingScheduler from '../services/polling-scheduler.js'
 import { escapeHtml } from '../utils/sanitization.js'
+import { createFocusTrap } from '../utils/focus-trap.js'
 
 // Register Chart.js components
 Chart.register(...registerables)
@@ -522,6 +523,7 @@ class EnvironmentWidget extends LitElement {
     this.chartData = []
     this.loadingChart = false
     this.chart = null  // Chart.js instance
+    this.focusTrap = null  // Focus trap for modal
   }
 
   connectedCallback() {
@@ -717,6 +719,13 @@ class EnvironmentWidget extends LitElement {
   closeModal() {
     this.modalOpen = false
     this.selectedRoom = null
+
+    // Destroy focus trap
+    if (this.focusTrap) {
+      this.focusTrap.destroy()
+      this.focusTrap = null
+    }
+
     if (this.chart) {
       this.chart.destroy()
       this.chart = null
@@ -742,13 +751,13 @@ class EnvironmentWidget extends LitElement {
       <style>
         ${EnvironmentWidget.styles.cssText}
       </style>
-      <div class="modal-overlay" id="modal-overlay">
-        <div class="modal-content" id="modal-content">
+      <div class="modal-overlay" id="modal-overlay" aria-hidden="true">
+        <div class="modal-content" id="modal-content" role="dialog" aria-modal="true" aria-labelledby="modal-title">
           <div class="modal-header">
-            <div class="modal-title">
+            <h2 class="modal-title" id="modal-title">
               📊 Historique - ${escapeHtml(this.selectedRoom)}
-            </div>
-            <button class="modal-close" id="modal-close-btn">
+            </h2>
+            <button class="modal-close" id="modal-close-btn" aria-label="Fermer">
               ✕
             </button>
           </div>
@@ -788,6 +797,19 @@ class EnvironmentWidget extends LitElement {
     }
     if (content) {
       content.addEventListener('click', (e) => e.stopPropagation())
+
+      // Escape key closes modal
+      content.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          this.closeModal()
+        }
+      })
+
+      // Activate focus trap (only once when modal first opens)
+      if (!this.focusTrap) {
+        this.focusTrap = createFocusTrap(content)
+        this.focusTrap.activate()
+      }
     }
   }
 
