@@ -296,27 +296,33 @@ class ToastNotifications extends LitElement {
   }
 
   render() {
+    // aria-live="polite" annonce les nouveaux toasts aux lecteurs d'écran
+    // role="status" indique que c'est une zone de statut dynamique
     return html`
-      ${this.toasts.map(toast => html`
-        <div class="toast ${toast.priority}" data-id="${toast._id}">
-          <div class="toast-header">
-            <span class="toast-title">${toast.title}</span>
-            <span class="toast-priority ${toast.priority}">${toast.priority}</span>
+      <div role="status" aria-live="polite" aria-atomic="false">
+        ${this.toasts.map(toast => html`
+          <div class="toast ${toast.priority}" data-id="${toast._id}" role="alert">
+            <div class="toast-header">
+              <span class="toast-title">${toast.title}</span>
+              <span class="toast-priority ${toast.priority}" aria-label="Priorité ${toast.priority}">${toast.priority}</span>
+            </div>
+            <div class="toast-body">${toast.body}</div>
+            <div class="toast-actions">
+              <button class="toast-btn toast-btn-dismiss"
+                      aria-label="Fermer la notification"
+                      @click="${() => this.dismissToast(toast._id)}">
+                Fermer
+              </button>
+              <button class="toast-btn toast-btn-ack"
+                      aria-label="Marquer comme vu"
+                      @click="${() => this.acknowledgeToast(toast)}">
+                ✓ Vu
+              </button>
+            </div>
+            <div class="toast-source">Source: ${toast.source}</div>
           </div>
-          <div class="toast-body">${toast.body}</div>
-          <div class="toast-actions">
-            <button class="toast-btn toast-btn-dismiss"
-                    @click="${() => this.dismissToast(toast._id)}">
-              Fermer
-            </button>
-            <button class="toast-btn toast-btn-ack"
-                    @click="${() => this.acknowledgeToast(toast)}">
-              ✓ Vu
-            </button>
-          </div>
-          <div class="toast-source">Source: ${toast.source}</div>
-        </div>
-      `)}
+        `)}
+      </div>
     `
   }
 }
