@@ -10,6 +10,7 @@
 
 import { LitElement, html, css } from 'lit'
 import csrfService from '../services/csrf-service.js'
+import { escapeHtml } from '../utils/sanitization.js'
 
 class NotificationCenter extends LitElement {
   static styles = css`
@@ -617,16 +618,16 @@ class NotificationCenter extends LitElement {
     content.innerHTML = this.notifications.map(n => `
       <div class="notif-item ${n.acknowledged ? '' : 'unread'}">
         <div class="notif-item-header">
-          <span class="notif-item-title">${this.escapeHtml(n.title)}</span>
-          <span class="notif-priority ${this.escapeHtml(n.priority)}">${this.escapeHtml(n.priority)}</span>
+          <span class="notif-item-title">${escapeHtml(n.title)}</span>
+          <span class="notif-priority ${escapeHtml(n.priority)}">${escapeHtml(n.priority)}</span>
         </div>
-        <div class="notif-body">${this.escapeHtml(n.body)}</div>
-        <div class="notif-meta">${this.escapeHtml(n.source)} • ${this.formatTime(n.timestamp)}</div>
+        <div class="notif-body">${escapeHtml(n.body)}</div>
+        <div class="notif-meta">${escapeHtml(n.source)} • ${this.formatTime(n.timestamp)}</div>
         <div class="notif-actions">
           ${!n.acknowledged ? `
-            <button class="notif-btn notif-btn-ack" data-id="${this.escapeHtml(n.id)}">✓ Lu</button>
+            <button class="notif-btn notif-btn-ack" data-id="${escapeHtml(n.id)}">✓ Lu</button>
           ` : ''}
-          <button class="notif-btn notif-btn-delete" data-id="${this.escapeHtml(n.id)}">🗑 Supprimer</button>
+          <button class="notif-btn notif-btn-delete" data-id="${escapeHtml(n.id)}">🗑 Supprimer</button>
         </div>
       </div>
     `).join('')
@@ -739,14 +740,6 @@ class NotificationCenter extends LitElement {
     if (diff < 3600) return `Il y a ${Math.floor(diff / 60)} min`
     if (diff < 86400) return `Il y a ${Math.floor(diff / 3600)}h`
     return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-  }
-
-  // Escape HTML to prevent XSS attacks
-  escapeHtml(text) {
-    if (!text) return ''
-    const div = document.createElement('div')
-    div.textContent = String(text)
-    return div.innerHTML
   }
 
   async acknowledgeNotification(notif) {
