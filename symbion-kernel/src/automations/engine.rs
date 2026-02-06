@@ -281,6 +281,36 @@ impl AutomationEngine {
         }
 
         for action in &automation.actions {
+            // Check if there's an active manual override - skip ForceMode if so
+            // Manual overrides ALWAYS take priority over automated mode changes
+            if let ActionDefinition::ForceMode { use_override, .. } = action {
+                // Only check if this action uses natural mode (not override itself)
+                if !use_override.unwrap_or(false) {
+                    if let Some(state) = ctx.context_engine.get_state() {
+                        if let Some(override_info) = state.manual_override {
+                            if override_info.until > time::OffsetDateTime::now_utc() {
+                                eprintln!(
+                                    "[automations] 🔒 Skipping ForceMode '{}' - manual override active until {}",
+                                    automation.name,
+                                    override_info.until.format(&time::format_description::well_known::Rfc3339).unwrap_or_default()
+                                );
+                                results.push(ActionResult {
+                                    action_type: Self::action_type_name(action),
+                                    success: true,
+                                    error: None,
+                                    duration_ms: 0,
+                                    decision_id: None,
+                                    trust_score: Some(1.0),
+                                    decision_outcome: Some("skipped_override_active".to_string()),
+                                    blocked_reasons: Some(vec!["manual override active".to_string()]),
+                                });
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+
             // Check skip_if_same_mode for ForceMode actions
             if automation.skip_if_same_mode.unwrap_or(false) {
                 if let ActionDefinition::ForceMode { mode, .. } = action {

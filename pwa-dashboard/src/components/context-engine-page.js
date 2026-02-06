@@ -2587,10 +2587,14 @@ class ContextEnginePage extends LitElement {
   async toggleAutomation(id) {
     try {
       const auto = this.automations.find(a => a.id === id)
-      const wasEnabled = auto?.enabled
-      await automationsService.toggleAutomation(id)
+      if (!auto) {
+        this.showToast('Automation introuvable', 'error')
+        return
+      }
+      const newEnabled = !auto.enabled
+      await automationsService.toggleAutomation(id, newEnabled)
       await this.loadAutomations()
-      this.showToast(wasEnabled ? 'Automation désactivée' : 'Automation activée', 'success')
+      this.showToast(newEnabled ? 'Automation activée' : 'Automation désactivée', 'success')
     } catch (e) {
       console.error('[context-engine] Failed to toggle automation:', e)
       this.showToast('Erreur lors de la modification', 'error')
