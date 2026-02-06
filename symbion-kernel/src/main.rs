@@ -414,7 +414,7 @@ async fn main() {
         eprintln!("[kernel] failed to discover plugins: {}", e);
     }
 
-    // Spawn automation listener with Decision Engine + Trust Tracker + Intelligence (Phase 7)
+    // Spawn automation listener with Decision Engine + Trust Tracker + Intelligence + ModeRegistry (Phase 7 + Invariant 2)
     crate::automations::spawn_automation_listener(
         automations_store.clone(),
         context_engine.clone(),
@@ -427,8 +427,9 @@ async fn main() {
         Some(decision_validation_manager.clone()), // Validation Manager for pending approvals
         Some(pending_action_registry.clone()), // Pending Action Registry for post-approval execution
         Some(context_intelligence.clone()), // Intelligence for feedback loop (Decision → Intelligence)
+        Some(mode_registry.clone()), // Mode Registry for validating dynamic modes (Invariant 2)
     );
-    eprintln!("[kernel] started Automations Event Listener (with DecisionEngine + TrustTracker + ValidationManager + PendingActionRegistry + NotificationsManager + Intelligence)");
+    eprintln!("[kernel] started Automations Event Listener (with DecisionEngine + TrustTracker + ValidationManager + PendingActionRegistry + NotificationsManager + Intelligence + ModeRegistry)");
 
     // Automation Scheduler - polling for scheduled triggers
     let automation_scheduler = crate::automations::AutomationScheduler::new(

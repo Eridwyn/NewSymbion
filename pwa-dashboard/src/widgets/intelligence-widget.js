@@ -345,6 +345,64 @@ class IntelligenceWidget extends LitElement {
       font-weight: 600;
     }
 
+    /* Uncertain state */
+    .prediction-section.uncertain {
+      opacity: 0.7;
+      border: 1px dashed rgba(251, 146, 60, 0.4);
+      border-radius: 8px;
+      padding: 0.5rem;
+      margin: -0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .uncertain-hint {
+      font-size: 0.7rem;
+      color: #fb923c;
+      font-style: italic;
+      margin-bottom: 0.25rem;
+    }
+
+    /* Top modes */
+    .top-modes {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      padding: 0.5rem;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 8px;
+    }
+
+    .top-mode-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.2rem;
+      padding: 0.4rem;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 6px;
+    }
+
+    .top-mode-item:first-child {
+      background: rgba(0, 212, 170, 0.1);
+      border: 1px solid rgba(0, 212, 170, 0.2);
+    }
+
+    .top-mode-icon {
+      font-size: 1rem;
+    }
+
+    .top-mode-name {
+      font-size: 0.65rem;
+      color: var(--color-dark-text-secondary, #adb5bd);
+    }
+
+    .top-mode-pct {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--color-dark-text-primary, #f8f9fa);
+    }
+
     /* Loading */
     .loading {
       display: flex;
@@ -548,7 +606,8 @@ class IntelligenceWidget extends LitElement {
     const icons = {
       'pro': '👔', 'cravate': '👔', 'focus': '🎯',
       'maison': '🏡', 'intime': '🏡', 'home': '🏡',
-      'veille': '🌙', 'neutre': '🌙', 'sleep': '🌙'
+      'veille': '🌙', 'neutre': '🌙', 'sleep': '🌙',
+      'unknown': '❓'
     }
     return icons[mode?.toLowerCase()] || '🎯'
   }
@@ -557,7 +616,12 @@ class IntelligenceWidget extends LitElement {
     const names = {
       'pro': 'Pro', 'cravate': 'Focus Pro', 'focus': 'Focus',
       'maison': 'Maison', 'intime': 'Maison', 'home': 'Home',
-      'veille': 'Veille', 'neutre': 'Veille', 'sleep': 'Sleep'
+      'veille': 'Veille', 'neutre': 'Veille', 'sleep': 'Sleep',
+      'unknown': 'Incertain'
+    }
+    // Modes custom: capitaliser
+    if (!names[mode?.toLowerCase()] && mode) {
+      return mode.charAt(0).toUpperCase() + mode.slice(1)
     }
     return names[mode?.toLowerCase()] || mode || 'Inconnu'
   }
@@ -746,22 +810,39 @@ class IntelligenceWidget extends LitElement {
 
         <div class="content">
           <!-- Prediction Section -->
-          <div class="prediction-section">
+          <div class="prediction-section ${prediction.is_uncertain ? 'uncertain' : ''}">
             <div class="prediction-icon">${this.getModeIcon(prediction.mode)}</div>
             <div class="prediction-info">
               <div class="prediction-mode">${this.getModeName(prediction.mode)}</div>
-              <div class="confidence-row">
-                <div class="confidence-bar">
-                  <div class="confidence-fill ${confidenceClass}"
-                       style="width: ${prediction.confidence * 100}%"></div>
+              ${prediction.is_uncertain ? html`
+                <div class="uncertain-hint">Signaux contradictoires</div>
+              ` : html`
+                <div class="confidence-row">
+                  <div class="confidence-bar">
+                    <div class="confidence-fill ${confidenceClass}"
+                         style="width: ${prediction.confidence * 100}%"></div>
+                  </div>
+                  <span class="confidence-text">${Math.round(prediction.confidence * 100)}%</span>
                 </div>
-                <span class="confidence-text">${Math.round(prediction.confidence * 100)}%</span>
-              </div>
+              `}
               <span class="action-indicator ${actionIndicator.class}">
                 ${actionIndicator.text}
               </span>
             </div>
           </div>
+
+          <!-- Top 3 Modes (scores normalisés) -->
+          ${prediction.top_modes?.length > 0 ? html`
+            <div class="top-modes">
+              ${prediction.top_modes.map(([mode, pct]) => html`
+                <div class="top-mode-item">
+                  <span class="top-mode-icon">${this.getModeIcon(mode)}</span>
+                  <span class="top-mode-name">${this.getModeName(mode)}</span>
+                  <span class="top-mode-pct">${Math.round(pct)}%</span>
+                </div>
+              `)}
+            </div>
+          ` : ''}
 
           <!-- Reasons -->
           ${prediction.reasons?.length > 0 ? html`
