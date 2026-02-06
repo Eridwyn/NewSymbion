@@ -92,6 +92,57 @@ class EnvironmentWidget extends LitElement {
       text-align: center;
     }
 
+    .auth-required-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      text-align: center;
+    }
+
+    .auth-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.8;
+    }
+
+    .auth-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #ffffff;
+      margin-bottom: 8px;
+    }
+
+    .auth-message {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 20px;
+      max-width: 280px;
+    }
+
+    .auth-login-btn {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .auth-login-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+
+    .auth-login-btn:focus-visible {
+      outline: 2px solid var(--color-focus, #4f9eff);
+      outline-offset: 2px;
+    }
+
     .rooms-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -954,13 +1005,33 @@ class EnvironmentWidget extends LitElement {
     }
 
     if (this.error) {
+      // Special UI for authentication required
+      if (this.error === 'auth_required') {
+        return html`
+          ${styleTag}
+          <div class="widget-header">
+            <div class="widget-title">🌡️ Environnement</div>
+          </div>
+          <div class="auth-required-state">
+            <div class="auth-icon">🔐</div>
+            <div class="auth-title">Authentification requise</div>
+            <div class="auth-message">
+              Connectez-vous pour accéder aux données d'environnement
+            </div>
+            <button class="auth-login-btn" @click=${() => window.location.hash = '#/settings'}>
+              Se connecter
+            </button>
+          </div>
+        `
+      }
+
       return html`
         ${styleTag}
         <div class="widget-header">
           <div class="widget-title">🌡️ Environnement</div>
         </div>
         <div class="error-state">
-          ⚠️ Erreur: ${this.error}
+          <span class="error-icon">⚠️</span> ${this.error}
         </div>
       `
     }
