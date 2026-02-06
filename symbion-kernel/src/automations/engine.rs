@@ -14,6 +14,7 @@ use crate::agents::SharedAgentRegistry;
 use crate::context::{ContextEngine, Mode};
 use crate::context_intelligence::{SharedContextIntelligence, DecisionSignal};
 use crate::decision::{DecisionEngine, DecisionContext, DecisionOutcome, SharedTrustTracker, ValidationManager};
+use crate::modes::SharedModeRegistry;
 use crate::notifications::SharedNotificationManager;
 use crate::sensors::SensorRegistry;
 
@@ -44,6 +45,8 @@ pub struct ExecutionContext {
     pub pending_action_registry: Option<SharedPendingActionRegistry>,
     /// Context Intelligence for feedback loop (Decision → Intelligence)
     pub context_intelligence: Option<SharedContextIntelligence>,
+    /// Mode Registry for validating dynamic modes (Invariant 2)
+    pub mode_registry: Option<SharedModeRegistry>,
 }
 
 /// Automation engine - evaluates conditions and executes actions
@@ -668,20 +671,74 @@ impl AutomationEngine {
             }
 
             ActionDefinition::ForceMode { mode, duration_minutes, reason, use_override, .. } => {
-                // Parse mode string to Mode enum and get slug
-                let (target_mode, mode_slug) = match mode.to_lowercase().as_str() {
-                    "cravate" | "work" | "professional" | "pro" => (Mode::Cravate, "pro".to_string()),
-                    "intime" | "home" | "domestic" | "maison" => (Mode::Intime, "maison".to_string()),
-                    "neutre" | "neutral" | "eco" | "veille" => (Mode::Neutre, "veille".to_string()),
-                    _ => {
-                        return (false, Some(format!("unknown mode: {}", mode)));
+                // INVARIANT 2: Validate mode explicitly - no implicit behavior
+                // Phase 1: Check core system modes (backward compatibility)
+                let mode_lower = mode.to_lowercase();
+                let core_mode = match mode_lower.as_str() {
+                    "cravate" | "work" | "professional" | "pro" => Some((Mode::Cravate, "pro".to_string())),
+                    "intime" | "home" | "domestic" | "maison" => Some((Mode::Intime, "maison".to_string())),
+                    "neutre" | "neutral" | "eco" | "veille" => Some((Mode::Neutre, "veille".to_string())),
+                    "focus" => Some((Mode::Cravate, "focus".to_string())), // Focus maps to Cravate theme
+                    _ => None,
+                };
+
+                // Phase 2: If not a core mode, check mode_registry for dynamic modes
+                let (target_mode, mode_slug, theme_override) = if let Some((mode_enum, slug)) = core_mode {
+                    (mode_enum, slug, None)
+                } else if let Some(ref registry) = ctx.mode_registry {
+                    // Check if mode exists in dynamic registry
+                    if let Some(dynamic_mode) = registry.get_by_slug(&mode_lower) {
+                        // Dynamic mode found - infer base Mode enum from system mode mappings
+                        // Custom modes default to Neutre unless they match a known pattern
+                        let base_mode = if dynamic_mode.slug.contains("pro") || dynamic_mode.slug.contains("work") {
+                            Mode::Cravate
+                        } else if dynamic_mode.slug.contains("maison") || dynamic_mode.slug.contains("home") {
+                            Mode::Intime
+                        } else {
+                            Mode::Neutre // Safe default for custom modes
+                        };
+                        let theme = crate::context::Theme {
+                            primary: dynamic_mode.theme.primary.clone(),
+                            bg: dynamic_mode.theme.background.clone(),
+                            accent: dynamic_mode.theme.accent.clone(),
+                        };
+                        (base_mode, dynamic_mode.slug.clone(), Some(theme))
+                    } else {
+                        // GUARD: Mode not found in registry - explicit error, no fallback
+                        eprintln!(
+                            "[automations] ❌ GUARD: Mode '{}' not found in mode_registry (known modes: {:?})",
+                            mode,
+                            registry.list_all().iter().map(|m| &m.slug).collect::<Vec<_>>()
+                        );
+                        return (false, Some(format!(
+                            "mode '{}' inconnu - modes valides: pro, maison, veille, focus ou modes personnalisés du registre",
+                            mode
+                        )));
                     }
+                } else {
+                    // No registry available - only accept core modes, explicit error
+                    eprintln!(
+                        "[automations] ❌ GUARD: Mode '{}' inconnu et mode_registry non disponible",
+                        mode
+                    );
+                    return (false, Some(format!(
+                        "mode '{}' inconnu - modes valides: pro, maison, veille, focus",
+                        mode
+                    )));
                 };
 
                 // Determine if we should use override (temporary) or natural (permanent until next change)
                 let should_use_override = use_override.unwrap_or(false);
 
                 if should_use_override {
+                    // GUARD: Override with dynamic modes requires explicit duration
+                    if theme_override.is_some() && duration_minutes.is_none() {
+                        return (false, Some(format!(
+                            "mode dynamique '{}' en override requiert une durée explicite",
+                            mode_slug
+                        )));
+                    }
+
                     // Use override (temporary, with expiration)
                     let duration = duration_minutes.unwrap_or(60);
                     match ctx.context_engine.set_override(target_mode, duration, reason.clone()) {
@@ -696,7 +753,7 @@ impl AutomationEngine {
                     }
                 } else {
                     // Use natural mode change (no expiration, system can continue to evolve)
-                    let theme = target_mode.theme();
+                    let theme = theme_override.unwrap_or_else(|| target_mode.theme());
                     match ctx.context_engine.set_mode_natural(mode_slug.clone(), theme, reason.clone()) {
                         Some(_state) => {
                             eprintln!(

@@ -166,10 +166,16 @@ pub struct ContextSignals {
 /// Result of a mode prediction
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModePrediction {
-    pub mode: String,               // Mode slug (pro, maison, veille)
-    pub confidence: f32,            // 0.0 - 1.0
+    pub mode: String,               // Mode slug prédit (ou "unknown" si incertain)
+    pub confidence: f32,            // 0.0 - 1.0 (normalisé)
     pub reasons: Vec<String>,       // Human-readable explanations
     pub contributing_factors: Vec<(String, f32)>, // (signal_name, weight)
+    /// Top 3 modes avec scores normalisés (évite explosion combinatoire UI)
+    #[serde(default)]
+    pub top_modes: Vec<(String, f32)>,
+    /// True si confiance globale trop faible pour prédire
+    #[serde(default)]
+    pub is_uncertain: bool,
 }
 
 /// Single prediction from one signal source
@@ -490,10 +496,18 @@ impl ContextIntelligence {
 
         patterns.retain(|p| {
             let days_since = (now - p.last_seen).whole_days();
-            let decay = if days_since < 7 { decay_coeffs[0] }
+            let base_decay = if days_since < 7 { decay_coeffs[0] }
                        else if days_since < 30 { decay_coeffs[1] }
                        else if days_since < 90 { decay_coeffs[2] }
                        else { decay_coeffs[3] };
+
+            // INVARIANT 3: Source-based decay modifier (same as calculate_decay)
+            let source_multiplier = match &p.source {
+                PatternSource::UserCorrection => 1.3,
+                PatternSource::Historical => 1.0,
+                PatternSource::Automation => 1.0,
+            };
+            let decay = (base_decay * source_multiplier).min(1.0);
             let decayed_conf = p.confidence * decay;
 
             // Purge criteria (uses config threshold)
@@ -897,18 +911,43 @@ impl ContextIntelligence {
 
         drop(config);
 
-        // Select mode with highest score
-        let (best_mode, best_score) = scores
+        // Sort scores descending and take top 3
+        let mut sorted_scores: Vec<(String, f32)> = scores.into_iter().collect();
+        sorted_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        // Normalize to percentages (sum = 100%)
+        let total: f32 = sorted_scores.iter().map(|(_, s)| s.max(0.0)).sum();
+        let top_modes: Vec<(String, f32)> = sorted_scores
             .iter()
-            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .take(3)
+            .map(|(m, s)| {
+                let normalized = if total > 0.0 { (s / total * 100.0).round() } else { 0.0 };
+                (m.clone(), normalized)
+            })
+            .collect();
+
+        // Best mode and confidence
+        let (best_mode, best_score) = sorted_scores
+            .first()
             .map(|(m, s)| (m.clone(), *s))
             .unwrap_or(("veille".into(), 0.0));
 
+        // Uncertain if confidence too low (< 0.25) or top 2 modes are too close
+        let is_uncertain = best_score < 0.25 || {
+            if let Some((_, second_score)) = sorted_scores.get(1) {
+                (best_score - second_score).abs() < 0.1 // Top 2 within 10%
+            } else {
+                false
+            }
+        };
+
         let prediction = ModePrediction {
-            mode: best_mode,
+            mode: if is_uncertain { "unknown".to_string() } else { best_mode },
             confidence: best_score.min(1.0),
             reasons,
             contributing_factors: factors,
+            top_modes,
+            is_uncertain,
         };
 
         // Store for status
@@ -954,19 +993,27 @@ impl ContextIntelligence {
 
         if let Some(pattern) = matching {
             // Apply temporal decay: older patterns have less influence
+            // INVARIANT 3: UserCorrection patterns decay slower
             let days_since = (OffsetDateTime::now_utc() - pattern.last_seen).whole_days();
-            let decay = self.calculate_decay(days_since);
+            let decay = self.calculate_decay(days_since, &pattern.source);
             let effective_confidence = pattern.confidence * decay;
 
+            // INVARIANT 3: Clear source in reason for debugging
+            let source_label = match &pattern.source {
+                PatternSource::UserCorrection => "user",
+                PatternSource::Historical => "bootstrap",
+                PatternSource::Automation => "auto",
+            };
             return SinglePrediction {
                 mode: pattern.mode.clone(),
                 confidence: effective_confidence,
                 reason: format!(
-                    "Pattern détecté: {} à {}h le {} ({} occ{})",
+                    "Pattern détecté: {} à {}h le {} ({} occ, src={}{})",
                     mode_display_name(&pattern.mode),
                     pattern.hour,
                     day_name(pattern.day_of_week),
                     pattern.occurrences,
+                    source_label,
                     if days_since > 7 { format!(", decay {:.0}%", decay * 100.0) } else { String::new() }
                 ),
             };
@@ -1190,6 +1237,13 @@ impl ContextIntelligence {
     fn merge_or_create_pattern(&self, new_pattern: LearnedPattern) {
         let mut patterns = self.learned_patterns.write();
 
+        // INVARIANT 3: Source label for logs
+        let source_label = match &new_pattern.source {
+            PatternSource::UserCorrection => "user",
+            PatternSource::Historical => "bootstrap",
+            PatternSource::Automation => "auto",
+        };
+
         // Find similar pattern
         if let Some(existing) = patterns.iter_mut().find(|p| {
             p.mode == new_pattern.mode &&
@@ -1199,21 +1253,29 @@ impl ContextIntelligence {
             // Reinforce existing pattern
             existing.occurrences += 1; // Keep for diagnostics
             // UNIFIED: Additive confidence with adaptive modifier
+            // INVARIANT 3: UserCorrection has higher base modifier
             let was_correction = new_pattern.source == PatternSource::UserCorrection;
             let base_modifier = if was_correction { 0.25 } else { 0.15 };
             let effective_modifier = adaptive_modifier(base_modifier, existing.confidence);
             let old_conf = existing.confidence;
             existing.confidence = (existing.confidence + effective_modifier).clamp(0.05, 0.95);
             existing.last_seen = new_pattern.last_seen;
+            // INVARIANT 3: Clear source in logs
+            let existing_source = match &existing.source {
+                PatternSource::UserCorrection => "user",
+                PatternSource::Historical => "bootstrap",
+                PatternSource::Automation => "auto",
+            };
             eprintln!(
-                "[intelligence] 📈 Pattern renforcé: {} à {}h ({} occ, {:.0}% → {:.0}% conf, modifier {:.2})",
-                existing.mode, existing.hour, existing.occurrences, old_conf * 100.0, existing.confidence * 100.0, effective_modifier
+                "[intelligence] 📈 Pattern renforcé: {} à {}h ({} occ, src={}, input={}, {:.0}% → {:.0}%)",
+                existing.mode, existing.hour, existing.occurrences, existing_source, source_label, old_conf * 100.0, existing.confidence * 100.0
             );
         } else {
             // Create new pattern
+            // INVARIANT 3: Clear source in logs
             eprintln!(
-                "[intelligence] 🆕 Nouveau pattern: {} à {}h le {}",
-                new_pattern.mode, new_pattern.hour, day_name(new_pattern.day_of_week)
+                "[intelligence] 🆕 Nouveau pattern: {} à {}h le {} (src={})",
+                new_pattern.mode, new_pattern.hour, day_name(new_pattern.day_of_week), source_label
             );
             patterns.push(new_pattern);
         }
@@ -1290,6 +1352,7 @@ impl ContextIntelligence {
     }
 
     /// Get pattern with decayed confidence for export/debug
+    /// INVARIANT 3: Applies source-based decay modifier
     pub fn get_patterns_with_decay(&self) -> Vec<PatternExport> {
         // Read config coefficients once
         let decay_coeffs = self.config.read().decay_coefficients;
@@ -1298,10 +1361,18 @@ impl ContextIntelligence {
 
         patterns.iter().map(|p| {
             let days_since = (now - p.last_seen).whole_days();
-            let decay = if days_since < 7 { decay_coeffs[0] }
+            let base_decay = if days_since < 7 { decay_coeffs[0] }
                        else if days_since < 30 { decay_coeffs[1] }
                        else if days_since < 90 { decay_coeffs[2] }
                        else { decay_coeffs[3] };
+
+            // INVARIANT 3: Source-based decay modifier
+            let source_multiplier = match &p.source {
+                PatternSource::UserCorrection => 1.3,
+                PatternSource::Historical => 1.0,
+                PatternSource::Automation => 1.0,
+            };
+            let decay = (base_decay * source_multiplier).min(1.0);
 
             PatternExport {
                 mode: p.mode.clone(),
@@ -1781,13 +1852,26 @@ impl ContextIntelligence {
 
     /// Calculate decay coefficient for a given number of days since last seen
     /// Uses config.decay_coefficients: [<7d, <30d, <90d, >90d]
-    fn calculate_decay(&self, days_since: i64) -> f32 {
+    /// INVARIANT 3: UserCorrection patterns decay slower (persist longer)
+    fn calculate_decay(&self, days_since: i64, source: &PatternSource) -> f32 {
         let config = self.config.read();
         let coeffs = config.decay_coefficients;
-        if days_since < 7 { coeffs[0] }
-        else if days_since < 30 { coeffs[1] }
-        else if days_since < 90 { coeffs[2] }
-        else { coeffs[3] }
+        let base_decay = if days_since < 7 { coeffs[0] }
+            else if days_since < 30 { coeffs[1] }
+            else if days_since < 90 { coeffs[2] }
+            else { coeffs[3] };
+
+        // INVARIANT 3: Source-based decay modifier
+        // UserCorrection = explicit user intent → slower decay (higher multiplier)
+        // Historical/Automation = inferred → normal decay
+        let source_multiplier = match source {
+            PatternSource::UserCorrection => 1.3,  // 30% slower decay
+            PatternSource::Historical => 1.0,      // Normal decay
+            PatternSource::Automation => 1.0,      // Normal decay
+        };
+
+        // Apply multiplier (capped at 1.0 for coefficients > 1.0 edge case)
+        (base_decay * source_multiplier).min(1.0)
     }
 
     /// Send a suggestion notification to the user

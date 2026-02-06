@@ -20,6 +20,7 @@ use crate::automations::{
 use crate::context::ContextEngine;
 use crate::context_intelligence::SharedContextIntelligence;
 use crate::decision::{DecisionEngine, SharedTrustTracker, ValidationManager};
+use crate::modes::SharedModeRegistry;
 use crate::notifications::SharedNotificationManager;
 use crate::sensors::SensorRegistry;
 
@@ -44,6 +45,8 @@ pub struct AutomationListener {
     pending_action_registry: Option<SharedPendingActionRegistry>,
     /// Context Intelligence for feedback loop (Decision → Intelligence)
     context_intelligence: Option<SharedContextIntelligence>,
+    /// Mode Registry for validating dynamic modes (Invariant 2)
+    mode_registry: Option<SharedModeRegistry>,
 }
 
 impl AutomationListener {
@@ -58,6 +61,7 @@ impl AutomationListener {
         validation_manager: Option<Arc<ValidationManager>>,
         pending_action_registry: Option<SharedPendingActionRegistry>,
         context_intelligence: Option<SharedContextIntelligence>,
+        mode_registry: Option<SharedModeRegistry>,
     ) -> Self {
         Self {
             store,
@@ -70,6 +74,7 @@ impl AutomationListener {
             validation_manager,
             pending_action_registry,
             context_intelligence,
+            mode_registry,
         }
     }
 
@@ -135,7 +140,7 @@ impl AutomationListener {
                 automation.name, automation.id
             );
 
-            // Create execution context with Decision Engine, Trust Tracker, ValidationManager, PendingActionRegistry, and Intelligence
+            // Create execution context with Decision Engine, Trust Tracker, ValidationManager, PendingActionRegistry, Intelligence, and ModeRegistry
             let ctx = ExecutionContext {
                 context_engine: self.context_engine.clone(),
                 agents: self.agents.clone(),
@@ -147,6 +152,7 @@ impl AutomationListener {
                 validation_manager: self.validation_manager.clone(),
                 pending_action_registry: self.pending_action_registry.clone(),
                 context_intelligence: self.context_intelligence.clone(),
+                mode_registry: self.mode_registry.clone(),
             };
 
             // Evaluate conditions
@@ -444,6 +450,7 @@ pub fn spawn_automation_listener(
     validation_manager: Option<Arc<ValidationManager>>,
     pending_action_registry: Option<SharedPendingActionRegistry>,
     context_intelligence: Option<SharedContextIntelligence>,
+    mode_registry: Option<SharedModeRegistry>,
 ) {
     let listener = AutomationListener::new(
         store,
@@ -456,6 +463,7 @@ pub fn spawn_automation_listener(
         validation_manager,
         pending_action_registry,
         context_intelligence,
+        mode_registry,
     );
     listener.spawn(receiver);
 }
