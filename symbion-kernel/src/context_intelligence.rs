@@ -843,8 +843,8 @@ impl ContextIntelligence {
         let mut reasons: Vec<String> = Vec::new();
         let mut factors: Vec<(String, f32)> = Vec::new();
 
-        // Initialize mode scores
-        for mode in ["pro", "maison", "veille"] {
+        // Initialize mode scores (focus = travail PC, pro = extérieur)
+        for mode in ["pro", "focus", "maison", "veille"] {
             scores.insert(mode.to_string(), 0.0);
         }
 
@@ -1014,13 +1014,13 @@ impl ContextIntelligence {
 
     /// Predict based on agent activity (CPU, processes, idle time)
     fn predict_from_agent_activity(&self, signals: &ContextSignals) -> SinglePrediction {
-        // Detect work apps
-        let work_apps = ["code", "rider", "intellij", "vscode", "terminal", "slack", "teams", "rustrover", "idea"];
+        // Detect work apps (IDEs, terminals, communication pro)
+        let work_apps = ["code", "rider", "intellij", "vscode", "terminal", "slack", "teams", "rustrover", "idea", "obsidian", "notion", "jetbrains", "webstorm", "pycharm", "goland", "clion", "datagrip"];
         let has_work_apps = signals.active_processes.iter()
             .any(|p| work_apps.iter().any(|w| p.to_lowercase().contains(w)));
 
-        // Detect leisure apps
-        let leisure_apps = ["spotify", "netflix", "vlc", "steam", "discord", "firefox", "chrome", "kodi", "plex"];
+        // Detect leisure apps (streaming media uniquement - Steam tourne souvent en fond donc exclu)
+        let leisure_apps = ["netflix", "kodi", "plex", "stremio"];
         let has_leisure_apps = signals.active_processes.iter()
             .any(|p| leisure_apps.iter().any(|l| p.to_lowercase().contains(l)));
 
@@ -1038,7 +1038,8 @@ impl ContextIntelligence {
                 .take(2)
                 .map(|s| s.as_str())
                 .collect();
-            ("pro", 0.7, format!("Apps de travail: {}", app_names.join(", ")))
+            // "focus" pour travail sur PC (pro = extérieur/réunions sans PC)
+            ("focus", 0.7, format!("Apps de travail: {}", app_names.join(", ")))
         } else if has_leisure_apps && !has_work_apps {
             ("maison", 0.6, "Apps de détente détectées".to_string())
         } else if is_idle {
@@ -1456,7 +1457,7 @@ fn day_name(day: u8) -> &'static str {
 
 fn mode_display_name(mode: &str) -> &'static str {
     match mode {
-        "pro" | "cravate" => "Professionnel",
+        "pro" | "cravate" | "focus" => "Professionnel",
         "maison" | "intime" => "Maison",
         "veille" | "neutre" => "Veille",
         _ => "Inconnu",

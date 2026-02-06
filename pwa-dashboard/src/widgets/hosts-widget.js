@@ -8,6 +8,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import pollingScheduler from '../services/polling-scheduler.js'
 
 class HostsWidget extends LitElement {
   static styles = css`
@@ -185,34 +186,33 @@ class HostsWidget extends LitElement {
   
   connectedCallback() {
     super.connectedCallback()
-    
+
     // Écouter les heartbeats MQTT
     this.addEventListener('host-heartbeat', this.handleHeartbeat.bind(this))
-    
-    // Vérification périodique des hosts offline
-    this.staleCheckInterval = setInterval(() => {
-      this.checkOfflineHosts()
-    }, 5000) // Vérifie toutes les 5 secondes
 
-    // Rechargement périodique depuis l'API pour synchronisation
-    this.apiSyncInterval = setInterval(() => {
+    // Vérification périodique des hosts offline (5s) via scheduler centralisé
+    this._unsubscribeStaleCheck = pollingScheduler.subscribe('5s', () => this.checkOfflineHosts())
+
+    // Rechargement périodique depuis l'API pour synchronisation (30s)
+    this._unsubscribeApiSync = pollingScheduler.subscribe('30s', () => {
       if (this.apiService && this.connected) {
         this.syncWithApi()
       }
-    }, 30000) // Synchronise toutes les 30 secondes
+    })
   }
 
   disconnectedCallback() {
     super.disconnectedCallback()
-    
-    if (this.staleCheckInterval) {
-      clearInterval(this.staleCheckInterval)
-      this.staleCheckInterval = null
+
+    // Cleanup polling scheduler subscriptions
+    if (this._unsubscribeStaleCheck) {
+      this._unsubscribeStaleCheck()
+      this._unsubscribeStaleCheck = null
     }
-    
-    if (this.apiSyncInterval) {
-      clearInterval(this.apiSyncInterval)
-      this.apiSyncInterval = null
+
+    if (this._unsubscribeApiSync) {
+      this._unsubscribeApiSync()
+      this._unsubscribeApiSync = null
     }
   }
 

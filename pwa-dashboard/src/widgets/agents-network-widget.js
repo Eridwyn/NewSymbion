@@ -11,6 +11,7 @@
 import { LitElement, html, css } from 'lit'
 import '../services/agents-service.js'
 import '../components/organic-loader.js'
+import pollingScheduler from '../services/polling-scheduler.js'
 
 class AgentsNetworkWidget extends LitElement {
   static properties = {
@@ -464,17 +465,16 @@ class AgentsNetworkWidget extends LitElement {
     super.connectedCallback()
     this.initializeService()
     this.loadAgents()
-    
-    // Auto-refresh toutes les 30 secondes
-    this.refreshInterval = setInterval(() => {
-      this.loadAgents()
-    }, 30000)
+
+    // Auto-refresh via scheduler centralisé (30s, pause si onglet caché)
+    this._unsubscribeRefresh = pollingScheduler.subscribe('30s', () => this.loadAgents())
   }
 
   disconnectedCallback() {
     super.disconnectedCallback()
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval)
+    if (this._unsubscribeRefresh) {
+      this._unsubscribeRefresh()
+      this._unsubscribeRefresh = null
     }
   }
 
