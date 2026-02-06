@@ -33,17 +33,10 @@ class ApiService extends LitElement {
   }
 
   get apiKey() {
-    if (!this._apiKey) {
-      const envKey = import.meta.env.VITE_SYMBION_API_KEY || window.SYMBION_CONFIG?.API_KEY
-      if (envKey) {
-        this._apiKey = envKey
-      } else {
-        // Fallback with warning
-        if (!window.SYMBION_CONFIG?.DEV_MODE) {
-          console.warn('[api-service] No API key configured, using fallback')
-        }
-        this._apiKey = 's3cr3t-42'
-      }
+    if (this._apiKey === undefined) {
+      // Only use explicitly configured API key - NO FALLBACK
+      // Security: A hardcoded fallback is not security, it's public knowledge
+      this._apiKey = import.meta.env.VITE_SYMBION_API_KEY || window.SYMBION_CONFIG?.API_KEY || null
     }
     return this._apiKey
   }
@@ -96,13 +89,20 @@ class ApiService extends LitElement {
     const controller = timeout ? new AbortController() : null
     const timeoutId = timeout ? setTimeout(() => controller.abort(), timeout) : null
 
+    // Build headers - only include x-api-key if explicitly configured
+    const headers = {
+      'Content-Type': 'application/json',
+      ...authHeader,  // Ajoute Authorization: Bearer {token} si présent
+      ...options.headers
+    }
+
+    // Only add API key header if explicitly configured (no fallback)
+    if (this.apiKey) {
+      headers['x-api-key'] = this.apiKey
+    }
+
     const config = {
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': this.apiKey,
-        ...authHeader,  // Ajoute Authorization: Bearer {token} si présent
-        ...options.headers
-      },
+      headers,
       signal: controller?.signal,
       ...options
     }

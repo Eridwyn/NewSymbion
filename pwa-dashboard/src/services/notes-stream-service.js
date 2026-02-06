@@ -6,6 +6,7 @@
  */
 
 import { LitElement } from 'lit'
+import authService from './auth-service.js'
 
 class NotesStreamService extends LitElement {
   static properties = {
@@ -28,18 +29,24 @@ class NotesStreamService extends LitElement {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.SYMBION_CONFIG?.API_BASE?.replace(/^https?:\/\//, '') || `${window.location.hostname}:8443`
 
-    // API key: config > fallback (with warning)
-    let apiKey = window.SYMBION_CONFIG?.API_KEY
-    if (!apiKey) {
-      if (!window.SYMBION_CONFIG?.DEV_MODE) {
-        console.warn('[notes-stream] No API key configured, using fallback')
-      }
-      apiKey = 's3cr3t-42'
-    }
+    // WebSockets ne supportent pas les headers custom
+    // Use JWT token if authenticated, otherwise try explicit API key (no fallback)
+    const token = authService.getToken()
+    const apiKey = window.SYMBION_CONFIG?.API_KEY
 
-    // IMPORTANT: WebSockets ne supportent pas les headers custom, on passe l'API key en query param
     const url = `${protocol}//${host}/ws/notes/stream`
-    return `${url}?api_key=${encodeURIComponent(apiKey)}`
+
+    if (token) {
+      // Prefer JWT token for authentication
+      return `${url}?token=${encodeURIComponent(token)}`
+    } else if (apiKey) {
+      // Fallback to explicit API key if configured
+      return `${url}?api_key=${encodeURIComponent(apiKey)}`
+    } else {
+      // No auth available - connection will likely fail with 401
+      console.warn('[notes-stream] No authentication available for WebSocket')
+      return url
+    }
   }
 
   /**

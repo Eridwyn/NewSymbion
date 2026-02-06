@@ -13,6 +13,7 @@ import { LitElement, html, css } from 'lit'
 import '../components/organic-loader.js'
 import { Chart, registerables } from 'chart.js'
 import csrfService from '../services/csrf-service.js'
+import authService from '../services/auth-service.js'
 import pollingScheduler from '../services/polling-scheduler.js'
 
 // Register Chart.js components
@@ -485,15 +486,23 @@ class EnvironmentWidget extends LitElement {
     }
   }
 
-  getApiKey() {
-    // Priority: localStorage > config > fallback (with warning)
-    const key = localStorage.getItem('symbion_api_key') || window.SYMBION_CONFIG?.API_KEY
-    if (key) return key
-    // Fallback for dev/testing - log warning in production
-    if (!window.SYMBION_CONFIG?.DEV_MODE) {
-      console.warn('[environment-widget] No API key configured, using fallback')
+  /**
+   * Check if user is authenticated
+   * @returns {boolean}
+   */
+  isAuthenticated() {
+    return authService.isAuthenticated()
+  }
+
+  /**
+   * Get auth headers for API requests (JWT)
+   * @returns {Object} Headers object with Authorization if authenticated
+   */
+  getAuthHeaders() {
+    if (!this.isAuthenticated()) {
+      return {}
     }
-    return 's3cr3t-42'
+    return authService.getAuthHeader()
   }
 
   async loadEnvironmentData() {
@@ -501,18 +510,24 @@ class EnvironmentWidget extends LitElement {
       this.loading = true
       this.error = null
 
-      // Fetch all sensors
+      // Check authentication first
+      if (!this.isAuthenticated()) {
+        console.log('[environment-widget] Not authenticated, waiting for login')
+        this.loading = false
+        this.error = 'auth_required'
+        return
+      }
+
+      // Fetch all sensors with JWT auth
       const apiBase = window.SYMBION_CONFIG?.API_BASE || 'https://localhost:8443'
-      const apiKey = this.getApiKey()
-      const sensorsResponse = await fetch(`${apiBase}/v1/environment/sensors`, {
-        headers: apiKey ? { 'X-API-Key': apiKey } : {}
-      })
+      const headers = this.getAuthHeaders()
+      const sensorsResponse = await fetch(`${apiBase}/v1/environment/sensors`, { headers })
 
       if (!sensorsResponse.ok) {
-        // Silently fail if unauthorized (user not logged in yet)
         if (sensorsResponse.status === 401 || sensorsResponse.status === 403) {
-          console.log('[environment-widget] Not authorized yet, waiting for login')
+          console.log('[environment-widget] Auth expired or invalid')
           this.loading = false
+          this.error = 'auth_required'
           return
         }
         throw new Error(`Failed to fetch sensors: ${sensorsResponse.status}`)
@@ -528,9 +543,7 @@ class EnvironmentWidget extends LitElement {
       await Promise.all(
         uniqueRooms.map(async (roomId) => {
           try {
-            const envResponse = await fetch(`${apiBase}/v1/environment/${roomId}`, {
-              headers: apiKey ? { 'X-API-Key': apiKey } : {}
-            })
+            const envResponse = await fetch(`${apiBase}/v1/environment/${roomId}`, { headers })
 
             if (envResponse.ok) {
               environments[roomId] = await envResponse.json()
@@ -625,11 +638,15 @@ class EnvironmentWidget extends LitElement {
     this.renderModalToPortal()
 
     try {
+      // Check authentication before fetching
+      if (!this.isAuthenticated()) {
+        throw new Error('auth_required')
+      }
+
       // Fetch 7 days of history (168 hours)
       const apiBase = window.SYMBION_CONFIG?.API_BASE || 'https://localhost:8443'
-      const apiKey = this.getApiKey()
       const response = await fetch(`${apiBase}/v1/environment/${roomId}/history?hours=168`, {
-        headers: apiKey ? { 'X-API-Key': apiKey } : {}
+        headers: this.getAuthHeaders()
       })
 
       if (!response.ok) {
