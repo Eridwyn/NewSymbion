@@ -431,6 +431,30 @@ impl AutomationStore {
 
         // Create environment alert automations
         let env_automations = vec![
+            // Normal - P2 (return to safe state notification)
+            AutomationRequest {
+                name: "[Système] Environnement - Retour Normal".to_string(),
+                description: Some("Notification quand les conditions environnementales redeviennent normales".to_string()),
+                category: Some("systeme".to_string()),
+                goal_mode: None,
+                enabled: true,
+                trigger: Some(Trigger::SensorAlert {
+                    room_id: None, // Any room
+                    alert_level: Some(AlertLevel::Normal),
+                }),
+                triggers: None,
+                conditions: None,
+                actions: vec![ActionDefinition::SendNotification {
+                    priority: "P2".to_string(),
+                    title: "✅ Environnement Normal".to_string(),
+                    body: "Les conditions environnementales sont revenues à la normale.".to_string(),
+                    impact_level: ImpactLevel::Low,
+                }],
+                cooldown_seconds: 300, // 5 min cooldown
+                trusted: None,
+                skip_if_same_mode: None,
+                auto_created: None,
+            },
             // Danger - P0 (highest priority)
             AutomationRequest {
                 name: "[Système] Alerte Environnement - Danger".to_string(),

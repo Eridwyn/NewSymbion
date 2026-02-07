@@ -823,6 +823,10 @@ class DashboardApp extends LitElement {
     // Écouter les événements du context-engine-widget
     this.addEventListener('open-context-engine', this.handleOpenContextEngine.bind(this))
 
+    // Écouter auth:expired pour rediriger vers login (session expirée)
+    this._boundHandlers.authExpired = this.handleAuthExpired.bind(this)
+    window.addEventListener('auth:expired', this._boundHandlers.authExpired)
+
     // [P0-5] Écouter les changements de contexte pour adapter le logo (avec cleanup)
     this._boundHandlers.contextChange = (e) => {
       const mode = e.detail?.context?.mode || 'intime'
@@ -870,6 +874,9 @@ class DashboardApp extends LitElement {
     }
 
     // [P0-5] Cleanup all stored event handlers to prevent memory leaks
+    if (this._boundHandlers.authExpired) {
+      window.removeEventListener('auth:expired', this._boundHandlers.authExpired)
+    }
     if (this._boundHandlers.contextChange) {
       window.removeEventListener('context-change', this._boundHandlers.contextChange)
     }
@@ -1265,6 +1272,16 @@ class DashboardApp extends LitElement {
 
   handleCloseContextEngine() {
     this.showContextEnginePage = false
+  }
+
+  handleAuthExpired(event) {
+    console.warn('[dashboard] Session expirée - redirection vers login', event.detail)
+    // Clear auth state
+    authService.clearStorage()
+    // Redirect to login
+    this.isAuthenticated = false
+    this.currentUser = null
+    this.showLoginPage = true
   }
 
   handleCreateNote(event) {
