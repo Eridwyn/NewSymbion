@@ -124,7 +124,14 @@ class ApiService extends LitElement {
       
       if (!response.ok) {
         // Différencier les erreurs de connection vs erreurs applicatives
-        if (response.status >= 500 && response.status <= 599) {
+        if (response.status === 401) {
+          // 401 = Session expirée ou token invalide → dispatch auth:expired
+          console.error(`🔐 Session expired [${endpoint}] - dispatching auth:expired`)
+          window.dispatchEvent(new CustomEvent('auth:expired', {
+            detail: { endpoint, status: 401 }
+          }))
+          throw new Error('Session expirée')
+        } else if (response.status >= 500 && response.status <= 599) {
           // 5xx = erreur serveur/plugin mais API kernel toujours UP
           console.warn(`⚠️ Server error [${endpoint}] ${response.status}: Likely plugin issue`)
           throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -134,7 +141,7 @@ class ApiService extends LitElement {
           this.updateStatus('offline')
           throw new Error(`HTTP ${response.status}: ${response.statusText}`)
         }
-        
+
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
       
