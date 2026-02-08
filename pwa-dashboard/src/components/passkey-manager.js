@@ -477,9 +477,34 @@ class PasskeyManager extends LitElement {
       return
     }
 
-    // TODO: Implémenter suppression via API
-    console.log('[passkey-manager] Delete passkey:', credentialId)
-    this.error = 'Suppression pas encore implémentée'
+    this.error = null
+    this.success = null
+
+    try {
+      console.log('[passkey-manager] Deleting passkey:', credentialId)
+
+      const response = await fetch(`${this.baseUrl}/auth/webauthn/passkeys/${encodeURIComponent(credentialId)}`, {
+        method: 'DELETE',
+        headers: {
+          ...authService.getAuthHeader()
+        }
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to delete passkey')
+      }
+
+      this.success = '✅ Passkey supprimée avec succès'
+      console.log('[passkey-manager] ✅ Passkey deleted successfully')
+
+      // Recharger la liste
+      await this.loadPasskeys()
+
+    } catch (error) {
+      console.error('[passkey-manager] Delete failed:', error)
+      this.error = `Erreur lors de la suppression: ${error.message}`
+    }
   }
 }
 
