@@ -247,6 +247,7 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/auth/webauthn/register-start", post(webauthn_register_start))
         .route("/auth/webauthn/register-finish", post(webauthn_register_finish))
         .route("/auth/webauthn/passkeys", get(webauthn_list_passkeys))
+        .route("/auth/webauthn/passkeys/{credential_id}", axum::routing::delete(webauthn_delete_passkey))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
 
@@ -2760,6 +2761,61 @@ async fn webauthn_list_passkeys(
 
     println!("[webauthn] Listed {} passkeys for user '{}'", passkeys_json.len(), session.username);
     Ok(Json(passkeys_json))
+}
+
+/// DELETE /auth/webauthn/passkeys/:credential_id - Supprimer une passkey
+async fn webauthn_delete_passkey(
+    State(app): State<AppState>,
+    Path(credential_id): Path<String>,
+    req: Request,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let (parts, _body) = req.into_parts();
+
+    // Extraire le token JWT pour identifier l'utilisateur
+    let token = parts
+        .headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .ok_or_else(|| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "Missing or invalid Authorization header"
+            }))
+        ))?;
+
+    let session = app.auth_manager.get_session_info(token)
+        .map_err(|_| (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "Invalid or expired token"
+            }))
+        ))?;
+
+    // Décoder le credential_id depuis base64 URL-safe
+    let credential_id_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(&credential_id)
+        .map_err(|_| (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "Invalid credential_id format"
+            }))
+        ))?;
+
+    // Supprimer la passkey
+    app.webauthn_manager.delete_passkey(&session.username, &credential_id_bytes)
+        .map_err(|e| (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "error": format!("Failed to delete passkey: {}", e)
+            }))
+        ))?;
+
+    println!("[webauthn] 🗑️ Deleted passkey for user '{}'", session.username);
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "Passkey deleted successfully"
+    })))
 }
 
 /// POST /auth/webauthn/authenticate-start - Démarrer l'authentification avec passkey

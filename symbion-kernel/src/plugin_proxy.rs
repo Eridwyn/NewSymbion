@@ -327,9 +327,20 @@ pub async fn proxy_to_plugin(
 ) -> Response {
     let path = req.uri().path();
 
-    // DEBUG: Log what we receive from router
-    println!("[plugin-proxy] DEBUG - Received path from router: {}", path);
-    println!("[plugin-proxy] DEBUG - Full URI: {}", req.uri());
+    // Only handle plugin-related paths - return 404 for other paths
+    // This prevents the fallback from catching unrelated routes like /auth/*
+    if !path.starts_with("/plugin-api/")
+        && !path.starts_with("/v1/plugin-api/")
+        && !path.starts_with("/plugins/")
+    {
+        return (
+            StatusCode::NOT_FOUND,
+            axum::Json(serde_json::json!({
+                "error": "Not found",
+                "path": path
+            })),
+        ).into_response();
+    }
 
     // When merged (not nested), the full path is preserved minus the /v1 prefix
     // So we receive paths like /plugin-api/notifications/notifications
@@ -342,11 +353,15 @@ pub async fn proxy_to_plugin(
         // Handle legacy /v1/plugins/* routes by converting to /v1/plugin-api/*
         path.replace("/plugins/", "/v1/plugin-api/")
     } else {
-        // Fallback for unexpected paths
-        format!("/v1/plugin-api{}", path)
+        // This branch should never be reached due to the guard above
+        return (
+            StatusCode::NOT_FOUND,
+            axum::Json(serde_json::json!({
+                "error": "Not found",
+                "path": path
+            })),
+        ).into_response();
     };
-
-    println!("[plugin-proxy] Received request: {} {} (reconstructed: {})", req.method(), path, full_path);
 
     // Find plugin socket for this path
     let socket_path = match app_state.plugin_registry.find_socket(&full_path).await {
