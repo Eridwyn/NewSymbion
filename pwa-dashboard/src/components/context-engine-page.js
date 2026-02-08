@@ -5412,8 +5412,8 @@ Exemple :
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem;">
               ${this.renderSignalCard('🕐', 'Heure', `${utcHourToLocal(signals.hour)}h`, this.getDayNameFull(signals.day_of_week), 'neutral')}
               ${this.renderSignalCard('🎯', 'Mode', signals.current_mode || 'N/A', `${signals.time_in_current_mode_minutes || 0} min`, 'good')}
-              ${this.renderSignalCard('💤', 'Idle', `${Math.round(signals.agent_idle_seconds / 60)} min`, signals.agent_idle_seconds < 60 ? '● Actif' : '○ Inactif', signals.agent_idle_seconds < 300 ? 'good' : 'warning')}
-              ${this.renderSignalCard('⚡', 'CPU', `${(signals.cpu_usage || 0).toFixed(1)}%`, signals.cpu_usage > 50 ? 'Charge haute' : 'Normal', signals.cpu_usage > 80 ? 'warning' : 'neutral')}
+              ${this.renderSignalCard('💤', 'Activité', signals.agent_idle_seconds < 60 ? 'Maintenant' : `Il y a ${Math.round(signals.agent_idle_seconds / 60)} min`, signals.agent_idle_seconds < 300 ? 'Utilisateur actif' : 'Inactif', signals.agent_idle_seconds < 300 ? 'good' : 'warning')}
+              ${this.renderSignalCard('⚡', 'CPU', signals.cpu_usage > 0 || signals.active_processes?.length > 0 ? `${(signals.cpu_usage || 0).toFixed(1)}%` : 'N/A', signals.cpu_usage > 0 ? (signals.cpu_usage > 50 ? 'Charge haute' : 'Normal') : 'Pas de données agent', signals.cpu_usage > 80 ? 'warning' : (signals.cpu_usage > 0 ? 'neutral' : 'warning'))}
               ${signals.temperature != null ? this.renderSignalCard('🌡', 'Temp', `${signals.temperature?.toFixed(1)}°C`, signals.temperature > 25 ? 'Chaud' : signals.temperature < 18 ? 'Frais' : 'Confort', signals.temperature > 28 || signals.temperature < 16 ? 'warning' : 'good') : ''}
               ${signals.humidity != null ? this.renderSignalCard('💧', 'Humid', `${signals.humidity?.toFixed(0)}%`, signals.humidity > 70 ? 'Humide' : signals.humidity < 30 ? 'Sec' : 'Normal', signals.humidity > 70 || signals.humidity < 30 ? 'warning' : 'good') : ''}
             </div>
