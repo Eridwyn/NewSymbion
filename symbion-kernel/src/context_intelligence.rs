@@ -143,6 +143,7 @@ pub struct ContextSignals {
     pub is_holiday: bool,            // Future: API for holidays
 
     // Agent activity
+    pub agent_online: bool,          // True if user agent is connected
     pub agent_idle_seconds: u64,     // Seconds since last activity
     pub cpu_usage: f32,              // 0-100
     pub active_processes: Vec<String>, // Top running processes
@@ -741,7 +742,7 @@ impl ContextIntelligence {
         let is_weekend = day_of_week >= 5; // 5=Sat, 6=Sun
 
         // Agent activity (from primary agent's heartbeat)
-        let (idle_seconds, cpu_usage, active_processes) = self.get_agent_metrics().await;
+        let (agent_online, idle_seconds, cpu_usage, active_processes) = self.get_agent_metrics().await;
 
         // Environment (from sensors)
         let (temperature, humidity) = self.get_environment_readings().await;
@@ -762,6 +763,7 @@ impl ContextIntelligence {
             day_of_week,
             is_weekend,
             is_holiday: false, // TODO: External holiday API
+            agent_online,
             agent_idle_seconds: idle_seconds,
             cpu_usage,
             active_processes,
@@ -780,7 +782,8 @@ impl ContextIntelligence {
     }
 
     /// Get metrics from the primary user agent (Windows PC preferred, excludes server)
-    async fn get_agent_metrics(&self) -> (u64, f32, Vec<String>) {
+    /// Returns: (agent_online, idle_seconds, cpu_usage, active_processes)
+    async fn get_agent_metrics(&self) -> (bool, u64, f32, Vec<String>) {
         let agents = self.agents.list_agents().await;
 
         // Find primary USER agent (excludes the kernel server):
@@ -813,9 +816,9 @@ impl ContextIntelligence {
                 .map(|procs| procs.iter().map(|p| p.name.clone()).collect())
                 .unwrap_or_default();
 
-            (idle, cpu, processes)
+            (true, idle, cpu, processes)  // Agent is online
         } else {
-            (0, 0.0, Vec::new())
+            (false, 0, 0.0, Vec::new())   // No user agent online
         }
     }
 
@@ -1073,6 +1076,22 @@ impl ContextIntelligence {
 
     /// Predict based on agent activity (CPU, processes, idle time)
     fn predict_from_agent_activity(&self, signals: &ContextSignals) -> SinglePrediction {
+        // Agent offline is a strong signal - user is away or PC is off
+        if !signals.agent_online {
+            let confidence = if signals.hour >= 23 || signals.hour <= 6 {
+                0.75  // Night time + no agent = very likely sleeping
+            } else if signals.is_weekend {
+                0.5   // Weekend + no agent = maybe away
+            } else {
+                0.6   // Weekday + no agent = at work or out
+            };
+            return SinglePrediction {
+                mode: "veille".to_string(),
+                confidence,
+                reason: "Agent utilisateur déconnecté".to_string(),
+            };
+        }
+
         // Detect work apps (IDEs, terminals, communication pro)
         let work_apps = ["code", "rider", "intellij", "vscode", "terminal", "slack", "teams", "rustrover", "idea", "obsidian", "notion", "jetbrains", "webstorm", "pycharm", "goland", "clion", "datagrip"];
         let has_work_apps = signals.active_processes.iter()
