@@ -663,6 +663,25 @@ class IntelligenceWidget extends LitElement {
     return labels[factor] || factor
   }
 
+  /**
+   * Determine the reason for uncertainty:
+   * - If top 2 modes are within 10% → contradictory signals
+   * - Else → learning/insufficient data
+   */
+  getUncertainReason(prediction) {
+    const topModes = prediction.top_modes || []
+    if (topModes.length >= 2) {
+      const [, score1] = topModes[0] || [null, 0]
+      const [, score2] = topModes[1] || [null, 0]
+      // If both scores are non-zero and close, it's contradictory
+      if (score1 > 0 && score2 > 0 && Math.abs(score1 - score2) < 15) {
+        return 'Signaux contradictoires'
+      }
+    }
+    // Low confidence = still learning
+    return 'En apprentissage'
+  }
+
   toggleAdvanced() {
     this.showAdvanced = !this.showAdvanced
   }
@@ -815,7 +834,7 @@ class IntelligenceWidget extends LitElement {
             <div class="prediction-info">
               <div class="prediction-mode">${this.getModeName(prediction.mode)}</div>
               ${prediction.is_uncertain ? html`
-                <div class="uncertain-hint">Signaux contradictoires</div>
+                <div class="uncertain-hint">${this.getUncertainReason(prediction)}</div>
               ` : html`
                 <div class="confidence-row">
                   <div class="confidence-bar">
