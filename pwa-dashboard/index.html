@@ -35,7 +35,43 @@
             -moz-osx-font-smoothing: grayscale;
         }
 
+        /* Texture background layers */
+        #texture-vignette,
+        #texture-grain {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        /* Vignette + green glow - subtle */
+        #texture-vignette {
+            z-index: 9997;
+            background:
+                radial-gradient(ellipse 120% 80% at 15% 5%, rgba(16, 185, 129, 0.12), transparent 50%),
+                radial-gradient(ellipse 100% 70% at 85% 20%, rgba(16, 185, 129, 0.08), transparent 55%),
+                radial-gradient(ellipse 140% 90% at 50% 95%, rgba(0, 0, 0, 0.5), transparent 50%),
+                radial-gradient(ellipse 100% 100% at 50% 50%, transparent 20%, rgba(0, 0, 0, 0.35));
+        }
+
+        /* Noise grain - visible texture */
+        #texture-grain {
+            z-index: 9998;
+            background-image:
+                repeating-radial-gradient(circle at 17% 32%, rgba(255,255,255,0.08) 0px, transparent 1px),
+                repeating-radial-gradient(circle at 83% 67%, rgba(255,255,255,0.06) 0px, transparent 1px),
+                repeating-radial-gradient(circle at 31% 78%, rgba(0,0,0,0.12) 0px, transparent 1px),
+                repeating-radial-gradient(circle at 59% 12%, rgba(0,0,0,0.10) 0px, transparent 1px),
+                repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,0.04) 0px, transparent 2px);
+            background-size: 2px 2px, 3px 3px, 2px 2px, 4px 4px, 5px 5px;
+            opacity: 0.8;
+        }
+
         #app {
+            position: relative;
+            z-index: 1;
             min-height: 100vh;
         }
 
@@ -194,6 +230,10 @@
     </style>
 </head>
 <body>
+    <!-- Texture background layers -->
+    <div id="texture-vignette" aria-hidden="true"></div>
+    <div id="texture-grain" aria-hidden="true"></div>
+
     <!-- Loader initial de page -->
     <div id="page-loader">
         <div class="organic-loader__container">
