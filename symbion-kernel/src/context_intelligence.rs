@@ -10,311 +10,44 @@
  * - Feedback loop for continuous improvement
  * - Auto-creation of automations from learned patterns
  * - Drift detection and adaptation
+ *
+ * NOTE: Types and config are now in crate::intelligence module
  */
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use parking_lot::RwLock;
-use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
 use crate::agents::SharedAgentRegistry;
 use crate::context::{ContextEngine, Mode, Theme};
 use crate::sensors::SensorRegistry;
 
+// Re-export types from intelligence module for backward compatibility
+pub use crate::intelligence::{
+    AccuracyStats,
+    ContextSignals,
+    DecisionSignal,
+    HabitDrift,
+    HealthCounters,
+    IntelligenceConfig,
+    IntelligenceStatus,
+    LearnedPattern,
+    ModePrediction,
+    PatternExport,
+    PatternSource,
+    PredictionOutcome,
+    PredictionRecord,
+    SignalWeights,
+    SinglePrediction,
+    UserFeedback,
+    adaptive_modifier,
+    day_name,
+    mode_display_name,
+};
+
 /// Shared type alias for ContextIntelligence
 pub type SharedContextIntelligence = Arc<ContextIntelligence>;
-
-// ============================================================================
-// Configuration
-// ============================================================================
-
-/// Configuration for the intelligence engine
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IntelligenceConfig {
-    /// Threshold for auto-applying mode changes without validation (0.0-1.0)
-    /// Default: 0.90 (90% confidence required)
-    pub auto_apply_threshold: f32,
-
-    /// Threshold for suggesting mode changes via notification (0.0-1.0)
-    /// Default: 0.70 (70% confidence required)
-    pub suggestion_threshold: f32,
-
-    /// Minimum occurrences of a pattern before learning it
-    /// Default: 3
-    pub min_pattern_occurrences: u32,
-
-    /// Weights for different signal sources
-    pub weights: SignalWeights,
-
-    /// Enable auto-creation of automations from learned patterns
-    pub auto_create_automations: bool,
-
-    /// Enable automatic adaptation when habits change
-    pub auto_adapt: bool,
-
-    /// Check interval in seconds for the intelligence monitor
-    pub check_interval_seconds: u64,
-
-    // ========== v1.1.9 Stabilization Parameters ==========
-
-    /// Decay coefficients for pattern aging [<7d, <30d, <90d, >90d]
-    /// Default: [1.0, 0.9, 0.7, 0.4] - softer decay for seasonal patterns
-    pub decay_coefficients: [f32; 4],
-
-    /// Days before a dead pattern is eligible for purge
-    /// Default: 90 (acceptable), 120 for margin
-    pub purge_threshold_days: u32,
-
-    /// Maximum push notifications per day
-    /// Default: 5
-    pub max_push_per_day: u32,
-
-    /// Cooldown in minutes between suggestions for same mode
-    /// Default: 60
-    pub suggestion_cooldown_minutes: u32,
-
-    /// Quiet hours start (23 = 23:00, no push except 0.9+ established)
-    pub quiet_hours_start: u8,
-
-    /// Quiet hours end (7 = 07:00)
-    pub quiet_hours_end: u8,
-}
-
-impl Default for IntelligenceConfig {
-    fn default() -> Self {
-        Self {
-            auto_apply_threshold: 0.60,  // v1.1.10: lowered for more responsiveness
-            suggestion_threshold: 0.30,  // v1.1.10: lowered to show more suggestions
-            min_pattern_occurrences: 3,
-            weights: SignalWeights::default(),
-            auto_create_automations: true,
-            auto_adapt: true,
-            check_interval_seconds: 30,
-            // v1.1.9 stabilization
-            decay_coefficients: [1.0, 0.9, 0.7, 0.4],  // Softer than 1.0/0.8/0.5/0.2
-            purge_threshold_days: 90,
-            max_push_per_day: 5,
-            suggestion_cooldown_minutes: 60,
-            quiet_hours_start: 23,
-            quiet_hours_end: 7,
-        }
-    }
-}
-
-/// Weights for different signal sources in prediction
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SignalWeights {
-    /// Weight for temporal signals (hour + day of week)
-    pub temporal: f32,
-    /// Weight for behavioral patterns (manual changes history)
-    pub behavioral: f32,
-    /// Weight for agent activity (CPU, processes, idle time)
-    pub agent_activity: f32,
-    /// Weight for environmental factors (temperature, humidity)
-    pub environmental: f32,
-    /// Weight for momentum (time in current mode)
-    pub momentum: f32,
-}
-
-impl Default for SignalWeights {
-    fn default() -> Self {
-        Self {
-            temporal: 0.35,       // Time patterns are reliable
-            behavioral: 0.35,     // Learned patterns matter
-            agent_activity: 0.15, // Increased: active apps are strong signal
-            environmental: 0.05,
-            momentum: 0.10,
-        }
-    }
-}
-
-// ============================================================================
-// Signal Collection
-// ============================================================================
-
-/// Snapshot of all contextual signals at a point in time
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContextSignals {
-    // Temporal
-    pub hour: u8,                    // 0-23
-    pub day_of_week: u8,             // 0-6 (Mon-Sun) - Monday-based indexing
-    pub is_weekend: bool,
-    pub is_holiday: bool,            // Future: API for holidays
-
-    // Agent activity
-    pub agent_online: bool,          // True if user agent is connected
-    pub agent_idle_seconds: u64,     // Seconds since last activity
-    pub cpu_usage: f32,              // 0-100
-    pub active_processes: Vec<String>, // Top running processes
-    pub is_screen_locked: bool,      // Future: Agent capability
-
-    // Environment
-    pub temperature: Option<f32>,
-    pub humidity: Option<f32>,
-
-    // Current context
-    pub current_mode: String,
-    pub time_in_current_mode_minutes: i64,
-    #[serde(with = "time::serde::iso8601::option")]
-    pub last_manual_change: Option<OffsetDateTime>,
-}
-
-// ============================================================================
-// Prediction
-// ============================================================================
-
-/// Result of a mode prediction
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModePrediction {
-    pub mode: String,               // Mode slug prédit (ou "unknown" si incertain)
-    pub confidence: f32,            // 0.0 - 1.0 (normalisé)
-    pub reasons: Vec<String>,       // Human-readable explanations
-    pub contributing_factors: Vec<(String, f32)>, // (signal_name, weight)
-    /// Top 3 modes avec scores normalisés (évite explosion combinatoire UI)
-    #[serde(default)]
-    pub top_modes: Vec<(String, f32)>,
-    /// True si confiance globale trop faible pour prédire
-    #[serde(default)]
-    pub is_uncertain: bool,
-}
-
-/// Single prediction from one signal source
-#[derive(Debug, Clone)]
-pub struct SinglePrediction {
-    pub mode: String,
-    pub confidence: f32,
-    pub reason: String,
-}
-
-// ============================================================================
-// Learning
-// ============================================================================
-
-/// A pattern learned from user behavior
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LearnedPattern {
-    pub mode: String,
-    pub day_of_week: u8,
-    pub hour: u8,
-    pub confidence: f32,
-    pub occurrences: u32,
-    #[serde(with = "time::serde::iso8601")]
-    pub last_seen: OffsetDateTime,
-    pub source: PatternSource,
-}
-
-/// Where a pattern came from
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum PatternSource {
-    /// Detected from history analysis
-    Historical,
-    /// Learned from user correction
-    UserCorrection,
-    /// Imported from existing automation
-    Automation,
-}
-
-/// Record of a prediction for learning purposes
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PredictionRecord {
-    #[serde(with = "time::serde::iso8601")]
-    pub timestamp: OffsetDateTime,
-    pub predicted_mode: String,
-    pub actual_mode: Option<String>,  // Set when user corrects
-    pub confidence: f32,
-    pub was_correct: Option<bool>,
-    /// Source of outcome (v1.1.9): auto_applied, suggestion, ignored
-    #[serde(default)]
-    pub outcome_source: Option<PredictionOutcome>,
-}
-
-/// How a prediction was handled (v1.1.9)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum PredictionOutcome {
-    /// Auto-applied (high confidence + established)
-    AutoApplied,
-    /// Suggestion sent (push or silent)
-    Suggestion,
-    /// Ignored (confidence too low)
-    Ignored,
-}
-
-/// User feedback on a prediction
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserFeedback {
-    #[serde(with = "time::serde::iso8601")]
-    pub timestamp: OffsetDateTime,
-    pub predicted_mode: String,
-    pub actual_mode: String,       // What the user chose
-    pub signals_snapshot: ContextSignals,
-    pub was_correction: bool,      // true if different from prediction
-}
-
-/// Pattern with computed decay for export/debug (v1.1.9)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PatternExport {
-    pub mode: String,
-    pub day_of_week: u8,
-    pub hour: u8,
-    pub confidence: f32,
-    pub decayed_confidence: f32,
-    pub occurrences: u32,
-    #[serde(with = "time::serde::iso8601")]
-    pub last_seen: OffsetDateTime,
-    pub source: PatternSource,
-    pub days_since_seen: u32,
-}
-
-// ============================================================================
-// Decision Engine Feedback
-// ============================================================================
-
-/// Signal type from Decision Engine outcomes
-/// Used to provide feedback to Intelligence from automated decisions
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum DecisionSignal {
-    /// Action approved automatically (high trust) → Strong positive reinforcement
-    ApprovedAuto,
-    /// Action approved after MFA validation → Weak positive (needed human confirmation)
-    ApprovedMFA,
-    /// Action denied by user (MFA refused) → Strong negative signal
-    Denied,
-    /// MFA validation expired (user didn't respond) → Ambiguous, no learning
-    Expired,
-    /// Action blocked by guards (context changed, expired, etc.) → Context was invalid
-    Blocked,
-}
-
-// ============================================================================
-// Drift Detection
-// ============================================================================
-
-/// Detected change in user habits
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HabitDrift {
-    pub mode: String,
-    pub day_of_week: u8,
-    pub old_hour: u8,
-    pub new_hour: u8,
-    pub shift_hours: i8,
-    pub suggestion: String,
-}
-
-// ============================================================================
-// Status
-// ============================================================================
-
-/// Current status of the intelligence engine
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IntelligenceStatus {
-    pub enabled: bool,
-    pub config: IntelligenceConfig,
-    pub learned_patterns_count: usize,
-    pub auto_created_automations: usize,
-    pub last_prediction: Option<ModePrediction>,
-    pub accuracy_last_7_days: f32,
-}
 
 // ============================================================================
 // Main Engine
@@ -349,45 +82,6 @@ pub struct ContextIntelligence {
     // Health counters (v1.1.9) - reset daily
     // (date, push_sent, suggestions_generated, auto_applied, denied)
     health_counters: RwLock<HealthCounters>,
-}
-
-/// Health counters for observability (v1.1.9)
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct HealthCounters {
-    pub date: Option<time::Date>,
-    pub push_sent: u32,
-    pub suggestions_generated: u32,
-    pub auto_applied: u32,
-    pub denied: u32,
-    // Purge tracking (P0.5)
-    #[serde(with = "time::serde::iso8601::option", default)]
-    pub purge_last_run_at: Option<OffsetDateTime>,
-    pub purge_removed_count_last_run: u32,
-}
-
-/// Detailed accuracy stats with denominators (v1.1.9 P0 fix)
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct AccuracyStats {
-    /// Total predictions made in period
-    pub predictions_total: u32,
-    /// Predictions that received feedback (was_correct is Some)
-    pub predictions_scored: u32,
-    /// Predictions that were auto-applied
-    pub predictions_auto_applied: u32,
-    /// Predictions with user feedback (manual correction or approval)
-    pub predictions_user_feedback: u32,
-    /// Predictions ignored (confidence < suggestion_threshold)
-    pub predictions_ignored: u32,
-    /// Correct predictions out of scored
-    pub correct_count: u32,
-    /// Accuracy strict: correct / total (None if < 20 predictions = unreliable)
-    pub accuracy_strict: Option<f32>,
-    /// Accuracy feedback-only: correct / scored (None if < 20 predictions)
-    pub accuracy_feedback: Option<f32>,
-    /// Warning if sample size is too small
-    pub warning: Option<String>,
-    /// Minimum sample size for reliable accuracy (20)
-    pub min_sample_size: u32,
 }
 
 impl ContextIntelligence {
@@ -596,7 +290,7 @@ impl ContextIntelligence {
             .filter(|r| r.outcome_source == Some(PredictionOutcome::AutoApplied))
             .count() as u32;
 
-        let predictions_suggested = recent.iter()
+        let _predictions_suggested = recent.iter()
             .filter(|r| r.outcome_source == Some(PredictionOutcome::Suggestion))
             .count() as u32;
 
@@ -684,7 +378,6 @@ impl ContextIntelligence {
         }
 
         // Group by (mode, day_of_week, hour)
-        use std::collections::HashMap;
         let mut pattern_map: HashMap<(String, u8, u8), u32> = HashMap::new();
 
         for entry in manual_changes {
@@ -1524,57 +1217,6 @@ impl ContextIntelligence {
 }
 
 // ============================================================================
-// Helper Functions
-// ============================================================================
-
-/// Adaptive modifier with diminishing returns at extremes (v1.1.9)
-///
-/// Prevents oscillations by damping changes when confidence is already extreme.
-/// Examples:
-/// - current=0.50 → damping=1.0  → +0.30 * 1.0 = +0.30 (full effect)
-/// - current=0.70 → damping=0.6  → +0.30 * 0.6 = +0.18
-/// - current=0.90 → damping=0.3  → +0.30 * 0.3 = +0.09 (minimum)
-fn adaptive_modifier(base: f32, current: f32) -> f32 {
-    // Distance from center (0.5)
-    let distance = (current - 0.5).abs();  // 0.0 to 0.45
-    // Damping: near center = full effect, extremes = attenuated (min 0.3)
-    let damping = (1.0 - distance * 2.0).max(0.3);
-    base * damping
-}
-
-/// Convert day number to French name
-/// Uses Monday-based indexing: 0=Lundi, 6=Dimanche (matches number_from_monday() - 1)
-fn day_name(day: u8) -> &'static str {
-    match day {
-        0 => "lundi",
-        1 => "mardi",
-        2 => "mercredi",
-        3 => "jeudi",
-        4 => "vendredi",
-        5 => "samedi",
-        6 => "dimanche",
-        _ => "inconnu",
-    }
-}
-
-fn mode_display_name(mode: &str) -> String {
-    match mode {
-        "pro" | "cravate" => "Professionnel".to_string(),
-        "focus" => "Focus".to_string(),
-        "maison" | "intime" => "Maison".to_string(),
-        "veille" | "neutre" => "Veille".to_string(),
-        // Modes custom: capitaliser la première lettre
-        other => {
-            let mut chars = other.chars();
-            match chars.next() {
-                Some(c) => c.to_uppercase().chain(chars).collect(),
-                None => "Inconnu".to_string(),
-            }
-        }
-    }
-}
-
-// ============================================================================
 // Intelligence Monitor
 // ============================================================================
 
@@ -1899,7 +1541,7 @@ impl ContextIntelligence {
         prediction: &ModePrediction,
         current_mode: &str,
     ) {
-        let title = format!("💡 Suggestion de mode");
+        let title = "💡 Suggestion de mode".to_string();
         let body = format!(
             "Passer en mode {} ? (confiance: {:.0}%)\nRaison: {}",
             mode_display_name(&prediction.mode),
@@ -1939,41 +1581,5 @@ impl ContextIntelligence {
         if let Err(e) = notifications_manager.send(notification).await {
             eprintln!("[intelligence] Failed to send suggestion notification: {}", e);
         }
-    }
-}
-
-// ============================================================================
-// Tests
-// ============================================================================
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_default_config() {
-        let config = IntelligenceConfig::default();
-        assert_eq!(config.auto_apply_threshold, 0.60);  // v1.1.10: lowered for responsiveness
-        assert_eq!(config.suggestion_threshold, 0.30);  // v1.1.10: lowered
-        assert_eq!(config.min_pattern_occurrences, 3);
-        assert!(config.auto_create_automations);
-    }
-
-    #[test]
-    fn test_signal_weights_sum_to_one() {
-        let weights = SignalWeights::default();
-        let sum = weights.temporal + weights.behavioral + weights.agent_activity +
-                  weights.environmental + weights.momentum;
-        assert!((sum - 1.0).abs() < 0.001, "Weights should sum to 1.0, got {}", sum);
-    }
-
-    #[test]
-    fn test_pattern_source_serialization() {
-        let source = PatternSource::UserCorrection;
-        let json = serde_json::to_string(&source).unwrap();
-        assert!(json.contains("UserCorrection"));
-
-        let parsed: PatternSource = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed, PatternSource::UserCorrection);
     }
 }
