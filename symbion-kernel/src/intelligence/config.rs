@@ -1,0 +1,127 @@
+//! Intelligence Engine Configuration
+//!
+//! Contains all configurable parameters for the context intelligence system.
+
+use serde::{Deserialize, Serialize};
+
+/// Configuration for the intelligence engine
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntelligenceConfig {
+    /// Threshold for auto-applying mode changes without validation (0.0-1.0)
+    /// Default: 0.60 (60% confidence required)
+    pub auto_apply_threshold: f32,
+
+    /// Threshold for suggesting mode changes via notification (0.0-1.0)
+    /// Default: 0.30 (30% confidence required)
+    pub suggestion_threshold: f32,
+
+    /// Minimum occurrences of a pattern before learning it
+    /// Default: 3
+    pub min_pattern_occurrences: u32,
+
+    /// Weights for different signal sources
+    pub weights: SignalWeights,
+
+    /// Enable auto-creation of automations from learned patterns
+    pub auto_create_automations: bool,
+
+    /// Enable automatic adaptation when habits change
+    pub auto_adapt: bool,
+
+    /// Check interval in seconds for the intelligence monitor
+    pub check_interval_seconds: u64,
+
+    // ========== v1.1.9 Stabilization Parameters ==========
+
+    /// Decay coefficients for pattern aging [<7d, <30d, <90d, >90d]
+    /// Default: [1.0, 0.9, 0.7, 0.4] - softer decay for seasonal patterns
+    pub decay_coefficients: [f32; 4],
+
+    /// Days before a dead pattern is eligible for purge
+    /// Default: 90 (acceptable), 120 for margin
+    pub purge_threshold_days: u32,
+
+    /// Maximum push notifications per day
+    /// Default: 5
+    pub max_push_per_day: u32,
+
+    /// Cooldown in minutes between suggestions for same mode
+    /// Default: 60
+    pub suggestion_cooldown_minutes: u32,
+
+    /// Quiet hours start (23 = 23:00, no push except 0.9+ established)
+    pub quiet_hours_start: u8,
+
+    /// Quiet hours end (7 = 07:00)
+    pub quiet_hours_end: u8,
+}
+
+impl Default for IntelligenceConfig {
+    fn default() -> Self {
+        Self {
+            auto_apply_threshold: 0.60,  // v1.1.10: lowered for more responsiveness
+            suggestion_threshold: 0.30,  // v1.1.10: lowered to show more suggestions
+            min_pattern_occurrences: 3,
+            weights: SignalWeights::default(),
+            auto_create_automations: true,
+            auto_adapt: true,
+            check_interval_seconds: 30,
+            // v1.1.9 stabilization
+            decay_coefficients: [1.0, 0.9, 0.7, 0.4],  // Softer than 1.0/0.8/0.5/0.2
+            purge_threshold_days: 90,
+            max_push_per_day: 5,
+            suggestion_cooldown_minutes: 60,
+            quiet_hours_start: 23,
+            quiet_hours_end: 7,
+        }
+    }
+}
+
+/// Weights for different signal sources in prediction
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignalWeights {
+    /// Weight for temporal signals (hour + day of week)
+    pub temporal: f32,
+    /// Weight for behavioral patterns (manual changes history)
+    pub behavioral: f32,
+    /// Weight for agent activity (CPU, processes, idle time)
+    pub agent_activity: f32,
+    /// Weight for environmental factors (temperature, humidity)
+    pub environmental: f32,
+    /// Weight for momentum (time in current mode)
+    pub momentum: f32,
+}
+
+impl Default for SignalWeights {
+    fn default() -> Self {
+        Self {
+            temporal: 0.35,       // Time patterns are reliable
+            behavioral: 0.35,     // Learned patterns matter
+            agent_activity: 0.15, // Increased: active apps are strong signal
+            environmental: 0.05,
+            momentum: 0.10,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_config() {
+        let config = IntelligenceConfig::default();
+        assert_eq!(config.auto_apply_threshold, 0.60);
+        assert_eq!(config.suggestion_threshold, 0.30);
+        assert_eq!(config.min_pattern_occurrences, 3);
+        assert!(config.auto_create_automations);
+    }
+
+    #[test]
+    fn test_signal_weights_sum_to_one() {
+        let weights = SignalWeights::default();
+        let sum = weights.temporal + weights.behavioral + weights.agent_activity +
+                  weights.environmental + weights.momentum;
+        assert!((sum - 1.0).abs() < 0.001, "Weights should sum to 1.0, got {}", sum);
+    }
+}
