@@ -15,6 +15,7 @@ use crate::notes_bridge::{SharedNotesBridge, NoteResponse};
 use crate::agents::{SharedAgentRegistry, AgentRegistrationMessage, AgentHeartbeatMessage, AgentResponse};
 use crate::sensors::{SharedSensorRegistry, SensorRegistrationMessage, SensorEnvMessage};
 use crate::notifications::SharedNotificationManager;
+use crate::intelligence::{SharedFeatureRegistry, FeatureValue, feature_ids, ttl};
 use crate::wol::trigger_wol_udp;
 use rumqttc::{AsyncClient, Event, MqttOptions, QoS};
 use serde::Deserialize;
@@ -58,7 +59,7 @@ pub fn create_mqtt_client(config: &HostsConfig) -> Result<AsyncClient, Box<dyn s
     Ok(client)
 }
 
-pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>, notes_bridge: Option<SharedNotesBridge>, agents: Option<SharedAgentRegistry>, sensors: Option<SharedSensorRegistry>, health_tracker: Option<crate::health::HealthTracker>, dashboard_events: Option<crate::dashboard_events::DashboardEventPublisher>, mqtt_watchdog: Option<crate::mqtt_watchdog::SharedMqttWatchdog>, notifications_manager: Option<SharedNotificationManager>) {
+pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>, notes_bridge: Option<SharedNotesBridge>, agents: Option<SharedAgentRegistry>, sensors: Option<SharedSensorRegistry>, health_tracker: Option<crate::health::HealthTracker>, dashboard_events: Option<crate::dashboard_events::DashboardEventPublisher>, mqtt_watchdog: Option<crate::mqtt_watchdog::SharedMqttWatchdog>, notifications_manager: Option<SharedNotificationManager>, feature_registry: Option<SharedFeatureRegistry>) {
     task::spawn(async move {
         let cfg = config.lock().clone();
         let mqtt_cfg = cfg.mqtt.clone().unwrap_or_else(|| crate::config::MqttConf {
@@ -186,6 +187,25 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                             match serde_json::from_str::<AgentHeartbeatMessage>(&txt) {
                                 Ok(heartbeat) => {
                                     println!("[kernel] heartbeat parsed for agent: {}", heartbeat.agent_id);
+
+                                    // Extraire données pour features AVANT consommation
+                                    let agent_id = heartbeat.agent_id.clone();
+                                    let cpu_percent = heartbeat.system.cpu.percent;
+                                    let memory_used = heartbeat.system.memory.used_mb;
+                                    let memory_total = heartbeat.system.memory.total_mb;
+                                    let process_names: Vec<String> = heartbeat.processes.as_ref()
+                                        .map(|p| {
+                                            let mut names = Vec::new();
+                                            if let Some(top_cpu) = &p.top_cpu {
+                                                names.extend(top_cpu.iter().map(|proc| proc.name.clone()));
+                                            }
+                                            if let Some(top_mem) = &p.top_memory {
+                                                names.extend(top_mem.iter().map(|proc| proc.name.clone()));
+                                            }
+                                            names
+                                        })
+                                        .unwrap_or_default();
+
                                     if let Err(e) = agent_registry.handle_agent_heartbeat(heartbeat).await {
                                         eprintln!("[kernel] failed to handle agent heartbeat: {}", e);
                                     } else {
@@ -198,6 +218,56 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                                             if let Err(e) = dash_events.publish_agents_update(&agents_list).await {
                                                 eprintln!("[kernel] failed to publish agents update to dashboard: {}", e);
                                             }
+                                        }
+
+                                        // Alimenter le FeatureRegistry avec les métriques agent
+                                        if let Some(ref features) = feature_registry {
+                                            let source = format!("agent.{}", agent_id);
+
+                                            // Agent online
+                                            features.set_feature(
+                                                feature_ids::AGENT_ONLINE,
+                                                FeatureValue::Bool(true),
+                                                &source,
+                                                1.0,
+                                                ttl::AGENT,
+                                            );
+
+                                            // CPU usage
+                                            features.set_feature(
+                                                feature_ids::AGENT_CPU_USAGE,
+                                                FeatureValue::Float(cpu_percent as f64),
+                                                &source,
+                                                1.0,
+                                                ttl::AGENT,
+                                            );
+
+                                            // Memory usage (percentage)
+                                            let memory_pct = if memory_total > 0 {
+                                                (memory_used as f64 / memory_total as f64) * 100.0
+                                            } else {
+                                                0.0
+                                            };
+                                            features.set_feature(
+                                                feature_ids::AGENT_MEMORY_USAGE,
+                                                FeatureValue::Float(memory_pct),
+                                                &source,
+                                                1.0,
+                                                ttl::AGENT,
+                                            );
+
+                                            // Process list for classification
+                                            if !process_names.is_empty() {
+                                                features.set_feature(
+                                                    "process.list",
+                                                    FeatureValue::StringList(process_names),
+                                                    &source,
+                                                    1.0,
+                                                    ttl::PROCESS,
+                                                );
+                                            }
+
+                                            println!("[kernel] features updated from agent {}", agent_id);
                                         }
                                     }
                                 }
@@ -243,8 +313,39 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                                 Ok(msg) => {
                                     println!("[kernel] received env reading from sensor {}: {}°C, {}%",
                                         msg.sensor_id, msg.temperature_c, msg.humidity_pct);
+
+                                    // Extraire données pour features AVANT consommation
+                                    let sensor_id = msg.sensor_id.clone();
+                                    let temperature = msg.temperature_c;
+                                    let humidity = msg.humidity_pct;
+
                                     if let Err(e) = sensor_registry.handle_env_reading(msg) {
                                         eprintln!("[kernel] failed to handle env reading: {}", e);
+                                    } else {
+                                        // Alimenter le FeatureRegistry avec les données environnementales
+                                        if let Some(ref features) = feature_registry {
+                                            let source = format!("sensor.{}", sensor_id);
+
+                                            // Temperature
+                                            features.set_feature(
+                                                feature_ids::ENV_TEMPERATURE,
+                                                FeatureValue::Float(temperature as f64),
+                                                &source,
+                                                1.0,
+                                                ttl::ENVIRONMENT,
+                                            );
+
+                                            // Humidity
+                                            features.set_feature(
+                                                feature_ids::ENV_HUMIDITY,
+                                                FeatureValue::Float(humidity as f64),
+                                                &source,
+                                                1.0,
+                                                ttl::ENVIRONMENT,
+                                            );
+
+                                            println!("[kernel] env features updated from sensor {}", sensor_id);
+                                        }
                                     }
                                 }
                                 Err(e) => eprintln!("[kernel] sensor env JSON invalide: {txt}, error: {}", e),

@@ -9,6 +9,7 @@
  * - GET  /v1/intelligence/patterns - Learned patterns
  * - GET  /v1/intelligence/predictions - Prediction history
  * - GET  /v1/intelligence/signals  - Current context signals
+ * - GET  /v1/intelligence/features - FeatureRegistry state (v2)
  * - POST /v1/intelligence/feedback - Record user feedback
  * - PUT  /v1/intelligence/config   - Update configuration
  */
@@ -26,6 +27,7 @@ use crate::context_intelligence::{
     AccuracyStats, ContextSignals, HealthCounters, IntelligenceConfig, IntelligenceStatus,
     LearnedPattern, ModePrediction, PredictionRecord, PatternExport,
 };
+use crate::intelligence::{FeatureSample, FeatureRegistrySummary};
 
 // ============================================================================
 // Response Types
@@ -102,6 +104,13 @@ pub struct HealthResponse {
     pub accuracy: AccuracyStats,
     pub patterns_active: usize,
     pub patterns_established: usize,
+}
+
+/// Features response (v2 Intelligence)
+#[derive(Serialize)]
+pub struct FeaturesResponse {
+    pub features: Vec<FeatureSample>,
+    pub summary: FeatureRegistrySummary,
 }
 
 // ============================================================================
@@ -371,6 +380,15 @@ async fn get_patterns_export(
     })
 }
 
+/// GET /v1/intelligence/features
+/// Returns current features from FeatureRegistry (v2 Intelligence)
+async fn get_features(State(app): State<AppState>) -> Json<FeaturesResponse> {
+    let features = app.feature_registry.get_all();
+    let summary = app.feature_registry.summary();
+
+    Json(FeaturesResponse { features, summary })
+}
+
 // ============================================================================
 // Router
 // ============================================================================
@@ -383,6 +401,7 @@ pub fn intelligence_routes() -> Router<AppState> {
         .route("/patterns/export", get(get_patterns_export))
         .route("/predictions", get(get_predictions))
         .route("/signals", get(get_signals))
+        .route("/features", get(get_features))  // v2 Intelligence
         .route("/feedback", post(post_feedback))
         .route("/config", get(get_config).put(put_config))
 }
