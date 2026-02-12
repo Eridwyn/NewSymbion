@@ -198,6 +198,8 @@ pub struct AppState {
     pub notification_config: crate::notification_config::SharedNotificationConfigManager,
     // Context Intelligence Engine
     pub context_intelligence: std::sync::Arc<crate::context_intelligence::ContextIntelligence>,
+    // Feature Registry for data-driven intelligence (v2)
+    pub feature_registry: crate::intelligence::SharedFeatureRegistry,
     // Trust Tracker for evolving action statistics
     pub trust_tracker: crate::decision::SharedTrustTracker,
 }

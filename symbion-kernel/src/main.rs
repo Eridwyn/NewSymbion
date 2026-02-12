@@ -265,6 +265,10 @@ async fn main() {
     context_intelligence.init_patterns_from_history();
     eprintln!("[kernel] initialized Context Intelligence Engine");
 
+    // Feature Registry for data-driven intelligence (v2)
+    let feature_registry = Arc::new(crate::intelligence::FeatureRegistry::new());
+    eprintln!("[kernel] initialized Feature Registry");
+
     // Schedule Registry pour planning horaire
     let schedule_registry = crate::schedule::create_shared_registry(std::path::PathBuf::from("./data"));
     eprintln!("[kernel] initialized Schedule Registry ({} rules)", schedule_registry.count_rules());
@@ -297,8 +301,8 @@ async fn main() {
     // Connecter le dispatcher aux agents pour événements status
     agents.set_automation_dispatcher(automation_dispatcher.clone()).await;
 
-    // MQTT remplit les states + agents + sensors (F1) + notifications ack
-    mqtt::spawn_mqtt_listener(states.clone(), cfg.clone(), notes_bridge.clone(), Some(agents.clone()), Some(sensor_registry.clone()), Some(health_tracker.clone()), Some(dashboard_events.clone()), Some(mqtt_watchdog.clone()), Some(notifications_manager.clone()));
+    // MQTT remplit les states + agents + sensors (F1) + notifications ack + features
+    mqtt::spawn_mqtt_listener(states.clone(), cfg.clone(), notes_bridge.clone(), Some(agents.clone()), Some(sensor_registry.clone()), Some(health_tracker.clone()), Some(dashboard_events.clone()), Some(mqtt_watchdog.clone()), Some(notifications_manager.clone()), Some(feature_registry.clone()));
 
     // Spawn MQTT watchdog task - détecte les connexions half-dead
     {
@@ -493,6 +497,7 @@ async fn main() {
         notifications_manager,
         notification_config,
         context_intelligence: context_intelligence.clone(),
+        feature_registry: feature_registry.clone(),
         trust_tracker: trust_tracker.clone(),
     };
 

@@ -13,6 +13,7 @@
 //!
 //! - `config`: Configuration parameters and signal weights
 //! - `types`: Common data structures (signals, predictions, patterns)
+//! - `features`: FeatureRegistry with TTL-based expiration
 //!
 //! ## Features
 //!
@@ -25,6 +26,7 @@
 
 pub mod config;
 pub mod types;
+pub mod features;
 
 // Re-export commonly used types at module level
 pub use config::{IntelligenceConfig, SignalWeights};
@@ -46,4 +48,15 @@ pub use types::{
     adaptive_modifier,
     day_name,
     mode_display_name,
+};
+
+// Re-export feature types
+pub use features::{
+    FeatureRegistry,
+    FeatureRegistrySummary,
+    FeatureSample,
+    FeatureValue,
+    SharedFeatureRegistry,
+    feature_ids,
+    ttl,
 };
