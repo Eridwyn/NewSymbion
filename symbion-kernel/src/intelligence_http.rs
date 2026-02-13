@@ -9,9 +9,10 @@
  * - GET  /v1/intelligence/patterns - Learned patterns
  * - GET  /v1/intelligence/predictions - Prediction history
  * - GET  /v1/intelligence/signals  - Current context signals
- * - GET  /v1/intelligence/features - FeatureRegistry state (v2)
- * - GET  /v1/intelligence/vector   - ContextVector with why-chain (v2)
- * - POST /v1/intelligence/feedback - Record user feedback
+ * - GET  /v1/intelligence/features    - FeatureRegistry state (v2)
+ * - GET  /v1/intelligence/vector      - ContextVector with why-chain (v2)
+ * - GET  /v1/intelligence/prediction2 - Case-based inference prediction (v2)
+ * - POST /v1/intelligence/feedback    - Record user feedback
  * - PUT  /v1/intelligence/config   - Update configuration
  */
 
@@ -28,7 +29,10 @@ use crate::context_intelligence::{
     AccuracyStats, ContextSignals, HealthCounters, IntelligenceConfig, IntelligenceStatus,
     LearnedPattern, ModePrediction, PredictionRecord, PatternExport,
 };
-use crate::intelligence::{FeatureSample, FeatureRegistrySummary, ContextVector, VectorBuilder};
+use crate::intelligence::{
+    FeatureSample, FeatureRegistrySummary, ContextVector, VectorBuilder,
+    PredictionV2, InferenceStats,
+};
 
 // ============================================================================
 // Response Types
@@ -121,6 +125,14 @@ pub struct VectorResponse {
     pub best_mode: String,
     pub best_mode_confidence: f32,
     pub has_sufficient_data: bool,
+}
+
+/// Prediction v2 response (case-based inference)
+#[derive(Serialize)]
+pub struct Prediction2Response {
+    pub prediction: PredictionV2,
+    pub vector: ContextVector,
+    pub stats: InferenceStats,
 }
 
 // ============================================================================
@@ -415,6 +427,25 @@ async fn get_vector(State(app): State<AppState>) -> Json<VectorResponse> {
     })
 }
 
+/// GET /v1/intelligence/prediction2
+/// Returns v2 prediction using case-based inference
+async fn get_prediction2(State(app): State<AppState>) -> Json<Prediction2Response> {
+    // Build current context vector
+    let vector = VectorBuilder::new(&app.feature_registry).build();
+
+    // Get prediction from inference engine
+    let prediction = app.inference_engine.predict(&vector);
+
+    // Get engine stats
+    let stats = app.inference_engine.stats();
+
+    Json(Prediction2Response {
+        prediction,
+        vector,
+        stats,
+    })
+}
+
 // ============================================================================
 // Router
 // ============================================================================
@@ -427,8 +458,9 @@ pub fn intelligence_routes() -> Router<AppState> {
         .route("/patterns/export", get(get_patterns_export))
         .route("/predictions", get(get_predictions))
         .route("/signals", get(get_signals))
-        .route("/features", get(get_features))  // v2 Intelligence
-        .route("/vector", get(get_vector))      // v2 Intelligence
+        .route("/features", get(get_features))      // v2 Intelligence
+        .route("/vector", get(get_vector))          // v2 Intelligence
+        .route("/prediction2", get(get_prediction2)) // v2 Intelligence
         .route("/feedback", post(post_feedback))
         .route("/config", get(get_config).put(put_config))
 }
