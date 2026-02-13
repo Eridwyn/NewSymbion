@@ -33,6 +33,7 @@ pub mod vector;
 pub mod inference;
 pub mod sessions;
 pub mod classifier;
+pub mod bootstrap;
 
 // Re-export commonly used types at module level
 pub use config::{IntelligenceConfig, SignalWeights};
@@ -106,4 +107,11 @@ pub use classifier::{
     SharedProcessClassifier,
     ClassifierConfig,
     ClassificationResult,
+};
+
+// Re-export bootstrap types
+pub use bootstrap::{
+    BootstrapScheduler,
+    BootstrapConfig,
+    IntelligenceMode,
 };
