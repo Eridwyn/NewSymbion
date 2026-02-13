@@ -14,6 +14,7 @@
 //! - `config`: Configuration parameters and signal weights
 //! - `types`: Common data structures (signals, predictions, patterns)
 //! - `features`: FeatureRegistry with TTL-based expiration
+//! - `vector`: ContextVector with normalized dimensions and explainability
 //!
 //! ## Features
 //!
@@ -27,6 +28,7 @@
 pub mod config;
 pub mod types;
 pub mod features;
+pub mod vector;
 
 // Re-export commonly used types at module level
 pub use config::{IntelligenceConfig, SignalWeights};
@@ -59,4 +61,12 @@ pub use features::{
     SharedFeatureRegistry,
     feature_ids,
     ttl,
+};
+
+// Re-export vector types
+pub use vector::{
+    ContextVector,
+    VectorBuilder,
+    WhyItem,
+    dimensions,
 };

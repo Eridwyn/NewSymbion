@@ -10,6 +10,7 @@
  * - GET  /v1/intelligence/predictions - Prediction history
  * - GET  /v1/intelligence/signals  - Current context signals
  * - GET  /v1/intelligence/features - FeatureRegistry state (v2)
+ * - GET  /v1/intelligence/vector   - ContextVector with why-chain (v2)
  * - POST /v1/intelligence/feedback - Record user feedback
  * - PUT  /v1/intelligence/config   - Update configuration
  */
@@ -27,7 +28,7 @@ use crate::context_intelligence::{
     AccuracyStats, ContextSignals, HealthCounters, IntelligenceConfig, IntelligenceStatus,
     LearnedPattern, ModePrediction, PredictionRecord, PatternExport,
 };
-use crate::intelligence::{FeatureSample, FeatureRegistrySummary};
+use crate::intelligence::{FeatureSample, FeatureRegistrySummary, ContextVector, VectorBuilder};
 
 // ============================================================================
 // Response Types
@@ -111,6 +112,15 @@ pub struct HealthResponse {
 pub struct FeaturesResponse {
     pub features: Vec<FeatureSample>,
     pub summary: FeatureRegistrySummary,
+}
+
+/// Vector response (v2 Intelligence)
+#[derive(Serialize)]
+pub struct VectorResponse {
+    pub vector: ContextVector,
+    pub best_mode: String,
+    pub best_mode_confidence: f32,
+    pub has_sufficient_data: bool,
 }
 
 // ============================================================================
@@ -389,6 +399,22 @@ async fn get_features(State(app): State<AppState>) -> Json<FeaturesResponse> {
     Json(FeaturesResponse { features, summary })
 }
 
+/// GET /v1/intelligence/vector
+/// Returns current ContextVector built from features (v2 Intelligence)
+async fn get_vector(State(app): State<AppState>) -> Json<VectorResponse> {
+    let vector = VectorBuilder::new(&app.feature_registry).build();
+    let (best_mode, confidence) = vector.best_mode();
+    let best_mode_str = best_mode.to_string();
+    let has_sufficient_data = vector.has_sufficient_data();
+
+    Json(VectorResponse {
+        vector,
+        best_mode: best_mode_str,
+        best_mode_confidence: confidence,
+        has_sufficient_data,
+    })
+}
+
 // ============================================================================
 // Router
 // ============================================================================
@@ -402,6 +428,7 @@ pub fn intelligence_routes() -> Router<AppState> {
         .route("/predictions", get(get_predictions))
         .route("/signals", get(get_signals))
         .route("/features", get(get_features))  // v2 Intelligence
+        .route("/vector", get(get_vector))      // v2 Intelligence
         .route("/feedback", post(post_feedback))
         .route("/config", get(get_config).put(put_config))
 }
