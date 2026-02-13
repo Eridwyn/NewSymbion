@@ -1,0 +1,73 @@
+# Process Classification Rules
+#
+# This file defines how running processes are categorized for context intelligence.
+# Categories affect mode predictions (work vs leisure vs neutral).
+#
+# Rules:
+# - patterns: case-insensitive substring match (e.g., "jetbrains" matches "jetbrains-toolbox")
+# - exact: case-insensitive exact name match
+# - weight: importance of this category (0.0-1.0), affects confidence scores
+
+[ide]
+# Development environments - strong indicator of work/focus mode
+patterns = [
+    # JetBrains family
+    "jetbrains", "intellij", "pycharm", "webstorm", "phpstorm",
+    "rustrover", "rider", "goland", "clion", "datagrip", "toolbox",
+    # Other IDEs
+    "vscode", "code", "sublime", "atom", "vim", "nvim", "neovim", "emacs",
+    "android-studio", "xcode",
+    # Terminals (when focused on dev work)
+    "terminal", "konsole", "gnome-terminal", "alacritty", "kitty", "wezterm"
+]
+exact = []
+weight = 1.0
+
+[media]
+# Entertainment apps - strong indicator of leisure mode
+patterns = [
+    "netflix", "kodi", "plex", "vlc", "mpv", "stremio",
+    "jellyfin", "prime video", "disney", "hbo",
+    "youtube", "twitch"  # Dedicated apps, not browser
+]
+exact = []
+weight = 1.0
+
+[communication]
+# Chat/meeting apps - ambiguous (can be work or personal)
+patterns = [
+    "slack", "teams", "zoom", "meet", "webex", "skype",
+    "discord", "telegram", "signal", "whatsapp"
+]
+exact = []
+weight = 0.7  # Lower weight - context depends on other signals
+
+[browser]
+# Web browsers - neutral, doesn't indicate work or leisure
+patterns = [
+    "firefox", "chrome", "chromium", "brave", "edge",
+    "safari", "opera", "vivaldi", "librewolf"
+]
+exact = []
+weight = 0.3  # Very low weight - browsers are ambiguous
+
+[gaming]
+# Games and launchers - strong indicator of leisure mode
+patterns = [
+    "steam", "epic", "gog", "lutris", "heroic",
+    "retroarch", "dolphin", "pcsx", "rpcs3",
+    "minecraft", "wine", "proton"
+]
+exact = []
+weight = 1.0
+
+[office]
+# Productivity apps - moderate indicator of work mode
+patterns = [
+    "libreoffice", "word", "excel", "powerpoint",
+    "obsidian", "notion", "evernote", "onenote",
+    "thunderbird", "evolution", "mailspring",
+    "gimp", "inkscape", "blender", "kdenlive"
+]
+exact = []
+weight = 0.8

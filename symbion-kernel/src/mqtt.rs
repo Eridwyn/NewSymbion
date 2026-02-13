@@ -15,12 +15,19 @@ use crate::notes_bridge::{SharedNotesBridge, NoteResponse};
 use crate::agents::{SharedAgentRegistry, AgentRegistrationMessage, AgentHeartbeatMessage, AgentResponse};
 use crate::sensors::{SharedSensorRegistry, SensorRegistrationMessage, SensorEnvMessage};
 use crate::notifications::SharedNotificationManager;
-use crate::intelligence::{SharedFeatureRegistry, FeatureValue, feature_ids, ttl};
+use crate::intelligence::{SharedFeatureRegistry, FeatureValue, feature_ids, ttl, ProcessClassifier};
+use std::sync::LazyLock;
 use crate::wol::trigger_wol_udp;
 use rumqttc::{AsyncClient, Event, MqttOptions, QoS};
 use serde::Deserialize;
 use time::OffsetDateTime;
 use tokio::task;
+
+/// Global process classifier (lazy-loaded with config from ./config/process_categories.toml)
+static PROCESS_CLASSIFIER: LazyLock<ProcessClassifier> = LazyLock::new(|| {
+    let config_path = std::path::PathBuf::from("./config/process_categories.toml");
+    ProcessClassifier::new(config_path)
+});
 
 /// Message Wake-on-LAN via MQTT
 #[derive(Debug, Deserialize)]
@@ -258,13 +265,17 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
 
                                             // Process list for classification
                                             if !process_names.is_empty() {
+                                                // Store raw process list
                                                 features.set_feature(
                                                     "process.list",
-                                                    FeatureValue::StringList(process_names),
+                                                    FeatureValue::StringList(process_names.clone()),
                                                     &source,
                                                     1.0,
                                                     ttl::PROCESS,
                                                 );
+
+                                                // Classify processes and update category features
+                                                PROCESS_CLASSIFIER.classify_and_update(&process_names, features);
                                             }
 
                                             println!("[kernel] features updated from agent {}", agent_id);
