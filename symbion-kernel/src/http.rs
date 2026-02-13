@@ -202,6 +202,8 @@ pub struct AppState {
     pub feature_registry: crate::intelligence::SharedFeatureRegistry,
     // Inference Engine for case-based mode prediction (v2)
     pub inference_engine: crate::intelligence::SharedInferenceEngine,
+    // Session Manager for hysteresis-based mode transitions (v2)
+    pub session_manager: crate::intelligence::SharedSessionManager,
     // Trust Tracker for evolving action statistics
     pub trust_tracker: crate::decision::SharedTrustTracker,
 }

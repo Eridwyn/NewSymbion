@@ -31,6 +31,7 @@ pub mod types;
 pub mod features;
 pub mod vector;
 pub mod inference;
+pub mod sessions;
 
 // Re-export commonly used types at module level
 pub use config::{IntelligenceConfig, SignalWeights};
@@ -85,4 +86,15 @@ pub use inference::{
     PredictionV2,
     ModeScore,
     PredictionReason,
+};
+
+// Re-export session types
+pub use sessions::{
+    SessionManager,
+    SharedSessionManager,
+    SessionConfig,
+    SessionSource,
+    SessionStats,
+    ActiveSession,
+    TransitionDecision,
 };

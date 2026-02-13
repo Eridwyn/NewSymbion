@@ -273,6 +273,10 @@ async fn main() {
     let inference_engine = Arc::new(crate::intelligence::InferenceEngine::default());
     eprintln!("[kernel] initialized Inference Engine v2");
 
+    // Session Manager for hysteresis-based mode transitions (v2)
+    let session_manager = Arc::new(crate::intelligence::SessionManager::default());
+    eprintln!("[kernel] initialized Session Manager v2");
+
     // Schedule Registry pour planning horaire
     let schedule_registry = crate::schedule::create_shared_registry(std::path::PathBuf::from("./data"));
     eprintln!("[kernel] initialized Schedule Registry ({} rules)", schedule_registry.count_rules());
@@ -503,6 +507,7 @@ async fn main() {
         context_intelligence: context_intelligence.clone(),
         feature_registry: feature_registry.clone(),
         inference_engine: inference_engine.clone(),
+        session_manager: session_manager.clone(),
         trust_tracker: trust_tracker.clone(),
     };
 

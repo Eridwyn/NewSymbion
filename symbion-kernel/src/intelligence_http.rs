@@ -446,6 +446,28 @@ async fn get_prediction2(State(app): State<AppState>) -> Json<Prediction2Respons
     })
 }
 
+/// Session response (v2 Intelligence)
+#[derive(Serialize)]
+pub struct SessionResponse {
+    pub session: crate::intelligence::ActiveSession,
+    pub stats: crate::intelligence::SessionStats,
+    pub config: crate::intelligence::SessionConfig,
+}
+
+/// GET /v1/intelligence/session
+/// Returns current session with hysteresis info (v2 Intelligence)
+async fn get_session(State(app): State<AppState>) -> Json<SessionResponse> {
+    let session = app.session_manager.current_session();
+    let stats = app.session_manager.stats();
+    let config = app.session_manager.config();
+
+    Json(SessionResponse {
+        session,
+        stats,
+        config,
+    })
+}
+
 // ============================================================================
 // Router
 // ============================================================================
@@ -461,6 +483,7 @@ pub fn intelligence_routes() -> Router<AppState> {
         .route("/features", get(get_features))      // v2 Intelligence
         .route("/vector", get(get_vector))          // v2 Intelligence
         .route("/prediction2", get(get_prediction2)) // v2 Intelligence
+        .route("/session", get(get_session))         // v2 Intelligence
         .route("/feedback", post(post_feedback))
         .route("/config", get(get_config).put(put_config))
 }
