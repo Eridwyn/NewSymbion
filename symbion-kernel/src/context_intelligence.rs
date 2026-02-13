@@ -1288,6 +1288,24 @@ impl ContextIntelligence {
                     );
                 }
 
+                // v2 Auto-apply check (currently logs only, enable with flag later)
+                let v2_auto_apply_threshold = 0.5; // 50% confidence threshold
+                let v2_min_samples = 3;
+                let v2_would_apply = v2_conf >= v2_auto_apply_threshold
+                    && prediction_v2.samples_used >= v2_min_samples
+                    && v2_mode != &current_mode
+                    && prediction_v2.is_confident;
+
+                if v2_would_apply {
+                    eprintln!(
+                        "[intelligence] ✨ v2 WOULD auto-apply: {} → {} (conf: {:.0}%, {} samples)",
+                        current_mode,
+                        v2_mode,
+                        v2_conf * 100.0,
+                        prediction_v2.samples_used
+                    );
+                }
+
                 // Auto-mark prediction as correct if mode is stable for 30+ minutes
                 if prediction.mode == current_mode && signals.time_in_current_mode_minutes > 30 {
                     intelligence.mark_last_prediction_correct();
