@@ -200,6 +200,8 @@ pub struct AppState {
     pub context_intelligence: std::sync::Arc<crate::context_intelligence::ContextIntelligence>,
     // Feature Registry for data-driven intelligence (v2)
     pub feature_registry: crate::intelligence::SharedFeatureRegistry,
+    // Inference Engine for case-based mode prediction (v2)
+    pub inference_engine: crate::intelligence::SharedInferenceEngine,
     // Trust Tracker for evolving action statistics
     pub trust_tracker: crate::decision::SharedTrustTracker,
 }

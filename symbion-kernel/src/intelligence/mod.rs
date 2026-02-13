@@ -15,6 +15,7 @@
 //! - `types`: Common data structures (signals, predictions, patterns)
 //! - `features`: FeatureRegistry with TTL-based expiration
 //! - `vector`: ContextVector with normalized dimensions and explainability
+//! - `inference`: Case-based inference with weighted voting
 //!
 //! ## Features
 //!
@@ -29,6 +30,7 @@ pub mod config;
 pub mod types;
 pub mod features;
 pub mod vector;
+pub mod inference;
 
 // Re-export commonly used types at module level
 pub use config::{IntelligenceConfig, SignalWeights};
@@ -69,4 +71,18 @@ pub use vector::{
     VectorBuilder,
     WhyItem,
     dimensions,
+};
+
+// Re-export inference types
+pub use inference::{
+    InferenceEngine,
+    InferenceConfig,
+    InferenceStats,
+    SharedInferenceEngine,
+    TrainingSample,
+    SampleSource,
+    SampleVector,
+    PredictionV2,
+    ModeScore,
+    PredictionReason,
 };
