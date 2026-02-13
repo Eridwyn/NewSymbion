@@ -269,9 +269,13 @@ async fn main() {
     let feature_registry = Arc::new(crate::intelligence::FeatureRegistry::new());
     eprintln!("[kernel] initialized Feature Registry");
 
-    // Inference Engine for case-based mode prediction (v2)
-    let inference_engine = Arc::new(crate::intelligence::InferenceEngine::default());
-    eprintln!("[kernel] initialized Inference Engine v2");
+    // Inference Engine for case-based mode prediction (v2) with persistence
+    let samples_path = std::path::PathBuf::from("./data/intelligence_samples.json");
+    let inference_engine = Arc::new(crate::intelligence::InferenceEngine::with_persistence(
+        crate::intelligence::InferenceConfig::default(),
+        samples_path,
+    ));
+    eprintln!("[kernel] initialized Inference Engine v2 (with persistence)");
 
     // Session Manager for hysteresis-based mode transitions (v2)
     let session_manager = Arc::new(crate::intelligence::SessionManager::default());
