@@ -700,7 +700,12 @@ async fn set_context_override(
                 // Record feedback for intelligence learning (manual override = user preference)
                 let signals = app.context_intelligence.collect_signals().await;
                 app.context_intelligence.record_feedback(&new_mode, signals);
-                eprintln!("[context] 📚 Override recorded for learning: {} → {}", old_mode, new_mode);
+                eprintln!("[context] 📚 v1 learning: {} → {}", old_mode, new_mode);
+
+                // Record correction for v2 intelligence learning (highest priority: UserCorrection)
+                let vector = crate::intelligence::VectorBuilder::new(&app.feature_registry).build();
+                app.inference_engine.record_correction(&vector, &new_mode);
+                eprintln!("[intelligence] 📚 v2 correction recorded: {} (sample count will grow)", new_mode);
             }
             Ok(Json(state))
         }
