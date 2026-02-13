@@ -20,7 +20,7 @@ import '../widgets/agents-network-widget.js'
 import '../widgets/agent-control-widget.js'
 import '../widgets/environment-widget.js'
 import '../widgets/context-engine-widget.js'
-import '../widgets/intelligence-widget.js'
+// intelligence-widget removed - Intelligence accessible via Context Engine > Intelligence tab
 import './user-settings-page.js'
 import './notes-page.js'
 import './context-engine-page.js'
@@ -1123,9 +1123,6 @@ class DashboardApp extends LitElement {
               <context-engine-widget></context-engine-widget>
             </div>
             <div class="widget-container">
-              <intelligence-widget></intelligence-widget>
-            </div>
-            <div class="widget-container">
               <agents-network-widget
                 .connected="${this.connected}"
                 .agents="${this.agents}">
@@ -1168,11 +1165,6 @@ class DashboardApp extends LitElement {
           <!-- Widget Context Engine (Mode + Automations résumé) -->
           <div class="widget-container">
             <context-engine-widget></context-engine-widget>
-          </div>
-
-          <!-- Widget Intelligence Contextuelle (Predictions) -->
-          <div class="widget-container">
-            <intelligence-widget></intelligence-widget>
           </div>
 
           <!-- Widget environnement (F1) -->
