@@ -296,6 +296,11 @@ pub mod feature_ids {
     pub const PROCESS_CATEGORY_MEDIA: &str = "process.category.media";
     pub const PROCESS_CATEGORY_COMMUNICATION: &str = "process.category.communication";
     pub const PROCESS_CATEGORY_GAMING: &str = "process.category.gaming";
+    pub const PROCESS_CATEGORY_OFFICE: &str = "process.category.office";
+
+    // Summary process features (computed by classifier)
+    pub const PROCESS_WORK_ACTIVE: &str = "process.work_active";
+    pub const PROCESS_LEISURE_ACTIVE: &str = "process.leisure_active";
 
     // Network features
     pub const NET_SSID: &str = "net.ssid";

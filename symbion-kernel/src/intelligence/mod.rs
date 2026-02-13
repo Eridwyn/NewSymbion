@@ -32,6 +32,7 @@ pub mod features;
 pub mod vector;
 pub mod inference;
 pub mod sessions;
+pub mod classifier;
 
 // Re-export commonly used types at module level
 pub use config::{IntelligenceConfig, SignalWeights};
@@ -97,4 +98,12 @@ pub use sessions::{
     SessionStats,
     ActiveSession,
     TransitionDecision,
+};
+
+// Re-export classifier types
+pub use classifier::{
+    ProcessClassifier,
+    SharedProcessClassifier,
+    ClassifierConfig,
+    ClassificationResult,
 };
