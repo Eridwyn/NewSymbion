@@ -1223,13 +1223,16 @@ impl ContextIntelligence {
 impl ContextIntelligence {
     /// Spawn the intelligence monitor background task
     /// Runs every 30 seconds to collect signals, predict mode, and auto-apply/suggest
+    /// Also runs v2 predictions in shadow mode for comparison
     pub fn spawn_intelligence_monitor(
         intelligence: SharedContextIntelligence,
         mode_registry: crate::modes::SharedModeRegistry,
         notifications_manager: crate::notifications::SharedNotificationManager,
+        feature_registry: crate::intelligence::SharedFeatureRegistry,
+        inference_engine: crate::intelligence::SharedInferenceEngine,
     ) {
         tokio::spawn(async move {
-            eprintln!("[intelligence] 🧠 Intelligence monitor started");
+            eprintln!("[intelligence] 🧠 Intelligence monitor started (with v2 shadow mode)");
 
             loop {
                 let check_interval = {
@@ -1251,14 +1254,39 @@ impl ContextIntelligence {
                 // 3. Compare with current mode
                 let current_mode = signals.current_mode.clone();
 
-                // Log prediction for debugging
+                // Log v1 prediction for debugging
                 eprintln!(
-                    "[intelligence] Prediction: {} (conf: {:.0}%) | Current: {} | {}",
+                    "[intelligence] v1: {} (conf: {:.0}%) | Current: {} | {}",
                     prediction.mode,
                     prediction.confidence * 100.0,
                     current_mode,
                     if prediction.mode == current_mode { "SAME" } else { "DIFFERENT" }
                 );
+
+                // Shadow mode: Run v2 prediction and compare
+                let vector = crate::intelligence::VectorBuilder::new(&feature_registry).build();
+                let prediction_v2 = inference_engine.predict(&vector);
+                let v2_mode = &prediction_v2.mode;
+                let v2_conf = prediction_v2.confidence;
+
+                // Log v2 prediction
+                eprintln!(
+                    "[intelligence] v2: {} (conf: {:.0}%) | {} samples | {}",
+                    v2_mode,
+                    v2_conf * 100.0,
+                    prediction_v2.samples_used,
+                    if v2_mode == &prediction.mode { "AGREE" } else { "DISAGREE" }
+                );
+
+                // Log comparison when predictions differ
+                if v2_mode != &prediction.mode {
+                    eprintln!(
+                        "[intelligence] 🔄 Shadow comparison: v1={} vs v2={} | v2 has {} samples",
+                        prediction.mode,
+                        v2_mode,
+                        prediction_v2.samples_used
+                    );
+                }
 
                 // Auto-mark prediction as correct if mode is stable for 30+ minutes
                 if prediction.mode == current_mode && signals.time_in_current_mode_minutes > 30 {

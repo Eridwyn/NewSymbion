@@ -476,12 +476,15 @@ async fn main() {
     println!("[kernel] environment alert monitor started");
 
     // Context Intelligence Monitor - autonomous mode prediction and adaptation
+    // With shadow mode: compares v1 and v2 predictions in parallel
     crate::context_intelligence::ContextIntelligence::spawn_intelligence_monitor(
         context_intelligence.clone(),
         mode_registry.clone(),
         notifications_manager.clone(),
+        feature_registry.clone(),
+        inference_engine.clone(),
     );
-    println!("[kernel] context intelligence monitor started");
+    println!("[kernel] context intelligence monitor started (with v2 shadow mode)");
 
     // fabrique l'état unique pour Axum
     let app_state = AppState {
