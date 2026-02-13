@@ -220,6 +220,9 @@ pub struct InferenceEngine {
 
     /// Configuration
     config: InferenceConfig,
+
+    /// Path to persistence file (None = no persistence)
+    data_path: Option<std::path::PathBuf>,
 }
 
 impl Default for InferenceEngine {
@@ -229,29 +232,92 @@ impl Default for InferenceEngine {
 }
 
 impl InferenceEngine {
-    /// Create a new inference engine
+    /// Create a new inference engine (no persistence)
     pub fn new(config: InferenceConfig) -> Self {
         Self {
             samples: RwLock::new(Vec::new()),
             config,
+            data_path: None,
+        }
+    }
+
+    /// Create a new inference engine with persistence
+    pub fn with_persistence(config: InferenceConfig, data_path: std::path::PathBuf) -> Self {
+        let engine = Self {
+            samples: RwLock::new(Vec::new()),
+            config,
+            data_path: Some(data_path),
+        };
+        // Load existing samples from disk
+        engine.load_samples();
+        engine
+    }
+
+    /// Load samples from disk
+    pub fn load_samples(&self) {
+        let Some(path) = &self.data_path else { return };
+
+        if !path.exists() {
+            eprintln!("[inference] No existing samples file at {:?}", path);
+            return;
+        }
+
+        match std::fs::read_to_string(path) {
+            Ok(content) => {
+                match serde_json::from_str::<Vec<TrainingSample>>(&content) {
+                    Ok(loaded) => {
+                        let count = loaded.len();
+                        *self.samples.write() = loaded;
+                        eprintln!("[inference] ✅ Loaded {} samples from {:?}", count, path);
+                    }
+                    Err(e) => {
+                        eprintln!("[inference] ❌ Failed to parse samples: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("[inference] ❌ Failed to read samples file: {}", e);
+            }
+        }
+    }
+
+    /// Save samples to disk
+    pub fn save_samples(&self) {
+        let Some(path) = &self.data_path else { return };
+
+        let samples = self.samples.read();
+        match serde_json::to_string_pretty(&*samples) {
+            Ok(json) => {
+                if let Err(e) = std::fs::write(path, json) {
+                    eprintln!("[inference] ❌ Failed to write samples: {}", e);
+                }
+            }
+            Err(e) => {
+                eprintln!("[inference] ❌ Failed to serialize samples: {}", e);
+            }
         }
     }
 
     /// Add a training sample
     pub fn add_sample(&self, sample: TrainingSample) {
-        let mut samples = self.samples.write();
-        samples.push(sample);
+        {
+            let mut samples = self.samples.write();
+            samples.push(sample);
 
-        // Enforce max samples limit
-        if samples.len() > self.config.max_samples {
-            // Remove oldest samples with lowest weight
-            samples.sort_by(|a, b| {
-                b.effective_weight()
-                    .partial_cmp(&a.effective_weight())
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
-            samples.truncate(self.config.max_samples);
-        }
+            // Enforce max samples limit
+            if samples.len() > self.config.max_samples {
+                // Remove oldest samples with lowest weight
+                samples.sort_by(|a, b| {
+                    b.effective_weight()
+                        .partial_cmp(&a.effective_weight())
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
+                samples.truncate(self.config.max_samples);
+            }
+        } // Release write lock before saving
+
+        // Persist to disk
+        self.save_samples();
     }
 
     /// Record a user correction (highest priority sample)
