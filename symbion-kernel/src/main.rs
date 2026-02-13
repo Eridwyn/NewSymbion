@@ -277,6 +277,11 @@ async fn main() {
     let session_manager = Arc::new(crate::intelligence::SessionManager::default());
     eprintln!("[kernel] initialized Session Manager v2");
 
+    // Bootstrap scheduler for cold start (seeds inference engine if needed)
+    let bootstrap_scheduler = crate::intelligence::BootstrapScheduler::default();
+    let initial_vector = crate::intelligence::VectorBuilder::new(&feature_registry).build();
+    bootstrap_scheduler.seed_inference_engine(&inference_engine, &initial_vector);
+
     // Schedule Registry pour planning horaire
     let schedule_registry = crate::schedule::create_shared_registry(std::path::PathBuf::from("./data"));
     eprintln!("[kernel] initialized Schedule Registry ({} rules)", schedule_registry.count_rules());
