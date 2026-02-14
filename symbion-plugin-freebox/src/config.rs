@@ -131,11 +131,11 @@ fn default_device_type() -> String {
 }
 
 fn default_presence_interval() -> u64 {
-    30
+    15  // Check presence every 15s for responsive detection
 }
 
 fn default_connection_interval() -> u64 {
-    60
+    30  // Connection status every 30s
 }
 
 fn default_downloads_interval() -> u64 {
@@ -143,7 +143,7 @@ fn default_downloads_interval() -> u64 {
 }
 
 fn default_devices_interval() -> u64 {
-    300
+    120  // Full device list every 2 minutes
 }
 
 impl Default for PollingConfig {
