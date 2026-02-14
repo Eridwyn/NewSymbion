@@ -41,6 +41,25 @@ struct NotificationAckRequest {
     notification_id: String,
 }
 
+/// Freebox presence status from plugin
+#[derive(Debug, Deserialize)]
+struct FreeboxPresenceMessage {
+    device_id: String,
+    friendly_name: String,
+    present: bool,
+    #[serde(default)]
+    ip_address: Option<String>,
+    device_type: String,
+}
+
+/// Freebox presence summary from plugin
+#[derive(Debug, Deserialize)]
+struct FreeboxPresenceSummary {
+    present: u32,
+    absent: u32,
+    anyone_home: bool,
+}
+
 /// Crée un client MQTT configuré pour le kernel avec son eventloop
 pub fn create_mqtt_client(config: &HostsConfig) -> Result<AsyncClient, Box<dyn std::error::Error + Send + Sync>> {
     let mqtt_cfg = config.mqtt.clone().unwrap_or_else(|| crate::config::MqttConf { 
@@ -122,6 +141,15 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
         if notifications_manager.is_some() {
             if let Err(e) = client.subscribe("symbion/notifications/acknowledge@v1", QoS::AtLeastOnce).await {
                 eprintln!("[kernel] subscribe notifications acknowledge failed: {e:?}");
+            }
+        }
+
+        // S'abonner aux événements Freebox presence (plugin)
+        if feature_registry.is_some() {
+            if let Err(e) = client.subscribe("symbion/freebox/presence/#", QoS::AtLeastOnce).await {
+                eprintln!("[kernel] subscribe freebox presence failed: {e:?}");
+            } else {
+                println!("[kernel] subscribed to Freebox presence topics");
             }
         }
 
@@ -392,6 +420,59 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                                     }
                                 }
                                 Err(e) => eprintln!("[kernel] notification ack JSON invalide: {txt}, error: {}", e),
+                            }
+                        }
+                    }
+                } else if p.topic.starts_with("symbion/freebox/presence/") {
+                    // Freebox presence updates
+                    if let Some(ref features) = feature_registry {
+                        if let Ok(txt) = String::from_utf8(p.payload.to_vec()) {
+                            // Handle summary topic
+                            if p.topic == "symbion/freebox/presence/summary" {
+                                match serde_json::from_str::<FreeboxPresenceSummary>(&txt) {
+                                    Ok(summary) => {
+                                        features.set_feature(
+                                            feature_ids::PRESENCE_ANYONE_HOME,
+                                            FeatureValue::Bool(summary.anyone_home),
+                                            "freebox",
+                                            1.0,
+                                            ttl::PRESENCE,
+                                        );
+                                        println!("[kernel] presence: anyone_home={} ({}present, {}absent)",
+                                            summary.anyone_home, summary.present, summary.absent);
+                                    }
+                                    Err(_) => {} // Not a summary, might be raw JSON
+                                }
+                            }
+                            // Handle individual device presence (not /state topics)
+                            else if !p.topic.ends_with("/state") {
+                                match serde_json::from_str::<FreeboxPresenceMessage>(&txt) {
+                                    Ok(presence) => {
+                                        // Phone presence feature
+                                        if presence.device_type == "phone" {
+                                            features.set_feature(
+                                                feature_ids::PRESENCE_PHONE,
+                                                FeatureValue::Bool(presence.present),
+                                                "freebox",
+                                                1.0,
+                                                ttl::PRESENCE,
+                                            );
+                                            if let Some(ip) = presence.ip_address {
+                                                features.set_feature(
+                                                    feature_ids::PRESENCE_PHONE_IP,
+                                                    FeatureValue::String(ip),
+                                                    "freebox",
+                                                    1.0,
+                                                    ttl::PRESENCE,
+                                                );
+                                            }
+                                            println!("[kernel] presence: {} ({}) = {}",
+                                                presence.friendly_name, presence.device_id,
+                                                if presence.present { "home" } else { "away" });
+                                        }
+                                    }
+                                    Err(e) => eprintln!("[kernel] freebox presence JSON invalide: {txt}, error: {}", e),
+                                }
                             }
                         }
                     }

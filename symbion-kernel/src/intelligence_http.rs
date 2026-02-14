@@ -31,7 +31,7 @@ use crate::context_intelligence::{
 };
 use crate::intelligence::{
     FeatureSample, FeatureRegistrySummary, ContextVector, VectorBuilder,
-    PredictionV2, InferenceStats,
+    PredictionV2, InferenceStats, ShadowStats, SampleStats, V2StabilizationConfig,
 };
 
 // ============================================================================
@@ -133,6 +133,16 @@ pub struct Prediction2Response {
     pub prediction: PredictionV2,
     pub vector: ContextVector,
     pub stats: InferenceStats,
+}
+
+/// Shadow stats response (v2 stabilization)
+#[derive(Serialize)]
+pub struct ShadowStatsResponse {
+    pub shadow_stats: ShadowStats,
+    pub sample_stats: SampleStats,
+    pub v2_config: V2StabilizationConfig,
+    /// Days since shadow mode started
+    pub observation_days: i64,
 }
 
 // ============================================================================
@@ -468,6 +478,25 @@ async fn get_session(State(app): State<AppState>) -> Json<SessionResponse> {
     })
 }
 
+/// GET /v1/intelligence/shadow-stats
+/// Returns v1 vs v2 shadow mode comparison statistics (v2 stabilization)
+async fn get_shadow_stats(State(app): State<AppState>) -> Json<ShadowStatsResponse> {
+    let shadow_stats = app.context_intelligence.get_shadow_stats();
+    let config = app.context_intelligence.get_config();
+    let sample_stats = app.inference_engine.sample_stats(config.v2.recent_days_window);
+
+    let observation_days = shadow_stats.tracking_since
+        .map(|ts| (time::OffsetDateTime::now_utc() - ts).whole_days())
+        .unwrap_or(0);
+
+    Json(ShadowStatsResponse {
+        shadow_stats,
+        sample_stats,
+        v2_config: config.v2,
+        observation_days,
+    })
+}
+
 // ============================================================================
 // Router
 // ============================================================================
@@ -484,6 +513,7 @@ pub fn intelligence_routes() -> Router<AppState> {
         .route("/vector", get(get_vector))          // v2 Intelligence
         .route("/prediction2", get(get_prediction2)) // v2 Intelligence
         .route("/session", get(get_session))         // v2 Intelligence
+        .route("/shadow-stats", get(get_shadow_stats)) // v2 Stabilization
         .route("/feedback", post(post_feedback))
         .route("/config", get(get_config).put(put_config))
 }

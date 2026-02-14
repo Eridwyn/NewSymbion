@@ -121,7 +121,10 @@ class MqttService extends LitElement {
       'symbion/dashboard/notes@v1',
       'symbion/dashboard/stats@v1',
       'symbion/dashboard/pattern@v1',
-      'symbion/notifications/sent@v1'  // Notifications push pour toasts PWA (kernel publie ici)
+      'symbion/notifications/sent@v1',  // Notifications push pour toasts PWA (kernel publie ici)
+      // Freebox plugin topics
+      'symbion/freebox/presence/#',
+      'symbion/freebox/connection/metrics'
     ]
 
     // Storage pour agréger les agents reçus individuellement
@@ -196,9 +199,32 @@ class MqttService extends LitElement {
         this.handleNotificationReceived(payload)
         break
 
+      case 'symbion/freebox/connection/metrics':
+        this.handleFreeboxConnection(payload)
+        break
+
       default:
-        console.log(`🤷 Unhandled topic: ${topic}`)
+        // Handle Freebox presence topics (wildcard)
+        if (topic.startsWith('symbion/freebox/presence/')) {
+          this.handleFreeboxPresence(topic, payload)
+        } else {
+          console.log(`🤷 Unhandled topic: ${topic}`)
+        }
     }
+  }
+
+  handleFreeboxPresence(topic, payload) {
+    this.dispatchEvent(new CustomEvent('freebox-presence', {
+      detail: { topic, payload },
+      bubbles: true
+    }))
+  }
+
+  handleFreeboxConnection(payload) {
+    this.dispatchEvent(new CustomEvent('freebox-connection', {
+      detail: { payload },
+      bubbles: true
+    }))
   }
   
   handleSystemHealth(health) {

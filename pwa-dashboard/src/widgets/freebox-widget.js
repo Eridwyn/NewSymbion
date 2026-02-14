@@ -1,0 +1,423 @@
+/**
+ * Widget Freebox
+ *
+ * Affiche la presence et le statut connexion depuis le plugin Freebox
+ * Mise a jour temps reel via MQTT
+ */
+
+import { LitElement, html, css } from 'lit'
+
+class FreeboxWidget extends LitElement {
+  static styles = css`
+    :host {
+      display: block;
+    }
+
+    .widget-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+    }
+
+    .widget-title {
+      font-size: 1.2em;
+      font-weight: 600;
+      color: #e0e0e0;
+    }
+
+    .status-badge {
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.75em;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .status-home {
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.25) 0%, rgba(34, 197, 94, 0.2) 100%);
+      color: #00d4aa;
+      border: 1px solid rgba(0, 212, 170, 0.4);
+      box-shadow: 0 2px 12px rgba(0, 212, 170, 0.3);
+      animation: pulse-home 3s ease-in-out infinite;
+    }
+
+    .status-away {
+      background: linear-gradient(135deg, rgba(255, 107, 107, 0.25) 0%, rgba(239, 68, 68, 0.2) 100%);
+      color: #ff6b6b;
+      border: 1px solid rgba(255, 107, 107, 0.4);
+      box-shadow: 0 2px 12px rgba(255, 107, 107, 0.3);
+    }
+
+    .status-unknown {
+      background: linear-gradient(135deg, rgba(128, 128, 128, 0.25) 0%, rgba(100, 100, 100, 0.2) 100%);
+      color: #888;
+      border: 1px solid rgba(128, 128, 128, 0.4);
+    }
+
+    @keyframes pulse-home {
+      0%, 100% {
+        box-shadow: 0 2px 12px rgba(0, 212, 170, 0.3);
+      }
+      50% {
+        box-shadow: 0 2px 16px rgba(0, 212, 170, 0.5);
+      }
+    }
+
+    .content-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .section-card {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 1rem;
+    }
+
+    .section-title {
+      font-size: 0.85em;
+      font-weight: 600;
+      color: #888;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .section-title svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    .presence-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .presence-item:last-child {
+      border-bottom: none;
+    }
+
+    .device-info {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .device-icon {
+      font-size: 1.2em;
+    }
+
+    .device-name {
+      color: #e0e0e0;
+      font-size: 0.9em;
+    }
+
+    .device-ip {
+      color: #666;
+      font-size: 0.75em;
+    }
+
+    .presence-status {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .status-dot.home {
+      background: #00d4aa;
+      box-shadow: 0 0 8px rgba(0, 212, 170, 0.5);
+    }
+
+    .status-dot.away {
+      background: #ff6b6b;
+    }
+
+    .presence-label {
+      font-size: 0.85em;
+      font-weight: 500;
+    }
+
+    .presence-label.home {
+      color: #00d4aa;
+    }
+
+    .presence-label.away {
+      color: #ff6b6b;
+    }
+
+    .connection-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    .stat-item {
+      text-align: center;
+      padding: 0.5rem;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 8px;
+    }
+
+    .stat-value {
+      font-size: 1.4em;
+      font-weight: 700;
+      color: #00d4aa;
+    }
+
+    .stat-unit {
+      font-size: 0.7em;
+      color: #888;
+      margin-left: 2px;
+    }
+
+    .stat-label {
+      font-size: 0.75em;
+      color: #666;
+      margin-top: 0.25rem;
+    }
+
+    .connection-type {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+      padding: 0.5rem;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 8px;
+      color: #888;
+      font-size: 0.8em;
+    }
+
+    .connection-type svg {
+      width: 14px;
+      height: 14px;
+      fill: #00d4aa;
+    }
+
+    .loading {
+      text-align: center;
+      color: #666;
+      padding: 2rem;
+    }
+
+    @media (max-width: 600px) {
+      .content-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  `
+
+  static properties = {
+    presenceDevices: { type: Array },
+    connectionStatus: { type: Object },
+    anyoneHome: { type: Boolean },
+    loading: { type: Boolean },
+    mqttConnected: { type: Boolean }
+  }
+
+  constructor() {
+    super()
+    this.presenceDevices = []
+    this.connectionStatus = null
+    this.anyoneHome = null
+    this.loading = true
+    this.mqttConnected = false
+    this._mqttSubscriptions = []
+  }
+
+  connectedCallback() {
+    super.connectedCallback()
+    this._setupEventListeners()
+    // Mark as connected after a short delay (MQTT service will send events)
+    setTimeout(() => {
+      this.loading = false
+      this.mqttConnected = true
+    }, 1000)
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback()
+    this._cleanupEventListeners()
+  }
+
+  _setupEventListeners() {
+    // Find the MQTT service element
+    const mqttService = document.querySelector('mqtt-service')
+    if (!mqttService) {
+      console.warn('[freebox-widget] MQTT service not found')
+      return
+    }
+
+    // Listen for Freebox events
+    this._boundPresenceHandler = (e) => this._handlePresenceEvent(e.detail)
+    this._boundConnectionHandler = (e) => this._handleConnectionEvent(e.detail)
+
+    mqttService.addEventListener('freebox-presence', this._boundPresenceHandler)
+    mqttService.addEventListener('freebox-connection', this._boundConnectionHandler)
+
+    this._mqttService = mqttService
+  }
+
+  _cleanupEventListeners() {
+    if (this._mqttService) {
+      this._mqttService.removeEventListener('freebox-presence', this._boundPresenceHandler)
+      this._mqttService.removeEventListener('freebox-connection', this._boundConnectionHandler)
+    }
+  }
+
+  _handlePresenceEvent({ topic, payload }) {
+    this._handleMqttMessage(topic, payload)
+  }
+
+  _handleConnectionEvent({ payload }) {
+    this.connectionStatus = payload
+    this.requestUpdate()
+  }
+
+  _handleMqttMessage(topic, payload) {
+    if (topic === 'symbion/freebox/presence/summary') {
+      if (typeof payload === 'object') {
+        this.anyoneHome = payload.anyone_home
+      }
+    } else if (topic === 'symbion/freebox/connection/metrics') {
+      this.connectionStatus = payload
+    } else if (topic.startsWith('symbion/freebox/presence/') && !topic.endsWith('/state')) {
+      // Individual device presence
+      if (typeof payload === 'object' && payload.device_id) {
+        const deviceIndex = this.presenceDevices.findIndex(d => d.device_id === payload.device_id)
+        if (deviceIndex >= 0) {
+          this.presenceDevices = [
+            ...this.presenceDevices.slice(0, deviceIndex),
+            payload,
+            ...this.presenceDevices.slice(deviceIndex + 1)
+          ]
+        } else {
+          this.presenceDevices = [...this.presenceDevices, payload]
+        }
+      }
+    }
+    this.requestUpdate()
+  }
+
+  _getOverallStatus() {
+    if (this.anyoneHome === null) return 'unknown'
+    return this.anyoneHome ? 'home' : 'away'
+  }
+
+  _getStatusLabel() {
+    const status = this._getOverallStatus()
+    if (status === 'home') return 'A la maison'
+    if (status === 'away') return 'Absent'
+    return 'Inconnu'
+  }
+
+  _formatSpeed(kbps) {
+    if (!kbps) return '0'
+    if (kbps >= 1000) {
+      return (kbps / 1000).toFixed(1)
+    }
+    return kbps.toFixed(0)
+  }
+
+  _getSpeedUnit(kbps) {
+    return kbps >= 1000 ? 'Mb/s' : 'Kb/s'
+  }
+
+  render() {
+    if (this.loading) {
+      return html`<div class="loading">Connexion Freebox...</div>`
+    }
+
+    const status = this._getOverallStatus()
+
+    return html`
+      <div class="widget-header">
+        <span class="widget-title">Freebox</span>
+        <span class="status-badge status-${status}">${this._getStatusLabel()}</span>
+      </div>
+
+      <div class="content-grid">
+        <!-- Presence Section -->
+        <div class="section-card">
+          <div class="section-title">
+            <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            Presence
+          </div>
+          ${this.presenceDevices.length === 0 ? html`
+            <div style="color: #666; font-size: 0.85em;">Aucun appareil configure</div>
+          ` : this.presenceDevices.map(device => html`
+            <div class="presence-item">
+              <div class="device-info">
+                <span class="device-icon">${device.device_type === 'phone' ? '📱' : '💻'}</span>
+                <div>
+                  <div class="device-name">${device.friendly_name || device.device_id}</div>
+                  ${device.ip_address ? html`<div class="device-ip">${device.ip_address}</div>` : ''}
+                </div>
+              </div>
+              <div class="presence-status">
+                <span class="status-dot ${device.present ? 'home' : 'away'}"></span>
+                <span class="presence-label ${device.present ? 'home' : 'away'}">
+                  ${device.present ? 'Home' : 'Away'}
+                </span>
+              </div>
+            </div>
+          `)}
+        </div>
+
+        <!-- Connection Section -->
+        <div class="section-card">
+          <div class="section-title">
+            <svg viewBox="0 0 24 24"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3a4.237 4.237 0 0 0-6 0zm-4-4l2 2a7.074 7.074 0 0 1 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg>
+            Connexion
+          </div>
+          ${!this.connectionStatus ? html`
+            <div style="color: #666; font-size: 0.85em;">En attente des donnees...</div>
+          ` : html`
+            <div class="connection-stats">
+              <div class="stat-item">
+                <div class="stat-value">
+                  ${this._formatSpeed(this.connectionStatus.current_download_kbps)}
+                  <span class="stat-unit">${this._getSpeedUnit(this.connectionStatus.current_download_kbps)}</span>
+                </div>
+                <div class="stat-label">Download</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">
+                  ${this._formatSpeed(this.connectionStatus.current_upload_kbps)}
+                  <span class="stat-unit">${this._getSpeedUnit(this.connectionStatus.current_upload_kbps)}</span>
+                </div>
+                <div class="stat-label">Upload</div>
+              </div>
+            </div>
+            <div class="connection-type">
+              <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-.61.08-1.21.21-1.78L8.99 15v1c0 1.1.9 2 2 2v1.93C7.06 19.43 4 16.07 4 12zm13.89 5.4c-.26-.81-1-1.4-1.9-1.4h-1v-3c0-.55-.45-1-1-1h-6v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41C17.92 5.77 20 8.65 20 12c0 2.08-.81 3.98-2.11 5.4z"/></svg>
+              ${this.connectionStatus.type || 'FTTH'} - ${this.connectionStatus.download_mbps || 0} Mb/s
+            </div>
+          `}
+        </div>
+      </div>
+    `
+  }
+}
+
+customElements.define('freebox-widget', FreeboxWidget)
+
+export { FreeboxWidget }

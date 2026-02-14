@@ -2155,14 +2155,10 @@ class ContextEnginePage extends LitElement {
     // Timeline highlighting
     highlightedAutomationId: { type: String },
     categoryFilter: { type: String },
-    // Intelligence data
-    intelligenceStatus: { type: Object },
-    intelligenceSignals: { type: Object },
-    intelligencePatterns: { type: Array },
-    intelligenceConfig: { type: Object },
-    // Intelligence config editing
-    _configDirty: { type: Boolean },
-    _originalConfig: { type: Object },
+    // Intelligence v2 data
+    intelligenceFeatures: { type: Object },
+    intelligenceVector: { type: Object },
+    intelligencePrediction: { type: Object },
     // UX Overlay states
     toasts: { type: Array },
     confirmDialog: { type: Object },
@@ -2231,14 +2227,10 @@ class ContextEnginePage extends LitElement {
     this.categoryFilter = 'all'
     // Timeline highlighting
     this.highlightedAutomationId = null
-    // Intelligence data
-    this.intelligenceStatus = null
-    this.intelligenceSignals = null
-    this.intelligencePatterns = []
-    this.intelligenceConfig = null
-    // Intelligence config editing
-    this._configDirty = false
-    this._originalConfig = null
+    // Intelligence v2 data
+    this.intelligenceFeatures = null
+    this.intelligenceVector = null
+    this.intelligencePrediction = null
     // UX Overlay states
     this.toasts = []
     this.confirmDialog = null
@@ -2395,65 +2387,16 @@ class ContextEnginePage extends LitElement {
     try {
       const apiService = document.querySelector('api-service')
       if (!apiService) return
-      const [status, signals, patterns, config] = await Promise.all([
-        apiService.request('/v1/intelligence/status').catch(() => null),
-        apiService.request('/v1/intelligence/signals').catch(() => null),
-        apiService.request('/v1/intelligence/patterns').catch(() => ({ patterns: [] })),
-        apiService.request('/v1/intelligence/config').catch(() => null),
+      const [features, vector, prediction] = await Promise.all([
+        apiService.request('/v1/intelligence/features').catch(() => null),
+        apiService.request('/v1/intelligence/vector').catch(() => null),
+        apiService.request('/v1/intelligence/prediction2').catch(() => null),
       ])
-      this.intelligenceStatus = status
-      this.intelligenceSignals = signals
-      this.intelligencePatterns = patterns?.patterns || []
-      this.intelligenceConfig = config?.config || null
-      // Store original for reset
-      this._originalConfig = config?.config ? JSON.parse(JSON.stringify(config.config)) : null
-      this._configDirty = false
+      this.intelligenceFeatures = features
+      this.intelligenceVector = vector
+      this.intelligencePrediction = prediction
     } catch (e) {
-      console.error('[context-engine] Failed to load intelligence:', e)
-    }
-  }
-
-  // ============ Intelligence Config Editing ============
-  _updateIntelligenceConfig(field, value) {
-    if (!this.intelligenceConfig) return
-    this.intelligenceConfig = {
-      ...this.intelligenceConfig,
-      [field]: value
-    }
-    this._configDirty = true
-    this.requestUpdate()
-  }
-
-  _resetIntelligenceConfig() {
-    if (!this._originalConfig) return
-    this.intelligenceConfig = JSON.parse(JSON.stringify(this._originalConfig))
-    this._configDirty = false
-    this.requestUpdate()
-  }
-
-  async _saveIntelligenceConfig() {
-    if (!this.intelligenceConfig) return
-
-    try {
-      const response = await csrfService.fetchWithCsrf('/v1/intelligence/config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(this.intelligenceConfig)
-      })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: response.statusText }))
-        throw new Error(error.error || `HTTP ${response.status}`)
-      }
-
-      // Update original to current
-      this._originalConfig = JSON.parse(JSON.stringify(this.intelligenceConfig))
-      this._configDirty = false
-      this.showToast('Configuration sauvegardee', 'success')
-      this.requestUpdate()
-    } catch (e) {
-      console.error('[context-engine] Failed to save intelligence config:', e)
-      this.showToast(`Erreur: ${e.message}`, 'error')
+      console.error('[context-engine] Failed to load intelligence v2:', e)
     }
   }
 
@@ -5314,30 +5257,23 @@ Exemple :
   }
 
   renderIntelligenceTab() {
-    const prediction = this.intelligenceSignals?.prediction
-    const signals = this.intelligenceSignals?.signals
-    const config = this.intelligenceConfig
-    const status = this.intelligenceStatus?.status
-    // accuracy_last_7_days is already in percentage (0-100), not decimal
-    const rawAccuracy = status?.accuracy_last_7_days ?? status?.accuracy_7_days ?? 0
-    const accuracy = Math.round(rawAccuracy > 1 ? rawAccuracy : rawAccuracy * 100)
+    const prediction = this.intelligencePrediction?.prediction
+    const vector = this.intelligencePrediction?.vector || this.intelligenceVector?.vector
+    const stats = this.intelligencePrediction?.stats
+    const features = this.intelligenceFeatures?.features || []
+    const summary = this.intelligenceFeatures?.summary
 
-    // Group patterns by mode for better visualization
-    const patternsByMode = {}
-    if (this.intelligencePatterns?.length > 0) {
-      this.intelligencePatterns.forEach(p => {
-        if (!patternsByMode[p.mode]) patternsByMode[p.mode] = []
-        patternsByMode[p.mode].push(p)
-      })
-      // Sort each mode's patterns by confidence
-      Object.keys(patternsByMode).forEach(mode => {
-        patternsByMode[mode].sort((a, b) => b.confidence - a.confidence)
-      })
-    }
+    // Group features by source
+    const featuresBySource = {}
+    features.forEach(f => {
+      const source = f.source.split('.')[0] // agent, classifier, sensor
+      if (!featuresBySource[source]) featuresBySource[source] = []
+      featuresBySource[source].push(f)
+    })
 
     return html`
       <div class="intelligence-tab" style="animation: card-enter 0.4s ease-out;">
-        <!-- Prediction Section - Redesigned with Gauge -->
+        <!-- Prediction v2 Section -->
         <div class="section-card" style="
           background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(109, 40, 217, 0.06) 100%);
           border: 1px solid rgba(139, 92, 246, 0.25);
@@ -5347,11 +5283,13 @@ Exemple :
           box-shadow: 0 4px 24px rgba(139, 92, 246, 0.1);
         ">
           <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem;">
-            <span style="font-size: 1.5rem; animation: float-icon 3s ease-in-out infinite;">🔮</span>
-            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 600; color: var(--color-dark-text-primary);">Prediction Intelligence</h3>
-            <span style="margin-left: auto; padding: 0.35rem 0.875rem; border-radius: 20px; background: ${accuracy >= 70 ? 'rgba(34, 197, 94, 0.15)' : 'rgba(251, 146, 60, 0.15)'}; border: 1px solid ${accuracy >= 70 ? 'rgba(34, 197, 94, 0.3)' : 'rgba(251, 146, 60, 0.3)'}; color: ${accuracy >= 70 ? '#22c55e' : '#fb923c'}; font-size: 0.75rem; font-weight: 600;">
-              ${accuracy}% precision (7j)
-            </span>
+            <span style="font-size: 1.5rem; animation: float-icon 3s ease-in-out infinite;">🧠</span>
+            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 600; color: var(--color-dark-text-primary);">Intelligence v2</h3>
+            ${stats ? html`
+              <span style="margin-left: auto; padding: 0.35rem 0.875rem; border-radius: 20px; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #a78bfa; font-size: 0.75rem; font-weight: 600;">
+                ${stats.total_samples} samples
+              </span>
+            ` : ''}
           </div>
 
           ${prediction ? html`
@@ -5367,157 +5305,138 @@ Exemple :
                   <span style="font-size: 3rem; animation: float-icon 4s ease-in-out infinite;">${this.getModeIcon(prediction.mode)}</span>
                   <div>
                     <div style="font-size: 1.5rem; font-weight: 700; color: #a78bfa; margin-bottom: 0.25rem;">${this.getModeName(prediction.mode)}</div>
-                    <span style="display: inline-block; padding: 0.3rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600;
-                      background: ${prediction.confidence >= 0.6 ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1))' : prediction.confidence >= 0.35 ? 'linear-gradient(135deg, rgba(251, 146, 60, 0.2), rgba(251, 146, 60, 0.1))' : 'linear-gradient(135deg, rgba(156, 163, 175, 0.2), rgba(156, 163, 175, 0.1))'};
-                      border: 1px solid ${prediction.confidence >= 0.6 ? 'rgba(34, 197, 94, 0.4)' : prediction.confidence >= 0.35 ? 'rgba(251, 146, 60, 0.4)' : 'rgba(156, 163, 175, 0.4)'};
-                      color: ${prediction.confidence >= 0.6 ? '#22c55e' : prediction.confidence >= 0.35 ? '#fb923c' : '#9ca3af'};">
-                      ${prediction.confidence >= 0.6 ? '✓ Auto-apply' : prediction.confidence >= 0.35 ? '💡 Suggestion' : '👁 Observation'}
-                    </span>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                      <span style="display: inline-block; padding: 0.3rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+                        background: ${prediction.is_confident ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1))' : 'linear-gradient(135deg, rgba(251, 146, 60, 0.2), rgba(251, 146, 60, 0.1))'};
+                        border: 1px solid ${prediction.is_confident ? 'rgba(34, 197, 94, 0.4)' : 'rgba(251, 146, 60, 0.4)'};
+                        color: ${prediction.is_confident ? '#22c55e' : '#fb923c'};">
+                        ${prediction.is_confident ? '✓ Confiant' : '⚠ Incertain'}
+                      </span>
+                      <span style="padding: 0.3rem 0.75rem; border-radius: 20px; font-size: 0.75rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--color-dark-text-secondary);">
+                        ${prediction.samples_used} samples utilises
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                ${prediction.reasons?.length > 0 ? html`
+                <!-- Alternatives -->
+                ${prediction.alternatives?.length > 0 ? html`
                   <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                    ${prediction.reasons.map(r => html`
-                      <span style="padding: 0.35rem 0.75rem; background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 20px; font-size: 0.8rem; color: var(--color-dark-text-secondary);">${r}</span>
+                    ${prediction.alternatives.map(alt => html`
+                      <span style="padding: 0.35rem 0.75rem; background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 20px; font-size: 0.8rem; color: var(--color-dark-text-secondary);">
+                        ${this.getModeIcon(alt.mode)} ${this.getModeName(alt.mode)}: ${Math.round(alt.score * 100)}%
+                      </span>
                     `)}
                   </div>
                 ` : ''}
               </div>
             </div>
 
-            <!-- Contributing Factors - Improved Bars -->
-            ${prediction.contributing_factors?.length > 0 ? html`
+            <!-- Why Chain - Samples Contributing -->
+            ${prediction.why?.length > 0 ? html`
               <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid rgba(139, 92, 246, 0.15);">
-                <div style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-dark-text-tertiary); margin-bottom: 0.75rem;">Facteurs Contributifs</div>
-                ${prediction.contributing_factors.map(([factor, weight], i) => this.renderFactorBar(factor, weight, i))}
+                <div style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-dark-text-tertiary); margin-bottom: 0.75rem;">Samples Contributifs</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                  ${prediction.why.slice(0, 5).map(w => html`
+                    <div style="padding: 0.5rem 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px; font-size: 0.75rem;">
+                      <span style="color: #a78bfa;">${this.getModeIcon(w.mode)}</span>
+                      <span style="color: var(--color-dark-text-secondary);">${w.mode}</span>
+                      <span style="color: ${w.similarity >= 0.8 ? '#22c55e' : w.similarity >= 0.5 ? '#fb923c' : '#9ca3af'}; margin-left: 0.5rem;">
+                        ${Math.round(w.similarity * 100)}% sim
+                      </span>
+                    </div>
+                  `)}
+                </div>
               </div>
             ` : ''}
           ` : html`
             <div style="text-align: center; padding: 3rem; color: var(--color-dark-text-tertiary);">
-              <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.4; animation: float-icon 3s ease-in-out infinite;">🔮</div>
-              <div style="font-size: 1rem;">Pas de prediction disponible</div>
+              <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.4; animation: float-icon 3s ease-in-out infinite;">🧠</div>
+              <div style="font-size: 1rem;">Pas de prediction v2 disponible</div>
               <div style="font-size: 0.8rem; margin-top: 0.5rem; opacity: 0.7;">Le systeme collecte des donnees...</div>
             </div>
           `}
         </div>
 
-        <!-- Signals Section - Improved Cards -->
-        ${signals ? html`
+        <!-- Context Vector Section -->
+        ${vector ? html`
           <div class="section-card" style="background: rgba(30, 35, 45, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 1.25rem; margin-bottom: 1.25rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-              <span style="font-size: 1.25rem; animation: float-icon 3s ease-in-out infinite;">📡</span>
-              <h3 style="margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-dark-text-primary);">Signaux Temps Reel</h3>
+              <span style="font-size: 1.25rem; animation: float-icon 3s ease-in-out infinite;">📊</span>
+              <h3 style="margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-dark-text-primary);">Context Vector</h3>
+              <span style="margin-left: auto; font-size: 0.7rem; color: var(--color-dark-text-tertiary);">
+                ${vector.feature_count || 0} features
+              </span>
             </div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem;">
-              ${this.renderSignalCard('🕐', 'Heure', `${utcHourToLocal(signals.hour)}h`, this.getDayNameFull(signals.day_of_week), 'neutral')}
-              ${this.renderSignalCard('🎯', 'Mode', signals.current_mode || 'N/A', `${signals.time_in_current_mode_minutes || 0} min`, 'good')}
-              ${this.renderSignalCard('🖥️', 'Agent', signals.agent_online ? 'Connecté' : 'Déconnecté', signals.agent_online ? 'PC utilisateur actif' : 'PC éteint ou absent', signals.agent_online ? 'good' : 'warning')}
-              ${signals.agent_online ? this.renderSignalCard('💤', 'Activité', signals.agent_idle_seconds < 60 ? 'Maintenant' : `Il y a ${Math.round(signals.agent_idle_seconds / 60)} min`, signals.agent_idle_seconds < 300 ? 'Utilisateur actif' : 'Inactif', signals.agent_idle_seconds < 300 ? 'good' : 'warning') : ''}
-              ${signals.agent_online ? this.renderSignalCard('⚡', 'CPU', `${(signals.cpu_usage || 0).toFixed(1)}%`, signals.cpu_usage > 50 ? 'Charge haute' : 'Normal', signals.cpu_usage > 80 ? 'warning' : 'neutral') : ''}
-              ${signals.temperature != null ? this.renderSignalCard('🌡', 'Temp', `${signals.temperature?.toFixed(1)}°C`, signals.temperature > 25 ? 'Chaud' : signals.temperature < 18 ? 'Frais' : 'Confort', signals.temperature > 28 || signals.temperature < 16 ? 'warning' : 'good') : ''}
-              ${signals.humidity != null ? this.renderSignalCard('💧', 'Humid', `${signals.humidity?.toFixed(0)}%`, signals.humidity > 70 ? 'Humide' : signals.humidity < 30 ? 'Sec' : 'Normal', signals.humidity > 70 || signals.humidity < 30 ? 'warning' : 'good') : ''}
+
+            <!-- Dimensions as bars -->
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+              ${Object.entries(vector.dimensions || {}).map(([dim, value]) => this.renderDimensionBar(dim, value, vector.why?.[dim]))}
             </div>
           </div>
         ` : ''}
 
-        <!-- Patterns Section - Grouped Cards -->
-        <div class="section-card" style="background: rgba(30, 35, 45, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 1.25rem; margin-bottom: 1.25rem;">
-          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-            <span style="font-size: 1.25rem; animation: float-icon 3s ease-in-out infinite;">📊</span>
-            <h3 style="margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-dark-text-primary);">Patterns Appris</h3>
-            <span style="margin-left: auto; padding: 0.25rem 0.75rem; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 20px; font-size: 0.75rem; color: #a78bfa; font-weight: 600;">
-              ${this.intelligencePatterns?.length || 0} patterns
-            </span>
-          </div>
+        <!-- Features Section -->
+        ${features.length > 0 ? html`
+          <div class="section-card" style="background: rgba(30, 35, 45, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 1.25rem; margin-bottom: 1.25rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+              <span style="font-size: 1.25rem; animation: float-icon 3s ease-in-out infinite;">📡</span>
+              <h3 style="margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-dark-text-primary);">Features Registry</h3>
+              <span style="margin-left: auto; padding: 0.25rem 0.75rem; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: 20px; font-size: 0.75rem; color: #22c55e; font-weight: 600;">
+                ${summary?.active_count || features.length} actives
+              </span>
+            </div>
 
-          ${Object.keys(patternsByMode).length > 0 ? html`
-            ${Object.entries(patternsByMode).map(([mode, patterns]) => html`
-              <div style="margin-bottom: 1.25rem;">
-                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                  <span style="font-size: 1.25rem;">${this.getModeIcon(mode)}</span>
-                  <span style="font-size: 0.85rem; font-weight: 600; color: var(--color-dark-text-primary);">${this.getModeName(mode)}</span>
-                  <span style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">${patterns.length} patterns</span>
+            ${Object.entries(featuresBySource).map(([source, sourceFeatures]) => html`
+              <div style="margin-bottom: 1rem;">
+                <div style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-dark-text-tertiary); margin-bottom: 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                  ${source === 'agent' ? '🖥️ Agent' : source === 'classifier' ? '🏷️ Classifier' : source === 'sensor' ? '🌡️ Sensors' : source}
                 </div>
-                <div style="display: flex; gap: 0.75rem; overflow-x: auto; padding-bottom: 0.5rem; scrollbar-width: thin; scrollbar-color: rgba(139, 92, 246, 0.3) transparent;">
-                  ${patterns.slice(0, 8).map((p, i) => this.renderPatternCard(p, i, i < 3))}
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5rem;">
+                  ${sourceFeatures.map(f => this.renderFeatureCard(f))}
                 </div>
               </div>
             `)}
-          ` : html`
-            <div style="text-align: center; padding: 2rem; color: var(--color-dark-text-tertiary);">
-              <div style="font-size: 2rem; margin-bottom: 0.75rem; opacity: 0.4;">📊</div>
-              <div style="font-size: 0.9rem;">Aucun pattern appris</div>
-              <div style="font-size: 0.8rem; margin-top: 0.5rem; opacity: 0.7;">Le systeme apprend de vos habitudes au fil du temps</div>
-            </div>
-          `}
-        </div>
+          </div>
+        ` : ''}
 
-        <!-- Configuration Section (Editable) -->
-        ${config ? html`
+        <!-- Stats Section -->
+        ${stats ? html`
           <div class="section-card" style="background: rgba(30, 35, 45, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
-              <span style="font-size: 1rem;">⚙️</span>
-              <h3 style="margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--color-dark-text-primary);">Configuration Intelligence</h3>
-              ${this._configDirty ? html`
-                <span style="margin-left: auto; padding: 0.2rem 0.5rem; background: rgba(251, 146, 60, 0.2); border-radius: 10px; font-size: 0.65rem; color: #fb923c;">Non sauvegardé</span>
-              ` : ''}
+              <span style="font-size: 1rem;">📈</span>
+              <h3 style="margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--color-dark-text-primary);">Statistiques Apprentissage</h3>
             </div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem;">
-              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                <label style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.25rem; display: block;">Seuil Auto-apply (%)</label>
-                <input type="number" min="0" max="100" step="5"
-                  .value="${Math.round(config.auto_apply_threshold * 100)}"
-                  @change="${e => this._updateIntelligenceConfig('auto_apply_threshold', parseInt(e.target.value) / 100)}"
-                  style="width: 100%; padding: 0.4rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 6px; color: #22c55e; font-size: 1rem; font-weight: 600;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem;">
+              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px; text-align: center;">
+                <div style="font-size: 1.5rem; font-weight: 700; color: #a78bfa;">${stats.total_samples}</div>
+                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">Total Samples</div>
               </div>
-              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                <label style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.25rem; display: block;">Seuil Suggestion (%)</label>
-                <input type="number" min="0" max="100" step="5"
-                  .value="${Math.round(config.suggestion_threshold * 100)}"
-                  @change="${e => this._updateIntelligenceConfig('suggestion_threshold', parseInt(e.target.value) / 100)}"
-                  style="width: 100%; padding: 0.4rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(251, 146, 60, 0.3); border-radius: 6px; color: #fb923c; font-size: 1rem; font-weight: 600;">
+              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px; text-align: center;">
+                <div style="font-size: 1.5rem; font-weight: 700; color: #22c55e;">${stats.by_source?.UserCorrection || 0}</div>
+                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">Corrections</div>
               </div>
-              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                <label style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.25rem; display: block;">Intervalle check (s)</label>
-                <input type="number" min="10" max="300" step="10"
-                  .value="${config.check_interval_seconds}"
-                  @change="${e => this._updateIntelligenceConfig('check_interval_seconds', parseInt(e.target.value))}"
-                  style="width: 100%; padding: 0.4rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--color-dark-text-primary); font-size: 1rem; font-weight: 600;">
+              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px; text-align: center;">
+                <div style="font-size: 1.5rem; font-weight: 700; color: #fb923c;">${stats.by_source?.Bootstrap || 0}</div>
+                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">Bootstrap</div>
               </div>
-              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                <label style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.25rem; display: block;">Auto-create automations</label>
-                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                  <input type="checkbox"
-                    .checked="${config.auto_create_automations}"
-                    @change="${e => this._updateIntelligenceConfig('auto_create_automations', e.target.checked)}"
-                    style="width: 1.2rem; height: 1.2rem; accent-color: #22c55e;">
-                  <span style="font-size: 0.9rem; color: ${config.auto_create_automations ? '#22c55e' : '#ef4444'};">
-                    ${config.auto_create_automations ? 'Activé' : 'Désactivé'}
-                  </span>
-                </label>
+              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px; text-align: center;">
+                <div style="font-size: 1.5rem; font-weight: 700; color: var(--color-dark-text-primary);">${(stats.average_weight || 0).toFixed(2)}</div>
+                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">Poids Moyen</div>
               </div>
             </div>
-            <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.05);">
-              <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.5rem;">Poids des signaux</div>
-              <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                ${Object.entries(config.weights || {}).map(([k, v]) => html`
-                  <span style="padding: 0.25rem 0.5rem; background: rgba(139, 92, 246, 0.1); border-radius: 10px; font-size: 0.7rem; color: var(--color-dark-text-secondary);">
-                    ${this.getFactorLabel(k)}: ${Math.round(v * 100)}%
-                  </span>
-                `)}
-              </div>
-            </div>
-            ${this._configDirty ? html`
-              <div style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
-                <button @click="${() => this._resetIntelligenceConfig()}"
-                  style="padding: 0.5rem 1rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: var(--color-dark-text-secondary); cursor: pointer; font-size: 0.8rem;">
-                  Annuler
-                </button>
-                <button @click="${() => this._saveIntelligenceConfig()}"
-                  style="padding: 0.5rem 1rem; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 8px; color: white; cursor: pointer; font-size: 0.8rem; font-weight: 600;">
-                  Sauvegarder
-                </button>
+
+            <!-- Samples by mode -->
+            ${stats.by_mode ? html`
+              <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.5rem;">Samples par mode</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                  ${Object.entries(stats.by_mode).map(([mode, count]) => html`
+                    <span style="padding: 0.25rem 0.5rem; background: rgba(139, 92, 246, 0.1); border-radius: 10px; font-size: 0.7rem; color: var(--color-dark-text-secondary);">
+                      ${this.getModeIcon(mode)} ${mode}: ${count}
+                    </span>
+                  `)}
+                </div>
               </div>
             ` : ''}
           </div>
@@ -5526,16 +5445,85 @@ Exemple :
     `
   }
 
-  getFactorLabel(factor) {
-    const labels = {
-      'temporal': 'Temporel',
-      'behavioral': 'Comportement',
-      'agent_activity': 'Activite',
-      'environmental': 'Environnement',
-      'environment': 'Environnement',
-      'momentum': 'Momentum'
+  // Render a dimension bar with why chain
+  renderDimensionBar(dimension, value, why) {
+    const colors = {
+      'home_prob': { start: '#22c55e', end: '#4ade80', icon: '🏠' },
+      'work_prob': { start: '#3b82f6', end: '#60a5fa', icon: '💼' },
+      'focus_prob': { start: '#8b5cf6', end: '#a78bfa', icon: '🎯' },
+      'sleep_prob': { start: '#6366f1', end: '#818cf8', icon: '😴' },
+      'pc_active': { start: '#f59e0b', end: '#fbbf24', icon: '🖥️' },
+      'away_prob': { start: '#ec4899', end: '#f472b6', icon: '🚶' }
     }
-    return labels[factor] || factor
+    const c = colors[dimension] || { start: '#6b7280', end: '#9ca3af', icon: '📊' }
+    const percentage = Math.round(value * 100)
+    const label = dimension.replace('_prob', '').replace('_', ' ')
+
+    return html`
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <span style="font-size: 1rem; width: 1.5rem; text-align: center;">${c.icon}</span>
+        <div style="flex: 1;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+            <span style="font-size: 0.75rem; color: var(--color-dark-text-secondary); text-transform: capitalize;">${label}</span>
+            <span style="font-size: 0.75rem; font-weight: 600; color: ${c.start};">${percentage}%</span>
+          </div>
+          <div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+            <div style="height: 100%; width: ${percentage}%; background: linear-gradient(90deg, ${c.start}, ${c.end}); border-radius: 3px; transition: width 0.5s ease-out;"></div>
+          </div>
+          ${why?.length > 0 ? html`
+            <div style="margin-top: 0.25rem; display: flex; flex-wrap: wrap; gap: 0.25rem;">
+              ${why.slice(0, 3).map(w => html`
+                <span style="font-size: 0.65rem; padding: 0.1rem 0.4rem; background: rgba(255,255,255,0.05); border-radius: 4px; color: var(--color-dark-text-tertiary);">
+                  ${w.feature_id}: ${w.contribution > 0 ? '+' : ''}${Math.round(w.contribution * 100)}%
+                </span>
+              `)}
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `
+  }
+
+  // Render a feature card
+  renderFeatureCard(feature) {
+    const value = feature.value?.value
+    const type = feature.value?.type
+    let displayValue = ''
+    let status = 'neutral'
+
+    if (type === 'Bool') {
+      displayValue = value ? '✓ Oui' : '✗ Non'
+      status = value ? 'good' : 'neutral'
+    } else if (type === 'Float') {
+      displayValue = typeof value === 'number' ? value.toFixed(1) : value
+      // Add unit based on feature_id
+      if (feature.feature_id.includes('temperature')) displayValue += '°C'
+      else if (feature.feature_id.includes('humidity')) displayValue += '%'
+      else if (feature.feature_id.includes('cpu') || feature.feature_id.includes('memory')) displayValue += '%'
+    } else if (type === 'StringList') {
+      displayValue = `${value?.length || 0} items`
+    } else {
+      displayValue = String(value)
+    }
+
+    const statusColors = {
+      good: { bg: 'rgba(34, 197, 94, 0.1)', border: 'rgba(34, 197, 94, 0.3)', text: '#22c55e' },
+      warning: { bg: 'rgba(251, 146, 60, 0.1)', border: 'rgba(251, 146, 60, 0.3)', text: '#fb923c' },
+      neutral: { bg: 'rgba(255,255,255,0.03)', border: 'rgba(255,255,255,0.1)', text: 'var(--color-dark-text-primary)' }
+    }
+    const s = statusColors[status]
+
+    return html`
+      <div style="padding: 0.5rem 0.75rem; background: ${s.bg}; border: 1px solid ${s.border}; border-radius: 8px;">
+        <div style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          ${feature.feature_id}
+        </div>
+        <div style="font-size: 0.9rem; font-weight: 600; color: ${s.text};">${displayValue}</div>
+        <div style="font-size: 0.6rem; color: var(--color-dark-text-tertiary); opacity: 0.7;">
+          conf: ${Math.round(feature.confidence * 100)}%
+        </div>
+      </div>
+    `
   }
 
   // ============ Intelligence UI Helpers ============
@@ -5570,97 +5558,6 @@ Exemple :
         <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
           <span style="font-size: ${size / 4}px; font-weight: 700; color: ${color}; animation: count-up 0.5s ease-out;">${percentage}%</span>
           <span style="font-size: ${size / 10}px; color: var(--color-dark-text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">${label}</span>
-        </div>
-      </div>
-    `
-  }
-
-  renderSignalCard(icon, label, value, sublabel = '', status = 'neutral') {
-    const statusColors = {
-      good: { bg: 'rgba(34, 197, 94, 0.1)', border: 'rgba(34, 197, 94, 0.3)', text: '#22c55e' },
-      warning: { bg: 'rgba(251, 146, 60, 0.1)', border: 'rgba(251, 146, 60, 0.3)', text: '#fb923c' },
-      neutral: { bg: 'rgba(255,255,255,0.03)', border: 'rgba(255,255,255,0.1)', text: 'var(--color-dark-text-primary)' }
-    }
-    const s = statusColors[status] || statusColors.neutral
-
-    return html`
-      <div style="
-        padding: 0.875rem;
-        background: ${s.bg};
-        border: 1px solid ${s.border};
-        border-radius: 12px;
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-        animation: card-enter 0.4s ease-out backwards;
-      ">
-        <div style="display: flex; align-items: center; gap: 0.5rem;">
-          <span style="font-size: 1.25rem; animation: float-icon 3s ease-in-out infinite;">${icon}</span>
-          <span style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">${label}</span>
-        </div>
-        <div style="font-size: 1.1rem; font-weight: 600; color: ${s.text};">${value}</div>
-        ${sublabel ? html`<div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">${sublabel}</div>` : ''}
-      </div>
-    `
-  }
-
-  renderFactorBar(factor, weight, index = 0) {
-    const colors = {
-      temporal: { start: '#8b5cf6', end: '#a78bfa' },
-      behavioral: { start: '#3b82f6', end: '#60a5fa' },
-      agent_activity: { start: '#22c55e', end: '#4ade80' },
-      environmental: { start: '#f59e0b', end: '#fbbf24' },
-      environment: { start: '#f59e0b', end: '#fbbf24' },
-      momentum: { start: '#ec4899', end: '#f472b6' }
-    }
-    const c = colors[factor] || { start: '#6b7280', end: '#9ca3af' }
-    const percentage = Math.round(weight * 100)
-
-    return html`
-      <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; animation: card-enter 0.4s ease-out ${index * 0.1}s backwards;">
-        <span style="font-size: 0.8rem; color: var(--color-dark-text-secondary); min-width: 100px; font-weight: 500;">${this.getFactorLabel(factor)}</span>
-        <div style="flex: 1; height: 10px; background: rgba(255,255,255,0.08); border-radius: 5px; overflow: hidden;">
-          <div style="
-            height: 100%;
-            width: ${percentage}%;
-            background: linear-gradient(90deg, ${c.start}, ${c.end});
-            border-radius: 5px;
-            box-shadow: 0 0 10px ${c.start}40;
-            animation: bar-fill 0.8s ease-out ${index * 0.1}s backwards;
-          "></div>
-        </div>
-        <span style="font-size: 0.85rem; font-weight: 600; color: ${c.start}; min-width: 45px; text-align: right;">${percentage}%</span>
-      </div>
-    `
-  }
-
-  renderPatternCard(pattern, index = 0, isTop = false) {
-    const confidence = pattern.confidence
-    const color = confidence >= 0.7 ? '#22c55e' : confidence >= 0.4 ? '#fb923c' : '#9ca3af'
-
-    return html`
-      <div style="
-        flex: 0 0 auto;
-        width: 130px;
-        padding: 0.875rem;
-        background: ${isTop ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(109, 40, 217, 0.08) 100%)' : 'rgba(255,255,255,0.03)'};
-        border: 1px solid ${isTop ? 'rgba(139, 92, 246, 0.3)' : 'rgba(255,255,255,0.08)'};
-        border-radius: 12px;
-        animation: card-enter 0.4s ease-out ${index * 0.05}s backwards;
-        ${isTop ? 'box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);' : ''}
-      ">
-        <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.5rem;">
-          ${this.getDayNameShort(pattern.day_of_week)} ${pattern.hour}h
-        </div>
-        <div style="display: flex; align-items: center; gap: 0.25rem; margin-bottom: 0.5rem;">
-          <span style="font-size: 1.5rem;">${this.getModeIcon(pattern.mode)}</span>
-        </div>
-        <div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-bottom: 0.375rem;">
-          <div style="height: 100%; width: ${confidence * 100}%; background: ${color}; border-radius: 3px;"></div>
-        </div>
-        <div style="display: flex; justify-content: space-between; font-size: 0.7rem;">
-          <span style="color: ${color}; font-weight: 600;">${Math.round(confidence * 100)}%</span>
-          <span style="color: var(--color-dark-text-tertiary);">${pattern.occurrences}x</span>
         </div>
       </div>
     `

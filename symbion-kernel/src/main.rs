@@ -483,6 +483,7 @@ async fn main() {
         notifications_manager.clone(),
         feature_registry.clone(),
         inference_engine.clone(),
+        agents.clone(),
     );
     println!("[kernel] context intelligence monitor started (with v2 shadow mode)");
 

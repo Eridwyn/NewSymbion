@@ -13,6 +13,7 @@ import '../services/mqtt-service.js'
 import '../services/agents-service.js'
 import '../services/context-service.js'
 import '../widgets/system-health-widget.js'
+import '../widgets/freebox-widget.js'
 // import '../widgets/hosts-widget.js'  // DEPRECATED: remplacé par agents-network-widget
 import '../widgets/plugins-widget.js'
 import '../widgets/notes-widget.js'
@@ -1152,6 +1153,9 @@ class DashboardApp extends LitElement {
               <environment-widget></environment-widget>
             </div>
             <div class="widget-container">
+              <freebox-widget></freebox-widget>
+            </div>
+            <div class="widget-container">
               <notes-widget
                 .apiService="${this.apiService}"
                 .connected="${this.connected}">
@@ -1170,6 +1174,11 @@ class DashboardApp extends LitElement {
           <!-- Widget environnement (F1) -->
           <div class="widget-container">
             <environment-widget></environment-widget>
+          </div>
+
+          <!-- Widget Freebox (presence + connexion) -->
+          <div class="widget-container">
+            <freebox-widget></freebox-widget>
           </div>
 
           <!-- Widget santé système -->

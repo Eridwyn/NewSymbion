@@ -232,6 +232,112 @@ pub struct AccuracyStats {
 }
 
 // ============================================================================
+// Shadow Mode Statistics (v2 Stabilization)
+// ============================================================================
+
+/// Statistics for v1 vs v2 shadow mode comparison
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ShadowStats {
+    /// When tracking started
+    #[serde(with = "time::serde::iso8601::option", default)]
+    pub tracking_since: Option<OffsetDateTime>,
+
+    /// Total predictions compared
+    pub total_comparisons: u32,
+
+    /// Times v1 and v2 agreed
+    pub agreements: u32,
+
+    /// Times v1 and v2 disagreed
+    pub disagreements: u32,
+
+    /// Agreement rate (0.0-1.0)
+    pub agreement_rate: f32,
+
+    /// Last 24h specific stats
+    pub last_24h: ShadowPeriodStats,
+
+    /// v2 would-apply count (when v2 met auto-apply criteria)
+    pub v2_would_apply_count: u32,
+
+    /// v2 blocked count (when v2 prediction was blocked by guards)
+    pub v2_blocked_count: u32,
+
+    /// Blocked reasons histogram
+    pub blocked_reasons: std::collections::HashMap<String, u32>,
+
+    /// Last comparison timestamp
+    #[serde(with = "time::serde::iso8601::option", default)]
+    pub last_comparison_at: Option<OffsetDateTime>,
+}
+
+/// Period-specific shadow stats
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ShadowPeriodStats {
+    pub comparisons: u32,
+    pub agreements: u32,
+    pub disagreements: u32,
+    pub agreement_rate: f32,
+}
+
+/// Detailed prediction log entry for auditability
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PredictionLogEntry {
+    /// Unique trace ID
+    pub trace_id: String,
+
+    /// Timestamp
+    #[serde(with = "time::serde::iso8601")]
+    pub timestamp: OffsetDateTime,
+
+    /// Summary of context vector (top dimensions)
+    pub vector_summary: VectorSummary,
+
+    /// v2 Prediction result
+    pub prediction: PredictionSummary,
+
+    /// Current session state
+    pub session_state: SessionSummary,
+
+    /// Auto-apply guard result
+    pub auto_apply_result: AutoApplyResult,
+}
+
+/// Compact vector summary for logging
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VectorSummary {
+    pub top_dimensions: Vec<(String, f32)>,
+    pub top_features: Vec<String>,
+    pub feature_count: usize,
+}
+
+/// Compact prediction summary for logging
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PredictionSummary {
+    pub mode: String,
+    pub confidence: f32,
+    pub samples_used: usize,
+    pub is_confident: bool,
+    pub alternatives: Vec<(String, f32)>,
+}
+
+/// Session state summary for logging
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionSummary {
+    pub current_mode: String,
+    pub time_in_mode_minutes: i64,
+    pub is_override_active: bool,
+}
+
+/// Auto-apply result for logging
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoApplyResult {
+    pub allowed: bool,
+    pub blocked_reason: Option<String>,
+    pub would_change_mode: bool,
+}
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 

@@ -306,6 +306,11 @@ pub mod feature_ids {
     pub const NET_SSID: &str = "net.ssid";
     pub const NET_CONNECTED: &str = "net.connected";
 
+    // Presence features (from Freebox plugin)
+    pub const PRESENCE_ANYONE_HOME: &str = "presence.anyone_home";
+    pub const PRESENCE_PHONE: &str = "presence.phone";
+    pub const PRESENCE_PHONE_IP: &str = "presence.phone.ip";
+
     // Environment features
     pub const ENV_TEMPERATURE: &str = "env.temperature";
     pub const ENV_HUMIDITY: &str = "env.humidity";
@@ -335,6 +340,9 @@ pub mod ttl {
 
     /// Network features (might change less frequently)
     pub const NETWORK: u32 = 300; // 5 minutes
+
+    /// Presence features (Freebox polls every 30s)
+    pub const PRESENCE: u32 = 90; // 1.5 minutes (3 missed polls = away)
 
     /// Environment features (sensors send every 30s typically)
     pub const ENVIRONMENT: u32 = 180; // 3 minutes

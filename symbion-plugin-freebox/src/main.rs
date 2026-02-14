@@ -122,6 +122,11 @@ async fn main() -> Result<()> {
         }),
     });
 
+    // Publish manifest (plugin discovery)
+    let manifest = include_str!("../manifest.json");
+    state.mqtt.publish_manifest(manifest).await?;
+    info!("Manifest published to symbion/plugins/freebox/manifest");
+
     // Publish initial health
     state.mqtt.publish_health(true, "Plugin started").await?;
 

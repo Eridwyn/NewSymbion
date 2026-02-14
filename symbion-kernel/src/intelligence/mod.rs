@@ -36,7 +36,7 @@ pub mod classifier;
 pub mod bootstrap;
 
 // Re-export commonly used types at module level
-pub use config::{IntelligenceConfig, SignalWeights};
+pub use config::{IntelligenceConfig, SignalWeights, V2StabilizationConfig};
 pub use types::{
     AccuracyStats,
     ContextSignals,
@@ -55,6 +55,14 @@ pub use types::{
     adaptive_modifier,
     day_name,
     mode_display_name,
+    // v2 stabilization types
+    ShadowStats,
+    ShadowPeriodStats,
+    PredictionLogEntry,
+    VectorSummary,
+    PredictionSummary,
+    SessionSummary,
+    AutoApplyResult,
 };
 
 // Re-export feature types
@@ -88,6 +96,10 @@ pub use inference::{
     PredictionV2,
     ModeScore,
     PredictionReason,
+    // v2 stabilization types
+    SampleStats,
+    AutoApplyGuard,
+    GuardChecks,
 };
 
 // Re-export session types

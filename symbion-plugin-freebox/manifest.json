@@ -1,0 +1,59 @@
+{
+  "spec_version": "1.0",
+  "plugin_id": "freebox",
+  "name": "Symbion Freebox",
+  "version": "1.0.0",
+  "description": "Integration Freebox - detection presence, monitoring reseau, status connexion",
+  "capabilities": [
+    {
+      "action_type": "get_presence",
+      "description": "Obtenir le statut de presence des appareils suivis",
+      "impact_level": "low",
+      "parameters": {}
+    },
+    {
+      "action_type": "get_devices",
+      "description": "Lister tous les appareils sur le reseau",
+      "impact_level": "low",
+      "parameters": {}
+    },
+    {
+      "action_type": "get_connection",
+      "description": "Obtenir le statut de la connexion internet",
+      "impact_level": "low",
+      "parameters": {}
+    },
+    {
+      "action_type": "get_downloads",
+      "description": "Obtenir le statut des telechargements",
+      "impact_level": "low",
+      "parameters": {}
+    }
+  ],
+  "events": [
+    {
+      "event_type": "presence_changed",
+      "description": "Le statut de presence d'un appareil a change",
+      "mqtt_topic": "symbion/freebox/presence/+"
+    },
+    {
+      "event_type": "connection_updated",
+      "description": "Les metriques de connexion ont ete mises a jour",
+      "mqtt_topic": "symbion/freebox/connection/metrics"
+    }
+  ],
+  "features": [
+    {
+      "feature_id": "presence.phone",
+      "type": "bool",
+      "description": "Telephone present sur le reseau"
+    },
+    {
+      "feature_id": "presence.anyone_home",
+      "type": "bool",
+      "description": "Au moins un appareil suivi est present"
+    }
+  ],
+  "health_endpoint": "/health",
+  "socket_path": "/run/symbion-plugins/freebox.sock"
+}

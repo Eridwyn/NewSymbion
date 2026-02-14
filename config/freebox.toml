@@ -1,0 +1,42 @@
+# Symbion Freebox Plugin Configuration
+# Configured: 2026-02-14
+
+# =============================================================================
+# Freebox API Configuration
+# =============================================================================
+[freebox]
+api_url = "http://mafreebox.freebox.fr"
+app_id = "symbion.presence.v2"
+app_token = "zMN+Zt9oF3ApII+Qf+OegK7qyTXjvE8MVOjESTvliRErvp3QNCZ8B0NnDzMZa0/F"
+
+# =============================================================================
+# MQTT Broker Configuration
+# =============================================================================
+[mqtt]
+host = "127.0.0.1"
+port = 1883
+client_id = "symbion-plugin-freebox"
+topic_prefix = "symbion/freebox"
+
+# =============================================================================
+# HTTP Health Endpoint
+# =============================================================================
+[http]
+socket_path = "/run/symbion-plugins/freebox.sock"
+
+# =============================================================================
+# Devices to Track for Presence Detection
+# =============================================================================
+[devices.phone_mark]
+freebox_name = "motorola-mark"
+device_type = "phone"
+friendly_name = "Telephone Mark"
+
+# =============================================================================
+# Polling Intervals (in seconds)
+# =============================================================================
+[polling]
+presence_seconds = 30
+connection_seconds = 60
+downloads_seconds = 30
+devices_seconds = 300
