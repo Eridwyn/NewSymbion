@@ -16,7 +16,7 @@ use serde::Serialize;
 use std::sync::Arc;
 use symbion_plugin_common::PluginHttpServer;
 use tokio::sync::RwLock;
-use tokio::time::{interval, Duration};
+use tokio::time::{interval_at, Duration, Instant};
 use tracing::{error, info, warn, Level};
 use tracing_subscriber::EnvFilter;
 
@@ -165,7 +165,8 @@ async fn main() -> Result<()> {
 
 /// Presence detection loop - checks tracked devices
 async fn presence_loop(state: Arc<PluginState>) {
-    let mut ticker = interval(Duration::from_secs(state.config.polling.presence_seconds));
+    // interval_at with Instant::now() ticks immediately on first call
+    let mut ticker = interval_at(Instant::now(), Duration::from_secs(state.config.polling.presence_seconds));
 
     loop {
         ticker.tick().await;
@@ -200,7 +201,7 @@ async fn presence_loop(state: Arc<PluginState>) {
 
 /// Connection status loop
 async fn connection_loop(state: Arc<PluginState>) {
-    let mut ticker = interval(Duration::from_secs(state.config.polling.connection_seconds));
+    let mut ticker = interval_at(Instant::now(), Duration::from_secs(state.config.polling.connection_seconds));
 
     loop {
         ticker.tick().await;
@@ -225,7 +226,7 @@ async fn connection_loop(state: Arc<PluginState>) {
 
 /// Downloads monitoring loop
 async fn downloads_loop(state: Arc<PluginState>) {
-    let mut ticker = interval(Duration::from_secs(state.config.polling.downloads_seconds));
+    let mut ticker = interval_at(Instant::now(), Duration::from_secs(state.config.polling.downloads_seconds));
 
     loop {
         ticker.tick().await;
@@ -249,7 +250,7 @@ async fn downloads_loop(state: Arc<PluginState>) {
 
 /// Full device list refresh loop (less frequent)
 async fn devices_loop(state: Arc<PluginState>) {
-    let mut ticker = interval(Duration::from_secs(state.config.polling.devices_seconds));
+    let mut ticker = interval_at(Instant::now(), Duration::from_secs(state.config.polling.devices_seconds));
 
     loop {
         ticker.tick().await;
