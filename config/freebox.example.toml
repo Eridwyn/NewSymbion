@@ -1,0 +1,78 @@
+# Symbion Freebox Plugin Configuration
+# Copy to /opt/symbion/config/freebox.toml and edit values
+
+# =============================================================================
+# Freebox API Configuration
+# =============================================================================
+[freebox]
+# Freebox API URL (default for local network)
+api_url = "http://mafreebox.freebox.fr"
+
+# App ID registered with Freebox (must match authorization)
+app_id = "symbion.freebox"
+
+# App token obtained during authorization process
+# Run the authorization script first to get this token
+app_token = "YOUR_APP_TOKEN_HERE"
+
+# =============================================================================
+# MQTT Broker Configuration
+# =============================================================================
+[mqtt]
+# MQTT broker host
+host = "127.0.0.1"
+
+# MQTT broker port
+port = 1883
+
+# MQTT client ID (must be unique per broker)
+client_id = "symbion-plugin-freebox"
+
+# Topic prefix for all published messages
+# Topics will be: symbion/freebox/presence/*, symbion/freebox/connection/*, etc.
+topic_prefix = "symbion/freebox"
+
+# =============================================================================
+# HTTP Health Endpoint
+# =============================================================================
+[http]
+# Unix socket path for health endpoint
+socket_path = "/run/symbion-plugins/freebox.sock"
+
+# =============================================================================
+# Devices to Track for Presence Detection
+# =============================================================================
+# Each entry is a device you want to track
+# Key: internal identifier (used in MQTT topics)
+# freebox_name: name as shown in Freebox (primary_name or part of default_name)
+# device_type: phone, tablet, laptop, desktop, etc.
+# friendly_name: optional display name
+
+[devices.phone_mark]
+freebox_name = "motorola-mark"
+device_type = "phone"
+friendly_name = "Phone Mark"
+
+# Example: Add more devices
+# [devices.tablet]
+# freebox_name = "iPad-de-Mark"
+# device_type = "tablet"
+# friendly_name = "iPad Mark"
+
+# =============================================================================
+# Polling Intervals (in seconds)
+# =============================================================================
+[polling]
+# Presence check interval (default: 30s)
+# Lower = more responsive, higher = less API calls
+presence_seconds = 30
+
+# Internet connection status interval (default: 60s)
+connection_seconds = 60
+
+# Downloads status interval (default: 30s)
+downloads_seconds = 30
+
+# Full device list refresh interval (default: 300s = 5 min)
+# This is a heavier API call, don't poll too frequently
+devices_seconds = 300

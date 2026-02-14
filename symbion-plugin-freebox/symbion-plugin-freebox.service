@@ -1,0 +1,45 @@
+[Unit]
+Description=Symbion Freebox Plugin - Network presence and status monitoring
+Documentation=https://github.com/your-repo/symbion
+After=network-online.target mosquitto.service symbion-kernel.service
+Wants=network-online.target
+Requires=mosquitto.service
+
+[Service]
+Type=simple
+User=eridwyn
+Group=eridwyn
+
+# Configuration
+Environment=FREEBOX_CONFIG=/opt/symbion/config/freebox.toml
+Environment=RUST_LOG=info,symbion_plugin_freebox=debug
+
+# Working directory
+WorkingDirectory=/opt/symbion
+
+# Binary path
+ExecStart=/opt/symbion/bin/symbion-plugin-freebox
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/run/symbion-plugins
+ReadOnlyPaths=/opt/symbion/config
+
+# Resource limits
+MemoryMax=128M
+CPUQuota=10%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=symbion-freebox
+
+[Install]
+WantedBy=multi-user.target
