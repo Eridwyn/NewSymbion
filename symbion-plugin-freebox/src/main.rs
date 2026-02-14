@@ -24,17 +24,22 @@ use config::Config;
 use freebox::FreeboxClient;
 use mqtt::MqttPublisher;
 
+/// Plugin constants
+const PLUGIN_ID: &str = "freebox";
+const SPEC_VERSION: &str = "1.0";
+
 /// Plugin state shared across tasks
 struct PluginState {
     config: Config,
     freebox: FreeboxClient,
     mqtt: MqttPublisher,
-    health: RwLock<HealthStatus>,
+    health: RwLock<InternalHealth>,
+    started_at: std::time::Instant,
 }
 
-#[derive(Debug, Clone, Serialize)]
-struct HealthStatus {
-    healthy: bool,
+/// Internal health tracking
+#[derive(Debug, Clone, Default)]
+struct InternalHealth {
     freebox_connected: bool,
     mqtt_connected: bool,
     last_presence_check: Option<String>,
@@ -44,20 +49,15 @@ struct HealthStatus {
     error: Option<String>,
 }
 
-impl Default for HealthStatus {
-    fn default() -> Self {
-        Self {
-            healthy: false,
-            freebox_connected: false,
-            mqtt_connected: false,
-            last_presence_check: None,
-            last_connection_check: None,
-            last_devices_refresh: None,
-            last_downloads_check: None,
-            error: None,
-        }
-    }
+/// Health response for kernel discovery (standard format)
+#[derive(Debug, Clone, Serialize)]
+struct HealthResponse {
+    plugin_id: String,
+    spec_version: String,
+    status: String,
+    uptime_seconds: u64,
 }
+
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -114,12 +114,12 @@ async fn main() -> Result<()> {
         config: config.clone(),
         freebox,
         mqtt,
-        health: RwLock::new(HealthStatus {
-            healthy: true,
+        health: RwLock::new(InternalHealth {
             freebox_connected: true,
             mqtt_connected: true,
             ..Default::default()
         }),
+        started_at: std::time::Instant::now(),
     });
 
     // Publish manifest (plugin discovery)
@@ -293,7 +293,18 @@ async fn health_server(state: Arc<PluginState>) -> Result<()> {
 
 async fn health_handler(
     axum::extract::State(state): axum::extract::State<Arc<PluginState>>,
-) -> Json<HealthStatus> {
-    let health = state.health.read().await;
-    Json(health.clone())
+) -> Json<HealthResponse> {
+    let internal = state.health.read().await;
+    let status = if internal.freebox_connected && internal.mqtt_connected && internal.error.is_none() {
+        "healthy"
+    } else {
+        "degraded"
+    };
+
+    Json(HealthResponse {
+        plugin_id: PLUGIN_ID.to_string(),
+        spec_version: SPEC_VERSION.to_string(),
+        status: status.to_string(),
+        uptime_seconds: state.started_at.elapsed().as_secs(),
+    })
 }
