@@ -6,6 +6,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import '../components/organic-loader.js'
 
 class FreeboxWidget extends LitElement {
   static styles = css`
@@ -212,9 +213,11 @@ class FreeboxWidget extends LitElement {
       fill: #00d4aa;
     }
 
-    .loading {
-      text-align: center;
-      color: #666;
+    .loader-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 200px;
       padding: 2rem;
     }
 
@@ -246,11 +249,15 @@ class FreeboxWidget extends LitElement {
   connectedCallback() {
     super.connectedCallback()
     this._setupEventListeners()
-    // Mark as connected after a short delay (MQTT service will send events)
-    setTimeout(() => {
+    // Loading will be set to false when first data arrives
+  }
+
+  _checkDataLoaded() {
+    // Loading complete when we have presence OR connection data
+    if (this.presenceDevices.length > 0 || this.connectionStatus !== null || this.anyoneHome !== null) {
       this.loading = false
       this.mqttConnected = true
-    }, 1000)
+    }
   }
 
   disconnectedCallback() {
@@ -289,6 +296,7 @@ class FreeboxWidget extends LitElement {
 
   _handleConnectionEvent({ payload }) {
     this.connectionStatus = payload
+    this._checkDataLoaded()
     this.requestUpdate()
   }
 
@@ -314,6 +322,7 @@ class FreeboxWidget extends LitElement {
         }
       }
     }
+    this._checkDataLoaded()
     this.requestUpdate()
   }
 
@@ -343,7 +352,11 @@ class FreeboxWidget extends LitElement {
 
   render() {
     if (this.loading) {
-      return html`<div class="loading">Connexion Freebox...</div>`
+      return html`
+        <div class="loader-container">
+          <organic-loader text="📡 Connexion Freebox..."></organic-loader>
+        </div>
+      `
     }
 
     const status = this._getOverallStatus()
