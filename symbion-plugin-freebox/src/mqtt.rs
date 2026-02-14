@@ -265,4 +265,18 @@ impl MqttPublisher {
         self.publish("health", &status).await?;
         Ok(())
     }
+
+    /// Publish plugin manifest for discovery
+    pub async fn publish_manifest(&self, manifest: &str) -> Result<()> {
+        // Publish to standard plugin manifest topic (retained)
+        self.client
+            .publish(
+                "symbion/plugins/freebox/manifest",
+                QoS::AtLeastOnce,
+                true, // retained
+                manifest.as_bytes(),
+            )
+            .await?;
+        Ok(())
+    }
 }

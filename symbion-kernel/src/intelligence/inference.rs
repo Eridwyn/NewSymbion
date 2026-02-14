@@ -51,6 +51,11 @@ impl SampleSource {
             SampleSource::Bootstrap => 0.5,
         }
     }
+
+    /// Check if this source is bootstrap (low quality)
+    pub fn is_bootstrap(&self) -> bool {
+        matches!(self, SampleSource::Bootstrap)
+    }
 }
 
 /// A training sample linking a context vector to a chosen mode
@@ -104,15 +109,35 @@ impl TrainingSample {
     }
 
     /// Calculate the effective weight (with time decay and source multiplier)
+    /// Bootstrap samples decay faster (half-life 7 days vs 30 days for others)
     pub fn effective_weight(&self) -> f32 {
+        self.effective_weight_with_config(7.0)
+    }
+
+    /// Calculate effective weight with configurable bootstrap decay half-life
+    pub fn effective_weight_with_config(&self, bootstrap_half_life_days: f32) -> f32 {
         let age_days = (OffsetDateTime::now_utc() - self.timestamp).whole_days() as f32;
-        let time_decay = (-age_days / 30.0).exp(); // Exponential decay over 30 days
+
+        // Bootstrap samples have faster decay (configurable half-life)
+        let decay_rate = if self.source.is_bootstrap() {
+            bootstrap_half_life_days // Default: half weight after 7 days
+        } else {
+            30.0 // Normal samples: half weight after 30 days
+        };
+
+        let time_decay = (-age_days * 0.693 / decay_rate).exp(); // 0.693 = ln(2) for half-life
         self.base_weight * self.source.weight_multiplier() * time_decay
     }
 
     /// Calculate cosine similarity with another vector
     pub fn similarity(&self, other: &ContextVector) -> f32 {
         cosine_similarity(&self.vector.dimensions, &other.dimensions)
+    }
+
+    /// Check if this sample is recent (within given days)
+    pub fn is_recent(&self, days: i64) -> bool {
+        let age_days = (OffsetDateTime::now_utc() - self.timestamp).whole_days();
+        age_days <= days
     }
 }
 
@@ -491,6 +516,95 @@ impl InferenceEngine {
             },
         }
     }
+
+    /// Get detailed sample statistics for v2 stabilization
+    pub fn sample_stats(&self, recent_days: i64) -> SampleStats {
+        let samples = self.samples.read();
+
+        let total = samples.len();
+        let bootstrap = samples.iter().filter(|s| s.source.is_bootstrap()).count();
+        let non_bootstrap = total - bootstrap;
+        let recent = samples.iter().filter(|s| s.is_recent(recent_days)).count();
+        let recent_non_bootstrap = samples.iter()
+            .filter(|s| !s.source.is_bootstrap() && s.is_recent(recent_days))
+            .count();
+
+        SampleStats {
+            total,
+            bootstrap,
+            non_bootstrap,
+            recent,
+            recent_non_bootstrap,
+            recent_days,
+        }
+    }
+
+    /// Check if auto-apply is allowed based on v2 stabilization guards
+    pub fn check_auto_apply_guards(
+        &self,
+        prediction: &PredictionV2,
+        session_stable_minutes: i64,
+        config: &super::config::V2StabilizationConfig,
+    ) -> AutoApplyGuard {
+        let stats = self.sample_stats(config.recent_days_window);
+
+        // Individual guard checks
+        let confidence_ok = prediction.confidence >= config.auto_apply_threshold;
+        let total_samples_ok = stats.total >= config.min_samples_total;
+        let non_bootstrap_ok = stats.non_bootstrap >= config.min_samples_non_bootstrap;
+        let recent_samples_ok = stats.recent >= config.min_recent_samples;
+        let session_stable_ok = session_stable_minutes >= config.min_session_stable_minutes;
+
+        // Bootstrap containment: if ALL used samples are bootstrap, block
+        let samples = self.samples.read();
+        let used_sample_ids: std::collections::HashSet<_> = prediction.why.iter()
+            .map(|r| &r.sample_id)
+            .collect();
+        let used_samples: Vec<_> = samples.iter()
+            .filter(|s| used_sample_ids.contains(&s.id))
+            .collect();
+        let not_bootstrap_only = used_samples.iter().any(|s| !s.source.is_bootstrap());
+        drop(samples);
+
+        let guards = GuardChecks {
+            confidence_ok,
+            total_samples_ok,
+            non_bootstrap_ok,
+            recent_samples_ok,
+            session_stable_ok,
+            not_bootstrap_only,
+        };
+
+        // Determine blocked reason
+        let blocked_reason = if !confidence_ok {
+            Some(format!("insufficient_confidence ({:.0}% < {:.0}%)",
+                prediction.confidence * 100.0, config.auto_apply_threshold * 100.0))
+        } else if !total_samples_ok {
+            Some(format!("insufficient_total_samples ({} < {})",
+                stats.total, config.min_samples_total))
+        } else if !non_bootstrap_ok {
+            Some(format!("insufficient_non_bootstrap_samples ({} < {})",
+                stats.non_bootstrap, config.min_samples_non_bootstrap))
+        } else if !recent_samples_ok {
+            Some(format!("insufficient_recent_samples ({} < {} in {}d)",
+                stats.recent, config.min_recent_samples, config.recent_days_window))
+        } else if !session_stable_ok {
+            Some(format!("session_not_stable ({}min < {}min)",
+                session_stable_minutes, config.min_session_stable_minutes))
+        } else if !not_bootstrap_only {
+            Some("bootstrap_samples_only".to_string())
+        } else {
+            None
+        };
+
+        let allowed = blocked_reason.is_none();
+
+        AutoApplyGuard {
+            allowed,
+            blocked_reason,
+            guards,
+        }
+    }
 }
 
 /// Statistics about the inference engine
@@ -500,6 +614,45 @@ pub struct InferenceStats {
     pub by_source: HashMap<String, usize>,
     pub by_mode: HashMap<String, usize>,
     pub average_weight: f32,
+}
+
+/// Detailed sample statistics for v2 stabilization guards
+#[derive(Debug, Clone, Serialize)]
+pub struct SampleStats {
+    /// Total number of samples
+    pub total: usize,
+    /// Number of bootstrap samples
+    pub bootstrap: usize,
+    /// Number of non-bootstrap samples (UserCorrection, MFA, Automation)
+    pub non_bootstrap: usize,
+    /// Number of recent samples (within recent_days)
+    pub recent: usize,
+    /// Number of recent non-bootstrap samples
+    pub recent_non_bootstrap: usize,
+    /// Days used for "recent" calculation
+    pub recent_days: i64,
+}
+
+/// Auto-apply guard result for v2
+#[derive(Debug, Clone, Serialize)]
+pub struct AutoApplyGuard {
+    /// Whether auto-apply is allowed
+    pub allowed: bool,
+    /// Blocked reason if not allowed (None if allowed)
+    pub blocked_reason: Option<String>,
+    /// Which guards passed/failed
+    pub guards: GuardChecks,
+}
+
+/// Individual guard check results
+#[derive(Debug, Clone, Serialize)]
+pub struct GuardChecks {
+    pub confidence_ok: bool,
+    pub total_samples_ok: bool,
+    pub non_bootstrap_ok: bool,
+    pub recent_samples_ok: bool,
+    pub session_stable_ok: bool,
+    pub not_bootstrap_only: bool,
 }
 
 // ============================================================================

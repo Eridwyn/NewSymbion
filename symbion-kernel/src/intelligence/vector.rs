@@ -151,6 +151,7 @@ impl<'a> VectorBuilder<'a> {
         self.process_agent_features();
         self.process_time_features();
         self.process_environment_features();
+        self.process_presence_features();
         self.process_process_features();
 
         // Normalize probabilities to sum to ~1.0
@@ -290,6 +291,43 @@ impl<'a> VectorBuilder<'a> {
         // Humidity is informational, doesn't directly affect mode
         if self.registry.get_float(feature_ids::ENV_HUMIDITY).is_some() {
             self.feature_count += 1;
+        }
+    }
+
+    /// Process presence features (phone on network = someone home)
+    fn process_presence_features(&mut self) {
+        // Phone presence is a strong indicator of being home
+        if let Some(phone_present) = self.registry.get_bool(feature_ids::PRESENCE_PHONE) {
+            self.feature_count += 1;
+
+            if phone_present {
+                // Phone on network → strong home signal
+                self.add_contribution(dimensions::HOME_PROB, 0.35,
+                    feature_ids::PRESENCE_PHONE, "phone on network");
+                // Less likely to be away if phone is home
+                self.add_contribution(dimensions::WORK_PROB, -0.15,
+                    feature_ids::PRESENCE_PHONE, "phone on network");
+            } else {
+                // Phone not on network → might be away
+                self.add_contribution(dimensions::HOME_PROB, -0.25,
+                    feature_ids::PRESENCE_PHONE, "phone away");
+                // Could be at work
+                self.add_contribution(dimensions::WORK_PROB, 0.1,
+                    feature_ids::PRESENCE_PHONE, "phone away");
+            }
+        }
+
+        // Anyone home summary (aggregates all tracked devices)
+        if let Some(anyone_home) = self.registry.get_bool(feature_ids::PRESENCE_ANYONE_HOME) {
+            self.feature_count += 1;
+
+            if anyone_home {
+                self.add_contribution(dimensions::HOME_PROB, 0.2,
+                    feature_ids::PRESENCE_ANYONE_HOME, "someone home");
+            } else {
+                self.add_contribution(dimensions::HOME_PROB, -0.3,
+                    feature_ids::PRESENCE_ANYONE_HOME, "nobody home");
+            }
         }
     }
 

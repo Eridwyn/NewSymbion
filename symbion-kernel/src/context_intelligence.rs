@@ -82,6 +82,9 @@ pub struct ContextIntelligence {
     // Health counters (v1.1.9) - reset daily
     // (date, push_sent, suggestions_generated, auto_applied, denied)
     health_counters: RwLock<HealthCounters>,
+
+    // Shadow mode statistics (v2 stabilization)
+    shadow_stats: RwLock<crate::intelligence::ShadowStats>,
 }
 
 impl ContextIntelligence {
@@ -134,6 +137,65 @@ impl ContextIntelligence {
             daily_suggestion_count: RwLock::new((OffsetDateTime::now_utc().date(), 0)),
             // Health counters (v1.1.9)
             health_counters: RwLock::new(HealthCounters::default()),
+            // Shadow stats (v2 stabilization)
+            shadow_stats: RwLock::new(crate::intelligence::ShadowStats {
+                tracking_since: Some(OffsetDateTime::now_utc()),
+                ..Default::default()
+            }),
+        }
+    }
+
+    /// Get shadow mode statistics (v1 vs v2 comparison)
+    pub fn get_shadow_stats(&self) -> crate::intelligence::ShadowStats {
+        self.shadow_stats.read().clone()
+    }
+
+    /// Update shadow stats with a comparison result
+    fn record_shadow_comparison(&self, v1_mode: &str, v2_mode: &str, guard_result: &crate::intelligence::AutoApplyGuard) {
+        let now = OffsetDateTime::now_utc();
+        let mut stats = self.shadow_stats.write();
+
+        // Initialize tracking_since if not set
+        if stats.tracking_since.is_none() {
+            stats.tracking_since = Some(now);
+        }
+
+        stats.total_comparisons += 1;
+        stats.last_comparison_at = Some(now);
+
+        if v1_mode == v2_mode {
+            stats.agreements += 1;
+        } else {
+            stats.disagreements += 1;
+        }
+
+        // Update agreement rate
+        if stats.total_comparisons > 0 {
+            stats.agreement_rate = stats.agreements as f32 / stats.total_comparisons as f32;
+        }
+
+        // Track would-apply / blocked
+        if guard_result.allowed {
+            stats.v2_would_apply_count += 1;
+        } else {
+            stats.v2_blocked_count += 1;
+            if let Some(reason) = &guard_result.blocked_reason {
+                // Extract category from reason (e.g., "insufficient_confidence (...)" -> "insufficient_confidence")
+                let category = reason.split(' ').next().unwrap_or(reason).to_string();
+                *stats.blocked_reasons.entry(category).or_insert(0) += 1;
+            }
+        }
+
+        // Update 24h stats (simple rolling - reset if last comparison > 24h ago)
+        // For simplicity, we just track recent comparisons
+        stats.last_24h.comparisons += 1;
+        if v1_mode == v2_mode {
+            stats.last_24h.agreements += 1;
+        } else {
+            stats.last_24h.disagreements += 1;
+        }
+        if stats.last_24h.comparisons > 0 {
+            stats.last_24h.agreement_rate = stats.last_24h.agreements as f32 / stats.last_24h.comparisons as f32;
         }
     }
 
@@ -1230,6 +1292,7 @@ impl ContextIntelligence {
         notifications_manager: crate::notifications::SharedNotificationManager,
         feature_registry: crate::intelligence::SharedFeatureRegistry,
         inference_engine: crate::intelligence::SharedInferenceEngine,
+        agent_registry: crate::agents::SharedAgentRegistry,
     ) {
         tokio::spawn(async move {
             eprintln!("[intelligence] 🧠 Intelligence monitor started (with v2 shadow mode)");
@@ -1241,6 +1304,46 @@ impl ContextIntelligence {
                 };
 
                 tokio::time::sleep(check_interval).await;
+
+                // 0. Sync all agents status to FeatureRegistry
+                let all_agents = agent_registry.list_agents().await;
+                eprintln!("[intelligence] Syncing {} agents to FeatureRegistry", all_agents.len());
+
+                for (agent_id, agent) in all_agents.iter() {
+                    let source = format!("agent.{}", agent_id);
+                    let is_online = agent.status.status == "online";
+
+                    // Set per-agent online status
+                    feature_registry.set_feature(
+                        &format!("agent.{}.online", agent_id),
+                        crate::intelligence::FeatureValue::Bool(is_online),
+                        &source,
+                        1.0,
+                        120, // 2 minutes TTL
+                    );
+
+                    // Set hostname for identification
+                    feature_registry.set_feature(
+                        &format!("agent.{}.hostname", agent_id),
+                        crate::intelligence::FeatureValue::String(agent.hostname.clone()),
+                        &source,
+                        1.0,
+                        300, // 5 minutes TTL
+                    );
+
+                    eprintln!("[intelligence]   - {} ({}) = {}", agent_id, agent.hostname, if is_online { "online" } else { "offline" });
+                }
+
+                // Track count of online agents
+                let online_count = all_agents.values().filter(|a| a.status.status == "online").count();
+                feature_registry.set_feature(
+                    "agents.online_count",
+                    crate::intelligence::FeatureValue::Int(online_count as i64),
+                    "kernel",
+                    1.0,
+                    120,
+                );
+                eprintln!("[intelligence] Total online: {}/{}", online_count, all_agents.len());
 
                 // 1. Collect signals
                 let signals = intelligence.collect_signals().await;
@@ -1269,14 +1372,59 @@ impl ContextIntelligence {
                 let v2_mode = &prediction_v2.mode;
                 let v2_conf = prediction_v2.confidence;
 
-                // Log v2 prediction
+                // Get v2 config for guards
+                let v2_config = intelligence.config.read().v2.clone();
+
+                // Check auto-apply guards with stabilization rules
+                let guard_result = inference_engine.check_auto_apply_guards(
+                    &prediction_v2,
+                    signals.time_in_current_mode_minutes,
+                    &v2_config,
+                );
+
+                // Record shadow comparison stats
+                intelligence.record_shadow_comparison(&prediction.mode, v2_mode, &guard_result);
+
+                // Get sample stats for logging
+                let sample_stats = inference_engine.sample_stats(v2_config.recent_days_window);
+
+                // Detailed v2 prediction log
                 eprintln!(
-                    "[intelligence] v2: {} (conf: {:.0}%) | {} samples | {}",
+                    "[intelligence] v2: {} (conf: {:.0}%) | samples: {}/{} (bootstrap: {}, recent: {}) | {}",
                     v2_mode,
                     v2_conf * 100.0,
                     prediction_v2.samples_used,
+                    sample_stats.total,
+                    sample_stats.bootstrap,
+                    sample_stats.recent,
                     if v2_mode == &prediction.mode { "AGREE" } else { "DISAGREE" }
                 );
+
+                // Log guard result
+                if guard_result.allowed {
+                    eprintln!(
+                        "[intelligence] ✅ v2 guards: ALL PASSED (would auto-apply if enabled)"
+                    );
+                } else {
+                    eprintln!(
+                        "[intelligence] 🛡️ v2 guards: BLOCKED - {}",
+                        guard_result.blocked_reason.as_deref().unwrap_or("unknown")
+                    );
+                }
+
+                // Log top features contributing to vector
+                let top_dims: Vec<_> = vector.dimensions.iter()
+                    .filter(|(_, v)| **v > 0.1)
+                    .take(3)
+                    .map(|(k, v)| format!("{}={:.2}", k, v))
+                    .collect();
+                if !top_dims.is_empty() {
+                    eprintln!(
+                        "[intelligence] v2 vector: [{}] ({} features)",
+                        top_dims.join(", "),
+                        vector.feature_count
+                    );
+                }
 
                 // Log comparison when predictions differ
                 if v2_mode != &prediction.mode {
@@ -1288,21 +1436,26 @@ impl ContextIntelligence {
                     );
                 }
 
-                // v2 Auto-apply check (currently logs only, enable with flag later)
-                let v2_auto_apply_threshold = 0.5; // 50% confidence threshold
-                let v2_min_samples = 3;
-                let v2_would_apply = v2_conf >= v2_auto_apply_threshold
-                    && prediction_v2.samples_used >= v2_min_samples
+                // v2 Auto-apply check with STRICT guards
+                let v2_would_apply = guard_result.allowed
                     && v2_mode != &current_mode
-                    && prediction_v2.is_confident;
+                    && v2_config.auto_apply_enabled;
 
                 if v2_would_apply {
                     eprintln!(
-                        "[intelligence] ✨ v2 WOULD auto-apply: {} → {} (conf: {:.0}%, {} samples)",
+                        "[intelligence] ✨ v2 AUTO-APPLY: {} → {} (conf: {:.0}%, {} samples, all guards passed)",
                         current_mode,
                         v2_mode,
                         v2_conf * 100.0,
                         prediction_v2.samples_used
+                    );
+                    // TODO: Actually apply when v2_config.auto_apply_enabled = true
+                } else if guard_result.allowed && v2_mode != &current_mode {
+                    // Would apply but auto_apply_enabled = false
+                    eprintln!(
+                        "[intelligence] 💭 v2 WOULD auto-apply (disabled): {} → {} | guards: ✅",
+                        current_mode,
+                        v2_mode
                     );
                 }
 
