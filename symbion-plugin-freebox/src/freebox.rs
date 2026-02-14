@@ -194,49 +194,60 @@ impl FreeboxClient {
         Ok(token)
     }
 
-    /// Make an authenticated API request
+    /// Make an authenticated API request with automatic token refresh
     async fn api_get<T: for<'de> Deserialize<'de>>(&self, endpoint: &str) -> Result<T> {
-        let token = self.get_session_token().await?;
-        let url = format!("{}/api/v8{}", self.api_url, endpoint);
+        self.api_get_with_retry(endpoint, true).await
+    }
 
-        let resp: ApiResponse<T> = self.client
-            .get(&url)
-            .header("X-Fbx-App-Auth", &token)
-            .send()
-            .await?
-            .json()
-            .await?;
+    /// Internal API request with optional retry on auth failure
+    fn api_get_with_retry<'a, T: for<'de> Deserialize<'de> + 'a>(
+        &'a self,
+        endpoint: &'a str,
+        allow_retry: bool
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send + 'a>> {
+        Box::pin(async move {
+            let token = self.get_session_token().await?;
+            let url = format!("{}/api/v8{}", self.api_url, endpoint);
 
-        if !resp.success {
-            // Token might have expired, clear it and retry once
-            if resp.error_code.as_deref() == Some("auth_required") {
-                {
-                    let mut stored = self.session_token.write().await;
-                    *stored = None;
+            let response = self.client
+                .get(&url)
+                .header("X-Fbx-App-Auth", &token)
+                .send()
+                .await?;
+
+            // Get raw text first to handle auth errors that can't be parsed as T
+            let text = response.text().await?;
+
+            // Try to detect auth errors in raw response before parsing as T
+            if text.contains("auth_required") || text.contains("insufficient_rights") || text.contains("invalid_token") {
+                if allow_retry {
+                    tracing::warn!("Freebox auth error detected, refreshing session...");
+                    // Clear cached token
+                    {
+                        let mut stored = self.session_token.write().await;
+                        *stored = None;
+                    }
+                    // Retry with fresh token (no more retries)
+                    return self.api_get_with_retry(endpoint, false).await;
+                } else {
+                    return Err(anyhow!("Freebox authentication failed after retry"));
                 }
-                // Retry with fresh token
-                let token = self.get_session_token().await?;
-                let resp: ApiResponse<T> = self.client
-                    .get(&url)
-                    .header("X-Fbx-App-Auth", &token)
-                    .send()
-                    .await?
-                    .json()
-                    .await?;
+            }
 
-                return resp.result.ok_or_else(|| anyhow!(
-                    "API error: {}",
-                    resp.msg.unwrap_or_else(|| "Unknown error".to_string())
+            // Parse as ApiResponse<T>
+            let resp: ApiResponse<T> = serde_json::from_str(&text)
+                .map_err(|e| anyhow!("Failed to parse Freebox response: {} (raw: {}...)", e, &text[..text.len().min(200)]))?;
+
+            if !resp.success {
+                return Err(anyhow!(
+                    "API error: {} (code: {:?})",
+                    resp.msg.unwrap_or_else(|| "Unknown error".to_string()),
+                    resp.error_code
                 ));
             }
 
-            return Err(anyhow!(
-                "API error: {}",
-                resp.msg.unwrap_or_else(|| "Unknown error".to_string())
-            ));
-        }
-
-        resp.result.ok_or_else(|| anyhow!("No result in API response"))
+            resp.result.ok_or_else(|| anyhow!("No result in API response"))
+        })
     }
 
     // ========================================================================
