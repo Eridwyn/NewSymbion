@@ -93,14 +93,24 @@ impl MqttPublisher {
 
     /// Publish a JSON message to a topic
     async fn publish<T: Serialize + ?Sized>(&self, topic: &str, payload: &T) -> Result<()> {
+        self.publish_internal(topic, payload, false).await
+    }
+
+    /// Publish a retained JSON message (new clients get it immediately)
+    async fn publish_retained<T: Serialize + ?Sized>(&self, topic: &str, payload: &T) -> Result<()> {
+        self.publish_internal(topic, payload, true).await
+    }
+
+    /// Internal publish with retain flag
+    async fn publish_internal<T: Serialize + ?Sized>(&self, topic: &str, payload: &T, retain: bool) -> Result<()> {
         let full_topic = format!("{}/{}", self.topic_prefix, topic);
         let json = serde_json::to_string(payload)?;
 
         self.client
-            .publish(&full_topic, QoS::AtLeastOnce, false, json.as_bytes())
+            .publish(&full_topic, QoS::AtLeastOnce, retain, json.as_bytes())
             .await?;
 
-        debug!("Published to {}", full_topic);
+        debug!("Published to {}{}", full_topic, if retain { " (retained)" } else { "" });
         Ok(())
     }
 
@@ -110,9 +120,9 @@ impl MqttPublisher {
 
     /// Publish presence status for a tracked device
     pub async fn publish_presence(&self, status: &PresenceStatus) -> Result<()> {
-        // Publish to device-specific topic
+        // Publish to device-specific topic (retained for instant PWA display)
         let topic = format!("presence/{}", status.device_id);
-        self.publish(&topic, status).await?;
+        self.publish_retained(&topic, status).await?;
 
         // Also publish simple boolean for automations
         let bool_topic = format!("presence/{}/state", status.device_id);
@@ -175,7 +185,7 @@ impl MqttPublisher {
             "absent": absent_count,
             "anyone_home": present_count > 0,
         });
-        self.publish("presence/summary", &summary).await?;
+        self.publish_retained("presence/summary", &summary).await?;
 
         Ok(())
     }
@@ -205,7 +215,7 @@ impl MqttPublisher {
 
     /// Publish internet connection status
     pub async fn publish_connection(&self, status: &ConnectionStatus) -> Result<()> {
-        self.publish("connection/status", status).await?;
+        self.publish_retained("connection/status", status).await?;
 
         // Publish simplified metrics for dashboards
         let metrics = serde_json::json!({
@@ -218,7 +228,7 @@ impl MqttPublisher {
             "ipv4": status.ipv4,
             "ipv6": status.ipv6,
         });
-        self.publish("connection/metrics", &metrics).await?;
+        self.publish_retained("connection/metrics", &metrics).await?;
 
         Ok(())
     }
