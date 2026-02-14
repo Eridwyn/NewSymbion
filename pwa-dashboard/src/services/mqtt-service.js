@@ -215,6 +215,9 @@ class MqttService extends LitElement {
 
   handleFreeboxPresence(topic, payload) {
     console.log('📡 [mqtt] Freebox presence:', topic, payload)
+    // Cache presence data for late subscribers
+    this._freeboxPresenceCache = this._freeboxPresenceCache || {}
+    this._freeboxPresenceCache[topic] = payload
     this.dispatchEvent(new CustomEvent('freebox-presence', {
       detail: { topic, payload },
       bubbles: true,
@@ -224,11 +227,21 @@ class MqttService extends LitElement {
 
   handleFreeboxConnection(payload) {
     console.log('📡 [mqtt] Freebox connection:', payload)
+    // Cache connection data for late subscribers
+    this._freeboxConnectionCache = payload
     this.dispatchEvent(new CustomEvent('freebox-connection', {
       detail: { payload },
       bubbles: true,
       composed: true
     }))
+  }
+
+  // Get cached Freebox data for widgets that subscribe late
+  getFreeboxCache() {
+    return {
+      presence: this._freeboxPresenceCache || {},
+      connection: this._freeboxConnectionCache || null
+    }
   }
   
   handleSystemHealth(health) {

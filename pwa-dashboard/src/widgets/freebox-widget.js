@@ -314,6 +314,24 @@ class FreeboxWidget extends LitElement {
     mqttService.addEventListener('freebox-connection', this._boundConnectionHandler)
 
     this._mqttService = mqttService
+
+    // Load cached data (retained messages that arrived before we subscribed)
+    if (typeof mqttService.getFreeboxCache === 'function') {
+      const cache = mqttService.getFreeboxCache()
+      console.log('[freebox-widget] Loading cached data:', cache)
+
+      // Load cached presence
+      for (const [topic, payload] of Object.entries(cache.presence)) {
+        this._handleMqttMessage(topic, payload)
+      }
+
+      // Load cached connection
+      if (cache.connection) {
+        this.connectionStatus = cache.connection
+        this._checkDataLoaded()
+        this.requestUpdate()
+      }
+    }
   }
 
   _cleanupEventListeners() {
