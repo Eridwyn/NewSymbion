@@ -214,16 +214,20 @@ class MqttService extends LitElement {
   }
 
   handleFreeboxPresence(topic, payload) {
+    console.log('📡 [mqtt] Freebox presence:', topic, payload)
     this.dispatchEvent(new CustomEvent('freebox-presence', {
       detail: { topic, payload },
-      bubbles: true
+      bubbles: true,
+      composed: true
     }))
   }
 
   handleFreeboxConnection(payload) {
+    console.log('📡 [mqtt] Freebox connection:', payload)
     this.dispatchEvent(new CustomEvent('freebox-connection', {
       detail: { payload },
-      bubbles: true
+      bubbles: true,
+      composed: true
     }))
   }
   

@@ -248,8 +248,30 @@ class FreeboxWidget extends LitElement {
 
   connectedCallback() {
     super.connectedCallback()
-    this._setupEventListeners()
-    // Loading will be set to false when first data arrives
+    // Retry finding mqtt-service (may not exist immediately)
+    this._retrySetup()
+    // Fallback: stop loading after 10s even if no data
+    this._loadingTimeout = setTimeout(() => {
+      if (this.loading) {
+        console.warn('[freebox-widget] Timeout waiting for data, stopping loader')
+        this.loading = false
+        this.requestUpdate()
+      }
+    }, 10000)
+  }
+
+  _retrySetup(attempts = 0) {
+    const mqttService = document.querySelector('mqtt-service')
+    if (mqttService) {
+      this._setupEventListeners()
+    } else if (attempts < 10) {
+      // Retry every 500ms for up to 5 seconds
+      setTimeout(() => this._retrySetup(attempts + 1), 500)
+    } else {
+      console.warn('[freebox-widget] MQTT service not found after retries')
+      this.loading = false
+      this.requestUpdate()
+    }
   }
 
   _checkDataLoaded() {
@@ -257,6 +279,9 @@ class FreeboxWidget extends LitElement {
     if (this.presenceDevices.length > 0 || this.connectionStatus !== null || this.anyoneHome !== null) {
       this.loading = false
       this.mqttConnected = true
+      if (this._loadingTimeout) {
+        clearTimeout(this._loadingTimeout)
+      }
     }
   }
 
@@ -273,9 +298,17 @@ class FreeboxWidget extends LitElement {
       return
     }
 
+    console.log('[freebox-widget] Setting up event listeners on mqtt-service')
+
     // Listen for Freebox events
-    this._boundPresenceHandler = (e) => this._handlePresenceEvent(e.detail)
-    this._boundConnectionHandler = (e) => this._handleConnectionEvent(e.detail)
+    this._boundPresenceHandler = (e) => {
+      console.log('[freebox-widget] Received freebox-presence event', e.detail)
+      this._handlePresenceEvent(e.detail)
+    }
+    this._boundConnectionHandler = (e) => {
+      console.log('[freebox-widget] Received freebox-connection event', e.detail)
+      this._handleConnectionEvent(e.detail)
+    }
 
     mqttService.addEventListener('freebox-presence', this._boundPresenceHandler)
     mqttService.addEventListener('freebox-connection', this._boundConnectionHandler)
