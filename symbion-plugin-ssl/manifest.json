@@ -1,0 +1,30 @@
+{
+  "plugin_id": "ssl",
+  "version": "1.0.0",
+  "name": "SSL Monitor",
+  "description": "SSL certificate monitoring and domain health",
+  "author": "Mark Chavatte",
+  "capabilities": [
+    "get_domains",
+    "get_certificate",
+    "check_online"
+  ],
+  "routes": [
+    "/health",
+    "/domains"
+  ],
+  "features": [
+    "ssl.{domain}.valid",
+    "ssl.{domain}.days_remaining",
+    "ssl.{domain}.status",
+    "ssl.{domain}.online"
+  ],
+  "mqtt_topics": {
+    "publish": [
+      "symbion/ssl/{domain}",
+      "symbion/ssl/{domain}/online",
+      "symbion/ssl/summary",
+      "symbion/features/update"
+    ]
+  }
+}
