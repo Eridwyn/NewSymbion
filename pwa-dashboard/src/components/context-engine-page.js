@@ -4422,6 +4422,9 @@ Exemple :
         return `${icon} Capteur ${cond.sensor_id || '?'} ${cond.metric || '?'} ${cond.operator || '?'} ${cond.value ?? '?'}`
       case 'agent_online':
         return `${icon} Agent ${cond.agent_id || '?'} en ligne`
+      case 'feature':
+        const op = cond.operator === 'equals' ? '=' : cond.operator === 'not_equals' ? '≠' : cond.operator
+        return `${icon} ${cond.feature_id || '?'} ${op} ${cond.value ?? '?'}`
       default:
         return `${icon} ${schema?.label || cond.type}`
     }

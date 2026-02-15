@@ -312,6 +312,7 @@ pub async fn run_automation(
         pending_action_registry: Some(app.pending_action_registry.clone()),
         context_intelligence: Some(app.context_intelligence.clone()),
         mode_registry: Some(app.mode_registry.clone()),
+        feature_registry: Some(app.feature_registry.clone()),
     };
 
     // Execute actions
