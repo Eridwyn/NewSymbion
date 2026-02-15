@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use native_tls::TlsConnector;
+use sha2::{Sha256, Digest};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::time::Duration;
 use x509_parser::prelude::*;
@@ -29,6 +30,9 @@ pub struct CertificateStatus {
 
     /// Certificate subject CN
     pub subject: Option<String>,
+
+    /// Certificate fingerprint (SHA256 hex)
+    pub fingerprint: Option<String>,
 
     /// Error message if check failed
     pub error: Option<String>,
@@ -61,55 +65,33 @@ impl SslChecker {
         let checked_at = Utc::now();
         let address = format!("{}:{}", hostname, port);
 
+        // Helper to create error status
+        let error_status = |error: String| CertificateStatus {
+            hostname: hostname.to_string(),
+            port,
+            valid: false,
+            expiry_date: None,
+            days_remaining: None,
+            issuer: None,
+            subject: None,
+            fingerprint: None,
+            error: Some(error),
+            checked_at,
+        };
+
         // Resolve hostname to socket address
         let socket_addr = match address.to_socket_addrs() {
             Ok(mut addrs) => match addrs.next() {
                 Some(addr) => addr,
-                None => {
-                    return CertificateStatus {
-                        hostname: hostname.to_string(),
-                        port,
-                        valid: false,
-                        expiry_date: None,
-                        days_remaining: None,
-                        issuer: None,
-                        subject: None,
-                        error: Some("DNS resolution returned no addresses".to_string()),
-                        checked_at,
-                    };
-                }
+                None => return error_status("DNS resolution returned no addresses".to_string()),
             },
-            Err(e) => {
-                return CertificateStatus {
-                    hostname: hostname.to_string(),
-                    port,
-                    valid: false,
-                    expiry_date: None,
-                    days_remaining: None,
-                    issuer: None,
-                    subject: None,
-                    error: Some(format!("DNS resolution failed: {}", e)),
-                    checked_at,
-                };
-            }
+            Err(e) => return error_status(format!("DNS resolution failed: {}", e)),
         };
 
         // Attempt TCP connection with timeout
         let stream = match TcpStream::connect_timeout(&socket_addr, self.timeout) {
             Ok(s) => s,
-            Err(e) => {
-                return CertificateStatus {
-                    hostname: hostname.to_string(),
-                    port,
-                    valid: false,
-                    expiry_date: None,
-                    days_remaining: None,
-                    issuer: None,
-                    subject: None,
-                    error: Some(format!("TCP connection failed: {}", e)),
-                    checked_at,
-                };
-            }
+            Err(e) => return error_status(format!("TCP connection failed: {}", e)),
         };
 
         // Set read/write timeouts
@@ -122,68 +104,28 @@ impl SslChecker {
             .build()
         {
             Ok(c) => c,
-            Err(e) => {
-                return CertificateStatus {
-                    hostname: hostname.to_string(),
-                    port,
-                    valid: false,
-                    expiry_date: None,
-                    days_remaining: None,
-                    issuer: None,
-                    subject: None,
-                    error: Some(format!("TLS connector error: {}", e)),
-                    checked_at,
-                };
-            }
+            Err(e) => return error_status(format!("TLS connector error: {}", e)),
         };
 
         // Perform TLS handshake
         let tls_stream = match connector.connect(hostname, stream) {
             Ok(s) => s,
-            Err(e) => {
-                return CertificateStatus {
-                    hostname: hostname.to_string(),
-                    port,
-                    valid: false,
-                    expiry_date: None,
-                    days_remaining: None,
-                    issuer: None,
-                    subject: None,
-                    error: Some(format!("TLS handshake failed: {}", e)),
-                    checked_at,
-                };
-            }
+            Err(e) => return error_status(format!("TLS handshake failed: {}", e)),
         };
 
         // Get peer certificate
         let cert_der = match tls_stream.peer_certificate() {
             Ok(Some(cert)) => cert.to_der().unwrap_or_default(),
-            Ok(None) => {
-                return CertificateStatus {
-                    hostname: hostname.to_string(),
-                    port,
-                    valid: false,
-                    expiry_date: None,
-                    days_remaining: None,
-                    issuer: None,
-                    subject: None,
-                    error: Some("No peer certificate".to_string()),
-                    checked_at,
-                };
-            }
-            Err(e) => {
-                return CertificateStatus {
-                    hostname: hostname.to_string(),
-                    port,
-                    valid: false,
-                    expiry_date: None,
-                    days_remaining: None,
-                    issuer: None,
-                    subject: None,
-                    error: Some(format!("Failed to get peer cert: {}", e)),
-                    checked_at,
-                };
-            }
+            Ok(None) => return error_status("No peer certificate".to_string()),
+            Err(e) => return error_status(format!("Failed to get peer cert: {}", e)),
+        };
+
+        // Calculate fingerprint (SHA256)
+        let fingerprint = {
+            let mut hasher = Sha256::new();
+            hasher.update(&cert_der);
+            let result = hasher.finalize();
+            hex::encode(result)
         };
 
         // Parse X509 certificate
@@ -225,6 +167,7 @@ impl SslChecker {
                     days_remaining: Some(days_remaining),
                     issuer,
                     subject,
+                    fingerprint: Some(fingerprint),
                     error: None,
                     checked_at,
                 }
@@ -238,6 +181,7 @@ impl SslChecker {
                     days_remaining: None,
                     issuer: None,
                     subject: None,
+                    fingerprint: Some(fingerprint), // Still provide fingerprint even if parse fails
                     error: Some(format!("X509 parse error: {:?}", e)),
                     checked_at,
                 }

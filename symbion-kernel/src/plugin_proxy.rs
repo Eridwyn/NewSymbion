@@ -173,10 +173,9 @@ impl PluginRegistry {
             // Query /health endpoint to get plugin info
             match self.query_plugin_health(&path, plugin_name).await {
                 Ok((version, description)) => {
-                    // Auto-register with standard route convention
-                    let routes = vec![
-                        format!("/{}", plugin_name),  // /notes, /notifications, /sensors
-                    ];
+                    // Auto-register with wildcard route (matches all paths under /v1/plugin-api/{name}/*)
+                    // Using empty string creates route /v1/plugin-api/{name} which matches all sub-paths
+                    let routes = vec!["".to_string()];
 
                     let registration = PluginRegistration {
                         name: plugin_name.to_string(),

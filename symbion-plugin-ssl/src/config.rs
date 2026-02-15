@@ -62,8 +62,8 @@ pub struct PollingConfig {
 fn default_ssl_seconds() -> u64 { 3600 }
 fn default_online_seconds() -> u64 { 60 }
 
-/// Alert thresholds
-#[derive(Debug, Clone, Deserialize)]
+/// Alert thresholds (also used per-domain)
+#[derive(Debug, Clone, Copy, Deserialize, Default)]
 pub struct AlertConfig {
     /// Days before expiry to trigger warning (yellow)
     #[serde(default = "default_warning_days")]
