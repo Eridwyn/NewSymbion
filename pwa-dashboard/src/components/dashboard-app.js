@@ -36,46 +36,48 @@ class DashboardApp extends LitElement {
     :host {
       display: block;
       min-height: 100vh;
-      background: linear-gradient(180deg, #0f0f14 0%, #0a0a0f 50%, #08080c 100%);
+      background: linear-gradient(180deg, #0e0e13 0%, #0a0a0f 100%);
       color: var(--color-dark-text-primary, #f8f9fa);
       font-family: var(--font-sans);
       position: relative;
     }
 
-    /* Lueurs thématiques animées sur les côtés */
+    /* Bordures lumineuses thématiques sur les côtés */
     :host::before,
     :host::after {
       content: '';
       position: fixed;
       top: 0;
-      width: 40%;
-      height: 100%;
+      bottom: 0;
+      width: 3px;
       pointer-events: none;
       z-index: 0;
+      background: linear-gradient(
+        180deg,
+        transparent 0%,
+        var(--context-primary, #00d4aa) 20%,
+        var(--context-primary, #00d4aa) 80%,
+        transparent 100%
+      );
+      opacity: 0.25;
+      filter: blur(2px);
+      animation: glowPulse 6s ease-in-out infinite;
     }
 
     :host::before {
       left: 0;
-      background: radial-gradient(ellipse 100% 80% at 0% 50%, var(--context-primary, #00d4aa) 0%, transparent 70%);
-      opacity: 0.12;
-      animation: pulseLeft 8s ease-in-out infinite;
+      box-shadow: 0 0 20px 8px var(--context-primary, #00d4aa);
     }
 
     :host::after {
       right: 0;
-      background: radial-gradient(ellipse 100% 80% at 100% 50%, var(--context-primary, #00d4aa) 0%, transparent 70%);
-      opacity: 0.08;
-      animation: pulseRight 8s ease-in-out infinite 4s;
+      box-shadow: 0 0 20px 8px var(--context-primary, #00d4aa);
+      animation-delay: 3s;
     }
 
-    @keyframes pulseLeft {
-      0%, 100% { opacity: 0.12; }
-      50% { opacity: 0.18; }
-    }
-
-    @keyframes pulseRight {
-      0%, 100% { opacity: 0.08; }
-      50% { opacity: 0.14; }
+    @keyframes glowPulse {
+      0%, 100% { opacity: 0.2; }
+      50% { opacity: 0.35; }
     }
 
     /* Header bioluminescent avec glassmorphism CONTEXTUEL */
