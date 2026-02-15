@@ -136,47 +136,20 @@ class DashboardApp extends LitElement {
       50% { background-position: 100% 50%; }
     }
 
-    /* Logo bioluminescent avec colorisation CONTEXTUELLE - Variables CSS */
-    :host {
-      /* Mode Intime (Vert/Emeraude #00d4aa) - Défaut */
-      --logo-hue: 100deg;
-      --logo-saturation: 3;
-      --logo-brightness: 1.1;
-      --logo-glow-color: rgba(0, 212, 170, 0.6);
-      --logo-glow-color-light: rgba(0, 212, 170, 0.3);
-      --logo-glow-color-intense: rgba(0, 212, 170, 0.9);
-    }
-
-    :host([context-mode="Cravate"]) {
-      /* Mode Cravate (Bleu #3b82f6) */
-      --logo-hue: 160deg;
-      --logo-saturation: 3.5;
-      --logo-brightness: 1.0;
-      --logo-glow-color: rgba(59, 130, 246, 0.6);
-      --logo-glow-color-light: rgba(59, 130, 246, 0.3);
-      --logo-glow-color-intense: rgba(59, 130, 246, 0.9);
-    }
-
-    :host([context-mode="Neutre"]) {
-      /* Mode Neutre (Gris argenté) */
-      --logo-hue: 0deg;
-      --logo-saturation: 0;
-      --logo-brightness: 1.3;
-      --logo-glow-color: rgba(156, 163, 175, 0.6);
-      --logo-glow-color-light: rgba(156, 163, 175, 0.3);
-      --logo-glow-color-intense: rgba(156, 163, 175, 0.9);
-    }
-
+    /* Logo bioluminescent avec colorisation DYNAMIQUE basée sur --context-primary */
     .header-logo {
       width: 2rem;
       height: 2rem;
       object-fit: contain;
       transition: filter var(--duration-base) var(--ease-out);
       animation: logo-bio-pulse 4s ease-in-out infinite;
-      /* Colorisation dynamique : invert pour rendre blanc, puis colorer */
-      filter: invert(1) sepia(1) saturate(var(--logo-saturation)) hue-rotate(var(--logo-hue)) brightness(var(--logo-brightness))
-              drop-shadow(0 0 12px var(--logo-glow-color))
-              drop-shadow(0 0 20px var(--logo-glow-color-light));
+      /* Colorisation dynamique depuis context-service (--context-logo-*) */
+      filter: invert(1) sepia(1)
+              saturate(var(--context-logo-saturation, 3))
+              hue-rotate(var(--context-logo-hue, 100deg))
+              brightness(var(--context-logo-brightness, 1.1))
+              drop-shadow(0 0 12px color-mix(in srgb, var(--context-primary, #00d4aa) 60%, transparent))
+              drop-shadow(0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent));
     }
 
     @keyframes logo-bio-pulse {
@@ -191,10 +164,13 @@ class DashboardApp extends LitElement {
     .header-logo:hover {
       animation: none;
       opacity: 1 !important;
-      /* Hover intensifie le glow avec variables */
-      filter: invert(1) sepia(1) saturate(calc(var(--logo-saturation) + 1)) hue-rotate(var(--logo-hue)) brightness(calc(var(--logo-brightness) + 0.15))
-              drop-shadow(0 0 20px var(--logo-glow-color-intense))
-              drop-shadow(0 0 40px var(--logo-glow-color)) !important;
+      /* Hover intensifie le glow */
+      filter: invert(1) sepia(1)
+              saturate(calc(var(--context-logo-saturation, 3) + 1))
+              hue-rotate(var(--context-logo-hue, 100deg))
+              brightness(calc(var(--context-logo-brightness, 1.1) + 0.15))
+              drop-shadow(0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 90%, transparent))
+              drop-shadow(0 0 40px color-mix(in srgb, var(--context-primary, #00d4aa) 60%, transparent)) !important;
     }
 
     /* Status Bar - Modern Pills */
@@ -797,8 +773,7 @@ class DashboardApp extends LitElement {
     showSslConfigPage: { type: Boolean },
     currentUser: { type: Object },
     activeTab: { type: String },
-    currentTime: { type: String },
-    contextMode: { type: String, reflect: true, attribute: 'context-mode' }
+    currentTime: { type: String }
   }
   
   constructor() {
@@ -819,7 +794,6 @@ class DashboardApp extends LitElement {
     // Restaurer le dernier onglet actif depuis sessionStorage (persiste aux reloads, reset à la fermeture du navigateur)
     this.activeTab = sessionStorage.getItem('dashboardTab') || 'controle'
     this.currentTime = this.formatTime(new Date())
-    this.contextMode = 'Intime' // Mode par défaut (vert/emeraude)
 
     this.apiService = null
     this.mqttService = null
@@ -871,26 +845,16 @@ class DashboardApp extends LitElement {
     this._boundHandlers.authExpired = this.handleAuthExpired.bind(this)
     window.addEventListener('auth:expired', this._boundHandlers.authExpired)
 
-    // [P0-5] Écouter les changements de contexte pour adapter le logo (avec cleanup)
+    // Log context changes (theme is applied via CSS variables by context-service)
     this._boundHandlers.contextChange = (e) => {
-      const mode = e.detail?.context?.mode || 'intime'
-      // Capitaliser première lettre pour matcher les sélecteurs CSS
-      this.contextMode = mode.charAt(0).toUpperCase() + mode.slice(1)
-      console.log(`[dashboard-app] Context changed: ${mode} → logo color updated`)
+      const mode = e.detail?.context?.mode_slug || e.detail?.context?.mode || 'unknown'
+      console.log(`[dashboard-app] Context changed: ${mode}`)
     }
     window.addEventListener('context-change', this._boundHandlers.contextChange)
 
     try {
       // Initialiser les services
       await this.initializeServices()
-
-      // Initialiser le mode contextuel depuis le context-service
-      const contextService = document.querySelector('context-service')
-      if (contextService) {
-        const initialMode = contextService.getCurrentMode() || 'intime'
-        this.contextMode = initialMode.charAt(0).toUpperCase() + initialMode.slice(1)
-        console.log(`[dashboard-app] Initial context mode: ${initialMode}`)
-      }
 
       // Charger les données initiales
       await this.loadInitialData()
@@ -1079,7 +1043,7 @@ class DashboardApp extends LitElement {
     return html`
       <div class="header">
         <div class="header-left">
-          <h1><img src="/favicon-transparent.png" alt="Symbion" class="header-logo"> Symbion Dashboard</h1>
+          <h1><img src="/icon-192-transparent-v2.png" alt="Symbion" class="header-logo"> Symbion Dashboard</h1>
           <div class="status-bar">
             <div class="status-indicator">
               <div class="status-dot ${this.apiStatus}"></div>

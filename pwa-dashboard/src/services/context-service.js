@@ -138,7 +138,66 @@ class ContextService extends LitElement {
     document.documentElement.style.setProperty('--context-bg', theme.bg)
     document.documentElement.style.setProperty('--context-accent', theme.accent)
 
-    console.log(`[context-service] Theme applied: ${theme.primary}`)
+    // Calculate and set logo filter variables from primary color
+    const { hue, saturation, isGray } = this.hexToHSL(theme.primary)
+
+    // For CSS filter chain: invert(1) sepia(1) then hue-rotate
+    // Sepia gives ~30-40° base, so we adjust the rotation
+    const filterHue = isGray ? 0 : (hue - 40 + 360) % 360
+    const filterSaturation = isGray ? 0 : Math.min(saturation / 25, 5)
+    const filterBrightness = isGray ? 1.3 : 1.1
+
+    document.documentElement.style.setProperty('--context-logo-hue', `${filterHue}deg`)
+    document.documentElement.style.setProperty('--context-logo-saturation', filterSaturation.toString())
+    document.documentElement.style.setProperty('--context-logo-brightness', filterBrightness.toString())
+
+    console.log(`[context-service] Theme applied: ${theme.primary} (hue: ${hue}°)`)
+  }
+
+  // Convert hex color to HSL values
+  hexToHSL(hex) {
+    // Remove # if present
+    hex = hex.replace('#', '')
+
+    const r = parseInt(hex.substring(0, 2), 16) / 255
+    const g = parseInt(hex.substring(2, 4), 16) / 255
+    const b = parseInt(hex.substring(4, 6), 16) / 255
+
+    const max = Math.max(r, g, b)
+    const min = Math.min(r, g, b)
+    const l = (max + min) / 2
+    const d = max - min
+
+    // Check if it's a gray (low saturation)
+    const isGray = d < 0.1
+
+    let h = 0
+    let s = 0
+
+    if (d !== 0) {
+      s = d / (1 - Math.abs(2 * l - 1))
+
+      switch (max) {
+        case r:
+          h = 60 * (((g - b) / d) % 6)
+          break
+        case g:
+          h = 60 * ((b - r) / d + 2)
+          break
+        case b:
+          h = 60 * ((r - g) / d + 4)
+          break
+      }
+    }
+
+    if (h < 0) h += 360
+
+    return {
+      hue: Math.round(h),
+      saturation: Math.round(s * 100),
+      lightness: Math.round(l * 100),
+      isGray
+    }
   }
 
   notifyModeChange(context) {

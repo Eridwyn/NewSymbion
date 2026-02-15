@@ -277,23 +277,48 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                                         if let Some(ref features) = feature_registry {
                                             let source = format!("agent.{}", agent_id);
 
-                                            // Agent online
+                                            // Déterminer si c'est un PC Windows (desktop de travail)
+                                            // On vérifie via l'agent registry qui a l'info OS
+                                            let is_windows = agent_registry.get_agent(&agent_id).await
+                                                .map(|a| a.os.to_lowercase().contains("windows"))
+                                                .unwrap_or(false);
+
+                                            // Features spécifiques par agent (agent.{id}.online, etc.)
                                             features.set_feature(
-                                                feature_ids::AGENT_ONLINE,
+                                                &format!("agent.{}.online", agent_id),
                                                 FeatureValue::Bool(true),
                                                 &source,
                                                 1.0,
                                                 ttl::AGENT,
                                             );
 
-                                            // CPU usage
                                             features.set_feature(
-                                                feature_ids::AGENT_CPU_USAGE,
+                                                &format!("agent.{}.cpu", agent_id),
                                                 FeatureValue::Float(cpu_percent as f64),
                                                 &source,
                                                 1.0,
                                                 ttl::AGENT,
                                             );
+
+                                            // Pour le PC Windows, mettre à jour les features globales
+                                            // utilisées pour pc_active (c'est le PC de travail principal)
+                                            if is_windows {
+                                                features.set_feature(
+                                                    feature_ids::AGENT_ONLINE,
+                                                    FeatureValue::Bool(true),
+                                                    &source,
+                                                    1.0,
+                                                    ttl::AGENT,
+                                                );
+
+                                                features.set_feature(
+                                                    feature_ids::AGENT_CPU_USAGE,
+                                                    FeatureValue::Float(cpu_percent as f64),
+                                                    &source,
+                                                    1.0,
+                                                    ttl::AGENT,
+                                                );
+                                            }
 
                                             // Memory usage (percentage)
                                             let memory_pct = if memory_total > 0 {
@@ -301,13 +326,24 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                                             } else {
                                                 0.0
                                             };
+
                                             features.set_feature(
-                                                feature_ids::AGENT_MEMORY_USAGE,
+                                                &format!("agent.{}.memory", agent_id),
                                                 FeatureValue::Float(memory_pct),
                                                 &source,
                                                 1.0,
                                                 ttl::AGENT,
                                             );
+
+                                            if is_windows {
+                                                features.set_feature(
+                                                    feature_ids::AGENT_MEMORY_USAGE,
+                                                    FeatureValue::Float(memory_pct),
+                                                    &source,
+                                                    1.0,
+                                                    ttl::AGENT,
+                                                );
+                                            }
 
                                             // Process list for classification
                                             if !process_names.is_empty() {

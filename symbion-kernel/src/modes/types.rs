@@ -106,9 +106,9 @@ pub fn default_system_modes() -> Vec<DynamicMode> {
             "focus",
             "🎯",
             ModeTheme {
-                primary: "#8b5cf6".to_string(),
-                background: "#faf5ff".to_string(),
-                accent: "#7c3aed".to_string(),
+                primary: "#6366f1".to_string(),  // Indigo-violet - concentration
+                background: "#eef2ff".to_string(), // Indigo très clair
+                accent: "#4f46e5".to_string(),   // Indigo foncé
             },
             1,
         ),
