@@ -16,7 +16,7 @@ export class SslConfigPage extends LitElement {
       display: block;
       position: fixed;
       inset: 0;
-      background: linear-gradient(180deg, #0a0a0f 0%, #12121a 100%);
+      background: #0a0a0f;
       z-index: 1000;
       overflow-y: auto;
       overflow-x: hidden;
@@ -109,8 +109,8 @@ export class SslConfigPage extends LitElement {
 
     /* Sections */
     .section {
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: #111118;
+      border: 1px solid #1e1e2e;
       border-radius: 16px;
       padding: 1.5rem;
       margin-bottom: 1.5rem;
@@ -149,16 +149,16 @@ export class SslConfigPage extends LitElement {
     }
 
     .domain-card {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #15151f;
+      border: 1px solid #252535;
       border-radius: 12px;
       padding: 1.25rem;
       transition: all 0.2s ease;
     }
 
     .domain-card:hover {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: rgba(0, 212, 170, 0.2);
+      background: #1a1a28;
+      border-color: #00d4aa40;
     }
 
     .domain-card-header {
@@ -509,8 +509,8 @@ export class SslConfigPage extends LitElement {
 
     /* Form section collapsible */
     .form-section {
-      background: linear-gradient(135deg, rgba(0, 212, 170, 0.08) 0%, rgba(0, 180, 140, 0.04) 100%);
-      border: 1px solid rgba(0, 212, 170, 0.2);
+      background: #0f1a18;
+      border: 1px solid #00d4aa30;
       animation: slideDown 0.2s ease-out;
     }
 
@@ -590,14 +590,21 @@ export class SslConfigPage extends LitElement {
     const token = this.getAuthToken()
     const baseUrl = this.getApiBaseUrl()
 
+    console.log('[ssl-config] Fetching domains...', { baseUrl, hasToken: !!token })
+
     try {
       const response = await fetch(`${baseUrl}/v1/plugin-api/ssl/domains`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
 
+      console.log('[ssl-config] Response status:', response.status)
+
       if (response.ok) {
         const data = await response.json()
+        console.log('[ssl-config] Got domains:', data)
         this.domains = data.domains || []
+      } else {
+        console.error('[ssl-config] Response not ok:', response.status, await response.text())
       }
     } catch (err) {
       console.error('[ssl-config] Fetch error:', err)
