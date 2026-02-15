@@ -37,6 +37,7 @@ pub struct DynamicValues {
     pub agents: Vec<ValueOption>,
     pub rooms: Vec<ValueOption>,
     pub sensors: Vec<SensorOption>,
+    pub features: Vec<ValueOption>,
     pub categories: Vec<ValueOption>,
     pub alert_levels: Vec<ValueOption>,
     pub priorities: Vec<ValueOption>,
@@ -151,12 +152,22 @@ impl SchemaRegistry {
         sensors: &[SensorInfo],
         modes: &[(String, String, String)],  // (slug, label, description)
     ) -> AutomationSchema {
+        // Include common presence features by default
+        let default_features = vec![
+            ("presence.phone".to_string(), "📱 Présence téléphone".to_string()),
+            ("presence.anyone_home".to_string(), "🏠 Quelqu'un à la maison".to_string()),
+            ("env.temperature".to_string(), "🌡️ Température".to_string()),
+            ("env.humidity".to_string(), "💧 Humidité".to_string()),
+            ("process.category.ide".to_string(), "💻 IDE actif".to_string()),
+            ("process.category.media".to_string(), "🎬 Média actif".to_string()),
+            ("agent.online".to_string(), "🖥️ Agent en ligne".to_string()),
+        ];
         AutomationSchema {
             triggers: Self::get_triggers(),
             trigger_group: Self::get_trigger_group_schema(),
             conditions: Self::get_conditions(),
             actions: Self::get_actions(),
-            dynamic_values: Self::get_dynamic_values(agents, rooms, sensors, modes),
+            dynamic_values: Self::get_dynamic_values(agents, rooms, sensors, modes, &default_features),
         }
     }
 
@@ -539,6 +550,46 @@ impl SchemaRegistry {
                     },
                 ],
             },
+            ConditionSchema {
+                condition_type: "feature".to_string(),
+                label: "Feature Intelligence".to_string(),
+                description: "Vérifie une feature du FeatureRegistry (présence, env, process, etc.)".to_string(),
+                fields: vec![
+                    FieldSchema {
+                        name: "feature_id".to_string(),
+                        label: "Feature ID".to_string(),
+                        field_type: FieldType::Select,
+                        required: true,
+                        default_value: None,
+                        placeholder: Some("Ex: presence.phone".to_string()),
+                        options_key: Some("features".to_string()),
+                        min: None,
+                        max: None,
+                    },
+                    FieldSchema {
+                        name: "operator".to_string(),
+                        label: "Opérateur".to_string(),
+                        field_type: FieldType::Select,
+                        required: true,
+                        default_value: Some(serde_json::json!("equals")),
+                        placeholder: None,
+                        options_key: Some("comparison_operators".to_string()),
+                        min: None,
+                        max: None,
+                    },
+                    FieldSchema {
+                        name: "value".to_string(),
+                        label: "Valeur".to_string(),
+                        field_type: FieldType::Text,
+                        required: true,
+                        default_value: Some(serde_json::json!("true")),
+                        placeholder: Some("true, false, ou valeur numérique".to_string()),
+                        options_key: None,
+                        min: None,
+                        max: None,
+                    },
+                ],
+            },
         ]
     }
 
@@ -685,6 +736,7 @@ impl SchemaRegistry {
         rooms: &[String],
         sensors: &[SensorInfo],
         modes: &[(String, String, String)],  // (slug, label, description)
+        features: &[(String, String)],  // (feature_id, label)
     ) -> DynamicValues {
         DynamicValues {
             modes: modes
@@ -733,6 +785,14 @@ impl SchemaRegistry {
                         sensor_type: s.sensor_type.clone(),
                         status: Some(s.status.clone()),
                     }
+                })
+                .collect(),
+            features: features
+                .iter()
+                .map(|(id, label)| ValueOption {
+                    value: id.clone(),
+                    label: label.clone(),
+                    description: Some(format!("Feature ID: {}", id)),
                 })
                 .collect(),
             categories: vec![
@@ -943,7 +1003,7 @@ mod tests {
         let schema = SchemaRegistry::get_schema(&agents, &rooms, &sensors, &modes);
 
         assert_eq!(schema.triggers.len(), 6);  // mode_change, sensor_alert, agent_status, manual, plugin_health, scheduled
-        assert_eq!(schema.conditions.len(), 7);  // current_mode, time_range, day_of_week, day_of_month, month, sensor_value, agent_online
+        assert_eq!(schema.conditions.len(), 8);  // current_mode, time_range, day_of_week, day_of_month, month, sensor_value, agent_online, feature
         assert_eq!(schema.actions.len(), 4);
         assert_eq!(schema.dynamic_values.modes.len(), 3);
         assert_eq!(schema.dynamic_values.agents.len(), 2);

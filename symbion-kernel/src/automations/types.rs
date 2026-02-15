@@ -295,6 +295,15 @@ pub enum Condition {
         agent_id: String,
     },
 
+    /// Check feature value from FeatureRegistry (Intelligence v2)
+    /// Supports presence, env, process, agent features
+    Feature {
+        feature_id: String,
+        operator: ComparisonOperator,
+        /// Value to compare against (bool, float, string)
+        value: serde_json::Value,
+    },
+
     /// Nested condition group (for complex logic)
     Group(Box<ConditionGroup>),
 

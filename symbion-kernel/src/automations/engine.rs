@@ -13,6 +13,7 @@
 use crate::agents::SharedAgentRegistry;
 use crate::context::{ContextEngine, Mode};
 use crate::context_intelligence::{SharedContextIntelligence, DecisionSignal};
+use crate::intelligence::{SharedFeatureRegistry, FeatureValue};
 use crate::decision::{DecisionEngine, DecisionContext, DecisionOutcome, SharedTrustTracker, ValidationManager};
 use crate::modes::SharedModeRegistry;
 use crate::notifications::SharedNotificationManager;
@@ -47,6 +48,8 @@ pub struct ExecutionContext {
     pub context_intelligence: Option<SharedContextIntelligence>,
     /// Mode Registry for validating dynamic modes (Invariant 2)
     pub mode_registry: Option<SharedModeRegistry>,
+    /// Feature Registry for Intelligence v2 condition evaluation
+    pub feature_registry: Option<SharedFeatureRegistry>,
 }
 
 /// Automation engine - evaluates conditions and executes actions
@@ -248,6 +251,26 @@ impl AutomationEngine {
                     is_online,
                     format!("agent '{}' online: {}", agent_id, is_online),
                 )
+            }
+
+            Condition::Feature { feature_id, operator, value } => {
+                // Check feature value from Intelligence v2 FeatureRegistry
+                if let Some(ref registry) = ctx.feature_registry {
+                    if let Some(sample) = registry.get(feature_id) {
+                        // Compare feature value against expected value
+                        let (matches, details) = Self::evaluate_feature_value(
+                            &sample.value,
+                            operator,
+                            value,
+                            feature_id,
+                        );
+                        (matches, details)
+                    } else {
+                        (false, format!("feature '{}' not found in registry", feature_id))
+                    }
+                } else {
+                    (false, "feature_registry not available".to_string())
+                }
             }
 
             Condition::Group(nested_group) => {
@@ -794,6 +817,126 @@ impl AutomationEngine {
         }
     }
 
+    /// Evaluate a feature value against an expected value
+    fn evaluate_feature_value(
+        actual: &FeatureValue,
+        operator: &ComparisonOperator,
+        expected: &serde_json::Value,
+        feature_id: &str,
+    ) -> (bool, String) {
+        match actual {
+            FeatureValue::Bool(actual_bool) => {
+                // Compare booleans
+                let expected_bool = expected.as_bool().unwrap_or(false);
+                let matches = match operator {
+                    ComparisonOperator::Equals => *actual_bool == expected_bool,
+                    ComparisonOperator::NotEquals => *actual_bool != expected_bool,
+                    _ => false, // Other operators don't make sense for booleans
+                };
+                let op_str = match operator {
+                    ComparisonOperator::Equals => "==",
+                    ComparisonOperator::NotEquals => "!=",
+                    _ => "??",
+                };
+                (
+                    matches,
+                    format!("feature '{}' {} {} {} → {}", feature_id, actual_bool, op_str, expected_bool, matches),
+                )
+            }
+            FeatureValue::Float(actual_float) => {
+                // Compare floats
+                let expected_float = expected.as_f64().unwrap_or(0.0);
+                let matches = match operator {
+                    ComparisonOperator::Equals => (*actual_float - expected_float).abs() < 0.01,
+                    ComparisonOperator::NotEquals => (*actual_float - expected_float).abs() >= 0.01,
+                    ComparisonOperator::GreaterThan => *actual_float > expected_float,
+                    ComparisonOperator::LessThan => *actual_float < expected_float,
+                    ComparisonOperator::GreaterOrEqual => *actual_float >= expected_float,
+                    ComparisonOperator::LessOrEqual => *actual_float <= expected_float,
+                    ComparisonOperator::Contains => false,
+                };
+                let op_str = match operator {
+                    ComparisonOperator::Equals => "==",
+                    ComparisonOperator::NotEquals => "!=",
+                    ComparisonOperator::GreaterThan => ">",
+                    ComparisonOperator::LessThan => "<",
+                    ComparisonOperator::GreaterOrEqual => ">=",
+                    ComparisonOperator::LessOrEqual => "<=",
+                    ComparisonOperator::Contains => "contains",
+                };
+                (
+                    matches,
+                    format!("feature '{}' {} {} {} → {}", feature_id, actual_float, op_str, expected_float, matches),
+                )
+            }
+            FeatureValue::Int(actual_int) => {
+                // Compare integers
+                let expected_int = expected.as_i64().unwrap_or(0);
+                let matches = match operator {
+                    ComparisonOperator::Equals => *actual_int == expected_int,
+                    ComparisonOperator::NotEquals => *actual_int != expected_int,
+                    ComparisonOperator::GreaterThan => *actual_int > expected_int,
+                    ComparisonOperator::LessThan => *actual_int < expected_int,
+                    ComparisonOperator::GreaterOrEqual => *actual_int >= expected_int,
+                    ComparisonOperator::LessOrEqual => *actual_int <= expected_int,
+                    ComparisonOperator::Contains => false,
+                };
+                let op_str = match operator {
+                    ComparisonOperator::Equals => "==",
+                    ComparisonOperator::NotEquals => "!=",
+                    ComparisonOperator::GreaterThan => ">",
+                    ComparisonOperator::LessThan => "<",
+                    ComparisonOperator::GreaterOrEqual => ">=",
+                    ComparisonOperator::LessOrEqual => "<=",
+                    ComparisonOperator::Contains => "contains",
+                };
+                (
+                    matches,
+                    format!("feature '{}' {} {} {} → {}", feature_id, actual_int, op_str, expected_int, matches),
+                )
+            }
+            FeatureValue::String(actual_str) => {
+                // Compare strings
+                let expected_str = expected.as_str().unwrap_or("");
+                let matches = match operator {
+                    ComparisonOperator::Equals => actual_str.eq_ignore_ascii_case(expected_str),
+                    ComparisonOperator::NotEquals => !actual_str.eq_ignore_ascii_case(expected_str),
+                    ComparisonOperator::Contains => actual_str.to_lowercase().contains(&expected_str.to_lowercase()),
+                    _ => false,
+                };
+                let op_str = match operator {
+                    ComparisonOperator::Equals => "==",
+                    ComparisonOperator::NotEquals => "!=",
+                    ComparisonOperator::Contains => "contains",
+                    _ => "??",
+                };
+                (
+                    matches,
+                    format!("feature '{}' '{}' {} '{}' → {}", feature_id, actual_str, op_str, expected_str, matches),
+                )
+            }
+            FeatureValue::StringList(actual_list) => {
+                // For string lists, check if expected value is in the list
+                let expected_str = expected.as_str().unwrap_or("");
+                let matches = match operator {
+                    ComparisonOperator::Contains => actual_list.iter().any(|s| s.eq_ignore_ascii_case(expected_str)),
+                    ComparisonOperator::Equals => actual_list.iter().any(|s| s.eq_ignore_ascii_case(expected_str)),
+                    ComparisonOperator::NotEquals => !actual_list.iter().any(|s| s.eq_ignore_ascii_case(expected_str)),
+                    _ => false,
+                };
+                let op_str = match operator {
+                    ComparisonOperator::Contains | ComparisonOperator::Equals => "contains",
+                    ComparisonOperator::NotEquals => "!contains",
+                    _ => "??",
+                };
+                (
+                    matches,
+                    format!("feature '{}' list {} '{}' → {}", feature_id, op_str, expected_str, matches),
+                )
+            }
+        }
+    }
+
     /// Get condition type name for reporting
     fn condition_type_name(condition: &Condition) -> String {
         match condition {
@@ -804,6 +947,7 @@ impl AutomationEngine {
             Condition::Month { .. } => "month".to_string(),
             Condition::SensorValue { .. } => "sensor_value".to_string(),
             Condition::AgentOnline { .. } => "agent_online".to_string(),
+            Condition::Feature { .. } => "feature".to_string(),
             Condition::Group(_) => "group".to_string(),
             Condition::Custom { plugin_name, condition_type, .. } => {
                 format!("custom:{}/{}", plugin_name, condition_type)
