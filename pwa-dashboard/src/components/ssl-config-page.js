@@ -578,10 +578,8 @@ export class SslConfigPage extends LitElement {
   }
 
   getApiBaseUrl() {
-    const protocol = window.location.protocol === 'https:' ? 'https' : 'http'
-    const host = window.location.hostname
-    const port = protocol === 'https' ? '8443' : '8080'
-    return `${protocol}://${host}:${port}`
+    // Utiliser la même origine que la page (nginx proxy vers kernel)
+    return window.location.origin
   }
 
   getAuthToken() {
