@@ -6,6 +6,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import '../components/organic-loader.js'
 
 export class SslWidget extends LitElement {
   static properties = {
@@ -225,6 +226,15 @@ export class SslWidget extends LitElement {
       color: #555;
       text-align: right;
     }
+
+    .loader-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 150px;
+      padding: 2rem;
+    }
   `
 
   constructor() {
@@ -338,6 +348,25 @@ export class SslWidget extends LitElement {
     return 'ok'
   }
 
+  async refreshData() {
+    this.loading = true
+
+    // Re-read from MQTT cache
+    if (this._mqttService && typeof this._mqttService.getSslCache === 'function') {
+      const cache = this._mqttService.getSslCache()
+      if (cache.summary && cache.summary.domains) {
+        this.domains = cache.summary.domains
+      } else if (Object.keys(cache.domains).length > 0) {
+        this.domains = Object.values(cache.domains)
+      }
+    }
+
+    // Small delay to show loader
+    await new Promise(resolve => setTimeout(resolve, 500))
+    this.lastUpdate = new Date().toLocaleTimeString('fr-FR')
+    this.loading = false
+  }
+
   render() {
     const validCount = this.domains.filter(d => d.ssl_valid).length
     const summaryStatus = this.getSummaryStatus()
@@ -357,7 +386,7 @@ export class SslWidget extends LitElement {
               ${validCount}/${this.domains.length} OK
             </span>
           ` : ''}
-          <button class="refresh-btn ${this.loading ? 'spinning' : ''}" @click=${() => this.requestUpdate()}>
+          <button class="refresh-btn ${this.loading ? 'spinning' : ''}" @click=${() => this.refreshData()}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
@@ -366,36 +395,40 @@ export class SslWidget extends LitElement {
         </div>
       </div>
 
-      ${this.domains.length === 0 && !this.loading ? html`
+      ${this.loading ? html`
+        <div class="loader-container">
+          <organic-loader text="Vérification SSL..."></organic-loader>
+        </div>
+      ` : this.domains.length === 0 ? html`
         <div class="empty-state">En attente des données SSL...</div>
-      ` : ''}
-
-      <div class="domains-list">
-        ${this.domains.map(domain => {
-          const status = this.getStatusLevel(domain)
-          return html`
-            <div class="domain-card ${status}">
-              <div class="domain-info">
-                <span class="status-dot ${status}"></span>
-                <div class="domain-details">
-                  <span class="domain-name">${domain.hostname}</span>
-                  <span class="domain-issuer">${domain.issuer || 'SSL'}</span>
+      ` : html`
+        <div class="domains-list">
+          ${this.domains.map(domain => {
+            const status = this.getStatusLevel(domain)
+            return html`
+              <div class="domain-card ${status}">
+                <div class="domain-info">
+                  <span class="status-dot ${status}"></span>
+                  <div class="domain-details">
+                    <span class="domain-name">${domain.hostname}</span>
+                    <span class="domain-issuer">${domain.issuer || 'SSL'}</span>
+                  </div>
+                </div>
+                <div class="expiry-info">
+                  <span class="days-remaining ${status}">${this.formatDays(domain.days_remaining)}</span>
+                  ${domain.expiry_date ? html`
+                    <span class="expiry-date">${domain.expiry_date}</span>
+                  ` : ''}
                 </div>
               </div>
-              <div class="expiry-info">
-                <span class="days-remaining ${status}">${this.formatDays(domain.days_remaining)}</span>
-                ${domain.expiry_date ? html`
-                  <span class="expiry-date">${domain.expiry_date}</span>
-                ` : ''}
-              </div>
-            </div>
-          `
-        })}
-      </div>
+            `
+          })}
+        </div>
 
-      ${this.lastUpdate ? html`
-        <div class="last-update">Màj: ${this.lastUpdate}</div>
-      ` : ''}
+        ${this.lastUpdate ? html`
+          <div class="last-update">Màj: ${this.lastUpdate}</div>
+        ` : ''}
+      `}
     `
   }
 }
