@@ -582,7 +582,7 @@ export class SslConfigPage extends LitElement {
   }
 
   getAuthToken() {
-    return localStorage.getItem('auth_token') || ''
+    return localStorage.getItem('symbion_auth_token') || ''
   }
 
   async fetchDomains() {
