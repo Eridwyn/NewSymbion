@@ -6,7 +6,8 @@ export class SslConfigPage extends LitElement {
     loading: { type: Boolean },
     editingDomain: { type: Object },
     formData: { type: Object },
-    checkingAll: { type: Boolean }
+    checkingAll: { type: Boolean },
+    showAddForm: { type: Boolean }
   }
 
   static styles = css`
@@ -17,13 +18,18 @@ export class SslConfigPage extends LitElement {
       background: linear-gradient(180deg, #0a0a0f 0%, #12121a 100%);
       z-index: 100;
       overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
     }
 
     .page-container {
       max-width: 800px;
       margin: 0 auto;
       padding: 1.5rem;
-      padding-bottom: 100px;
+      padding-bottom: 120px;
+      min-height: 100%;
+      box-sizing: border-box;
     }
 
     /* Header */
@@ -466,6 +472,48 @@ export class SslConfigPage extends LitElement {
       margin-right: 0.75rem;
     }
 
+    /* Add button */
+    .add-domain-btn {
+      width: 100%;
+      padding: 1rem;
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.1) 0%, rgba(0, 180, 140, 0.05) 100%);
+      border: 2px dashed rgba(0, 212, 170, 0.3);
+      border-radius: 12px;
+      color: #00d4aa;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+      margin-bottom: 1.5rem;
+    }
+
+    .add-domain-btn:hover {
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.2) 0%, rgba(0, 180, 140, 0.1) 100%);
+      border-color: rgba(0, 212, 170, 0.5);
+    }
+
+    /* Form section collapsible */
+    .form-section {
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.08) 0%, rgba(0, 180, 140, 0.04) 100%);
+      border: 1px solid rgba(0, 212, 170, 0.2);
+      animation: slideDown 0.2s ease-out;
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
     /* Mobile responsive */
     @media (max-width: 640px) {
       .page-container {
@@ -497,6 +545,7 @@ export class SslConfigPage extends LitElement {
     this.editingDomain = null
     this.formData = this.getEmptyFormData()
     this.checkingAll = false
+    this.showAddForm = false
   }
 
   connectedCallback() {
@@ -546,8 +595,17 @@ export class SslConfigPage extends LitElement {
     }
   }
 
+  toggleAddForm() {
+    this.showAddForm = !this.showAddForm
+    if (!this.showAddForm) {
+      this.editingDomain = null
+      this.formData = this.getEmptyFormData()
+    }
+  }
+
   editDomain(domain) {
     this.editingDomain = domain
+    this.showAddForm = true
     this.formData = {
       hostname: domain.hostname || '',
       port: domain.port || 443,
@@ -559,6 +617,7 @@ export class SslConfigPage extends LitElement {
 
   cancelEdit() {
     this.editingDomain = null
+    this.showAddForm = false
     this.formData = this.getEmptyFormData()
   }
 
@@ -592,6 +651,7 @@ export class SslConfigPage extends LitElement {
 
       if (response.ok) {
         this.editingDomain = null
+        this.showAddForm = false
         this.formData = this.getEmptyFormData()
         await this.fetchDomains()
         this.triggerCheck()
@@ -706,25 +766,34 @@ export class SslConfigPage extends LitElement {
           </div>
         </div>
 
-        <!-- Add/Edit Form Section -->
-        <div class="section form-section">
-          <div class="section-header">
-            <div class="section-title">
-              ${this.editingDomain ? html`
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
-                </svg>
-                Modifier le domaine
-              ` : html`
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 5v14M5 12h14"/>
-                </svg>
-                Ajouter un domaine
-              `}
+        <!-- Add Domain Button (when form is hidden) -->
+        ${!this.showAddForm ? html`
+          <button class="add-domain-btn" @click=${() => this.toggleAddForm()}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+            Ajouter un domaine
+          </button>
+        ` : html`
+          <!-- Add/Edit Form Section -->
+          <div class="section form-section">
+            <div class="section-header">
+              <div class="section-title">
+                ${this.editingDomain ? html`
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                  </svg>
+                  Modifier le domaine
+                ` : html`
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 5v14M5 12h14"/>
+                  </svg>
+                  Ajouter un domaine
+                `}
+              </div>
             </div>
-          </div>
 
-          <div class="form-grid">
+            <div class="form-grid">
             <div class="form-group full-width">
               <label class="form-label">Nom de domaine *</label>
               <input type="text" class="form-input"
@@ -766,26 +835,25 @@ export class SslConfigPage extends LitElement {
             </div>
           </div>
 
-          <div class="form-actions">
-            ${this.editingDomain ? html`
+            <div class="form-actions">
               <button class="btn btn-secondary" @click=${() => this.cancelEdit()}>
                 Annuler
               </button>
-            ` : ''}
-            <button class="btn btn-primary" @click=${() => this.saveDomain()} ?disabled=${!this.formData.hostname}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                ${this.editingDomain ? html`
-                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                  <polyline points="17 21 17 13 7 13 7 21"/>
-                  <polyline points="7 3 7 8 15 8"/>
-                ` : html`
-                  <path d="M12 5v14M5 12h14"/>
-                `}
-              </svg>
-              ${this.editingDomain ? 'Enregistrer les modifications' : 'Ajouter ce domaine'}
-            </button>
+              <button class="btn btn-primary" @click=${() => this.saveDomain()} ?disabled=${!this.formData.hostname}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  ${this.editingDomain ? html`
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                    <polyline points="17 21 17 13 7 13 7 21"/>
+                    <polyline points="7 3 7 8 15 8"/>
+                  ` : html`
+                    <path d="M12 5v14M5 12h14"/>
+                  `}
+                </svg>
+                ${this.editingDomain ? 'Enregistrer' : 'Ajouter'}
+              </button>
+            </div>
           </div>
-        </div>
+        `}
 
         <!-- Domains List Section -->
         <div class="section">
@@ -808,7 +876,7 @@ export class SslConfigPage extends LitElement {
             <div class="empty-state">
               <div class="empty-icon">🔒</div>
               <div class="empty-title">Aucun domaine configuré</div>
-              <div class="empty-text">Utilisez le formulaire ci-dessus pour ajouter votre premier domaine</div>
+              <div class="empty-text">Cliquez sur "Ajouter un domaine" pour commencer</div>
             </div>
           ` : html`
             <div class="domains-grid">
