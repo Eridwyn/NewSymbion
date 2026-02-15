@@ -36,10 +36,8 @@ class DashboardApp extends LitElement {
     :host {
       display: block;
       min-height: 100vh;
-      /* Background organique avec profondeur CONTEXTUEL */
-      background: radial-gradient(ellipse at top left, color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent) 0%, transparent 50%),
-                  radial-gradient(ellipse at bottom right, color-mix(in srgb, var(--context-primary, #00d4aa) 3%, transparent) 0%, transparent 50%),
-                  linear-gradient(to bottom, #0a0a0b 0%, #000000 100%);
+      /* Background simple et propre */
+      background: #0a0a0b;
       color: var(--color-dark-text-primary, #f8f9fa);
       font-family: var(--font-sans);
     }
