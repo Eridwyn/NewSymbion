@@ -796,9 +796,11 @@ export class SslWidget extends LitElement {
   }
 
   openConfig() {
-    this.showConfig = true
-    this.editingDomain = null
-    this.formData = this.getEmptyFormData()
+    // Émettre un événement pour ouvrir la page de configuration SSL complète
+    this.dispatchEvent(new CustomEvent('open-ssl-config', {
+      bubbles: true,
+      composed: true
+    }))
   }
 
   closeConfig() {

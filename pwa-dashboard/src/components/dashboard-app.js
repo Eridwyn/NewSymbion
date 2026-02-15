@@ -26,6 +26,7 @@ import '../widgets/context-engine-widget.js'
 import './user-settings-page.js'
 import './notes-page.js'
 import './context-engine-page.js'
+import './ssl-config-page.js'
 import './toast-notifications.js'
 import './notification-center.js'
 import automationsService from '../services/automations-service.js'
@@ -757,6 +758,7 @@ class DashboardApp extends LitElement {
     showSettingsPage: { type: Boolean },
     showNotesPage: { type: Boolean },
     showContextEnginePage: { type: Boolean },
+    showSslConfigPage: { type: Boolean },
     currentUser: { type: Object },
     activeTab: { type: String },
     currentTime: { type: String },
@@ -776,6 +778,7 @@ class DashboardApp extends LitElement {
     this.showSettingsPage = false
     this.showNotesPage = false
     this.showContextEnginePage = false
+    this.showSslConfigPage = false
     this.currentUser = authService.getCurrentUser()
     // Restaurer le dernier onglet actif depuis sessionStorage (persiste aux reloads, reset à la fermeture du navigateur)
     this.activeTab = sessionStorage.getItem('dashboardTab') || 'controle'
@@ -824,6 +827,9 @@ class DashboardApp extends LitElement {
 
     // Écouter les événements du context-engine-widget
     this.addEventListener('open-context-engine', this.handleOpenContextEngine.bind(this))
+
+    // Écouter les événements du ssl-widget pour ouvrir la page de config
+    this.addEventListener('open-ssl-config', this.handleOpenSslConfig.bind(this))
 
     // Écouter auth:expired pour rediriger vers login (session expirée)
     this._boundHandlers.authExpired = this.handleAuthExpired.bind(this)
@@ -1240,6 +1246,10 @@ class DashboardApp extends LitElement {
         ${this.showContextEnginePage ? html`
           <context-engine-page @close="${this.handleCloseContextEngine}"></context-engine-page>
         ` : ''}
+
+        ${this.showSslConfigPage ? html`
+          <ssl-config-page @close="${this.handleCloseSslConfig}"></ssl-config-page>
+        ` : ''}
       </div>
 
       <!-- Toast Notifications (position fixe) -->
@@ -1282,6 +1292,15 @@ class DashboardApp extends LitElement {
 
   handleCloseContextEngine() {
     this.showContextEnginePage = false
+  }
+
+  handleOpenSslConfig() {
+    console.log('[dashboard] Opening SSL Config page')
+    this.showSslConfigPage = true
+  }
+
+  handleCloseSslConfig() {
+    this.showSslConfigPage = false
   }
 
   handleAuthExpired(event) {
