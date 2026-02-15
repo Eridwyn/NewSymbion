@@ -1,0 +1,38 @@
+[Unit]
+Description=Symbion SSL Monitor Plugin
+Documentation=https://github.com/markchavatte/symbion
+After=network.target mosquitto.service symbion-kernel.service
+Wants=mosquitto.service
+
+[Service]
+Type=simple
+User=eridwyn
+Group=eridwyn
+
+# Working directory
+WorkingDirectory=/opt/symbion
+
+# Environment
+Environment=RUST_LOG=info,symbion_plugin_ssl=debug
+Environment=SSL_CONFIG=/opt/symbion/config/ssl.toml
+
+# Binary
+ExecStart=/opt/symbion/bin/symbion-plugin-ssl
+
+# Restart policy
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths=/run/symbion-plugins
+
+# Socket directory creation
+ExecStartPre=/bin/mkdir -p /run/symbion-plugins
+ExecStartPre=/bin/chown eridwyn:eridwyn /run/symbion-plugins
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,46 @@
+# Symbion SSL Plugin Configuration
+
+[mqtt]
+host = "127.0.0.1"
+port = 1883
+client_id = "symbion-plugin-ssl"
+
+[http]
+socket_path = "/run/symbion-plugins/ssl.sock"
+
+[polling]
+# SSL certificate check interval (seconds) - default 1 hour
+ssl_seconds = 3600
+# Online check interval (seconds) - default 60
+online_seconds = 60
+
+[alerts]
+# Days before expiry for warning (yellow)
+warning_days = 30
+# Days before expiry for critical (red)
+critical_days = 14
+
+# Domains to monitor
+# Key = feature_id suffix (use alphanumeric, no dots)
+# hostname = FQDN to check
+# port = SSL port (default 443)
+# label = Display name for PWA (optional)
+# check_http = Also check HTTP health (default true)
+
+[domains.www-markcha]
+hostname = "www.markcha.fr"
+port = 443
+label = "Site Principal"
+check_http = true
+
+[domains.dsm-markcha]
+hostname = "dsm.markcha.fr"
+port = 443
+label = "NAS Synology"
+check_http = true
+
+[domains.vault-markcha]
+hostname = "vault.markcha.fr"
+port = 443
+label = "Vaultwarden"
+check_http = true

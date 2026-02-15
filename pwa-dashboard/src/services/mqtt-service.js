@@ -124,7 +124,10 @@ class MqttService extends LitElement {
       'symbion/notifications/sent@v1',  // Notifications push pour toasts PWA (kernel publie ici)
       // Freebox plugin topics
       'symbion/freebox/presence/#',
-      'symbion/freebox/connection/metrics'
+      'symbion/freebox/connection/metrics',
+      // SSL plugin topics
+      'symbion/ssl/summary',
+      'symbion/ssl/+'
     ]
 
     // Storage pour agréger les agents reçus individuellement
@@ -203,10 +206,16 @@ class MqttService extends LitElement {
         this.handleFreeboxConnection(payload)
         break
 
+      case 'symbion/ssl/summary':
+        this.handleSslSummary(payload)
+        break
+
       default:
         // Handle Freebox presence topics (wildcard)
         if (topic.startsWith('symbion/freebox/presence/')) {
           this.handleFreeboxPresence(topic, payload)
+        } else if (topic.startsWith('symbion/ssl/') && topic !== 'symbion/ssl/summary') {
+          this.handleSslDomain(topic, payload)
         } else {
           console.log(`🤷 Unhandled topic: ${topic}`)
         }
@@ -243,7 +252,39 @@ class MqttService extends LitElement {
       connection: this._freeboxConnectionCache || null
     }
   }
-  
+
+  handleSslSummary(payload) {
+    console.log('🔒 [mqtt] SSL summary:', payload)
+    // Cache summary data for late subscribers
+    this._sslSummaryCache = payload
+    this.dispatchEvent(new CustomEvent('ssl-summary', {
+      detail: { payload },
+      bubbles: true,
+      composed: true
+    }))
+  }
+
+  handleSslDomain(topic, payload) {
+    console.log('🔒 [mqtt] SSL domain:', topic, payload)
+    // Cache domain data for late subscribers
+    this._sslDomainsCache = this._sslDomainsCache || {}
+    const domainId = topic.replace('symbion/ssl/', '')
+    this._sslDomainsCache[domainId] = payload
+    this.dispatchEvent(new CustomEvent('ssl-domain', {
+      detail: { topic, domainId, payload },
+      bubbles: true,
+      composed: true
+    }))
+  }
+
+  // Get cached SSL data for widgets that subscribe late
+  getSslCache() {
+    return {
+      summary: this._sslSummaryCache || null,
+      domains: this._sslDomainsCache || {}
+    }
+  }
+
   handleSystemHealth(health) {
     this.dispatchEvent(new CustomEvent('system-health', {
       detail: { health },

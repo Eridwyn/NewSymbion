@@ -1,0 +1,48 @@
+[package]
+name = "symbion-plugin-ssl"
+version = "0.1.0"
+edition = "2021"
+authors = ["Mark Chavatte <Markchavatte@gmail.com>"]
+description = "Symbion plugin for SSL certificate monitoring and domain health"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full", "net"] }
+
+# TLS/SSL
+native-tls = "0.2"
+tokio-native-tls = "0.3"
+
+# HTTP client (for health checks)
+reqwest = { version = "0.11", features = ["json"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# MQTT
+rumqttc = "0.24"
+
+# HTTP server (health endpoint)
+axum = "0.7"
+tower = "0.4"
+
+# Symbion common plugin utilities
+symbion-plugin-common = { path = "../symbion-plugin-common" }
+
+# Config
+toml = "0.8"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# X509 certificate parsing
+x509-parser = "0.16"

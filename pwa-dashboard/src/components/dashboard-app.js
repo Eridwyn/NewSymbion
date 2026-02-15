@@ -14,6 +14,7 @@ import '../services/agents-service.js'
 import '../services/context-service.js'
 import '../widgets/system-health-widget.js'
 import '../widgets/freebox-widget.js'
+import '../widgets/ssl-widget.js'
 // import '../widgets/hosts-widget.js'  // DEPRECATED: remplacé par agents-network-widget
 import '../widgets/plugins-widget.js'
 import '../widgets/notes-widget.js'
@@ -1156,6 +1157,9 @@ class DashboardApp extends LitElement {
               <freebox-widget></freebox-widget>
             </div>
             <div class="widget-container">
+              <ssl-widget></ssl-widget>
+            </div>
+            <div class="widget-container">
               <notes-widget
                 .apiService="${this.apiService}"
                 .connected="${this.connected}">
@@ -1179,6 +1183,11 @@ class DashboardApp extends LitElement {
           <!-- Widget Freebox (presence + connexion) -->
           <div class="widget-container">
             <freebox-widget></freebox-widget>
+          </div>
+
+          <!-- Widget SSL Monitor -->
+          <div class="widget-container">
+            <ssl-widget></ssl-widget>
           </div>
 
           <!-- Widget santé système -->
