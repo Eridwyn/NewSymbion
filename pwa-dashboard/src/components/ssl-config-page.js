@@ -583,7 +583,8 @@ export class SslConfigPage extends LitElement {
   }
 
   getAuthToken() {
-    return localStorage.getItem('symbion_auth_token') || ''
+    // Le token est stocké dans sessionStorage par auth-service
+    return sessionStorage.getItem('symbion_auth_token') || ''
   }
 
   async fetchDomains() {
