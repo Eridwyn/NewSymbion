@@ -16,7 +16,10 @@ export class SslConfigPage extends LitElement {
       display: block;
       position: fixed;
       inset: 0;
-      background: #0a0a0f;
+      background:
+        radial-gradient(ellipse 60% 100% at -5% 50%, rgba(0, 212, 170, 0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 100% at 105% 50%, rgba(0, 212, 170, 0.04) 0%, transparent 60%),
+        linear-gradient(180deg, #0f0f12 0%, #0a0a0d 50%, #080810 100%);
       z-index: 1000;
       overflow-y: auto;
       overflow-x: hidden;
