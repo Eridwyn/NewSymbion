@@ -36,13 +36,46 @@ class DashboardApp extends LitElement {
     :host {
       display: block;
       min-height: 100vh;
-      /* Background avec lueur thématique douce sur les côtés */
-      background:
-        radial-gradient(ellipse 60% 100% at -5% 50%, color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 100% at 105% 50%, color-mix(in srgb, var(--context-primary, #00d4aa) 6%, transparent) 0%, transparent 60%),
-        linear-gradient(180deg, #0f0f12 0%, #0a0a0d 50%, #080810 100%);
+      background: linear-gradient(180deg, #0f0f14 0%, #0a0a0f 50%, #08080c 100%);
       color: var(--color-dark-text-primary, #f8f9fa);
       font-family: var(--font-sans);
+      position: relative;
+    }
+
+    /* Lueurs thématiques animées sur les côtés */
+    :host::before,
+    :host::after {
+      content: '';
+      position: fixed;
+      top: 0;
+      width: 40%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    :host::before {
+      left: 0;
+      background: radial-gradient(ellipse 100% 80% at 0% 50%, var(--context-primary, #00d4aa) 0%, transparent 70%);
+      opacity: 0.12;
+      animation: pulseLeft 8s ease-in-out infinite;
+    }
+
+    :host::after {
+      right: 0;
+      background: radial-gradient(ellipse 100% 80% at 100% 50%, var(--context-primary, #00d4aa) 0%, transparent 70%);
+      opacity: 0.08;
+      animation: pulseRight 8s ease-in-out infinite 4s;
+    }
+
+    @keyframes pulseLeft {
+      0%, 100% { opacity: 0.12; }
+      50% { opacity: 0.18; }
+    }
+
+    @keyframes pulseRight {
+      0%, 100% { opacity: 0.08; }
+      50% { opacity: 0.14; }
     }
 
     /* Header bioluminescent avec glassmorphism CONTEXTUEL */
