@@ -551,9 +551,15 @@ export class SslWidget extends LitElement {
     }
 
     .btn-primary:disabled {
-      opacity: 0.5;
+      opacity: 0.4;
       cursor: not-allowed;
       transform: none;
+      background: rgba(0, 212, 170, 0.3);
+    }
+
+    .btn-primary:disabled:hover {
+      transform: none;
+      box-shadow: none;
     }
 
     .btn-secondary {
@@ -1067,11 +1073,11 @@ export class SslWidget extends LitElement {
                     Enregistrer
                   </button>
                 ` : html`
-                  <button class="btn btn-primary" @click=${() => this.saveDomain()} ?disabled=${!this.formData.hostname}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <button class="btn btn-primary" style="width: 100%;" @click=${() => this.saveDomain()} ?disabled=${!this.formData.hostname}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M12 5v14M5 12h14"/>
                     </svg>
-                    Ajouter
+                    Ajouter un domaine
                   </button>
                 `}
               </div>
