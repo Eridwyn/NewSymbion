@@ -1,4 +1,5 @@
 import { LitElement, html, css } from 'lit'
+import './organic-loader.js'
 
 export class SslConfigPage extends LitElement {
   static properties = {
@@ -27,9 +28,19 @@ export class SslConfigPage extends LitElement {
       max-width: 800px;
       margin: 0 auto;
       padding: 1.5rem;
+      padding-top: 1.5rem;
       padding-bottom: 120px;
       min-height: 100%;
       box-sizing: border-box;
+    }
+
+    /* Loader container */
+    .loader-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 1rem;
     }
 
     /* Header */
@@ -868,9 +879,8 @@ export class SslConfigPage extends LitElement {
           </div>
 
           ${this.loading ? html`
-            <div class="loading">
-              <span class="spinner"></span>
-              Chargement...
+            <div class="loader-container">
+              <organic-loader text="Chargement des domaines..."></organic-loader>
             </div>
           ` : this.domains.length === 0 ? html`
             <div class="empty-state">
