@@ -1,21 +1,16 @@
 /**
  * SSL Monitor Widget
  *
- * Displays SSL certificate status for monitored domains:
- * - Certificate validity
- * - Days until expiry
- * - Status indicators (ok/warning/critical)
- * - Online/offline status
+ * Affiche le statut des certificats SSL des domaines surveillés
+ * Mise à jour temps réel via MQTT
  */
 
 import { LitElement, html, css } from 'lit'
-import { apiService } from '../services/api-service.js'
 
 export class SslWidget extends LitElement {
   static properties = {
     domains: { type: Array },
     loading: { type: Boolean },
-    error: { type: String },
     lastUpdate: { type: String },
     mqttConnected: { type: Boolean }
   }
@@ -25,45 +20,75 @@ export class SslWidget extends LitElement {
       display: block;
     }
 
-    .widget-container {
-      background: var(--surface-color, #1a1a2e);
-      border-radius: 16px;
-      padding: 20px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
     .widget-header {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      margin-bottom: 16px;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
     }
 
     .widget-title {
-      font-size: 1.1rem;
+      font-size: 1.2em;
       font-weight: 600;
-      color: var(--text-color, #fff);
+      color: #e0e0e0;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 0.5rem;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .summary-badge {
+      padding: 0.4rem 0.8rem;
+      border-radius: 20px;
+      font-size: 0.75em;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    .summary-ok {
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.25) 0%, rgba(34, 197, 94, 0.2) 100%);
+      color: #00d4aa;
+      border: 1px solid rgba(0, 212, 170, 0.4);
+    }
+
+    .summary-warning {
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.25) 0%, rgba(245, 158, 11, 0.2) 100%);
+      color: #fbbf24;
+      border: 1px solid rgba(251, 191, 36, 0.4);
+    }
+
+    .summary-critical {
+      background: linear-gradient(135deg, rgba(255, 107, 107, 0.25) 0%, rgba(239, 68, 68, 0.2) 100%);
+      color: #ff6b6b;
+      border: 1px solid rgba(255, 107, 107, 0.4);
     }
 
     .refresh-btn {
-      background: none;
-      border: none;
-      color: var(--text-muted, #888);
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #888;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
       cursor: pointer;
-      padding: 4px;
-      border-radius: 4px;
-      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
     }
 
     .refresh-btn:hover {
-      color: var(--accent-color, #00d4ff);
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.08);
+      color: #00d4ff;
+      border-color: rgba(0, 212, 255, 0.3);
     }
 
-    .refresh-btn.spinning {
+    .refresh-btn.spinning svg {
       animation: spin 1s linear infinite;
     }
 
@@ -74,147 +99,131 @@ export class SslWidget extends LitElement {
     .domains-list {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 0.75rem;
     }
 
     .domain-card {
-      background: rgba(255, 255, 255, 0.05);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 12px;
-      padding: 14px;
+      padding: 1rem;
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      transition: all 0.2s;
+      justify-content: space-between;
+      transition: all 0.2s ease;
     }
 
     .domain-card:hover {
-      background: rgba(255, 255, 255, 0.08);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .domain-card.critical {
+      border-color: rgba(255, 107, 107, 0.3);
+    }
+
+    .domain-card.warning {
+      border-color: rgba(251, 191, 36, 0.3);
     }
 
     .domain-info {
       display: flex;
-      flex-direction: column;
-      gap: 4px;
+      align-items: center;
+      gap: 0.75rem;
     }
 
-    .domain-name {
-      font-weight: 500;
-      color: var(--text-color, #fff);
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-dot.ok {
+      background: #00d4aa;
+      box-shadow: 0 0 8px rgba(0, 212, 170, 0.5);
+    }
+
+    .status-dot.warning {
+      background: #fbbf24;
+      box-shadow: 0 0 8px rgba(251, 191, 36, 0.5);
+      animation: pulse-warning 2s ease-in-out infinite;
+    }
+
+    .status-dot.critical {
+      background: #ff6b6b;
+      box-shadow: 0 0 8px rgba(255, 107, 107, 0.5);
+      animation: pulse-critical 1.5s ease-in-out infinite;
+    }
+
+    .status-dot.error {
+      background: #666;
+    }
+
+    @keyframes pulse-warning {
+      0%, 100% { box-shadow: 0 0 8px rgba(251, 191, 36, 0.5); }
+      50% { box-shadow: 0 0 14px rgba(251, 191, 36, 0.8); }
+    }
+
+    @keyframes pulse-critical {
+      0%, 100% { box-shadow: 0 0 8px rgba(255, 107, 107, 0.5); }
+      50% { box-shadow: 0 0 14px rgba(255, 107, 107, 0.9); }
     }
 
     .domain-details {
-      font-size: 0.85rem;
-      color: var(--text-muted, #888);
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
     }
 
-    .status-badge {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 0.85rem;
+    .domain-name {
+      color: #e0e0e0;
+      font-size: 0.95em;
       font-weight: 500;
     }
 
-    .status-ok {
-      background: rgba(0, 200, 83, 0.2);
-      color: #00c853;
-    }
-
-    .status-warning {
-      background: rgba(255, 193, 7, 0.2);
-      color: #ffc107;
-    }
-
-    .status-critical {
-      background: rgba(244, 67, 54, 0.2);
-      color: #f44336;
-    }
-
-    .status-error {
-      background: rgba(158, 158, 158, 0.2);
-      color: #9e9e9e;
-    }
-
-    .status-expired {
-      background: rgba(156, 39, 176, 0.2);
-      color: #9c27b0;
-    }
-
-    .online-indicator {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #00c853;
-    }
-
-    .online-indicator.offline {
-      background: #f44336;
+    .domain-issuer {
+      color: #666;
+      font-size: 0.75em;
     }
 
     .expiry-info {
       text-align: right;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.2rem;
     }
 
     .days-remaining {
-      font-size: 1.2rem;
+      font-size: 1.1em;
       font-weight: 600;
     }
 
-    .days-remaining.ok { color: #00c853; }
-    .days-remaining.warning { color: #ffc107; }
-    .days-remaining.critical { color: #f44336; }
-    .days-remaining.expired { color: #9c27b0; }
+    .days-remaining.ok { color: #00d4aa; }
+    .days-remaining.warning { color: #fbbf24; }
+    .days-remaining.critical { color: #ff6b6b; }
+    .days-remaining.error { color: #666; }
 
     .expiry-date {
-      font-size: 0.75rem;
-      color: var(--text-muted, #888);
-    }
-
-    .summary-bar {
-      display: flex;
-      gap: 16px;
-      margin-top: 16px;
-      padding-top: 16px;
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .summary-item {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.85rem;
-      color: var(--text-muted, #888);
-    }
-
-    .summary-count {
-      font-weight: 600;
-      color: var(--text-color, #fff);
-    }
-
-    .last-update {
-      font-size: 0.75rem;
-      color: var(--text-muted, #888);
-      text-align: right;
-      margin-top: 8px;
-    }
-
-    .error-message {
-      color: #f44336;
-      padding: 12px;
-      background: rgba(244, 67, 54, 0.1);
-      border-radius: 8px;
-      font-size: 0.9rem;
+      font-size: 0.7em;
+      color: #666;
     }
 
     .empty-state {
       text-align: center;
-      padding: 32px;
-      color: var(--text-muted, #888);
+      padding: 2rem;
+      color: #666;
+      font-size: 0.9em;
+    }
+
+    .last-update {
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 0.7em;
+      color: #555;
+      text-align: right;
     }
   `
 
@@ -222,7 +231,6 @@ export class SslWidget extends LitElement {
     super()
     this.domains = []
     this.loading = true
-    this.error = null
     this.lastUpdate = null
     this.mqttConnected = false
     this._mqttService = null
@@ -232,7 +240,6 @@ export class SslWidget extends LitElement {
 
   connectedCallback() {
     super.connectedCallback()
-    // Retry finding mqtt-service (may not exist immediately)
     this.setupMqttWithRetry()
   }
 
@@ -257,29 +264,26 @@ export class SslWidget extends LitElement {
         this.loading = false
       } else if (attempts >= maxAttempts) {
         clearInterval(interval)
-        console.warn('[ssl-widget] mqtt-service not found after retries')
+        console.warn('[ssl-widget] mqtt-service not found')
         this.loading = false
       }
     }, 500)
   }
 
   setupMqttListeners(mqttService) {
-    console.log('[ssl-widget] Setting up event listeners on mqtt-service')
-
     mqttService.addEventListener('ssl-summary', this._boundSummaryHandler)
     mqttService.addEventListener('ssl-domain', this._boundDomainHandler)
-
     this._mqttService = mqttService
 
-    // Load cached data (retained messages that arrived before we subscribed)
+    // Load cached data
     if (typeof mqttService.getSslCache === 'function') {
       const cache = mqttService.getSslCache()
       if (cache.summary && cache.summary.domains) {
         this.domains = cache.summary.domains
-        this.lastUpdate = new Date().toLocaleTimeString()
+        this.lastUpdate = new Date().toLocaleTimeString('fr-FR')
       } else if (Object.keys(cache.domains).length > 0) {
         this.domains = Object.values(cache.domains)
-        this.lastUpdate = new Date().toLocaleTimeString()
+        this.lastUpdate = new Date().toLocaleTimeString('fr-FR')
       }
     }
   }
@@ -288,12 +292,12 @@ export class SslWidget extends LitElement {
     const { payload } = event.detail
     if (payload && payload.domains) {
       this.domains = payload.domains
-      this.lastUpdate = new Date().toLocaleTimeString()
+      this.lastUpdate = new Date().toLocaleTimeString('fr-FR')
     }
   }
 
   handleSslDomain(event) {
-    const { domainId, payload } = event.detail
+    const { payload } = event.detail
     if (payload && payload.domain_id) {
       const idx = this.domains.findIndex(d => d.domain_id === payload.domain_id)
       if (idx >= 0) {
@@ -305,129 +309,93 @@ export class SslWidget extends LitElement {
       } else {
         this.domains = [...this.domains, payload]
       }
-      this.lastUpdate = new Date().toLocaleTimeString()
+      this.lastUpdate = new Date().toLocaleTimeString('fr-FR')
     }
   }
 
-  async refresh() {
-    this.loading = true
-    // No API endpoint yet, just rely on MQTT
-    setTimeout(() => {
-      this.loading = false
-    }, 500)
-  }
-
-  getStatusIcon(level) {
-    switch (level) {
-      case 'ok': return '✓'
-      case 'warning': return '⚠'
-      case 'critical': return '⚠'
-      case 'expired': return '✗'
-      case 'error': return '?'
-      default: return '•'
-    }
-  }
-
-  formatDaysRemaining(days) {
+  formatDays(days) {
     if (days === null || days === undefined) return '?'
     if (days < 0) return 'Expiré'
-    if (days === 0) return "Aujourd'hui"
-    if (days === 1) return '1 jour'
-    return `${days} jours`
+    if (days === 0) return "Auj."
+    if (days === 1) return '1j'
+    return `${days}j`
+  }
+
+  getStatusLevel(domain) {
+    if (!domain.ssl_valid) return 'error'
+    if (domain.days_remaining === null) return 'error'
+    if (domain.days_remaining <= 14) return 'critical'
+    if (domain.days_remaining <= 30) return 'warning'
+    return 'ok'
+  }
+
+  getSummaryStatus() {
+    if (this.domains.length === 0) return 'ok'
+    const hasCritical = this.domains.some(d => this.getStatusLevel(d) === 'critical')
+    const hasWarning = this.domains.some(d => this.getStatusLevel(d) === 'warning')
+    if (hasCritical) return 'critical'
+    if (hasWarning) return 'warning'
+    return 'ok'
   }
 
   render() {
     const validCount = this.domains.filter(d => d.ssl_valid).length
-    const expiringCount = this.domains.filter(d =>
-      d.days_remaining !== null && d.days_remaining <= 30 && d.days_remaining > 0
-    ).length
-    const criticalCount = this.domains.filter(d =>
-      d.days_remaining !== null && d.days_remaining <= 14
-    ).length
+    const summaryStatus = this.getSummaryStatus()
 
     return html`
-      <div class="widget-container">
-        <div class="widget-header">
-          <div class="widget-title">
-            🔒 SSL Monitor
-          </div>
-          <button
-            class="refresh-btn ${this.loading ? 'spinning' : ''}"
-            @click=${this.refresh}
-            ?disabled=${this.loading}
-          >
-            ↻
+      <div class="widget-header">
+        <div class="widget-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          SSL Monitor
+        </div>
+        <div class="header-right">
+          ${this.domains.length > 0 ? html`
+            <span class="summary-badge summary-${summaryStatus}">
+              ${validCount}/${this.domains.length} OK
+            </span>
+          ` : ''}
+          <button class="refresh-btn ${this.loading ? 'spinning' : ''}" @click=${() => this.requestUpdate()}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
           </button>
         </div>
+      </div>
 
-        ${this.error ? html`
-          <div class="error-message">${this.error}</div>
-        ` : ''}
+      ${this.domains.length === 0 && !this.loading ? html`
+        <div class="empty-state">En attente des données SSL...</div>
+      ` : ''}
 
-        ${this.domains.length === 0 && !this.loading ? html`
-          <div class="empty-state">
-            En attente des données SSL...
-          </div>
-        ` : ''}
-
-        <div class="domains-list">
-          ${this.domains.map(domain => html`
-            <div class="domain-card">
+      <div class="domains-list">
+        ${this.domains.map(domain => {
+          const status = this.getStatusLevel(domain)
+          return html`
+            <div class="domain-card ${status}">
               <div class="domain-info">
-                <div class="domain-name">
-                  <span class="online-indicator ${domain.online ? '' : 'offline'}"></span>
-                  ${domain.hostname}
-                </div>
+                <span class="status-dot ${status}"></span>
                 <div class="domain-details">
-                  ${domain.issuer ? `Émetteur: ${domain.issuer}` : 'SSL'}
+                  <span class="domain-name">${domain.hostname}</span>
+                  <span class="domain-issuer">${domain.issuer || 'SSL'}</span>
                 </div>
               </div>
-
               <div class="expiry-info">
-                <div class="days-remaining ${domain.status_level}">
-                  ${this.formatDaysRemaining(domain.days_remaining)}
-                </div>
+                <span class="days-remaining ${status}">${this.formatDays(domain.days_remaining)}</span>
                 ${domain.expiry_date ? html`
-                  <div class="expiry-date">
-                    Expire: ${domain.expiry_date}
-                  </div>
+                  <span class="expiry-date">${domain.expiry_date}</span>
                 ` : ''}
               </div>
-
-              <div class="status-badge status-${domain.status_level}">
-                ${this.getStatusIcon(domain.status_level)}
-              </div>
             </div>
-          `)}
-        </div>
-
-        ${this.domains.length > 0 ? html`
-          <div class="summary-bar">
-            <div class="summary-item">
-              <span class="summary-count">${validCount}/${this.domains.length}</span>
-              valides
-            </div>
-            ${expiringCount > 0 ? html`
-              <div class="summary-item">
-                <span class="summary-count" style="color: #ffc107">${expiringCount}</span>
-                expiration proche
-              </div>
-            ` : ''}
-            ${criticalCount > 0 ? html`
-              <div class="summary-item">
-                <span class="summary-count" style="color: #f44336">${criticalCount}</span>
-                critique
-              </div>
-            ` : ''}
-          </div>
-        ` : ''}
-
-        ${this.lastUpdate ? html`
-          <div class="last-update">
-            Dernière mise à jour: ${this.lastUpdate}
-          </div>
-        ` : ''}
+          `
+        })}
       </div>
+
+      ${this.lastUpdate ? html`
+        <div class="last-update">Màj: ${this.lastUpdate}</div>
+      ` : ''}
     `
   }
 }
