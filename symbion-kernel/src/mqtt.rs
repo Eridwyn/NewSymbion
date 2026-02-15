@@ -60,6 +60,18 @@ struct FreeboxPresenceSummary {
     anyone_home: bool,
 }
 
+/// External feature update from plugins (SSL, etc.)
+#[derive(Debug, Deserialize)]
+struct ExternalFeatureUpdate {
+    feature_id: String,
+    value: serde_json::Value,
+    source: String,
+    #[serde(default = "default_ttl")]
+    ttl_seconds: u32,
+}
+
+fn default_ttl() -> u32 { 7200 } // 2 hours default
+
 /// Crée un client MQTT configuré pour le kernel avec son eventloop
 pub fn create_mqtt_client(config: &HostsConfig) -> Result<AsyncClient, Box<dyn std::error::Error + Send + Sync>> {
     let mqtt_cfg = config.mqtt.clone().unwrap_or_else(|| crate::config::MqttConf { 
@@ -150,6 +162,12 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                 eprintln!("[kernel] subscribe freebox presence failed: {e:?}");
             } else {
                 println!("[kernel] subscribed to Freebox presence topics");
+            }
+            // S'abonner aux mises à jour de features (plugins externes comme SSL)
+            if let Err(e) = client.subscribe("symbion/features/update", QoS::AtLeastOnce).await {
+                eprintln!("[kernel] subscribe features update failed: {e:?}");
+            } else {
+                println!("[kernel] subscribed to external feature updates");
             }
         }
 
@@ -473,6 +491,41 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                                     }
                                     Err(e) => eprintln!("[kernel] freebox presence JSON invalide: {txt}, error: {}", e),
                                 }
+                            }
+                        }
+                    }
+                } else if p.topic == "symbion/features/update" {
+                    // External feature updates (from plugins like SSL)
+                    if let Some(ref features) = feature_registry {
+                        if let Ok(txt) = String::from_utf8(p.payload.to_vec()) {
+                            match serde_json::from_str::<ExternalFeatureUpdate>(&txt) {
+                                Ok(update) => {
+                                    // Convert JSON value to FeatureValue
+                                    let value = match &update.value {
+                                        serde_json::Value::Bool(b) => FeatureValue::Bool(*b),
+                                        serde_json::Value::Number(n) => {
+                                            if let Some(i) = n.as_i64() {
+                                                FeatureValue::Int(i)
+                                            } else if let Some(f) = n.as_f64() {
+                                                FeatureValue::Float(f)
+                                            } else {
+                                                FeatureValue::String(n.to_string())
+                                            }
+                                        }
+                                        serde_json::Value::String(s) => FeatureValue::String(s.clone()),
+                                        _ => FeatureValue::String(update.value.to_string()),
+                                    };
+
+                                    features.set_feature(
+                                        &update.feature_id,
+                                        value,
+                                        &update.source,
+                                        1.0, // confidence
+                                        update.ttl_seconds,
+                                    );
+                                    println!("[kernel] external feature updated: {} from {}", update.feature_id, update.source);
+                                }
+                                Err(e) => eprintln!("[kernel] feature update JSON invalide: {txt}, error: {}", e),
                             }
                         }
                     }

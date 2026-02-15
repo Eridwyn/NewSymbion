@@ -49,6 +49,8 @@ pub struct DynamicValues {
     pub months: Vec<ValueOption>,
     pub plugins: Vec<ValueOption>,
     pub plugin_health_statuses: Vec<ValueOption>,
+    pub ssl_domains: Vec<ValueOption>,
+    pub ssl_statuses: Vec<ValueOption>,
 }
 
 /// Sensor option with room context
@@ -152,8 +154,19 @@ impl SchemaRegistry {
         sensors: &[SensorInfo],
         modes: &[(String, String, String)],  // (slug, label, description)
     ) -> AutomationSchema {
-        // Include common presence features by default
-        let default_features = vec![
+        Self::get_schema_with_ssl(agents, rooms, sensors, modes, &[])
+    }
+
+    /// Get complete schema with SSL domains
+    pub fn get_schema_with_ssl(
+        agents: &[(String, String)],  // (id, name/hostname)
+        rooms: &[String],
+        sensors: &[SensorInfo],
+        modes: &[(String, String, String)],  // (slug, label, description)
+        ssl_domains: &[(String, String)],  // (id, label)
+    ) -> AutomationSchema {
+        // Include common presence features + SSL features by default
+        let mut default_features = vec![
             ("presence.phone".to_string(), "📱 Présence téléphone".to_string()),
             ("presence.anyone_home".to_string(), "🏠 Quelqu'un à la maison".to_string()),
             ("env.temperature".to_string(), "🌡️ Température".to_string()),
@@ -162,12 +175,33 @@ impl SchemaRegistry {
             ("process.category.media".to_string(), "🎬 Média actif".to_string()),
             ("agent.online".to_string(), "🖥️ Agent en ligne".to_string()),
         ];
+
+        // Add SSL features for each domain
+        for (domain_id, label) in ssl_domains {
+            default_features.push((
+                format!("ssl.{}.valid", domain_id),
+                format!("🔒 {} - Certificat valide", label),
+            ));
+            default_features.push((
+                format!("ssl.{}.days_remaining", domain_id),
+                format!("📅 {} - Jours restants", label),
+            ));
+            default_features.push((
+                format!("ssl.{}.status", domain_id),
+                format!("🚦 {} - Status (ok/warning/critical)", label),
+            ));
+            default_features.push((
+                format!("ssl.{}.online", domain_id),
+                format!("🌐 {} - Domaine en ligne", label),
+            ));
+        }
+
         AutomationSchema {
             triggers: Self::get_triggers(),
             trigger_group: Self::get_trigger_group_schema(),
             conditions: Self::get_conditions(),
             actions: Self::get_actions(),
-            dynamic_values: Self::get_dynamic_values(agents, rooms, sensors, modes, &default_features),
+            dynamic_values: Self::get_dynamic_values(agents, rooms, sensors, modes, &default_features, ssl_domains),
         }
     }
 
@@ -360,6 +394,36 @@ impl SchemaRegistry {
                         options_key: None,
                         min: Some(0.0),
                         max: Some(23.0),
+                    },
+                ],
+            },
+            TriggerSchema {
+                trigger_type: "ssl_alert".to_string(),
+                label: "Alerte SSL".to_string(),
+                description: "Déclenché quand un certificat SSL change de status".to_string(),
+                icon: "🔒".to_string(),
+                fields: vec![
+                    FieldSchema {
+                        name: "domain_id".to_string(),
+                        label: "Domaine".to_string(),
+                        field_type: FieldType::Select,
+                        required: false,
+                        default_value: None,
+                        placeholder: Some("Tous les domaines".to_string()),
+                        options_key: Some("ssl_domains".to_string()),
+                        min: None,
+                        max: None,
+                    },
+                    FieldSchema {
+                        name: "status".to_string(),
+                        label: "Status".to_string(),
+                        field_type: FieldType::Select,
+                        required: true,
+                        default_value: Some(serde_json::json!("critical")),
+                        placeholder: None,
+                        options_key: Some("ssl_statuses".to_string()),
+                        min: None,
+                        max: None,
                     },
                 ],
             },
@@ -737,6 +801,7 @@ impl SchemaRegistry {
         sensors: &[SensorInfo],
         modes: &[(String, String, String)],  // (slug, label, description)
         features: &[(String, String)],  // (feature_id, label)
+        ssl_domains: &[(String, String)],  // (id, label)
     ) -> DynamicValues {
         DynamicValues {
             modes: modes
@@ -953,6 +1018,8 @@ impl SchemaRegistry {
             plugins: vec![
                 ValueOption { value: "notes".to_string(), label: "📝 Notes".to_string(), description: Some("Plugin de notes".to_string()) },
                 ValueOption { value: "sensors".to_string(), label: "🌡️ Sensors".to_string(), description: Some("Plugin capteurs environnement".to_string()) },
+                ValueOption { value: "ssl".to_string(), label: "🔒 SSL".to_string(), description: Some("Plugin surveillance certificats SSL".to_string()) },
+                ValueOption { value: "freebox".to_string(), label: "📡 Freebox".to_string(), description: Some("Plugin présence Freebox".to_string()) },
             ],
             plugin_health_statuses: vec![
                 ValueOption { value: "healthy".to_string(), label: "🟢 Healthy".to_string(), description: Some("Plugin fonctionne".to_string()) },
@@ -961,6 +1028,22 @@ impl SchemaRegistry {
                 ValueOption { value: "recovery_failed".to_string(), label: "❌ Recovery Failed".to_string(), description: Some("Redémarrage échoué".to_string()) },
                 ValueOption { value: "recovery_success".to_string(), label: "✅ Recovery Success".to_string(), description: Some("Redémarrage réussi".to_string()) },
                 ValueOption { value: "any".to_string(), label: "* Tout changement".to_string(), description: Some("N'importe quel changement".to_string()) },
+            ],
+            ssl_domains: ssl_domains
+                .iter()
+                .map(|(id, label)| ValueOption {
+                    value: id.clone(),
+                    label: format!("🔒 {}", label),
+                    description: Some(format!("Domaine: {}", id)),
+                })
+                .collect(),
+            ssl_statuses: vec![
+                ValueOption { value: "ok".to_string(), label: "🟢 OK".to_string(), description: Some("Certificat valide".to_string()) },
+                ValueOption { value: "warning".to_string(), label: "🟡 Warning".to_string(), description: Some("Expiration proche".to_string()) },
+                ValueOption { value: "critical".to_string(), label: "🔴 Critical".to_string(), description: Some("Expiration imminente".to_string()) },
+                ValueOption { value: "expired".to_string(), label: "⛔ Expired".to_string(), description: Some("Certificat expiré".to_string()) },
+                ValueOption { value: "error".to_string(), label: "❌ Error".to_string(), description: Some("Erreur de vérification".to_string()) },
+                ValueOption { value: "any".to_string(), label: "* Tout changement".to_string(), description: Some("N'importe quel changement de status".to_string()) },
             ],
         }
     }
@@ -1002,7 +1085,7 @@ mod tests {
 
         let schema = SchemaRegistry::get_schema(&agents, &rooms, &sensors, &modes);
 
-        assert_eq!(schema.triggers.len(), 6);  // mode_change, sensor_alert, agent_status, manual, plugin_health, scheduled
+        assert_eq!(schema.triggers.len(), 7);  // mode_change, sensor_alert, agent_status, manual, plugin_health, scheduled, ssl_alert
         assert_eq!(schema.conditions.len(), 8);  // current_mode, time_range, day_of_week, day_of_month, month, sensor_value, agent_online, feature
         assert_eq!(schema.actions.len(), 4);
         assert_eq!(schema.dynamic_values.modes.len(), 3);
