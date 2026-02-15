@@ -16,10 +16,9 @@ export class SslConfigPage extends LitElement {
       display: block;
       position: fixed;
       inset: 0;
-      background:
-        radial-gradient(ellipse 60% 100% at -5% 50%, rgba(0, 212, 170, 0.06) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 100% at 105% 50%, rgba(0, 212, 170, 0.04) 0%, transparent 60%),
-        linear-gradient(180deg, #0f0f12 0%, #0a0a0d 50%, #080810 100%);
+      background: rgba(0, 0, 0, 0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       z-index: 1000;
       overflow-y: auto;
       overflow-x: hidden;
@@ -97,7 +96,7 @@ export class SslConfigPage extends LitElement {
     }
 
     .page-title-icon {
-      color: #00d4aa;
+      color: var(--context-primary, #00d4aa);
     }
 
     .page-subtitle {
@@ -112,8 +111,8 @@ export class SslConfigPage extends LitElement {
 
     /* Sections */
     .section {
-      background: #111118;
-      border: 1px solid #1e1e2e;
+      background: linear-gradient(135deg, rgba(26, 26, 26, 0.9) 0%, rgba(15, 15, 15, 0.85) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 16px;
       padding: 1.5rem;
       margin-bottom: 1.5rem;
@@ -138,8 +137,8 @@ export class SslConfigPage extends LitElement {
     .section-badge {
       font-size: 0.75rem;
       padding: 0.25rem 0.6rem;
-      background: rgba(0, 212, 170, 0.15);
-      color: #00d4aa;
+      background: color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+      color: var(--context-primary, #00d4aa);
       border-radius: 6px;
       font-weight: 500;
     }
@@ -152,16 +151,16 @@ export class SslConfigPage extends LitElement {
     }
 
     .domain-card {
-      background: #15151f;
-      border: 1px solid #252535;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
       border-radius: 12px;
       padding: 1.25rem;
       transition: all 0.2s ease;
     }
 
     .domain-card:hover {
-      background: #1a1a28;
-      border-color: #00d4aa40;
+      background: rgba(255, 255, 255, 0.06);
+      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
     }
 
     .domain-card-header {
@@ -196,8 +195,8 @@ export class SslConfigPage extends LitElement {
     }
 
     .status-ok {
-      background: rgba(0, 212, 170, 0.15);
-      color: #00d4aa;
+      background: color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+      color: var(--context-primary, #00d4aa);
     }
 
     .status-warning {
@@ -359,8 +358,8 @@ export class SslConfigPage extends LitElement {
 
     .form-input:focus {
       outline: none;
-      border-color: rgba(0, 212, 170, 0.5);
-      box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.1);
+      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 50%, transparent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
     }
 
     .form-input::placeholder {
@@ -395,7 +394,7 @@ export class SslConfigPage extends LitElement {
     }
 
     .btn-primary {
-      background: linear-gradient(135deg, #00d4aa 0%, #00b89c 100%);
+      background: linear-gradient(135deg, var(--context-primary, #00d4aa) 0%, color-mix(in srgb, var(--context-primary, #00d4aa) 80%, #000) 100%);
       border: none;
       color: #0a0a0f;
       flex: 1;
@@ -403,7 +402,7 @@ export class SslConfigPage extends LitElement {
 
     .btn-primary:hover {
       transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(0, 212, 170, 0.3);
+      box-shadow: 0 6px 20px color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
     }
 
     .btn-primary:disabled {
@@ -490,10 +489,10 @@ export class SslConfigPage extends LitElement {
     .add-domain-btn {
       width: 100%;
       padding: 1rem;
-      background: linear-gradient(135deg, rgba(0, 212, 170, 0.1) 0%, rgba(0, 180, 140, 0.05) 100%);
-      border: 2px dashed rgba(0, 212, 170, 0.3);
+      background: color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
+      border: 2px dashed color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
       border-radius: 12px;
-      color: #00d4aa;
+      color: var(--context-primary, #00d4aa);
       font-size: 0.9rem;
       font-weight: 600;
       cursor: pointer;
@@ -506,14 +505,14 @@ export class SslConfigPage extends LitElement {
     }
 
     .add-domain-btn:hover {
-      background: linear-gradient(135deg, rgba(0, 212, 170, 0.2) 0%, rgba(0, 180, 140, 0.1) 100%);
-      border-color: rgba(0, 212, 170, 0.5);
+      background: color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 50%, transparent);
     }
 
     /* Form section collapsible */
     .form-section {
-      background: #0f1a18;
-      border: 1px solid #00d4aa30;
+      background: linear-gradient(135deg, rgba(26, 26, 26, 0.95) 0%, rgba(15, 15, 15, 0.9) 100%);
+      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
       animation: slideDown 0.2s ease-out;
     }
 
