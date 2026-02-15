@@ -46,3 +46,7 @@ thiserror = "1"
 
 # X509 certificate parsing
 x509-parser = "0.16"
+
+# Fingerprint calculation
+sha2 = "0.10"
+hex = "0.4"
