@@ -17,7 +17,7 @@ export class SslConfigPage extends LitElement {
       position: fixed;
       inset: 0;
       background: linear-gradient(180deg, #0a0a0f 0%, #12121a 100%);
-      z-index: 100;
+      z-index: 1000;
       overflow-y: auto;
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
