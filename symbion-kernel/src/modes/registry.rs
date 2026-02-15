@@ -22,61 +22,66 @@ impl ModeRegistry {
             persistence_path,
         };
 
-        // Charger les modes système par défaut
-        registry.init_system_modes();
-
-        // Charger les modes personnalisés depuis le fichier
-        registry.load_from_disk();
+        // Charger depuis le disque, ou bootstrap avec les défauts
+        if !registry.load_from_disk() {
+            registry.init_system_modes();
+            let _ = registry.save_to_disk(); // Persister immédiatement
+        }
 
         registry
     }
 
-    /// Initialise les modes système (écrase les existants)
+    /// Initialise les modes système par défaut (bootstrap uniquement)
     fn init_system_modes(&self) {
         let mut modes = self.modes.write();
         for mode in default_system_modes() {
             modes.insert(mode.id.clone(), mode);
         }
+        eprintln!("[modes] Bootstrapped {} system modes", modes.len());
     }
 
-    /// Charge les modes personnalisés depuis le disque
-    fn load_from_disk(&self) {
+    /// Charge TOUS les modes depuis le disque (système + custom)
+    /// Retourne true si le fichier existait avec des modes valides
+    fn load_from_disk(&self) -> bool {
         if !self.persistence_path.exists() {
-            eprintln!("[modes] No custom modes file found at {:?}", self.persistence_path);
-            return;
+            eprintln!("[modes] No modes file found, will bootstrap defaults");
+            return false;
         }
 
         match std::fs::read_to_string(&self.persistence_path) {
             Ok(content) => {
                 match serde_json::from_str::<Vec<DynamicMode>>(&content) {
-                    Ok(custom_modes) => {
-                        let mut modes = self.modes.write();
-                        let count = custom_modes.len();
-                        for mode in custom_modes {
-                            // Ne pas écraser les modes système
-                            if !mode.is_system {
-                                modes.insert(mode.id.clone(), mode);
-                            }
+                    Ok(all_modes) => {
+                        // Si le fichier est vide, on bootstrap
+                        if all_modes.is_empty() {
+                            eprintln!("[modes] Modes file is empty, will bootstrap defaults");
+                            return false;
                         }
-                        eprintln!("[modes] Loaded {} custom modes from disk", count);
+                        let mut modes = self.modes.write();
+                        let count = all_modes.len();
+                        for mode in all_modes {
+                            modes.insert(mode.id.clone(), mode);
+                        }
+                        eprintln!("[modes] Loaded {} modes from disk", count);
+                        true
                     }
                     Err(e) => {
                         eprintln!("[modes] Failed to parse modes file: {}", e);
+                        false
                     }
                 }
             }
             Err(e) => {
                 eprintln!("[modes] Failed to read modes file: {}", e);
+                false
             }
         }
     }
 
-    /// Sauvegarde les modes personnalisés sur le disque
+    /// Sauvegarde TOUS les modes sur le disque (système + custom)
     fn save_to_disk(&self) -> Result<(), String> {
         let modes = self.modes.read();
-        let custom_modes: Vec<&DynamicMode> = modes.values()
-            .filter(|m| !m.is_system)
-            .collect();
+        let all_modes: Vec<&DynamicMode> = modes.values().collect();
 
         // Créer le répertoire parent si nécessaire
         if let Some(parent) = self.persistence_path.parent() {
@@ -84,13 +89,13 @@ impl ModeRegistry {
                 .map_err(|e| format!("Failed to create directory: {}", e))?;
         }
 
-        let json = serde_json::to_string_pretty(&custom_modes)
+        let json = serde_json::to_string_pretty(&all_modes)
             .map_err(|e| format!("Failed to serialize modes: {}", e))?;
 
         std::fs::write(&self.persistence_path, json)
             .map_err(|e| format!("Failed to write modes file: {}", e))?;
 
-        eprintln!("[modes] Saved {} custom modes to disk", custom_modes.len());
+        eprintln!("[modes] Saved {} modes to disk", all_modes.len());
         Ok(())
     }
 
