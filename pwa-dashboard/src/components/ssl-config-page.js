@@ -623,6 +623,7 @@ export class SslConfigPage extends LitElement {
   }
 
   editDomain(domain) {
+    console.log('[ssl-config] Edit domain:', domain)
     this.editingDomain = domain
     this.showAddForm = true
     this.formData = {
@@ -632,6 +633,8 @@ export class SslConfigPage extends LitElement {
       warning_days: domain.warning_days || 30,
       critical_days: domain.critical_days || 14
     }
+    // Scroll vers le haut pour voir le formulaire
+    this.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   cancelEdit() {
