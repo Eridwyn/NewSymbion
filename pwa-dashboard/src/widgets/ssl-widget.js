@@ -239,10 +239,368 @@ export class SslWidget extends LitElement {
       padding: 2rem;
     }
 
-    .config-btn {
+    /* Config Panel - Modal Overlay */
+    .config-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .config-overlay.open {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* Config Panel - Slide-in Panel */
+    .config-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 380px;
+      max-width: 95vw;
+      height: 100vh;
+      background: linear-gradient(180deg, #12121a 0%, #0d0d14 100%);
+      border-left: 1px solid rgba(0, 212, 170, 0.2);
+      z-index: 1001;
+      transform: translateX(100%);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      box-shadow: -8px 0 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .config-panel.open {
+      transform: translateX(0);
+    }
+
+    /* Header */
+    .config-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.25rem;
+      background: rgba(0, 212, 170, 0.08);
+      border-bottom: 1px solid rgba(0, 212, 170, 0.15);
+    }
+
+    .config-header-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .config-header-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.2) 0%, rgba(0, 180, 140, 0.1) 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #00d4aa;
+    }
+
+    .config-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #e0e0e0;
+    }
+
+    .close-btn {
+      background: transparent;
+      border: none;
+      color: #666;
+      cursor: pointer;
+      padding: 0.5rem;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .close-btn:hover {
+      background: rgba(255, 107, 107, 0.15);
+      color: #ff6b6b;
+    }
+
+    /* Content */
+    .config-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.25rem;
+    }
+
+    /* Section */
+    .config-section {
+      margin-bottom: 1.5rem;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .section-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .section-badge {
+      font-size: 0.7rem;
+      padding: 0.2rem 0.5rem;
+      background: rgba(0, 212, 170, 0.15);
+      color: #00d4aa;
+      border-radius: 4px;
+    }
+
+    /* Domain List */
+    .domain-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .domain-card {
+      display: flex;
+      align-items: stretch;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+
+    .domain-card:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .domain-card-main {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .domain-card-name {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #e0e0e0;
+    }
+
+    .domain-card-host {
+      font-size: 0.75rem;
+      color: #666;
+      font-family: monospace;
+    }
+
+    .domain-card-thresholds {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 0.25rem;
+    }
+
+    .threshold-tag {
+      font-size: 0.65rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .threshold-warning {
+      background: rgba(251, 191, 36, 0.15);
+      color: #fbbf24;
+    }
+
+    .threshold-critical {
+      background: rgba(255, 107, 107, 0.15);
+      color: #ff6b6b;
+    }
+
+    .domain-card-actions {
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .domain-card-actions button {
+      flex: 1;
+      background: transparent;
+      border: none;
+      padding: 0 0.75rem;
+      cursor: pointer;
+      color: #666;
+      transition: all 0.2s ease;
+    }
+
+    .domain-card-actions button:first-child {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .domain-card-actions button:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .domain-card-actions .edit-btn:hover {
+      color: #00d4ff;
+    }
+
+    .domain-card-actions .delete-btn:hover {
+      color: #ff6b6b;
+    }
+
+    /* Form */
+    .form-card {
+      background: rgba(0, 212, 170, 0.05);
+      border: 1px solid rgba(0, 212, 170, 0.15);
+      border-radius: 12px;
+      padding: 1rem;
+    }
+
+    .form-card-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #00d4aa;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .form-group {
+      margin-bottom: 0.875rem;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: #888;
+      margin-bottom: 0.375rem;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 0.625rem 0.875rem;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-size: 0.875rem;
+      box-sizing: border-box;
+      transition: all 0.2s ease;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: rgba(0, 212, 170, 0.5);
+      box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.1);
+    }
+
+    .form-input::placeholder {
+      color: #555;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .btn {
+      padding: 0.625rem 1rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary {
+      flex: 1;
+      background: linear-gradient(135deg, #00d4aa 0%, #00b89c 100%);
+      border: none;
+      color: #0a0a0f;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(0, 212, 170, 0.3);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-secondary {
       background: transparent;
       border: 1px solid rgba(255, 255, 255, 0.15);
       color: #888;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #e0e0e0;
+    }
+
+    /* Check Now Button */
+    .check-now-section {
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .check-now-btn {
+      width: 100%;
+      background: linear-gradient(135deg, rgba(0, 212, 255, 0.15) 0%, rgba(0, 180, 216, 0.1) 100%);
+      border: 1px solid rgba(0, 212, 255, 0.25);
+      color: #00d4ff;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+    }
+
+    .check-now-btn:hover {
+      background: linear-gradient(135deg, rgba(0, 212, 255, 0.25) 0%, rgba(0, 180, 216, 0.2) 100%);
+      transform: translateY(-1px);
+    }
+
+    /* Config button in header */
+    .config-btn {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #666;
       width: 32px;
       height: 32px;
       border-radius: 8px;
@@ -254,258 +612,25 @@ export class SslWidget extends LitElement {
     }
 
     .config-btn:hover {
-      background: rgba(255, 255, 255, 0.08);
-      color: #fbbf24;
-      border-color: rgba(251, 191, 36, 0.3);
+      background: rgba(0, 212, 170, 0.1);
+      border-color: rgba(0, 212, 170, 0.3);
+      color: #00d4aa;
     }
 
-    .config-panel {
-      position: fixed;
-      top: 0;
-      right: 0;
-      width: 400px;
-      max-width: 90vw;
-      height: 100vh;
-      background: linear-gradient(180deg, #1a1a2e 0%, #16162a 100%);
-      border-left: 1px solid rgba(255, 255, 255, 0.1);
-      z-index: 1000;
-      transform: translateX(100%);
-      transition: transform 0.3s ease;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .config-panel.open {
-      transform: translateX(0);
-    }
-
-    .config-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.6);
-      z-index: 999;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.3s ease;
-    }
-
-    .config-overlay.open {
-      opacity: 1;
-      pointer-events: auto;
-    }
-
-    .config-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 1.25rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .config-title {
-      font-size: 1.1em;
-      font-weight: 600;
-      color: #e0e0e0;
-    }
-
-    .close-btn {
-      background: transparent;
-      border: none;
-      color: #888;
-      cursor: pointer;
-      padding: 0.5rem;
-      border-radius: 6px;
-      transition: all 0.2s ease;
-    }
-
-    .close-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
-      color: #ff6b6b;
-    }
-
-    .config-content {
-      flex: 1;
-      overflow-y: auto;
-      padding: 1.25rem;
-    }
-
-    .form-group {
-      margin-bottom: 1rem;
-    }
-
-    .form-label {
-      display: block;
-      font-size: 0.8em;
-      color: #888;
-      margin-bottom: 0.4rem;
-    }
-
-    .form-input {
-      width: 100%;
-      padding: 0.6rem 0.8rem;
-      background: rgba(0, 0, 0, 0.3);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 8px;
-      color: #e0e0e0;
-      font-size: 0.9em;
-      box-sizing: border-box;
-      transition: all 0.2s ease;
-    }
-
-    .form-input:focus {
-      outline: none;
-      border-color: rgba(0, 212, 255, 0.5);
-      box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.15);
-    }
-
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.75rem;
-    }
-
-    .btn-primary {
-      background: linear-gradient(135deg, #00d4aa 0%, #00b89c 100%);
-      border: none;
-      color: #0a0a0f;
-      padding: 0.7rem 1.2rem;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 0.85em;
-      cursor: pointer;
-      width: 100%;
-      transition: all 0.2s ease;
-    }
-
-    .btn-primary:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(0, 212, 170, 0.3);
-    }
-
-    .btn-secondary {
-      background: transparent;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      color: #888;
-      padding: 0.6rem 1rem;
-      border-radius: 8px;
-      font-size: 0.8em;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.08);
-      color: #e0e0e0;
-    }
-
-    .btn-danger {
-      background: transparent;
-      border: 1px solid rgba(255, 107, 107, 0.3);
-      color: #ff6b6b;
-      padding: 0.5rem 0.8rem;
-      border-radius: 6px;
-      font-size: 0.75em;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .btn-danger:hover {
-      background: rgba(255, 107, 107, 0.15);
-    }
-
-    .domain-list-config {
-      margin-bottom: 1.5rem;
-    }
-
-    .domain-config-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.75rem;
-      background: rgba(255, 255, 255, 0.04);
-      border-radius: 8px;
-      margin-bottom: 0.5rem;
-    }
-
-    .domain-config-info {
-      flex: 1;
-    }
-
-    .domain-config-name {
-      font-size: 0.9em;
-      color: #e0e0e0;
-    }
-
-    .domain-config-meta {
-      font-size: 0.7em;
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 2rem 1rem;
       color: #666;
     }
 
-    .domain-actions {
-      display: flex;
-      gap: 0.5rem;
+    .empty-state-icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
     }
 
-    .edit-btn, .delete-btn {
-      background: transparent;
-      border: none;
-      padding: 0.4rem;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .edit-btn {
-      color: #00d4ff;
-    }
-
-    .edit-btn:hover {
-      background: rgba(0, 212, 255, 0.15);
-    }
-
-    .delete-btn {
-      color: #ff6b6b;
-    }
-
-    .delete-btn:hover {
-      background: rgba(255, 107, 107, 0.15);
-    }
-
-    .section-title {
-      font-size: 0.85em;
-      font-weight: 600;
-      color: #888;
-      margin-bottom: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .check-now-btn {
-      background: linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(0, 180, 216, 0.15) 100%);
-      border: 1px solid rgba(0, 212, 255, 0.3);
-      color: #00d4ff;
-      padding: 0.6rem 1rem;
-      border-radius: 8px;
-      font-size: 0.8em;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      transition: all 0.2s ease;
-      margin-top: 1rem;
-    }
-
-    .check-now-btn:hover {
-      background: linear-gradient(135deg, rgba(0, 212, 255, 0.3) 0%, rgba(0, 180, 216, 0.25) 100%);
-    }
-
-    .form-divider {
-      height: 1px;
-      background: rgba(255, 255, 255, 0.1);
-      margin: 1.5rem 0;
+    .empty-state-text {
+      font-size: 0.85rem;
     }
   `
 
@@ -701,6 +826,11 @@ export class SslWidget extends LitElement {
     }
   }
 
+  updateFormField(field, value) {
+    this.formData = { ...this.formData, [field]: value }
+    this.requestUpdate()
+  }
+
   async saveDomain() {
     const token = this.getAuthToken()
     const baseUrl = this.getApiBaseUrl()
@@ -803,109 +933,161 @@ export class SslWidget extends LitElement {
       <div class="config-overlay ${this.showConfig ? 'open' : ''}" @click=${() => this.closeConfig()}></div>
       <div class="config-panel ${this.showConfig ? 'open' : ''}">
         <div class="config-header">
-          <span class="config-title">Configuration SSL</span>
+          <div class="config-header-left">
+            <div class="config-header-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </div>
+            <span class="config-title">Configuration SSL</span>
+          </div>
           <button class="close-btn" @click=${() => this.closeConfig()}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
           </button>
         </div>
+
         <div class="config-content">
-          <!-- Domain List -->
-          <div class="section-title">Domaines surveillés</div>
-          <div class="domain-list-config">
-            ${this.domains.map(domain => html`
-              <div class="domain-config-item">
-                <div class="domain-config-info">
-                  <div class="domain-config-name">${domain.label || domain.hostname}</div>
-                  <div class="domain-config-meta">
-                    ${domain.hostname}:${domain.port} · Warning: ${domain.warning_days || 30}j · Critical: ${domain.critical_days || 14}j
-                  </div>
-                </div>
-                <div class="domain-actions">
-                  <button class="edit-btn" @click=${() => this.editDomain(domain)}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
-                    </svg>
-                  </button>
-                  <button class="delete-btn" @click=${() => this.deleteDomain(domain.id)}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            `)}
-          </div>
-
-          <div class="form-divider"></div>
-
-          <!-- Add/Edit Form -->
-          <div class="section-title">${this.editingDomain ? 'Modifier domaine' : 'Ajouter domaine'}</div>
-
-          <div class="form-group">
-            <label class="form-label">Nom de domaine *</label>
-            <input type="text" class="form-input" name="hostname"
-              .value=${this.formData.hostname}
-              @input=${this.handleInputChange}
-              placeholder="exemple.com">
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Port</label>
-              <input type="number" class="form-input" name="port"
-                .value=${this.formData.port}
-                @input=${this.handleInputChange}>
+          <!-- Domain List Section -->
+          <div class="config-section">
+            <div class="section-header">
+              <span class="section-title">Domaines surveillés</span>
+              <span class="section-badge">${this.domains.length}</span>
             </div>
-            <div class="form-group">
-              <label class="form-label">Label (optionnel)</label>
-              <input type="text" class="form-input" name="label"
-                .value=${this.formData.label}
-                @input=${this.handleInputChange}
-                placeholder="Mon Site">
-            </div>
-          </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Alerte warning (jours)</label>
-              <input type="number" class="form-input" name="warning_days"
-                .value=${this.formData.warning_days}
-                @input=${this.handleInputChange}>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Alerte critique (jours)</label>
-              <input type="number" class="form-input" name="critical_days"
-                .value=${this.formData.critical_days}
-                @input=${this.handleInputChange}>
-            </div>
-          </div>
-
-          <div class="form-group" style="margin-top: 0.5rem;">
-            ${this.editingDomain ? html`
-              <div style="display: flex; gap: 0.75rem;">
-                <button class="btn-primary" style="flex: 1;" @click=${() => this.saveDomain()}>
-                  Mettre à jour
-                </button>
-                <button class="btn-secondary" @click=${() => this.cancelEdit()}>
-                  Annuler
-                </button>
+            ${this.domains.length === 0 ? html`
+              <div class="empty-state">
+                <div class="empty-state-icon">🔒</div>
+                <div class="empty-state-text">Aucun domaine configuré</div>
               </div>
             ` : html`
-              <button class="btn-primary" @click=${() => this.saveDomain()} ?disabled=${!this.formData.hostname}>
-                Ajouter domaine
-              </button>
+              <div class="domain-list">
+                ${this.domains.map(domain => html`
+                  <div class="domain-card">
+                    <div class="domain-card-main">
+                      <div class="domain-card-name">${domain.label || domain.hostname}</div>
+                      <div class="domain-card-host">${domain.hostname}:${domain.port || 443}</div>
+                      <div class="domain-card-thresholds">
+                        <span class="threshold-tag threshold-warning">⚠️ ${domain.warning_days || 30}j</span>
+                        <span class="threshold-tag threshold-critical">🔴 ${domain.critical_days || 14}j</span>
+                      </div>
+                    </div>
+                    <div class="domain-card-actions">
+                      <button class="edit-btn" @click=${() => this.editDomain(domain)} title="Modifier">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                        </svg>
+                      </button>
+                      <button class="delete-btn" @click=${() => this.deleteDomain(domain.id)} title="Supprimer">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                `)}
+              </div>
             `}
           </div>
 
-          <button class="check-now-btn" @click=${() => this.triggerCheck()}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-            </svg>
-            Vérifier maintenant
-          </button>
+          <!-- Add/Edit Form Section -->
+          <div class="config-section">
+            <div class="form-card">
+              <div class="form-card-title">
+                ${this.editingDomain ? html`
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                  </svg>
+                  Modifier le domaine
+                ` : html`
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 5v14M5 12h14"/>
+                  </svg>
+                  Ajouter un domaine
+                `}
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Nom de domaine</label>
+                <input type="text" class="form-input"
+                  id="ssl-hostname"
+                  .value=${this.formData.hostname}
+                  @input=${(e) => this.updateFormField('hostname', e.target.value)}
+                  placeholder="exemple.com">
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Port</label>
+                  <input type="number" class="form-input"
+                    id="ssl-port"
+                    .value=${this.formData.port}
+                    @input=${(e) => this.updateFormField('port', parseInt(e.target.value) || 443)}>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Label</label>
+                  <input type="text" class="form-input"
+                    id="ssl-label"
+                    .value=${this.formData.label}
+                    @input=${(e) => this.updateFormField('label', e.target.value)}
+                    placeholder="Mon Site">
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Warning (jours)</label>
+                  <input type="number" class="form-input"
+                    id="ssl-warning"
+                    .value=${this.formData.warning_days}
+                    @input=${(e) => this.updateFormField('warning_days', parseInt(e.target.value) || 30)}>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Critical (jours)</label>
+                  <input type="number" class="form-input"
+                    id="ssl-critical"
+                    .value=${this.formData.critical_days}
+                    @input=${(e) => this.updateFormField('critical_days', parseInt(e.target.value) || 14)}>
+                </div>
+              </div>
+
+              <div class="form-actions">
+                ${this.editingDomain ? html`
+                  <button class="btn btn-secondary" @click=${() => this.cancelEdit()}>
+                    Annuler
+                  </button>
+                  <button class="btn btn-primary" @click=${() => this.saveDomain()}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                      <polyline points="17 21 17 13 7 13 7 21"/>
+                      <polyline points="7 3 7 8 15 8"/>
+                    </svg>
+                    Enregistrer
+                  </button>
+                ` : html`
+                  <button class="btn btn-primary" @click=${() => this.saveDomain()} ?disabled=${!this.formData.hostname}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    Ajouter
+                  </button>
+                `}
+              </div>
+            </div>
+          </div>
+
+          <!-- Check Now Section -->
+          <div class="check-now-section">
+            <button class="check-now-btn" @click=${() => this.triggerCheck()}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+              Vérifier tous les certificats
+            </button>
+          </div>
         </div>
       </div>
     `
