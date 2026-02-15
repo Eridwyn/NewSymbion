@@ -13,7 +13,10 @@ export class SslWidget extends LitElement {
     domains: { type: Array },
     loading: { type: Boolean },
     lastUpdate: { type: String },
-    mqttConnected: { type: Boolean }
+    mqttConnected: { type: Boolean },
+    showConfig: { type: Boolean },
+    editingDomain: { type: Object },
+    formData: { type: Object }
   }
 
   static styles = css`
@@ -235,6 +238,275 @@ export class SslWidget extends LitElement {
       min-height: 150px;
       padding: 2rem;
     }
+
+    .config-btn {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #888;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .config-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fbbf24;
+      border-color: rgba(251, 191, 36, 0.3);
+    }
+
+    .config-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 400px;
+      max-width: 90vw;
+      height: 100vh;
+      background: linear-gradient(180deg, #1a1a2e 0%, #16162a 100%);
+      border-left: 1px solid rgba(255, 255, 255, 0.1);
+      z-index: 1000;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .config-panel.open {
+      transform: translateX(0);
+    }
+
+    .config-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 999;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .config-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .config-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.25rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .config-title {
+      font-size: 1.1em;
+      font-weight: 600;
+      color: #e0e0e0;
+    }
+
+    .close-btn {
+      background: transparent;
+      border: none;
+      color: #888;
+      cursor: pointer;
+      padding: 0.5rem;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .close-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #ff6b6b;
+    }
+
+    .config-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.25rem;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.8em;
+      color: #888;
+      margin-bottom: 0.4rem;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 0.6rem 0.8rem;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-size: 0.9em;
+      box-sizing: border-box;
+      transition: all 0.2s ease;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: rgba(0, 212, 255, 0.5);
+      box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.15);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #00d4aa 0%, #00b89c 100%);
+      border: none;
+      color: #0a0a0f;
+      padding: 0.7rem 1.2rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.85em;
+      cursor: pointer;
+      width: 100%;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 212, 170, 0.3);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #888;
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      font-size: 0.8em;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #e0e0e0;
+    }
+
+    .btn-danger {
+      background: transparent;
+      border: 1px solid rgba(255, 107, 107, 0.3);
+      color: #ff6b6b;
+      padding: 0.5rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.75em;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-danger:hover {
+      background: rgba(255, 107, 107, 0.15);
+    }
+
+    .domain-list-config {
+      margin-bottom: 1.5rem;
+    }
+
+    .domain-config-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+    }
+
+    .domain-config-info {
+      flex: 1;
+    }
+
+    .domain-config-name {
+      font-size: 0.9em;
+      color: #e0e0e0;
+    }
+
+    .domain-config-meta {
+      font-size: 0.7em;
+      color: #666;
+    }
+
+    .domain-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .edit-btn, .delete-btn {
+      background: transparent;
+      border: none;
+      padding: 0.4rem;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .edit-btn {
+      color: #00d4ff;
+    }
+
+    .edit-btn:hover {
+      background: rgba(0, 212, 255, 0.15);
+    }
+
+    .delete-btn {
+      color: #ff6b6b;
+    }
+
+    .delete-btn:hover {
+      background: rgba(255, 107, 107, 0.15);
+    }
+
+    .section-title {
+      font-size: 0.85em;
+      font-weight: 600;
+      color: #888;
+      margin-bottom: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .check-now-btn {
+      background: linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(0, 180, 216, 0.15) 100%);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      color: #00d4ff;
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      font-size: 0.8em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+      margin-top: 1rem;
+    }
+
+    .check-now-btn:hover {
+      background: linear-gradient(135deg, rgba(0, 212, 255, 0.3) 0%, rgba(0, 180, 216, 0.25) 100%);
+    }
+
+    .form-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.1);
+      margin: 1.5rem 0;
+    }
   `
 
   constructor() {
@@ -243,9 +515,34 @@ export class SslWidget extends LitElement {
     this.loading = true
     this.lastUpdate = null
     this.mqttConnected = false
+    this.showConfig = false
+    this.editingDomain = null
+    this.formData = this.getEmptyFormData()
     this._mqttService = null
     this._boundSummaryHandler = this.handleSslSummary.bind(this)
     this._boundDomainHandler = this.handleSslDomain.bind(this)
+  }
+
+  getEmptyFormData() {
+    return {
+      hostname: '',
+      port: 443,
+      label: '',
+      warning_days: 30,
+      critical_days: 14,
+      check_http: true
+    }
+  }
+
+  getApiBaseUrl() {
+    const protocol = window.location.protocol === 'https:' ? 'https' : 'http'
+    const host = window.location.hostname
+    const port = protocol === 'https' ? '8443' : '8080'
+    return `${protocol}://${host}:${port}`
+  }
+
+  getAuthToken() {
+    return localStorage.getItem('auth_token') || ''
   }
 
   connectedCallback() {
@@ -367,11 +664,260 @@ export class SslWidget extends LitElement {
     this.loading = false
   }
 
+  openConfig() {
+    this.showConfig = true
+    this.editingDomain = null
+    this.formData = this.getEmptyFormData()
+  }
+
+  closeConfig() {
+    this.showConfig = false
+    this.editingDomain = null
+    this.formData = this.getEmptyFormData()
+  }
+
+  editDomain(domain) {
+    this.editingDomain = domain
+    this.formData = {
+      hostname: domain.hostname || '',
+      port: domain.port || 443,
+      label: domain.label || '',
+      warning_days: domain.warning_days || 30,
+      critical_days: domain.critical_days || 14,
+      check_http: domain.check_http !== false
+    }
+  }
+
+  cancelEdit() {
+    this.editingDomain = null
+    this.formData = this.getEmptyFormData()
+  }
+
+  handleInputChange(e) {
+    const { name, value, type, checked } = e.target
+    this.formData = {
+      ...this.formData,
+      [name]: type === 'checkbox' ? checked : (type === 'number' ? parseInt(value, 10) : value)
+    }
+  }
+
+  async saveDomain() {
+    const token = this.getAuthToken()
+    const baseUrl = this.getApiBaseUrl()
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    }
+
+    try {
+      let response
+      if (this.editingDomain) {
+        // Update existing domain
+        response = await fetch(`${baseUrl}/v1/plugin-api/ssl/domains/${this.editingDomain.id}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify(this.formData)
+        })
+      } else {
+        // Create new domain
+        response = await fetch(`${baseUrl}/v1/plugin-api/ssl/domains`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(this.formData)
+        })
+      }
+
+      if (response.ok) {
+        await this.fetchDomainsFromApi()
+        this.editingDomain = null
+        this.formData = this.getEmptyFormData()
+        await this.triggerCheck()
+      } else {
+        const error = await response.text()
+        console.error('[ssl-widget] Save failed:', error)
+      }
+    } catch (err) {
+      console.error('[ssl-widget] Save error:', err)
+    }
+  }
+
+  async deleteDomain(domainId) {
+    if (!confirm(`Supprimer ce domaine ?`)) return
+
+    const token = this.getAuthToken()
+    const baseUrl = this.getApiBaseUrl()
+
+    try {
+      const response = await fetch(`${baseUrl}/v1/plugin-api/ssl/domains/${domainId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+
+      if (response.ok) {
+        await this.fetchDomainsFromApi()
+      }
+    } catch (err) {
+      console.error('[ssl-widget] Delete error:', err)
+    }
+  }
+
+  async fetchDomainsFromApi() {
+    const token = this.getAuthToken()
+    const baseUrl = this.getApiBaseUrl()
+
+    try {
+      const response = await fetch(`${baseUrl}/v1/plugin-api/ssl/domains`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.domains) {
+          this.domains = data.domains
+          this.lastUpdate = new Date().toLocaleTimeString('fr-FR')
+        }
+      }
+    } catch (err) {
+      console.error('[ssl-widget] Fetch error:', err)
+    }
+  }
+
+  async triggerCheck() {
+    const token = this.getAuthToken()
+    const baseUrl = this.getApiBaseUrl()
+
+    try {
+      await fetch(`${baseUrl}/v1/plugin-api/ssl/check`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      // Wait a bit then refresh
+      setTimeout(() => this.fetchDomainsFromApi(), 2000)
+    } catch (err) {
+      console.error('[ssl-widget] Check trigger error:', err)
+    }
+  }
+
+  renderConfigPanel() {
+    return html`
+      <div class="config-overlay ${this.showConfig ? 'open' : ''}" @click=${() => this.closeConfig()}></div>
+      <div class="config-panel ${this.showConfig ? 'open' : ''}">
+        <div class="config-header">
+          <span class="config-title">Configuration SSL</span>
+          <button class="close-btn" @click=${() => this.closeConfig()}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="config-content">
+          <!-- Domain List -->
+          <div class="section-title">Domaines surveillés</div>
+          <div class="domain-list-config">
+            ${this.domains.map(domain => html`
+              <div class="domain-config-item">
+                <div class="domain-config-info">
+                  <div class="domain-config-name">${domain.label || domain.hostname}</div>
+                  <div class="domain-config-meta">
+                    ${domain.hostname}:${domain.port} · Warning: ${domain.warning_days || 30}j · Critical: ${domain.critical_days || 14}j
+                  </div>
+                </div>
+                <div class="domain-actions">
+                  <button class="edit-btn" @click=${() => this.editDomain(domain)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                    </svg>
+                  </button>
+                  <button class="delete-btn" @click=${() => this.deleteDomain(domain.id)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            `)}
+          </div>
+
+          <div class="form-divider"></div>
+
+          <!-- Add/Edit Form -->
+          <div class="section-title">${this.editingDomain ? 'Modifier domaine' : 'Ajouter domaine'}</div>
+
+          <div class="form-group">
+            <label class="form-label">Nom de domaine *</label>
+            <input type="text" class="form-input" name="hostname"
+              .value=${this.formData.hostname}
+              @input=${this.handleInputChange}
+              placeholder="exemple.com">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Port</label>
+              <input type="number" class="form-input" name="port"
+                .value=${this.formData.port}
+                @input=${this.handleInputChange}>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Label (optionnel)</label>
+              <input type="text" class="form-input" name="label"
+                .value=${this.formData.label}
+                @input=${this.handleInputChange}
+                placeholder="Mon Site">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Alerte warning (jours)</label>
+              <input type="number" class="form-input" name="warning_days"
+                .value=${this.formData.warning_days}
+                @input=${this.handleInputChange}>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Alerte critique (jours)</label>
+              <input type="number" class="form-input" name="critical_days"
+                .value=${this.formData.critical_days}
+                @input=${this.handleInputChange}>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 0.5rem;">
+            ${this.editingDomain ? html`
+              <div style="display: flex; gap: 0.75rem;">
+                <button class="btn-primary" style="flex: 1;" @click=${() => this.saveDomain()}>
+                  Mettre à jour
+                </button>
+                <button class="btn-secondary" @click=${() => this.cancelEdit()}>
+                  Annuler
+                </button>
+              </div>
+            ` : html`
+              <button class="btn-primary" @click=${() => this.saveDomain()} ?disabled=${!this.formData.hostname}>
+                Ajouter domaine
+              </button>
+            `}
+          </div>
+
+          <button class="check-now-btn" @click=${() => this.triggerCheck()}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+            Vérifier maintenant
+          </button>
+        </div>
+      </div>
+    `
+  }
+
   render() {
     const validCount = this.domains.filter(d => d.ssl_valid).length
     const summaryStatus = this.getSummaryStatus()
 
     return html`
+      ${this.renderConfigPanel()}
+
       <div class="widget-header">
         <div class="widget-title">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -386,6 +932,11 @@ export class SslWidget extends LitElement {
               ${validCount}/${this.domains.length} OK
             </span>
           ` : ''}
+          <button class="config-btn" @click=${() => this.openConfig()}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
           <button class="refresh-btn ${this.loading ? 'spinning' : ''}" @click=${() => this.refreshData()}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
