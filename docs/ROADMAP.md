@@ -22,13 +22,13 @@
 
 | Métrique | Valeur |
 |----------|--------|
-| Unit Tests | 284 (0 failed) |
+| Unit Tests | 285 (0 failed) |
 | API Routes (http.rs) | 176 |
 | MQTT Topics | 10 subscriptions |
 | Automations actives | 16 |
 | Modes contextuels | 4 système + custom |
 | Intelligence Samples | 26+ (apprentissage) |
-| Data files (JSON) | 11 |
+| Data files (JSON) | 12 |
 
 ---
 
@@ -308,7 +308,7 @@ Contrôle lumières connectées avec abstraction générique.
 ### P1 — À Traiter
 - [x] ~~**I/O synchrone bloquant**~~ → File I/O déporté vers `std::thread::spawn` (`inference.rs:309-334`)
 - [x] ~~**Confidence non propagée**~~ → `add_contribution()` pondère par `confidence` (`vector.rs:391-406`)
-- [ ] **PendingActions en mémoire** : Redémarrage kernel = validations perdues
+- [x] ~~**PendingActions en mémoire**~~ → Persistence JSON atomique + load au démarrage (`pending_actions.rs`)
 - [ ] **PC_ACTIVE non normalisé** : Échelle différente des mode probs → biais cosine
 - [ ] **Trust Tracker sans decay** : Pas de dégradation temporelle des stats
 
@@ -333,7 +333,7 @@ Contrôle lumières connectées avec abstraction générique.
 
 ### Court Terme (Mars 2026)
 4. **F2 Digital Hygiene** — Activity tracking + burnout detection
-5. **Persister PendingActions** sur disque
+5. ~~**Persister PendingActions**~~ ✅ — JSON atomique + load au démarrage
 6. **Trust Tracker decay** (half-life 30 jours)
 
 ### Moyen Terme (Q2 2026)
