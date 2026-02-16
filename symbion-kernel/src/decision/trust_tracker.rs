@@ -125,6 +125,8 @@ pub struct TrustTracker {
     max_modifier: f32,
     /// Minimum negative modifier
     min_modifier: f32,
+    /// Half-life in days for temporal decay of modifiers
+    decay_half_life_days: f32,
 }
 
 impl TrustTracker {
@@ -140,6 +142,7 @@ impl TrustTracker {
             failure_decrement: 0.05,
             max_modifier: 0.2,
             min_modifier: -0.2,
+            decay_half_life_days: 30.0,
         }
     }
 
@@ -248,21 +251,35 @@ impl TrustTracker {
         self.save();
     }
 
-    /// Get trust modifier for an action type
+    /// Apply temporal decay to a modifier based on time since last update.
+    /// Formula: modifier × 2^(-age_days / half_life)
+    /// After 30 days of inactivity, modifier is halved. After 60 days, quartered.
+    fn decay_modifier(&self, modifier: f32, last_updated: OffsetDateTime) -> f32 {
+        if modifier.abs() < 1e-6 {
+            return 0.0;
+        }
+        let age_days = (OffsetDateTime::now_utc() - last_updated).whole_seconds() as f32 / 86400.0;
+        if age_days <= 0.0 {
+            return modifier;
+        }
+        modifier * (-age_days * 0.693 / self.decay_half_life_days).exp()
+    }
+
+    /// Get trust modifier for an action type (with temporal decay)
     pub fn get_action_modifier(&self, action_type: &str) -> f32 {
         let stats = self.stats.read().unwrap();
         stats.action_stats
             .get(action_type)
-            .map(|s| s.current_trust_modifier)
+            .map(|s| self.decay_modifier(s.current_trust_modifier, s.last_updated))
             .unwrap_or(0.0)
     }
 
-    /// Get trust modifier for an agent
+    /// Get trust modifier for an agent (with temporal decay)
     pub fn get_agent_modifier(&self, agent_id: &str) -> f32 {
         let stats = self.stats.read().unwrap();
         stats.agent_stats
             .get(agent_id)
-            .map(|s| s.current_trust_modifier)
+            .map(|s| self.decay_modifier(s.current_trust_modifier, s.last_updated))
             .unwrap_or(0.0)
     }
 
@@ -456,6 +473,46 @@ mod tests {
             let stats = tracker.get_action_stats("test_action").unwrap();
             assert_eq!(stats.successful, 2);
         }
+    }
+
+    #[test]
+    fn test_modifier_decay() {
+        let (tracker, _dir) = create_test_tracker();
+
+        // Record failures to build negative modifier
+        for _ in 0..4 {
+            tracker.record_action("old_action", Some("old-agent"), false);
+        }
+
+        let raw_modifier = tracker.get_action_modifier("old_action");
+        assert!(raw_modifier < -0.1, "Should have negative modifier: {}", raw_modifier);
+
+        // Simulate age by directly modifying last_updated in stats
+        {
+            let mut stats = tracker.stats.write().unwrap();
+            let action_stats = stats.action_stats.get_mut("old_action").unwrap();
+            // Set last_updated to 60 days ago (2 half-lives)
+            action_stats.last_updated = OffsetDateTime::now_utc() - time::Duration::days(60);
+
+            let agent_stats = stats.agent_stats.get_mut("old-agent").unwrap();
+            agent_stats.last_updated = OffsetDateTime::now_utc() - time::Duration::days(60);
+        }
+
+        // After 60 days (2 half-lives), modifier should be ~25% of original
+        let decayed = tracker.get_action_modifier("old_action");
+        let expected = raw_modifier * 0.25; // 2^(-60/30) = 0.25
+        assert!(
+            (decayed - expected).abs() < 0.01,
+            "After 60 days, modifier {:.4} should be ~{:.4} (25% of {:.4})",
+            decayed, expected, raw_modifier
+        );
+
+        // Agent modifier should also decay
+        let agent_decayed = tracker.get_agent_modifier("old-agent");
+        assert!(
+            agent_decayed.abs() < raw_modifier.abs(),
+            "Agent modifier should have decayed"
+        );
     }
 
     #[test]
