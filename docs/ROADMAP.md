@@ -320,6 +320,7 @@ Contrôle lumières connectées avec abstraction générique.
 - [ ] Clock skew protection (NTP drift → duration négative)
 - [ ] Compaction périodique automatique
 - [ ] Stability score decay temporel
+- [ ] **symbion-devkit obsolète** : API plugin a évolué, devkit ne compile plus (lifetime error tests)
 
 ---
 

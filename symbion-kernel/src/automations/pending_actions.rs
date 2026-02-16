@@ -5,12 +5,16 @@
  *
  * When an automation action requires validation, we store the full ActionDefinition
  * here so it can be executed when the validation is approved.
+ *
+ * Persistence: JSON file in data/ directory, atomic write (temp→rename).
+ * Survives kernel restarts so pending validations are not lost.
  */
 
 use super::types::ActionDefinition;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use time::OffsetDateTime;
 
@@ -31,13 +35,74 @@ pub struct PendingAction {
 /// Registry for pending actions awaiting validation
 pub struct PendingActionRegistry {
     actions: Arc<RwLock<HashMap<String, PendingAction>>>,
+    data_path: Option<PathBuf>,
 }
 
 impl PendingActionRegistry {
-    pub fn new() -> Self {
-        Self {
+    pub fn new(data_dir: Option<PathBuf>) -> Self {
+        let data_path = data_dir.map(|d| d.join("pending_actions.json"));
+
+        let registry = Self {
             actions: Arc::new(RwLock::new(HashMap::new())),
+            data_path,
+        };
+
+        registry.load_from_disk();
+        registry
+    }
+
+    /// Load pending actions from disk
+    fn load_from_disk(&self) {
+        let Some(path) = &self.data_path else { return };
+        if !path.exists() {
+            return;
         }
+
+        match std::fs::read_to_string(path) {
+            Ok(content) => {
+                match serde_json::from_str::<HashMap<String, PendingAction>>(&content) {
+                    Ok(actions) => {
+                        let count = actions.len();
+                        *self.actions.write() = actions;
+                        eprintln!("[pending_actions] Loaded {} pending actions from disk", count);
+                    }
+                    Err(e) => {
+                        eprintln!("[pending_actions] Failed to parse pending_actions.json: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("[pending_actions] Failed to read pending_actions.json: {}", e);
+            }
+        }
+    }
+
+    /// Save pending actions to disk (atomic: temp file → rename)
+    fn save_to_disk(&self) {
+        let Some(path) = &self.data_path else { return };
+
+        let json = {
+            let actions = self.actions.read();
+            match serde_json::to_string_pretty(&*actions) {
+                Ok(json) => json,
+                Err(e) => {
+                    eprintln!("[pending_actions] Failed to serialize pending actions: {}", e);
+                    return;
+                }
+            }
+        };
+
+        let path = path.clone();
+        std::thread::spawn(move || {
+            let tmp_path = path.with_extension("json.tmp");
+            if let Err(e) = std::fs::write(&tmp_path, &json) {
+                eprintln!("[pending_actions] Failed to write temp file: {}", e);
+                return;
+            }
+            if let Err(e) = std::fs::rename(&tmp_path, &path) {
+                eprintln!("[pending_actions] Failed to rename temp file: {}", e);
+            }
+        });
     }
 
     /// Register a pending action for a validation
@@ -67,6 +132,7 @@ impl PendingActionRegistry {
             "[pending_actions] Registered pending action for validation {} (automation: {})",
             validation_id, automation_name
         );
+        self.save_to_disk();
     }
 
     /// Get and remove a pending action by validation ID
@@ -77,6 +143,7 @@ impl PendingActionRegistry {
                 "[pending_actions] Retrieved pending action for validation {} (automation: {})",
                 validation_id, p.automation_name
             );
+            self.save_to_disk();
         }
         pending
     }
@@ -91,6 +158,7 @@ impl PendingActionRegistry {
         let removed = self.actions.write().remove(validation_id).is_some();
         if removed {
             println!("[pending_actions] Removed pending action for validation {}", validation_id);
+            self.save_to_disk();
         }
         removed
     }
@@ -114,6 +182,8 @@ impl PendingActionRegistry {
         let removed = old_count - actions.len();
         if removed > 0 {
             println!("[pending_actions] Cleaned up {} expired pending actions", removed);
+            drop(actions); // Release lock before I/O
+            self.save_to_disk();
         }
         removed
     }
@@ -126,7 +196,7 @@ impl PendingActionRegistry {
 
 impl Default for PendingActionRegistry {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
     }
 }
 
@@ -149,7 +219,7 @@ mod tests {
 
     #[test]
     fn test_register_and_take() {
-        let registry = PendingActionRegistry::new();
+        let registry = PendingActionRegistry::new(None);
         let action = create_test_action();
 
         registry.register(
@@ -174,13 +244,13 @@ mod tests {
 
     #[test]
     fn test_take_not_found() {
-        let registry = PendingActionRegistry::new();
+        let registry = PendingActionRegistry::new(None);
         assert!(registry.take("nonexistent").is_none());
     }
 
     #[test]
     fn test_remove() {
-        let registry = PendingActionRegistry::new();
+        let registry = PendingActionRegistry::new(None);
         let action = create_test_action();
 
         registry.register(
@@ -196,5 +266,42 @@ mod tests {
         assert!(registry.remove("val-456"));
         assert!(!registry.remove("val-456")); // Already removed
         assert_eq!(registry.count(), 0);
+    }
+
+    #[test]
+    fn test_persistence_roundtrip() {
+        let tmp_dir = std::env::temp_dir().join("symbion_test_pending");
+        let _ = std::fs::create_dir_all(&tmp_dir);
+
+        // Create and populate
+        {
+            let registry = PendingActionRegistry::new(Some(tmp_dir.clone()));
+            let action = create_test_action();
+            registry.register(
+                "val-persist".to_string(),
+                "auto-persist".to_string(),
+                "Persist Test".to_string(),
+                action,
+                0,
+                0.75,
+                Some("pro".to_string()),
+            );
+            assert_eq!(registry.count(), 1);
+            // Wait for background write to complete
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+
+        // Reload from disk
+        {
+            let registry = PendingActionRegistry::new(Some(tmp_dir.clone()));
+            assert_eq!(registry.count(), 1);
+            let p = registry.get("val-persist").unwrap();
+            assert_eq!(p.automation_name, "Persist Test");
+            assert!((p.trust_score - 0.75).abs() < 0.001);
+            assert_eq!(p.target_mode, Some("pro".to_string()));
+        }
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&tmp_dir);
     }
 }
