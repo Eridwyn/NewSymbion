@@ -139,9 +139,10 @@ impl ActiveSession {
         }
     }
 
-    /// Duration of the current session
+    /// Duration of the current session (clamped to zero if clock skew)
     pub fn duration(&self) -> Duration {
-        now_paris() - self.started_at
+        let d = now_paris() - self.started_at;
+        if d.is_negative() { Duration::ZERO } else { d }
     }
 
     /// Duration in minutes
@@ -152,7 +153,9 @@ impl ActiveSession {
     /// Check if the session is in cooldown period
     pub fn is_in_cooldown(&self) -> bool {
         let cooldown = Duration::minutes(self.source.cooldown_minutes());
-        now_paris() - self.last_confirmed_at < cooldown
+        let elapsed = now_paris() - self.last_confirmed_at;
+        if elapsed.is_negative() { return true; } // Clock skew: stay in cooldown
+        elapsed < cooldown
     }
 
     /// Check if override has expired

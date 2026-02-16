@@ -114,9 +114,9 @@ impl TrustCalculator {
             }
         }
 
-        // Vérifier expected_ssid
+        // Vérifier expected_ssid (case-insensitive per RFC 802.11)
         if let Some(ref expected_ssid) = action.expected_ssid {
-            if expected_ssid != &context.ssid {
+            if !expected_ssid.eq_ignore_ascii_case(&context.ssid) {
                 score -= 0.5; // Pénalité SSID mismatch
             }
         }
