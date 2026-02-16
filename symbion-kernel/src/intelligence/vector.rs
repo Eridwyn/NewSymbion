@@ -168,50 +168,57 @@ impl<'a> VectorBuilder<'a> {
     /// Process agent-related features (online, cpu, memory)
     fn process_agent_features(&mut self) {
         // Agent online → PC is active
-        if let Some(online) = self.registry.get_bool(feature_ids::AGENT_ONLINE) {
+        if let Some(sample) = self.registry.get(feature_ids::AGENT_ONLINE) {
             self.feature_count += 1;
-            if online {
-                self.add_contribution(dimensions::PC_ACTIVE, 0.8, feature_ids::AGENT_ONLINE, "true");
+            if sample.value.as_bool().unwrap_or(false) {
+                self.add_contribution(dimensions::PC_ACTIVE, 0.8, sample.confidence,
+                    feature_ids::AGENT_ONLINE, "true");
             }
         }
 
         // CPU usage → activity level
-        if let Some(cpu) = self.registry.get_float(feature_ids::AGENT_CPU_USAGE) {
+        if let Some(sample) = self.registry.get(feature_ids::AGENT_CPU_USAGE) {
             self.feature_count += 1;
-            let cpu_normalized = (cpu / 100.0).clamp(0.0, 1.0) as f32;
+            if let Some(cpu) = sample.value.as_float() {
+                let cpu_normalized = (cpu / 100.0).clamp(0.0, 1.0) as f32;
 
-            // High CPU → likely focus/work
-            if cpu_normalized > 0.3 {
-                self.add_contribution(dimensions::PC_ACTIVE, cpu_normalized * 0.5,
-                    feature_ids::AGENT_CPU_USAGE, &format!("{:.1}%", cpu));
-                self.add_contribution(dimensions::FOCUS_PROB, cpu_normalized * 0.2,
-                    feature_ids::AGENT_CPU_USAGE, &format!("{:.1}%", cpu));
+                // High CPU → likely focus/work
+                if cpu_normalized > 0.3 {
+                    self.add_contribution(dimensions::PC_ACTIVE, cpu_normalized * 0.5, sample.confidence,
+                        feature_ids::AGENT_CPU_USAGE, &format!("{:.1}%", cpu));
+                    self.add_contribution(dimensions::FOCUS_PROB, cpu_normalized * 0.2, sample.confidence,
+                        feature_ids::AGENT_CPU_USAGE, &format!("{:.1}%", cpu));
+                }
             }
         }
 
         // Memory usage → sustained activity
-        if let Some(mem) = self.registry.get_float(feature_ids::AGENT_MEMORY_USAGE) {
+        if let Some(sample) = self.registry.get(feature_ids::AGENT_MEMORY_USAGE) {
             self.feature_count += 1;
-            let mem_normalized = (mem / 100.0).clamp(0.0, 1.0) as f32;
+            if let Some(mem) = sample.value.as_float() {
+                let mem_normalized = (mem / 100.0).clamp(0.0, 1.0) as f32;
 
-            if mem_normalized > 0.4 {
-                self.add_contribution(dimensions::PC_ACTIVE, mem_normalized * 0.3,
-                    feature_ids::AGENT_MEMORY_USAGE, &format!("{:.1}%", mem));
+                if mem_normalized > 0.4 {
+                    self.add_contribution(dimensions::PC_ACTIVE, mem_normalized * 0.3, sample.confidence,
+                        feature_ids::AGENT_MEMORY_USAGE, &format!("{:.1}%", mem));
+                }
             }
         }
 
         // Idle time → sleep probability (if we had this feature)
-        if let Some(idle) = self.registry.get_float(feature_ids::AGENT_IDLE_SECONDS) {
+        if let Some(sample) = self.registry.get(feature_ids::AGENT_IDLE_SECONDS) {
             self.feature_count += 1;
-            let idle_minutes = idle / 60.0;
+            if let Some(idle) = sample.value.as_float() {
+                let idle_minutes = idle / 60.0;
 
-            if idle_minutes > 30.0 {
-                // Long idle → likely away/sleep
-                let sleep_contrib = ((idle_minutes - 30.0) / 60.0).clamp(0.0, 0.5) as f32;
-                self.add_contribution(dimensions::SLEEP_PROB, sleep_contrib,
-                    feature_ids::AGENT_IDLE_SECONDS, &format!("{:.0}min idle", idle_minutes));
-                self.add_contribution(dimensions::PC_ACTIVE, -sleep_contrib,
-                    feature_ids::AGENT_IDLE_SECONDS, &format!("{:.0}min idle", idle_minutes));
+                if idle_minutes > 30.0 {
+                    // Long idle → likely away/sleep
+                    let sleep_contrib = ((idle_minutes - 30.0) / 60.0).clamp(0.0, 0.5) as f32;
+                    self.add_contribution(dimensions::SLEEP_PROB, sleep_contrib, sample.confidence,
+                        feature_ids::AGENT_IDLE_SECONDS, &format!("{:.0}min idle", idle_minutes));
+                    self.add_contribution(dimensions::PC_ACTIVE, -sleep_contrib, sample.confidence,
+                        feature_ids::AGENT_IDLE_SECONDS, &format!("{:.0}min idle", idle_minutes));
+                }
             }
         }
     }
@@ -226,51 +233,51 @@ impl<'a> VectorBuilder<'a> {
 
         self.feature_count += 1;
 
-        // Weekend → home probability
+        // Weekend → home probability (time is always confidence 1.0)
         let is_weekend = weekday >= 5;
         if is_weekend {
-            self.add_contribution(dimensions::HOME_PROB, 0.3, "time.weekend", "true");
-            self.add_contribution(dimensions::WORK_PROB, -0.2, "time.weekend", "true");
+            self.add_contribution(dimensions::HOME_PROB, 0.3, 1.0, "time.weekend", "true");
+            self.add_contribution(dimensions::WORK_PROB, -0.2, 1.0, "time.weekend", "true");
         }
 
         // Hour-based probabilities
         match hour as u8 {
             0..=6 => {
                 // Night: sleep mode
-                self.add_contribution(dimensions::SLEEP_PROB, 0.4, "time.hour", &format!("{}h", hour as u8));
-                self.add_contribution(dimensions::HOME_PROB, 0.2, "time.hour", &format!("{}h", hour as u8));
+                self.add_contribution(dimensions::SLEEP_PROB, 0.4, 1.0, "time.hour", &format!("{}h", hour as u8));
+                self.add_contribution(dimensions::HOME_PROB, 0.2, 1.0, "time.hour", &format!("{}h", hour as u8));
             }
             7..=8 => {
                 // Early morning: transition
-                self.add_contribution(dimensions::HOME_PROB, 0.2, "time.hour", &format!("{}h", hour as u8));
+                self.add_contribution(dimensions::HOME_PROB, 0.2, 1.0, "time.hour", &format!("{}h", hour as u8));
             }
             9..=12 => {
                 // Morning work hours
                 if !is_weekend {
-                    self.add_contribution(dimensions::WORK_PROB, 0.2, "time.hour", &format!("{}h", hour as u8));
-                    self.add_contribution(dimensions::FOCUS_PROB, 0.15, "time.hour", &format!("{}h", hour as u8));
+                    self.add_contribution(dimensions::WORK_PROB, 0.2, 1.0, "time.hour", &format!("{}h", hour as u8));
+                    self.add_contribution(dimensions::FOCUS_PROB, 0.15, 1.0, "time.hour", &format!("{}h", hour as u8));
                 }
             }
             13..=14 => {
                 // Lunch break
-                self.add_contribution(dimensions::HOME_PROB, 0.1, "time.hour", &format!("{}h", hour as u8));
+                self.add_contribution(dimensions::HOME_PROB, 0.1, 1.0, "time.hour", &format!("{}h", hour as u8));
             }
             15..=18 => {
                 // Afternoon work
                 if !is_weekend {
-                    self.add_contribution(dimensions::WORK_PROB, 0.15, "time.hour", &format!("{}h", hour as u8));
-                    self.add_contribution(dimensions::FOCUS_PROB, 0.1, "time.hour", &format!("{}h", hour as u8));
+                    self.add_contribution(dimensions::WORK_PROB, 0.15, 1.0, "time.hour", &format!("{}h", hour as u8));
+                    self.add_contribution(dimensions::FOCUS_PROB, 0.1, 1.0, "time.hour", &format!("{}h", hour as u8));
                 }
             }
             19..=22 => {
                 // Evening: home/leisure
-                self.add_contribution(dimensions::HOME_PROB, 0.3, "time.hour", &format!("{}h", hour as u8));
-                self.add_contribution(dimensions::WORK_PROB, -0.1, "time.hour", &format!("{}h", hour as u8));
+                self.add_contribution(dimensions::HOME_PROB, 0.3, 1.0, "time.hour", &format!("{}h", hour as u8));
+                self.add_contribution(dimensions::WORK_PROB, -0.1, 1.0, "time.hour", &format!("{}h", hour as u8));
             }
             23 => {
                 // Late night
-                self.add_contribution(dimensions::SLEEP_PROB, 0.2, "time.hour", &format!("{}h", hour as u8));
-                self.add_contribution(dimensions::HOME_PROB, 0.2, "time.hour", &format!("{}h", hour as u8));
+                self.add_contribution(dimensions::SLEEP_PROB, 0.2, 1.0, "time.hour", &format!("{}h", hour as u8));
+                self.add_contribution(dimensions::HOME_PROB, 0.2, 1.0, "time.hour", &format!("{}h", hour as u8));
             }
             _ => {}
         }
@@ -278,18 +285,19 @@ impl<'a> VectorBuilder<'a> {
 
     /// Process environment features (temperature, humidity)
     fn process_environment_features(&mut self) {
-        if let Some(temp) = self.registry.get_float(feature_ids::ENV_TEMPERATURE) {
+        if let Some(sample) = self.registry.get(feature_ids::ENV_TEMPERATURE) {
             self.feature_count += 1;
-
-            // Comfortable temp (18-24°C) → slight home preference
-            if (18.0..=24.0).contains(&temp) {
-                self.add_contribution(dimensions::HOME_PROB, 0.05,
-                    feature_ids::ENV_TEMPERATURE, &format!("{:.1}°C", temp));
+            if let Some(temp) = sample.value.as_float() {
+                // Comfortable temp (18-24°C) → slight home preference
+                if (18.0..=24.0).contains(&temp) {
+                    self.add_contribution(dimensions::HOME_PROB, 0.05, sample.confidence,
+                        feature_ids::ENV_TEMPERATURE, &format!("{:.1}°C", temp));
+                }
             }
         }
 
         // Humidity is informational, doesn't directly affect mode
-        if self.registry.get_float(feature_ids::ENV_HUMIDITY).is_some() {
+        if self.registry.get(feature_ids::ENV_HUMIDITY).is_some() {
             self.feature_count += 1;
         }
     }
@@ -297,35 +305,37 @@ impl<'a> VectorBuilder<'a> {
     /// Process presence features (phone on network = someone home)
     fn process_presence_features(&mut self) {
         // Phone presence is a strong indicator of being home
-        if let Some(phone_present) = self.registry.get_bool(feature_ids::PRESENCE_PHONE) {
+        if let Some(sample) = self.registry.get(feature_ids::PRESENCE_PHONE) {
             self.feature_count += 1;
+            let conf = sample.confidence;
 
-            if phone_present {
+            if sample.value.as_bool().unwrap_or(false) {
                 // Phone on network → strong home signal
-                self.add_contribution(dimensions::HOME_PROB, 0.35,
+                self.add_contribution(dimensions::HOME_PROB, 0.35, conf,
                     feature_ids::PRESENCE_PHONE, "phone on network");
                 // Less likely to be away if phone is home
-                self.add_contribution(dimensions::WORK_PROB, -0.15,
+                self.add_contribution(dimensions::WORK_PROB, -0.15, conf,
                     feature_ids::PRESENCE_PHONE, "phone on network");
             } else {
                 // Phone not on network → might be away
-                self.add_contribution(dimensions::HOME_PROB, -0.25,
+                self.add_contribution(dimensions::HOME_PROB, -0.25, conf,
                     feature_ids::PRESENCE_PHONE, "phone away");
                 // Could be at work
-                self.add_contribution(dimensions::WORK_PROB, 0.1,
+                self.add_contribution(dimensions::WORK_PROB, 0.1, conf,
                     feature_ids::PRESENCE_PHONE, "phone away");
             }
         }
 
         // Anyone home summary (aggregates all tracked devices)
-        if let Some(anyone_home) = self.registry.get_bool(feature_ids::PRESENCE_ANYONE_HOME) {
+        if let Some(sample) = self.registry.get(feature_ids::PRESENCE_ANYONE_HOME) {
             self.feature_count += 1;
+            let conf = sample.confidence;
 
-            if anyone_home {
-                self.add_contribution(dimensions::HOME_PROB, 0.2,
+            if sample.value.as_bool().unwrap_or(false) {
+                self.add_contribution(dimensions::HOME_PROB, 0.2, conf,
                     feature_ids::PRESENCE_ANYONE_HOME, "someone home");
             } else {
-                self.add_contribution(dimensions::HOME_PROB, -0.3,
+                self.add_contribution(dimensions::HOME_PROB, -0.3, conf,
                     feature_ids::PRESENCE_ANYONE_HOME, "nobody home");
             }
         }
@@ -334,6 +344,7 @@ impl<'a> VectorBuilder<'a> {
     /// Process running processes to detect work/leisure patterns
     fn process_process_features(&mut self) {
         if let Some(sample) = self.registry.get("process.list") {
+            let conf = sample.confidence;
             if let FeatureValue::StringList(processes) = &sample.value {
                 self.feature_count += 1;
 
@@ -346,9 +357,9 @@ impl<'a> VectorBuilder<'a> {
 
                 if ide_count > 0 {
                     let contrib = (ide_count as f32 * 0.15).min(0.4);
-                    self.add_contribution(dimensions::FOCUS_PROB, contrib,
+                    self.add_contribution(dimensions::FOCUS_PROB, contrib, conf,
                         "process.category.ide", &format!("{} IDE(s)", ide_count));
-                    self.add_contribution(dimensions::WORK_PROB, contrib * 0.5,
+                    self.add_contribution(dimensions::WORK_PROB, contrib * 0.5, conf,
                         "process.category.ide", &format!("{} IDE(s)", ide_count));
                 }
 
@@ -360,9 +371,9 @@ impl<'a> VectorBuilder<'a> {
 
                 if media_count > 0 {
                     let contrib = (media_count as f32 * 0.2).min(0.4);
-                    self.add_contribution(dimensions::HOME_PROB, contrib,
+                    self.add_contribution(dimensions::HOME_PROB, contrib, conf,
                         "process.category.media", &format!("{} media app(s)", media_count));
-                    self.add_contribution(dimensions::FOCUS_PROB, -contrib * 0.3,
+                    self.add_contribution(dimensions::FOCUS_PROB, -contrib * 0.3, conf,
                         "process.category.media", &format!("{} media app(s)", media_count));
                 }
 
@@ -379,7 +390,7 @@ impl<'a> VectorBuilder<'a> {
                     let hour = now.hour();
 
                     if (9..18).contains(&hour) {
-                        self.add_contribution(dimensions::WORK_PROB, 0.1,
+                        self.add_contribution(dimensions::WORK_PROB, 0.1, conf,
                             "process.category.communication", &format!("{} comm app(s)", comm_count));
                     }
                 }
@@ -388,17 +399,17 @@ impl<'a> VectorBuilder<'a> {
     }
 
     /// Add a contribution to a dimension with explanation
-    fn add_contribution(&mut self, dimension: &str, contribution: f32, feature_id: &str, raw_value: &str) {
-        // Update dimension value
+    /// The contribution is multiplied by confidence (0.0-1.0) to weight by source reliability.
+    fn add_contribution(&mut self, dimension: &str, contribution: f32, confidence: f32, feature_id: &str, raw_value: &str) {
+        let effective = contribution * confidence;
         let current = self.dimensions.get(dimension).copied().unwrap_or(0.5);
-        let new_value = (current + contribution).clamp(0.0, 1.0);
+        let new_value = (current + effective).clamp(0.0, 1.0);
         self.dimensions.insert(dimension.to_string(), new_value);
 
-        // Record why
         let why_list = self.why.entry(dimension.to_string()).or_insert_with(Vec::new);
         why_list.push(WhyItem {
             feature_id: feature_id.to_string(),
-            contribution,
+            contribution: effective,
             raw_value: raw_value.to_string(),
         });
     }
