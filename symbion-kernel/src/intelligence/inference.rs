@@ -673,9 +673,17 @@ pub struct GuardChecks {
 // Utility Functions
 // ============================================================================
 
-/// Calculate cosine similarity between two dimension maps
+/// Calculate weighted cosine similarity between two dimension maps.
+///
+/// pc_active is weighted down (0.3x) to prevent it from dominating mode probabilities
+/// in the similarity calculation. Mode probs sum to ~1.0 (each ~0.25 avg), while
+/// pc_active can reach 0.8-1.0. Without weighting, pc_active accounts for ~71% of
+/// vector magnitude, causing "same PC state" to outweigh "same mode distribution".
 fn cosine_similarity(a: &HashMap<String, f32>, b: &HashMap<String, f32>) -> f32 {
-    // Get all keys
+    // Weight for pc_active: 0.3 makes its typical contribution (0.8*0.3=0.24)
+    // comparable to a single mode_prob (~0.25)
+    const PC_ACTIVE_WEIGHT: f32 = 0.3;
+
     let all_keys: std::collections::HashSet<_> = a.keys().chain(b.keys()).collect();
 
     let mut dot_product = 0.0;
@@ -686,12 +694,16 @@ fn cosine_similarity(a: &HashMap<String, f32>, b: &HashMap<String, f32>) -> f32 
         let val_a = a.get(key).copied().unwrap_or(0.0);
         let val_b = b.get(key).copied().unwrap_or(0.0);
 
-        dot_product += val_a * val_b;
-        norm_a += val_a * val_a;
-        norm_b += val_b * val_b;
+        let w = if key.as_str() == "pc_active" { PC_ACTIVE_WEIGHT } else { 1.0 };
+        let wa = val_a * w;
+        let wb = val_b * w;
+
+        dot_product += wa * wb;
+        norm_a += wa * wa;
+        norm_b += wb * wb;
     }
 
-    let denominator = (norm_a.sqrt() * norm_b.sqrt());
+    let denominator = norm_a.sqrt() * norm_b.sqrt();
     if denominator > 0.0 {
         dot_product / denominator
     } else {
@@ -744,6 +756,44 @@ mod tests {
 
         let sim = cosine_similarity(&a, &c);
         assert!(sim.abs() < 0.01);
+    }
+
+    #[test]
+    fn test_pc_active_weight_prevents_bias() {
+        // Query: home situation with PC on
+        let mut query = HashMap::new();
+        query.insert("home_prob".to_string(), 0.45);
+        query.insert("work_prob".to_string(), 0.07);
+        query.insert("focus_prob".to_string(), 0.23);
+        query.insert("sleep_prob".to_string(), 0.25);
+        query.insert("pc_active".to_string(), 0.8);
+
+        // Sample 1: focus + PC on (wrong mode, same PC state)
+        let mut focus_pc_on = HashMap::new();
+        focus_pc_on.insert("home_prob".to_string(), 0.1);
+        focus_pc_on.insert("work_prob".to_string(), 0.2);
+        focus_pc_on.insert("focus_prob".to_string(), 0.4);
+        focus_pc_on.insert("sleep_prob".to_string(), 0.3);
+        focus_pc_on.insert("pc_active".to_string(), 0.8);
+
+        // Sample 2: maison + PC off (right mode, different PC state)
+        let mut maison_pc_off = HashMap::new();
+        maison_pc_off.insert("home_prob".to_string(), 0.45);
+        maison_pc_off.insert("work_prob".to_string(), 0.07);
+        maison_pc_off.insert("focus_prob".to_string(), 0.23);
+        maison_pc_off.insert("sleep_prob".to_string(), 0.25);
+        maison_pc_off.insert("pc_active".to_string(), 0.0);
+
+        let sim_focus = cosine_similarity(&query, &focus_pc_on);
+        let sim_maison = cosine_similarity(&query, &maison_pc_off);
+
+        // With weighted pc_active, the mode-matching "maison" sample should win
+        // over the PC-matching "focus" sample
+        assert!(
+            sim_maison > sim_focus,
+            "maison (sim={:.3}) should beat focus (sim={:.3}) — mode probs should matter more than pc_active",
+            sim_maison, sim_focus
+        );
     }
 
     #[test]
