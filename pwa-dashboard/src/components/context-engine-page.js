@@ -2159,6 +2159,9 @@ class ContextEnginePage extends LitElement {
     intelligenceFeatures: { type: Object },
     intelligenceVector: { type: Object },
     intelligencePrediction: { type: Object },
+    // Prediction correction
+    showPredictionCorrection: { type: Boolean },
+    predictionCorrectionSent: { type: Boolean },
     // UX Overlay states
     toasts: { type: Array },
     confirmDialog: { type: Object },
@@ -2231,6 +2234,9 @@ class ContextEnginePage extends LitElement {
     this.intelligenceFeatures = null
     this.intelligenceVector = null
     this.intelligencePrediction = null
+    // Prediction correction
+    this.showPredictionCorrection = false
+    this.predictionCorrectionSent = false
     // UX Overlay states
     this.toasts = []
     this.confirmDialog = null
@@ -5259,6 +5265,31 @@ Exemple :
     }
   }
 
+  togglePredictionCorrection() {
+    this.showPredictionCorrection = !this.showPredictionCorrection
+    this.predictionCorrectionSent = false
+  }
+
+  async sendPredictionCorrection(modeSlug) {
+    try {
+      const res = await csrfService.fetchWithCsrf('/v1/intelligence/feedback', {
+        method: 'POST',
+        body: JSON.stringify({ chosen_mode: modeSlug }),
+      })
+
+      if (res.ok) {
+        this.predictionCorrectionSent = true
+        setTimeout(() => {
+          this.showPredictionCorrection = false
+          this.predictionCorrectionSent = false
+          this.loadIntelligence()
+        }, 1500)
+      }
+    } catch (e) {
+      console.error('[context-engine] Prediction correction failed:', e)
+    }
+  }
+
   renderIntelligenceTab() {
     const prediction = this.intelligencePrediction?.prediction
     const vector = this.intelligencePrediction?.vector || this.intelligenceVector?.vector
@@ -5334,6 +5365,39 @@ Exemple :
                 ` : ''}
               </div>
             </div>
+
+            <!-- Correction Button -->
+            <div style="margin-top: 1.25rem; display: flex; justify-content: center;">
+              <button @click=${this.togglePredictionCorrection}
+                style="padding: 0.5rem 1.25rem; background: ${this.showPredictionCorrection ? 'rgba(239, 68, 68, 0.15)' : 'rgba(139, 92, 246, 0.1)'}; border: 1px solid ${this.showPredictionCorrection ? 'rgba(239, 68, 68, 0.3)' : 'rgba(139, 92, 246, 0.25)'}; border-radius: 10px; color: ${this.showPredictionCorrection ? '#f87171' : '#a78bfa'}; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
+                ${this.showPredictionCorrection ? '✕ Annuler' : '✏️ Corriger la prediction'}
+              </button>
+            </div>
+
+            <!-- Correction Panel -->
+            ${this.showPredictionCorrection ? html`
+              <div style="margin-top: 1rem; padding: 1rem; background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 12px; animation: card-enter 0.2s ease-out;">
+                ${this.predictionCorrectionSent ? html`
+                  <div style="text-align: center; padding: 0.75rem; color: #22c55e; font-weight: 600; font-size: 0.95rem;">
+                    ✓ Correction enregistree (v1+v2)
+                  </div>
+                ` : html`
+                  <div style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-dark-text-tertiary); margin-bottom: 0.75rem;">
+                    Quel est le bon mode ?
+                  </div>
+                  <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    ${this.modes.map(m => html`
+                      <button @click=${() => this.sendPredictionCorrection(m.slug)}
+                        ?disabled=${m.slug === prediction.mode}
+                        style="flex: 1; min-width: 80px; display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 0.75rem 0.5rem; background: ${m.slug === prediction.mode ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)'}; border: 1px solid ${m.slug === prediction.mode ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.12)'}; border-radius: 10px; color: ${m.slug === prediction.mode ? 'var(--color-dark-text-tertiary)' : 'var(--color-dark-text-primary)'}; cursor: ${m.slug === prediction.mode ? 'not-allowed' : 'pointer'}; opacity: ${m.slug === prediction.mode ? '0.35' : '1'}; transition: all 0.2s ease;">
+                        <span style="font-size: 1.5rem;">${m.icon}</span>
+                        <span style="font-size: 0.75rem;">${m.name}</span>
+                      </button>
+                    `)}
+                  </div>
+                `}
+              </div>
+            ` : ''}
 
             <!-- Why Chain - Samples Contributing -->
             ${prediction.why?.length > 0 ? html`

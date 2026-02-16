@@ -218,20 +218,23 @@ async fn get_signals(State(app): State<AppState>) -> Json<SignalsResponse> {
 }
 
 /// POST /v1/intelligence/feedback
-/// Record user feedback when manually changing mode
+/// Record user feedback when manually correcting prediction
 async fn post_feedback(
     State(app): State<AppState>,
     Json(req): Json<FeedbackRequest>,
 ) -> Json<FeedbackResponse> {
-    // Collect current signals for the feedback record
+    // v1: pattern-based learning
     let signals = app.context_intelligence.collect_signals().await;
-
-    // Record the feedback
     app.context_intelligence.record_feedback(&req.chosen_mode, signals);
+
+    // v2: case-based inference learning (UserCorrection = highest priority)
+    let vector = VectorBuilder::new(&app.feature_registry).build();
+    app.inference_engine.record_correction(&vector, &req.chosen_mode);
+    eprintln!("[intelligence] Feedback correction recorded: {} (v1+v2)", req.chosen_mode);
 
     Json(FeedbackResponse {
         success: true,
-        message: format!("Feedback recorded for mode '{}'", req.chosen_mode),
+        message: format!("Feedback recorded for mode '{}' (v1+v2)", req.chosen_mode),
     })
 }
 
