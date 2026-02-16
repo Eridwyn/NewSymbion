@@ -400,8 +400,16 @@ impl InferenceEngine {
             .filter(|(_, sim, _, _)| *sim >= self.config.min_similarity)
             .collect();
 
-        // Sort by score descending
-        scored_samples.sort_by(|a, b| b.3.partial_cmp(&a.3).unwrap_or(std::cmp::Ordering::Equal));
+        // Sort by score descending, tie-break by most recent timestamp
+        scored_samples.sort_by(|a, b| {
+            match b.3.partial_cmp(&a.3) {
+                Some(std::cmp::Ordering::Equal) | None => {
+                    // Tie-break: prefer more recent samples
+                    samples[b.0].timestamp.cmp(&samples[a.0].timestamp)
+                }
+                Some(ord) => ord,
+            }
+        });
 
         // Take top-k
         let top_k: Vec<_> = scored_samples
