@@ -22,7 +22,6 @@ import '../widgets/agents-network-widget.js'
 import '../widgets/agent-control-widget.js'
 import '../widgets/environment-widget.js'
 import '../widgets/context-engine-widget.js'
-// intelligence-widget removed - Intelligence accessible via Context Engine > Intelligence tab
 import './user-settings-page.js'
 import './notes-page.js'
 import './context-engine-page.js'
