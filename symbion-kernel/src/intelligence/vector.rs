@@ -416,7 +416,7 @@ impl<'a> VectorBuilder<'a> {
             .map(|d| self.dimensions.get(*d).copied().unwrap_or(0.0))
             .sum();
 
-        if sum > 0.1 {
+        if sum > 1e-6 {
             for dim in mode_dims {
                 if let Some(val) = self.dimensions.get_mut(dim) {
                     *val /= sum;
