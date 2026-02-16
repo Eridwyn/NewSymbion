@@ -27,7 +27,7 @@
 | MQTT Topics | 10 subscriptions |
 | Automations actives | 16 |
 | Modes contextuels | 4 système + custom |
-| Intelligence Samples | 18+ (apprentissage) |
+| Intelligence Samples | 26+ (apprentissage) |
 | Data files (JSON) | 11 |
 
 ---
@@ -216,21 +216,43 @@ Moteur event-driven avec 16 automations actives.
 
 ---
 
+### Prediction Correction UI 🟢 100%
+**Complété** : 16 Février 2026
+
+Correction prédiction intelligence directement depuis l'interface PWA.
+
+- **Backend** : `POST /v1/intelligence/feedback` enrichi v1+v2
+  - v1 : `record_feedback()` (pattern-based learning)
+  - v2 : `record_correction()` (case-based inference, UserCorrection priority)
+- **Frontend** : Bouton "Corriger la prédiction" dans l'onglet Intelligence
+  - Panel modes avec icônes dynamiques
+  - Mode prédit actuel désactivé (grisé)
+  - Confirmation visuelle + auto-refresh 1.5s
+  - Utilise `csrfService.fetchWithCsrf()` pour compatibilité mobile
+
+**Fichiers** : `intelligence_http.rs:220-240`, `context-engine-page.js:5268-5291`
+
+---
+
 ## Phase Active
 
-### PR6 — Production Readiness 🟡 ~25%
+### PR6 — Production Readiness 🟡 ~30%
 **En cours** — Démarré Novembre 2025
 
 **Complété** :
-- [x] CSP headers (strict default-deny)
-- [x] HSTS headers
+- [x] CSP headers (strict default-deny) (`http.rs:459-494`)
+- [x] HSTS headers (`http.rs:445-457`)
 - [x] Security documentation
+- [x] CI/CD pipelines (3 GitHub Actions workflows)
+  - `deploy-kernel.yml` — Multi-platform builds (Linux/Windows/macOS)
+  - `deploy-dashboard.yml` — PWA build
+  - `release.yml` — Agent releases
 
 **Restant** :
 - [ ] Let's Encrypt ACME integration
 - [ ] SQLite/PostgreSQL migration (JSON files actuels)
 - [ ] Docker containerization
-- [ ] CI/CD pipeline (GitHub Actions)
+- [ ] CI/CD test suite (builds OK, tests manquants dans CI)
 - [ ] Database backups automatiques
 - [ ] Rate limiting global (IP-based, pas seulement auth)
 - [ ] Monitoring externe (healthcheck.io ou équivalent)
@@ -304,9 +326,9 @@ Contrôle lumières connectées avec abstraction générique.
 ## Recommandations Prochains Sprints
 
 ### Sprint Immédiat (Février 2026)
-1. **Corriger P1 I/O synchrone** — save_samples() async ou background spawn
-2. **Propager confidence** features → VectorBuilder (contribution × confidence)
-3. **Correction prediction PWA** — Bouton "corriger" dans l'interface dashboard
+1. ~~**Correction prediction PWA**~~ ✅ — Bouton "corriger" dans l'onglet Intelligence
+2. **Corriger P1 I/O synchrone** — save_samples() async ou background spawn
+3. **Propager confidence** features → VectorBuilder (contribution × confidence)
 
 ### Court Terme (Mars 2026)
 4. **F2 Digital Hygiene** — Activity tracking + burnout detection
