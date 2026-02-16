@@ -307,7 +307,7 @@ Contrôle lumières connectées avec abstraction générique.
 
 ### P1 — À Traiter
 - [x] ~~**I/O synchrone bloquant**~~ → File I/O déporté vers `std::thread::spawn` (`inference.rs:309-334`)
-- [ ] **Confidence non propagée** : Features ont une confidence (0-1) ignorée par VectorBuilder
+- [x] ~~**Confidence non propagée**~~ → `add_contribution()` pondère par `confidence` (`vector.rs:391-406`)
 - [ ] **PendingActions en mémoire** : Redémarrage kernel = validations perdues
 - [ ] **PC_ACTIVE non normalisé** : Échelle différente des mode probs → biais cosine
 - [ ] **Trust Tracker sans decay** : Pas de dégradation temporelle des stats
@@ -328,7 +328,7 @@ Contrôle lumières connectées avec abstraction générique.
 ### Sprint Immédiat (Février 2026)
 1. ~~**Correction prediction PWA**~~ ✅ — Bouton "corriger" dans l'onglet Intelligence
 2. ~~**Corriger P1 I/O synchrone**~~ ✅ — `std::thread::spawn` pour file I/O
-3. **Propager confidence** features → VectorBuilder (contribution × confidence)
+3. ~~**Propager confidence**~~ ✅ — `contribution × confidence` dans VectorBuilder
 
 ### Court Terme (Mars 2026)
 4. **F2 Digital Hygiene** — Activity tracking + burnout detection
