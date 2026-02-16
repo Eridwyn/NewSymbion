@@ -517,6 +517,13 @@ mod tests {
     use super::*;
     use std::fs;
     use std::path::Path;
+    use std::sync::Mutex;
+
+    // Serialize all auth tests to prevent race conditions on shared users.json
+    // and env vars (SYMBION_JWT_SECRET). Without this, parallel test execution
+    // causes "EOF while parsing" errors when one test deletes/rewrites the file
+    // while another is reading it.
+    static AUTH_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     // Helper to clean up test users file
     fn cleanup_test_users() {
@@ -526,6 +533,7 @@ mod tests {
     }
 
     // Helper to create test AuthManager with fresh state
+    // Caller MUST hold AUTH_TEST_LOCK
     fn create_test_auth_manager() -> Result<AuthManager> {
         cleanup_test_users();
         std::env::set_var("SYMBION_JWT_SECRET", "test-secret-1234567890123456789012345678901234567890123456789012345678901234");
@@ -534,6 +542,7 @@ mod tests {
 
     #[test]
     fn test_auth_manager_creation() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         // Should have default "mark" user created (lowercase normalized)
@@ -547,6 +556,7 @@ mod tests {
 
     #[test]
     fn test_password_hashing_bcrypt_cost_12() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         // Create a test user and verify bcrypt cost is 12
@@ -564,6 +574,7 @@ mod tests {
 
     #[test]
     fn test_authenticate_valid_credentials() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         // Test with default mark user (case-insensitive login)
@@ -581,6 +592,7 @@ mod tests {
 
     #[test]
     fn test_authenticate_invalid_password() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         let result = auth.authenticate("Mark", "WrongPassword", None, false);
@@ -592,6 +604,7 @@ mod tests {
 
     #[test]
     fn test_authenticate_nonexistent_user() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         let result = auth.authenticate("NonExistentUser", "SomePassword", None, false);
@@ -603,6 +616,7 @@ mod tests {
 
     #[test]
     fn test_jwt_token_generation() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         let response = auth.authenticate("Mark", "Sourire951", None, false)
@@ -625,6 +639,7 @@ mod tests {
 
     #[test]
     fn test_jwt_token_verification() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         let response = auth.authenticate("Mark", "Sourire951", None, false)
@@ -643,6 +658,7 @@ mod tests {
 
     #[test]
     fn test_jwt_token_invalid_signature() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         // Create a token with different secret to simulate tampering
@@ -660,6 +676,7 @@ mod tests {
 
     #[test]
     fn test_create_user() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         let result = auth.create_user("alice", "AlicePass123", "user");
@@ -675,6 +692,7 @@ mod tests {
 
     #[test]
     fn test_create_duplicate_user() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         auth.create_user("bob", "BobPass123", "user")
@@ -689,6 +707,7 @@ mod tests {
 
     #[test]
     fn test_delete_user() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         auth.create_user("charlie", "CharliePass123", "user")
@@ -706,6 +725,7 @@ mod tests {
 
     #[test]
     fn test_rate_limiting() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         // Attempt login 5 times with wrong password (max attempts)
@@ -731,6 +751,7 @@ mod tests {
 
     #[test]
     fn test_rate_limit_different_users() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         auth.create_user("alice", "AlicePass", "user")
@@ -756,6 +777,7 @@ mod tests {
 
     #[test]
     fn test_session_info() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         let response = auth.authenticate("mark", "Sourire951", None, false)
@@ -773,6 +795,7 @@ mod tests {
 
     #[test]
     fn test_create_token_for_user() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         let token = auth.create_token_for_user("mark")
@@ -792,6 +815,7 @@ mod tests {
 
     #[test]
     fn test_create_token_for_nonexistent_user() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         let result = auth.create_token_for_user("NonExistentUser");
@@ -803,6 +827,7 @@ mod tests {
 
     #[test]
     fn test_list_users() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         auth.create_user("alice", "AlicePass", "user")
@@ -825,6 +850,7 @@ mod tests {
 
     #[test]
     fn test_update_user_mfa() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         let mfa_config = crate::mfa::MfaConfig {
@@ -848,6 +874,7 @@ mod tests {
 
     #[test]
     fn test_reload_users() {
+        let _lock = AUTH_TEST_LOCK.lock().unwrap();
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
         // Create a user
