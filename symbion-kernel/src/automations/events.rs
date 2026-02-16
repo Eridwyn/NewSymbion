@@ -112,8 +112,8 @@ pub struct EventDispatcher {
 impl EventDispatcher {
     /// Create new dispatcher with channel
     pub fn new() -> (Self, broadcast::Receiver<AutomationEvent>) {
-        // Buffer 100 events - should be plenty for normal operation
-        let (sender, receiver) = broadcast::channel(100);
+        // Buffer 512 events - prevents silent event loss under high load
+        let (sender, receiver) = broadcast::channel(512);
         (Self { sender }, receiver)
     }
 

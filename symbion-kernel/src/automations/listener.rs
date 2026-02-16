@@ -94,7 +94,7 @@ impl AutomationListener {
                         self.handle_event(event).await;
                     }
                     Err(broadcast::error::RecvError::Lagged(n)) => {
-                        eprintln!("[automations] Listener lagged, skipped {} events", n);
+                        eprintln!("[automations] ⚠️ Listener lagged, skipped {} events — consider increasing channel capacity", n);
                     }
                     Err(broadcast::error::RecvError::Closed) => {
                         eprintln!("[automations] Event channel closed, listener stopping");

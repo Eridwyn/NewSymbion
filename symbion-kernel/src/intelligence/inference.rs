@@ -306,20 +306,30 @@ impl InferenceEngine {
         }
     }
 
-    /// Save samples to disk
+    /// Save samples to disk (atomic write: temp file + rename)
     pub fn save_samples(&self) {
         let Some(path) = &self.data_path else { return };
 
-        let samples = self.samples.read();
-        match serde_json::to_string_pretty(&*samples) {
-            Ok(json) => {
-                if let Err(e) = std::fs::write(path, json) {
-                    eprintln!("[inference] ❌ Failed to write samples: {}", e);
+        // Serialize outside the lock to minimize lock duration
+        let json = {
+            let samples = self.samples.read();
+            match serde_json::to_string_pretty(&*samples) {
+                Ok(json) => json,
+                Err(e) => {
+                    eprintln!("[inference] ❌ Failed to serialize samples: {}", e);
+                    return;
                 }
             }
-            Err(e) => {
-                eprintln!("[inference] ❌ Failed to serialize samples: {}", e);
-            }
+        };
+
+        // Atomic write: temp file + rename prevents corruption on crash
+        let tmp_path = path.with_extension("json.tmp");
+        if let Err(e) = std::fs::write(&tmp_path, &json) {
+            eprintln!("[inference] ❌ Failed to write temp samples file: {}", e);
+            return;
+        }
+        if let Err(e) = std::fs::rename(&tmp_path, path) {
+            eprintln!("[inference] ❌ Failed to rename temp samples file: {}", e);
         }
     }
 
