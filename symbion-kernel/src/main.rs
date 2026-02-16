@@ -428,7 +428,7 @@ async fn main() {
     println!("[kernel] initialized Decision Engine PR3 (with Trust Tracker)");
 
     // Pending Action Registry for post-approval execution
-    let pending_action_registry = Arc::new(crate::automations::PendingActionRegistry::new());
+    let pending_action_registry = Arc::new(crate::automations::PendingActionRegistry::new(Some(std::path::PathBuf::from("./data"))));
     println!("[kernel] initialized Pending Action Registry");
 
     // Dynamic Plugin Registry - découverte automatique des plugins Unix sockets
