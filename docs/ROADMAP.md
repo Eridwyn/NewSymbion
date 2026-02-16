@@ -22,7 +22,7 @@
 
 | Métrique | Valeur |
 |----------|--------|
-| Unit Tests | 286 (0 failed) |
+| Unit Tests | 287 (0 failed) |
 | API Routes (http.rs) | 176 |
 | MQTT Topics | 10 subscriptions |
 | Automations actives | 16 |
@@ -305,12 +305,12 @@ Contrôle lumières connectées avec abstraction générique.
 - [x] ~~Persistence non-atomique~~ → temp file + rename (`inference.rs:309-334`)
 - [x] ~~Normalisation trop conservatrice~~ → Seuil 0.1→1e-6 (`vector.rs:419`)
 
-### P1 — À Traiter
+### P1 — Corrigés (16 Février 2026)
 - [x] ~~**I/O synchrone bloquant**~~ → File I/O déporté vers `std::thread::spawn` (`inference.rs:309-334`)
 - [x] ~~**Confidence non propagée**~~ → `add_contribution()` pondère par `confidence` (`vector.rs:391-406`)
 - [x] ~~**PendingActions en mémoire**~~ → Persistence JSON atomique + load au démarrage (`pending_actions.rs`)
 - [x] ~~**PC_ACTIVE non normalisé**~~ → Weighted cosine similarity (pc_active × 0.3) (`inference.rs:677-710`)
-- [ ] **Trust Tracker sans decay** : Pas de dégradation temporelle des stats
+- [x] ~~**Trust Tracker sans decay**~~ → Decay exponentiel half-life 30j (`trust_tracker.rs:262-272`)
 
 ### P2 — Améliorations
 - [ ] Tie-breaking top-k (timestamp comme critère secondaire)
@@ -334,7 +334,7 @@ Contrôle lumières connectées avec abstraction générique.
 ### Court Terme (Mars 2026)
 4. **F2 Digital Hygiene** — Activity tracking + burnout detection
 5. ~~**Persister PendingActions**~~ ✅ — JSON atomique + load au démarrage
-6. **Trust Tracker decay** (half-life 30 jours)
+6. ~~**Trust Tracker decay**~~ ✅ — Half-life 30 jours, decay exponentiel
 
 ### Moyen Terme (Q2 2026)
 7. **F3 Intentions Log** — Audit trail + analytics
