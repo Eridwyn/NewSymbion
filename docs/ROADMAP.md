@@ -22,7 +22,7 @@
 
 | Métrique | Valeur |
 |----------|--------|
-| Unit Tests | 285 (0 failed) |
+| Unit Tests | 286 (0 failed) |
 | API Routes (http.rs) | 176 |
 | MQTT Topics | 10 subscriptions |
 | Automations actives | 16 |
@@ -309,7 +309,7 @@ Contrôle lumières connectées avec abstraction générique.
 - [x] ~~**I/O synchrone bloquant**~~ → File I/O déporté vers `std::thread::spawn` (`inference.rs:309-334`)
 - [x] ~~**Confidence non propagée**~~ → `add_contribution()` pondère par `confidence` (`vector.rs:391-406`)
 - [x] ~~**PendingActions en mémoire**~~ → Persistence JSON atomique + load au démarrage (`pending_actions.rs`)
-- [ ] **PC_ACTIVE non normalisé** : Échelle différente des mode probs → biais cosine
+- [x] ~~**PC_ACTIVE non normalisé**~~ → Weighted cosine similarity (pc_active × 0.3) (`inference.rs:677-710`)
 - [ ] **Trust Tracker sans decay** : Pas de dégradation temporelle des stats
 
 ### P2 — Améliorations
