@@ -636,6 +636,7 @@ mod tests {
             duration_minutes: Some(30),
             reason: "test".to_string(),
             impact_level: ImpactLevel::Medium,
+            use_override: None,
         };
         assert_eq!(ActionExecutorRegistry::action_type_name(&action), "force_mode");
 
@@ -676,12 +677,14 @@ mod tests {
                 duration_minutes: Some(30),
                 reason: "meeting".to_string(),
                 impact_level: ImpactLevel::Medium,
+                use_override: None,
             },
             ActionDefinition::ForceMode {
                 mode: "intime".to_string(),
                 duration_minutes: None,
                 reason: "default".to_string(),
                 impact_level: ImpactLevel::Medium,
+                use_override: None,
             },
         ];
 
@@ -716,6 +719,7 @@ mod tests {
             duration_minutes: Some(30),
             reason: "test".to_string(),
             impact_level: ImpactLevel::Medium,
+            use_override: None,
         };
         let executor = ForceModeExecutor::from_action(&action);
         assert!(executor.is_some());

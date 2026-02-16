@@ -307,6 +307,7 @@ mod tests {
             no_message_timeout: Duration::from_millis(10),
             check_interval: Duration::from_millis(5),
             consecutive_failures_threshold: 1,
+            force_exit_after_reconnects: 0,
         };
 
         let state_clone = state.clone();

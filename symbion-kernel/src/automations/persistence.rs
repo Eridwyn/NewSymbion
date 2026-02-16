@@ -643,12 +643,16 @@ mod tests {
             name: "Test Automation".to_string(),
             description: Some("Test description".to_string()),
             category: Some("custom".to_string()),
+            goal_mode: None,
             enabled: true,
             trigger: Some(Trigger::Manual),
             triggers: None,
             conditions: None,
             actions: vec![ActionDefinition::Delay { seconds: 1 }],
             cooldown_seconds: 60,
+            trusted: None,
+            skip_if_same_mode: None,
+            auto_created: None,
         };
 
         let created = store.create(request).unwrap();
@@ -669,12 +673,16 @@ mod tests {
             name: "To Delete".to_string(),
             description: None,
             category: None,
+            goal_mode: None,
             enabled: true,
             trigger: Some(Trigger::Manual),
             triggers: None,
             conditions: None,
             actions: vec![],
             cooldown_seconds: 60,
+            trusted: None,
+            skip_if_same_mode: None,
+            auto_created: None,
         };
 
         let created = store.create(request).unwrap();
@@ -692,12 +700,16 @@ mod tests {
             name: "Toggle Test".to_string(),
             description: None,
             category: None,
+            goal_mode: None,
             enabled: true,
             trigger: Some(Trigger::Manual),
             triggers: None,
             conditions: None,
             actions: vec![],
             cooldown_seconds: 60,
+            trusted: None,
+            skip_if_same_mode: None,
+            auto_created: None,
         };
 
         let created = store.create(request).unwrap();
@@ -715,24 +727,32 @@ mod tests {
             name: "Enabled".to_string(),
             description: None,
             category: None,
+            goal_mode: None,
             enabled: true,
             trigger: Some(Trigger::Manual),
             triggers: None,
             conditions: None,
             actions: vec![],
             cooldown_seconds: 60,
+            trusted: None,
+            skip_if_same_mode: None,
+            auto_created: None,
         };
 
         let request2 = AutomationRequest {
             name: "Disabled".to_string(),
             description: None,
             category: None,
+            goal_mode: None,
             enabled: false,
             trigger: Some(Trigger::Manual),
             triggers: None,
             conditions: None,
             actions: vec![],
             cooldown_seconds: 60,
+            trusted: None,
+            skip_if_same_mode: None,
+            auto_created: None,
         };
 
         store.create(request1).unwrap();
