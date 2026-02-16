@@ -313,11 +313,11 @@ Contrôle lumières connectées avec abstraction générique.
 - [x] ~~**Trust Tracker sans decay**~~ → Decay exponentiel half-life 30j (`trust_tracker.rs:262-272`)
 
 ### P2 — Améliorations
-- [ ] Tie-breaking top-k (timestamp comme critère secondaire)
+- [x] ~~Tie-breaking top-k~~ → timestamp comme critère secondaire (`inference.rs:404`)
 - [ ] Bootstrap multi-slot (7+ samples à l'init)
-- [ ] SSID case-insensitive (RFC compliance)
+- [x] ~~SSID case-insensitive~~ → `eq_ignore_ascii_case` per RFC 802.11 (`trust.rs:119`)
 - [ ] Timezone configurable (hardcodé Europe/Paris)
-- [ ] Clock skew protection (NTP drift → duration négative)
+- [x] ~~Clock skew protection~~ → `Duration` clamped à zero si NTP drift (`sessions.rs:144`)
 - [ ] Compaction périodique automatique
 - [ ] Stability score decay temporel
 - [ ] **symbion-devkit obsolète** : API plugin a évolué, devkit ne compile plus (lifetime error tests)
