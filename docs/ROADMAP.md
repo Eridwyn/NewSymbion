@@ -22,7 +22,7 @@
 
 | Métrique | Valeur |
 |----------|--------|
-| Unit Tests | 280 |
+| Unit Tests | 284 (0 failed) |
 | API Routes (http.rs) | 176 |
 | MQTT Topics | 10 subscriptions |
 | Automations actives | 16 |
@@ -306,8 +306,8 @@ Contrôle lumières connectées avec abstraction générique.
 - [x] ~~Normalisation trop conservatrice~~ → Seuil 0.1→1e-6 (`vector.rs:419`)
 
 ### P1 — À Traiter
+- [x] ~~**I/O synchrone bloquant**~~ → File I/O déporté vers `std::thread::spawn` (`inference.rs:309-334`)
 - [ ] **Confidence non propagée** : Features ont une confidence (0-1) ignorée par VectorBuilder
-- [ ] **I/O synchrone bloquant** : save_samples() synchrone après chaque add
 - [ ] **PendingActions en mémoire** : Redémarrage kernel = validations perdues
 - [ ] **PC_ACTIVE non normalisé** : Échelle différente des mode probs → biais cosine
 - [ ] **Trust Tracker sans decay** : Pas de dégradation temporelle des stats
@@ -327,7 +327,7 @@ Contrôle lumières connectées avec abstraction générique.
 
 ### Sprint Immédiat (Février 2026)
 1. ~~**Correction prediction PWA**~~ ✅ — Bouton "corriger" dans l'onglet Intelligence
-2. **Corriger P1 I/O synchrone** — save_samples() async ou background spawn
+2. ~~**Corriger P1 I/O synchrone**~~ ✅ — `std::thread::spawn` pour file I/O
 3. **Propager confidence** features → VectorBuilder (contribution × confidence)
 
 ### Court Terme (Mars 2026)
