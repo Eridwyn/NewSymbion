@@ -171,6 +171,7 @@ mod tests {
             duration_minutes: Some(30),
             reason: "Test".to_string(),
             impact_level: ImpactLevel::Medium,
+            use_override: None,
         };
 
         let decision = action_to_decision_dry_run(&action, &automation);

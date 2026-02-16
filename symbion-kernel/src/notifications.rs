@@ -718,7 +718,7 @@ mod tests {
 
     #[test]
     fn test_fcm_token_registration() {
-        let manager = NotificationManager::new();
+        let manager = NotificationManager::new(None);
         manager.register_fcm_token(
             "user-1".to_string(),
             "fcm-token-123".to_string(),
@@ -733,7 +733,7 @@ mod tests {
 
     #[test]
     fn test_acknowledgment() {
-        let manager = NotificationManager::new();
+        let manager = NotificationManager::new(None);
         let notif = Notification {
             id: "test-ack".to_string(),
             priority: NotificationPriority::P2,
@@ -747,7 +747,8 @@ mod tests {
             data: None,
         };
 
-        manager.active_notifications.lock().unwrap().insert(notif.id.clone(), notif);
+        manager.active_notifications.lock().unwrap().insert(notif.id.clone(), notif.clone());
+        manager.history.lock().unwrap().push(notif);
 
         assert!(!manager.is_acknowledged("test-ack"));
         manager.acknowledge("test-ack").unwrap();

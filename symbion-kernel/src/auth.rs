@@ -340,10 +340,11 @@ impl AuthManager {
 
     /// Create JWT token for authenticated user (for WebAuthn, etc.)
     pub fn create_token_for_user(&self, username: &str) -> Result<String> {
+        let username_lower = username.to_lowercase();
         let (user_role, user_username) = {
             let users = self.users.read();
             let user = users
-                .get(username)
+                .get(&username_lower)
                 .context("User not found")?;
             (user.role.clone(), user.username.clone())
         };
@@ -535,10 +536,10 @@ mod tests {
     fn test_auth_manager_creation() {
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
-        // Should have default "Mark" user created
+        // Should have default "mark" user created (lowercase normalized)
         let users = auth.list_users();
         assert_eq!(users.len(), 1);
-        assert_eq!(users[0]["username"], "Mark");
+        assert_eq!(users[0]["username"], "mark");
         assert_eq!(users[0]["role"], "admin");
 
         cleanup_test_users();
@@ -565,12 +566,12 @@ mod tests {
     fn test_authenticate_valid_credentials() {
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
-        // Test with default Mark user
-        let result = auth.authenticate("Mark", "Sourire951", None, false);
+        // Test with default mark user (case-insensitive login)
+        let result = auth.authenticate("mark", "Sourire951", None, false);
         assert!(result.is_ok(), "Valid credentials should authenticate");
 
         let response = result.unwrap();
-        assert_eq!(response.username, "Mark");
+        assert_eq!(response.username, "mark");
         assert_eq!(response.role, "admin");
         assert!(!response.token.is_empty());
         assert!(!response.requires_mfa);
@@ -633,7 +634,7 @@ mod tests {
         let claims = auth.verify_token(&response.token)
             .expect("Token verification failed");
 
-        assert_eq!(claims.sub, "Mark");
+        assert_eq!(claims.sub, "mark");
         assert_eq!(claims.role, "admin");
         assert!(claims.exp > claims.iat, "Expiry should be after issued time");
 
@@ -648,7 +649,7 @@ mod tests {
         std::env::set_var("SYMBION_JWT_SECRET", "different-secret-key");
         let auth2 = AuthManager::new().expect("Failed to create second AuthManager");
 
-        let token = auth2.create_token_for_user("Mark").expect("Failed to create token");
+        let token = auth2.create_token_for_user("mark").expect("Failed to create token");
 
         // Try to verify with original auth manager (different secret)
         let result = auth.verify_token(&token);
@@ -757,13 +758,13 @@ mod tests {
     fn test_session_info() {
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
-        let response = auth.authenticate("Mark", "Sourire951", None, false)
+        let response = auth.authenticate("mark", "Sourire951", None, false)
             .expect("Authentication failed");
 
         let session = auth.get_session_info(&response.token)
             .expect("Failed to get session info");
 
-        assert_eq!(session.username, "Mark");
+        assert_eq!(session.username, "mark");
         assert_eq!(session.role, "admin");
         assert_eq!(session.expires_at, response.expires_at);
 
@@ -774,7 +775,7 @@ mod tests {
     fn test_create_token_for_user() {
         let auth = create_test_auth_manager().expect("Failed to create AuthManager");
 
-        let token = auth.create_token_for_user("Mark")
+        let token = auth.create_token_for_user("mark")
             .expect("Failed to create token");
 
         assert!(!token.is_empty());
@@ -783,7 +784,7 @@ mod tests {
         let claims = auth.verify_token(&token)
             .expect("Token verification failed");
 
-        assert_eq!(claims.sub, "Mark");
+        assert_eq!(claims.sub, "mark");
         assert_eq!(claims.role, "admin");
 
         cleanup_test_users();
@@ -855,8 +856,8 @@ mod tests {
 
         // Modify users.json directly
         let mut users = HashMap::new();
-        users.insert("Mark".to_string(), User {
-            username: "Mark".to_string(),
+        users.insert("mark".to_string(), User {
+            username: "mark".to_string(),
             password_hash: hash("NewPassword", 12).expect("Failed to hash"),
             role: "admin".to_string(),
             created_at: time::OffsetDateTime::now_utc().unix_timestamp(),

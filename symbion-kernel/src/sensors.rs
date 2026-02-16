@@ -765,6 +765,7 @@ mod tests {
             status: SensorStatus::Online,
             battery_pct: None,
             signal_rssi: None,
+            deleted_at: None,
         };
         registry.register_sensor(sensor).unwrap();
 
@@ -793,6 +794,7 @@ mod tests {
                 status: SensorStatus::Online,
                 battery_pct: None,
                 signal_rssi: None,
+                deleted_at: None,
             };
             registry.register_sensor(sensor).unwrap();
         }
@@ -808,6 +810,7 @@ mod tests {
             status: SensorStatus::Offline,
             battery_pct: None,
             signal_rssi: None,
+            deleted_at: None,
         };
         registry.register_sensor(sensor_offline).unwrap();
 
@@ -833,6 +836,7 @@ mod tests {
                 status: SensorStatus::Online,
                 battery_pct: Some(95),
                 signal_rssi: Some(-42),
+                deleted_at: None,
             };
             registry.register_sensor(sensor).unwrap();
 
@@ -882,6 +886,7 @@ mod tests {
             status: SensorStatus::Online,
             battery_pct: None,
             signal_rssi: None,
+            deleted_at: None,
         };
         registry.register_sensor(sensor).unwrap();
 

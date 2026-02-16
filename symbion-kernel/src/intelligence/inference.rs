@@ -307,30 +307,34 @@ impl InferenceEngine {
     }
 
     /// Save samples to disk (atomic write: temp file + rename)
+    /// File I/O is offloaded to a background thread to avoid blocking the async runtime.
     pub fn save_samples(&self) {
         let Some(path) = &self.data_path else { return };
 
-        // Serialize outside the lock to minimize lock duration
+        // Serialize under read lock (fast, in-memory)
         let json = {
             let samples = self.samples.read();
             match serde_json::to_string_pretty(&*samples) {
                 Ok(json) => json,
                 Err(e) => {
-                    eprintln!("[inference] ❌ Failed to serialize samples: {}", e);
+                    eprintln!("[inference] Failed to serialize samples: {}", e);
                     return;
                 }
             }
         };
 
-        // Atomic write: temp file + rename prevents corruption on crash
-        let tmp_path = path.with_extension("json.tmp");
-        if let Err(e) = std::fs::write(&tmp_path, &json) {
-            eprintln!("[inference] ❌ Failed to write temp samples file: {}", e);
-            return;
-        }
-        if let Err(e) = std::fs::rename(&tmp_path, path) {
-            eprintln!("[inference] ❌ Failed to rename temp samples file: {}", e);
-        }
+        // Offload blocking file I/O to background thread
+        let path = path.clone();
+        std::thread::spawn(move || {
+            let tmp_path = path.with_extension("json.tmp");
+            if let Err(e) = std::fs::write(&tmp_path, &json) {
+                eprintln!("[inference] Failed to write temp samples file: {}", e);
+                return;
+            }
+            if let Err(e) = std::fs::rename(&tmp_path, &path) {
+                eprintln!("[inference] Failed to rename temp samples file: {}", e);
+            }
+        });
     }
 
     /// Add a training sample
