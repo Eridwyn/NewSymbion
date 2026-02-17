@@ -71,7 +71,7 @@ class AutomationTimeline extends LitElement {
 
     .grid-cell {
       background: var(--bg-tertiary, rgba(50, 55, 65, 0.5));
-      min-height: 28px;
+      min-height: 24px;
       border-radius: 4px;
       cursor: pointer;
       transition: all 0.2s ease;
@@ -153,7 +153,7 @@ class AutomationTimeline extends LitElement {
 
     @media (max-width: 768px) {
       .timeline-grid {
-        grid-template-columns: 40px repeat(7, 1fr);
+        grid-template-columns: 35px repeat(7, 1fr);
         gap: 1px;
       }
 
@@ -163,11 +163,15 @@ class AutomationTimeline extends LitElement {
       }
 
       .grid-cell {
-        min-height: 24px;
+        min-height: 20px;
       }
 
       .hour-label {
-        font-size: 0.6rem;
+        font-size: 0.55rem;
+      }
+
+      .cell-icon {
+        font-size: 0.7rem;
       }
     }
   `
@@ -192,9 +196,9 @@ class AutomationTimeline extends LitElement {
     ]
   }
 
-  // Heures affichees (6h, 9h, 12h, 15h, 18h, 21h)
+  // Heures affichees (blocs de 2h, 6h-22h)
   get displayHours() {
-    return [6, 9, 12, 15, 18, 21]
+    return [6, 8, 10, 12, 14, 16, 18, 20, 22]
   }
 
   // Extraire les automations planifiees avec leurs plages horaires
@@ -277,8 +281,8 @@ class AutomationTimeline extends LitElement {
       const dayInRange = auto.days.map(d => parseInt(d)).includes(dayValue)
       if (!dayInRange) return false
 
-      // Verifier l'heure (plage de 3h pour chaque cellule)
-      const hourEnd = hour + 3
+      // Verifier l'heure (plage de 2h pour chaque cellule)
+      const hourEnd = hour + 2
       const autoStart = auto.startHour
       const autoEnd = auto.endHour
 
@@ -362,7 +366,7 @@ class AutomationTimeline extends LitElement {
                   @click=${() => this.handleCellClick(hour, day, cellAutos)}
                   @mouseenter=${() => this.handleCellHover(cellAutos, true)}
                   @mouseleave=${() => this.handleCellHover(cellAutos, false)}
-                  title="${hasAutomation ? cellAutos.map(a => a.name).join(', ') : `${day.full} ${hour}h-${hour + 3}h`}"
+                  title="${hasAutomation ? cellAutos.map(a => `${a.name} (${a.startHour}h-${a.endHour}h)`).join(', ') : `${day.full} ${hour}h-${hour + 2}h`}"
                 >
                   ${hasAutomation ? html`
                     <span class="cell-icon">${primaryAuto.icon}</span>
