@@ -127,3 +127,36 @@ pub use bootstrap::{
     BootstrapConfig,
     IntelligenceMode,
 };
+
+// ============================================================================
+// Shared Timezone Helper
+// ============================================================================
+
+use std::sync::OnceLock;
+use time::OffsetDateTime;
+use time_tz::{timezones, OffsetDateTimeExt, Tz};
+
+/// Cached timezone from SYMBION_TIMEZONE env var (default: Europe/Paris)
+static SYMBION_TZ: OnceLock<&'static Tz> = OnceLock::new();
+
+/// Get the configured timezone
+fn get_timezone() -> &'static Tz {
+    SYMBION_TZ.get_or_init(|| {
+        let tz_name = std::env::var("SYMBION_TIMEZONE").unwrap_or_else(|_| "Europe/Paris".to_string());
+        match timezones::get_by_name(&tz_name) {
+            Some(tz) => {
+                eprintln!("[timezone] Using timezone: {}", tz_name);
+                tz
+            }
+            None => {
+                eprintln!("[timezone] Unknown timezone '{}', falling back to Europe/Paris", tz_name);
+                timezones::db::europe::PARIS
+            }
+        }
+    })
+}
+
+/// Get current time in the configured local timezone
+pub fn local_now() -> OffsetDateTime {
+    OffsetDateTime::now_utc().to_timezone(get_timezone())
+}

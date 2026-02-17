@@ -1296,8 +1296,10 @@ impl ContextIntelligence {
     ) {
         tokio::spawn(async move {
             eprintln!("[intelligence] 🧠 Intelligence monitor started (with v2 shadow mode)");
+            let mut cycle_counter: u64 = 0;
 
             loop {
+                cycle_counter += 1;
                 let check_interval = {
                     let config = intelligence.config.read();
                     std::time::Duration::from_secs(config.check_interval_seconds)
@@ -1457,6 +1459,14 @@ impl ContextIntelligence {
                         current_mode,
                         v2_mode
                     );
+                }
+
+                // Periodic compaction: remove decayed samples every ~100 cycles (~50 min)
+                if cycle_counter % 100 == 0 {
+                    let removed = inference_engine.compact();
+                    if removed > 0 {
+                        eprintln!("[intelligence] 🧹 Compacted {} decayed samples", removed);
+                    }
                 }
 
                 // Auto-mark prediction as correct if mode is stable for 30+ minutes

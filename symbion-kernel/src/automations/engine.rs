@@ -27,7 +27,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use time::OffsetDateTime;
-use time_tz::{timezones, OffsetDateTimeExt};
+// timezone handled via crate::intelligence::local_now()
 
 /// Context available during condition evaluation and action execution
 pub struct ExecutionContext {
@@ -143,9 +143,7 @@ impl AutomationEngine {
             }
 
             Condition::TimeRange { start_hour, end_hour } => {
-                // Convert UTC to local time (Europe/Paris)
-                let now_utc = OffsetDateTime::now_utc();
-                let now_local = now_utc.to_timezone(timezones::db::europe::PARIS);
+                let now_local = crate::intelligence::local_now();
                 let hour = now_local.hour();
 
                 let in_range = if start_hour <= end_hour {
@@ -163,9 +161,7 @@ impl AutomationEngine {
             }
 
             Condition::DayOfWeek { days } => {
-                // Convert UTC to local time (Europe/Paris) for day of week
-                let now_utc = OffsetDateTime::now_utc();
-                let now_local = now_utc.to_timezone(timezones::db::europe::PARIS);
+                let now_local = crate::intelligence::local_now();
                 let weekday = now_local.weekday().number_days_from_sunday(); // 0=Sun, 6=Sat
                 let matches = days.contains(&weekday);
                 (
@@ -175,9 +171,7 @@ impl AutomationEngine {
             }
 
             Condition::DayOfMonth { days } => {
-                // Convert UTC to local time (Europe/Paris)
-                let now_utc = OffsetDateTime::now_utc();
-                let now_local = now_utc.to_timezone(timezones::db::europe::PARIS);
+                let now_local = crate::intelligence::local_now();
                 let current_day = now_local.day();
                 // Get last day of current month using Month::length
                 let last_day = now_local.month().length(now_local.year());
@@ -198,9 +192,7 @@ impl AutomationEngine {
             }
 
             Condition::Month { months } => {
-                // Convert UTC to local time (Europe/Paris)
-                let now_utc = OffsetDateTime::now_utc();
-                let now_local = now_utc.to_timezone(timezones::db::europe::PARIS);
+                let now_local = crate::intelligence::local_now();
                 let current_month = now_local.month() as u8; // 1-12
                 let matches = months.contains(&current_month);
                 (
