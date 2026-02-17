@@ -204,17 +204,21 @@ class AutomationTimeline extends LitElement {
     return this.automations.filter(auto => {
       if (!auto.enabled) return false
 
-      // Chercher un trigger scheduled ou une condition time_range + day_of_week
-      const rules = auto._rules?.items || []
-      const hasScheduled = rules.some(r => r.type === 'scheduled')
-      const hasTimeRange = rules.some(r => r.type === 'time_range')
-      const hasDayOfWeek = rules.some(r => r.type === 'day_of_week')
+      // Chercher dans conditions (time_range, day_of_week)
+      const conditions = auto.conditions?.conditions || []
+      const hasTimeRange = conditions.some(c => c.type === 'time_range')
+      const hasDayOfWeek = conditions.some(c => c.type === 'day_of_week')
+
+      // Chercher dans triggers (scheduled)
+      const triggers = auto.triggers?.triggers || []
+      const hasScheduled = triggers.some(t => t.type === 'scheduled')
+        || auto.trigger?.type === 'scheduled'
 
       return hasScheduled || (hasTimeRange && hasDayOfWeek)
     }).map(auto => {
-      const rules = auto._rules?.items || []
-      const timeRange = rules.find(r => r.type === 'time_range') || {}
-      const dayOfWeek = rules.find(r => r.type === 'day_of_week') || {}
+      const conditions = auto.conditions?.conditions || []
+      const timeRange = conditions.find(c => c.type === 'time_range') || {}
+      const dayOfWeek = conditions.find(c => c.type === 'day_of_week') || {}
       const forceMode = auto.actions?.find(a => a.type === 'force_mode')
 
       return {
@@ -230,25 +234,39 @@ class AutomationTimeline extends LitElement {
   }
 
   getModeIcon(modeSlug) {
-    const icons = {
-      'cravate': '👔',
-      'intime': '🏡',
-      'neutre': '🌙',
-      'pro': '👔',
-      'home': '🏡'
+    // Chercher dans les modes dynamiques d'abord
+    if (this.modes?.length && modeSlug) {
+      const mode = this.modes.find(m => m.value === modeSlug || m.slug === modeSlug)
+      if (mode?.label) {
+        const match = mode.label.match(/^(\p{Emoji})/u)
+        if (match) return match[1]
+      }
     }
-    return icons[modeSlug?.toLowerCase()] || '⚡'
+    const fallback = { 'pro': '👔', 'maison': '🏡', 'focus': '🎯', 'veille': '🌱' }
+    return fallback[modeSlug?.toLowerCase()] || '⚡'
   }
 
   getModeColor(modeSlug) {
-    const colors = {
-      'cravate': 'rgba(59, 130, 246, 0.4)',  // Bleu
-      'intime': 'rgba(34, 197, 94, 0.4)',    // Vert
-      'neutre': 'rgba(156, 163, 175, 0.4)',  // Gris
-      'pro': 'rgba(59, 130, 246, 0.4)',
-      'home': 'rgba(34, 197, 94, 0.4)'
+    // Chercher la couleur dans les modes dynamiques
+    if (this.modes?.length && modeSlug) {
+      const mode = this.modes.find(m => m.value === modeSlug || m.slug === modeSlug)
+      if (mode?.color) return this._hexToRgba(mode.color, 0.4)
     }
-    return colors[modeSlug?.toLowerCase()] || 'rgba(0, 212, 170, 0.3)'
+    const fallback = {
+      'pro': 'rgba(37, 99, 235, 0.4)',
+      'focus': 'rgba(99, 102, 241, 0.4)',
+      'maison': 'rgba(16, 185, 129, 0.4)',
+      'veille': 'rgba(107, 114, 128, 0.4)'
+    }
+    return fallback[modeSlug?.toLowerCase()] || 'rgba(0, 212, 170, 0.3)'
+  }
+
+  _hexToRgba(hex, alpha) {
+    if (!hex) return `rgba(0, 212, 170, ${alpha})`
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
   }
 
   // Trouver les automations pour une cellule specifique

@@ -924,32 +924,29 @@ class ContextEnginePage extends LitElement {
     }
 
     .automation-card-inner {
-      padding: 1rem 1rem 1rem 1.25rem;
+      padding: 0.75rem 0.75rem 0.75rem 1rem;
     }
 
     .automation-header {
       display: flex;
-      align-items: flex-start;
-      gap: 0.75rem;
-      margin-bottom: 0.75rem;
+      align-items: center;
+      gap: 0.5rem;
     }
 
     .automation-status-icon {
-      width: 40px;
-      height: 40px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.25rem;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
       flex-shrink: 0;
     }
 
     .automation-card.enabled .automation-status-icon {
-      background: color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+      background: var(--context-primary, #00d4aa);
+    }
+
+    .automation-card.disabled .automation-status-icon {
+      background: rgba(239, 68, 68, 0.6);
     }
 
     .automation-info {
@@ -961,11 +958,10 @@ class ContextEnginePage extends LitElement {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      margin-bottom: 0.25rem;
     }
 
     .automation-title {
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       font-weight: 600;
       color: var(--color-dark-text-primary, #f8f9fa);
       white-space: nowrap;
@@ -976,16 +972,14 @@ class ContextEnginePage extends LitElement {
     .automation-category-badge {
       display: inline-flex;
       align-items: center;
-      gap: 0.25rem;
-      padding: 0.15rem 0.5rem;
-      border-radius: 6px;
-      font-size: 0.65rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      gap: 0.2rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.6rem;
+      font-weight: 500;
       white-space: nowrap;
-      background: rgba(255, 255, 255, 0.08);
-      color: var(--color-dark-text-secondary, #adb5bd);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--color-dark-text-tertiary, #6c757d);
     }
 
     .automation-category-badge.comfort { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
@@ -1006,56 +1000,44 @@ class ContextEnginePage extends LitElement {
     }
 
     .automation-subtitle {
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       color: var(--color-dark-text-tertiary, #6c757d);
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.4rem;
       flex-wrap: wrap;
+      margin-top: 0.15rem;
+    }
+
+    .automation-subtitle .sep {
+      opacity: 0.4;
     }
 
     .automation-actions {
       display: flex;
+      align-items: center;
       gap: 0.5rem;
       flex-shrink: 0;
-    }
-
-    .automation-details {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      flex-wrap: wrap;
-      padding-top: 0.75rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.05);
-    }
-
-    .automation-detail {
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-      font-size: 0.75rem;
-      color: var(--color-dark-text-secondary, #adb5bd);
-    }
-
-    .automation-detail-icon {
-      font-size: 0.85rem;
-      opacity: 0.7;
-    }
-
-    .automation-detail-value {
-      font-weight: 500;
+      margin-left: auto;
     }
 
     .automation-quick-actions {
-      margin-left: auto;
       display: flex;
-      gap: 0.5rem;
+      gap: 0.25rem;
       opacity: 0;
       transition: opacity 0.2s ease;
     }
 
     .automation-card:hover .automation-quick-actions {
       opacity: 1;
+    }
+
+    @media (max-width: 768px) {
+      .automation-card-inner {
+        padding: 0.625rem 0.625rem 0.625rem 0.875rem;
+      }
+      .automation-title { font-size: 0.85rem; }
+      .automation-quick-actions { opacity: 1; }
     }
 
     .quick-action-btn {
@@ -4573,58 +4555,40 @@ Exemple :
     // Check if highlighted from timeline
     const isHighlighted = this.highlightedAutomationId === auto.id
 
+    const actionsCount = auto.actions?.length || 0
+    const cooldownLabel = this._formatCooldown(auto.cooldown_seconds || 0)
+
     return html`
       <div class="automation-card ${auto.enabled ? 'enabled' : 'disabled'} ${isHighlighted ? 'highlighted' : ''}">
         <div class="automation-card-inner">
           <div class="automation-header">
-            <div class="automation-status-icon">${statusIcon}</div>
+            <div class="automation-status-icon"></div>
             <div class="automation-info">
               <div class="automation-title-row">
                 <span class="automation-title">${auto.name}</span>
-                ${auto.trusted ? html`<span class="automation-trust-badge" title="Auto-approuvée sans validation">🛡️</span>` : ''}
-                <span class="automation-category-badge ${category}">${categoryIcon} ${category}</span>
+                ${auto.trusted ? html`<span class="automation-trust-badge" title="Auto-approuvée">🛡️</span>` : ''}
               </div>
               <div class="automation-subtitle">
+                <span class="automation-category-badge ${category}">${categoryIcon} ${category}</span>
+                <span class="sep">·</span>
                 <span>${triggerLabel}</span>
+                <span class="sep">·</span>
+                <span>${actionsCount} action${actionsCount !== 1 ? 's' : ''}</span>
+                ${cooldownLabel !== '0s' ? html`<span class="sep">·</span><span>${cooldownLabel}</span>` : ''}
+                ${lastExecTime ? html`<span class="sep">·</span><span>${lastExecTime}</span>` : ''}
               </div>
             </div>
             <div class="automation-actions">
+              <div class="automation-quick-actions">
+                <button class="quick-action-btn play" @click="${() => this.runAutomationManually(auto.id)}" title="Executer">▶</button>
+                <button class="quick-action-btn" @click="${() => this.openEditForm(auto)}" title="Modifier">✏️</button>
+                <button class="quick-action-btn" @click="${() => this.deleteAutomation(auto.id)}" title="Supprimer">🗑️</button>
+              </div>
               <div
                 class="toggle ${auto.enabled ? 'active' : ''}"
                 @click="${() => this.toggleAutomation(auto.id)}"
-                title="${auto.enabled ? 'Désactiver' : 'Activer'}"
+                title="${auto.enabled ? 'Desactiver' : 'Activer'}"
               ></div>
-            </div>
-          </div>
-
-          <div class="automation-details">
-            <div class="automation-detail">
-              <span class="automation-detail-icon">🎯</span>
-              <span class="automation-detail-value">${auto.actions?.length || 0}</span>
-              <span>action${(auto.actions?.length || 0) !== 1 ? 's' : ''}</span>
-            </div>
-            <div class="automation-detail">
-              <span class="automation-detail-icon">⏱️</span>
-              <span class="automation-detail-value">${auto.cooldown_seconds || 0}s</span>
-              <span>cooldown</span>
-            </div>
-            ${lastExecTime ? html`
-              <div class="automation-detail">
-                <span class="automation-detail-icon">🕐</span>
-                <span>${lastExecTime}</span>
-              </div>
-            ` : ''}
-
-            <div class="automation-quick-actions">
-              <button class="quick-action-btn play" @click="${() => this.runAutomationManually(auto.id)}" title="Exécuter maintenant">
-                ▶
-              </button>
-              <button class="quick-action-btn" @click="${() => this.openEditForm(auto)}" title="Modifier">
-                ✏️
-              </button>
-              <button class="quick-action-btn" @click="${() => this.deleteAutomation(auto.id)}" title="Supprimer">
-                🗑️
-              </button>
             </div>
           </div>
         </div>
@@ -4644,6 +4608,13 @@ Exemple :
       console.error('[context-engine] Failed to run automation:', e)
       this.showToast('Erreur lors de l\'exécution', 'error')
     }
+  }
+
+  _formatCooldown(seconds) {
+    if (!seconds || seconds <= 0) return '0s'
+    if (seconds >= 3600) return `${Math.round(seconds / 3600)}h`
+    if (seconds >= 60) return `${Math.round(seconds / 60)}min`
+    return `${seconds}s`
   }
 
   getShortTriggerLabel(trigger) {
