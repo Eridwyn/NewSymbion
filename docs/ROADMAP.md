@@ -22,12 +22,12 @@
 
 | Métrique | Valeur |
 |----------|--------|
-| Unit Tests | 301 (287 kernel + 14 agent, 0 failed) |
-| API Routes (http.rs) | 104 .route() |
+| Unit Tests | 288 (283 kernel + 5 agent, 0 failed) |
+| API Routes (http.rs) | 106 .route() |
 | MQTT Topics | 10 subscriptions |
-| Automations actives | 15 (+ 5 intelligence-managed) |
+| Automations actives | 19 (+ intelligence-managed) |
 | Modes contextuels | 4 système + custom |
-| Intelligence Samples | 28+ (apprentissage) |
+| Intelligence Samples | 29 (apprentissage continu) |
 | Data files (JSON) | 12 |
 
 ---
@@ -90,7 +90,7 @@
 - Agent telemetry (30s heartbeat : CPU, RAM, disk, network, processes)
 - Structured logging par catégorie
 
-**Fichiers** : `decision/metrics.rs` (549 LOC), `http.rs` (3,605 LOC)
+**Fichiers** : `decision/metrics.rs` (549 LOC), `http.rs` (3,633 LOC)
 
 ---
 
@@ -130,7 +130,7 @@ Moteur d'inférence case-based reasoning avec apprentissage continu.
 ### Automation Engine 🟢 100%
 **Complété** : Janvier-Février 2026
 
-Moteur event-driven avec 15 automations actives (+ 5 intelligence-managed).
+Moteur event-driven avec 19 automations actives.
 
 - **7 types de triggers** : mode_change, sensor_alert, agent_status, manual, plugin_health, scheduled, polling
 - **9 types de conditions** : mode, time_range, day_of_week, sensor_threshold, agent_online, custom, AND, OR, NOT
@@ -236,31 +236,38 @@ Correction prédiction intelligence directement depuis l'interface PWA.
 
 ## Phase Active
 
-### PR6 — Production Readiness 🟡 ~54%
+### PR6 — Production Readiness 🟡 ~86%
 **En cours** — Démarré Novembre 2025
 
-**Complété** (7/13) :
-- [x] CSP headers (strict default-deny) (`http.rs:459-494`)
-- [x] HSTS headers (`http.rs:445-457`)
+**Complété** (12/14) :
+- [x] CSP headers (strict default-deny) (`http.rs:465-495`)
+- [x] HSTS headers (`http.rs:451-463`)
 - [x] Security documentation (`docs/api/security.md`, 768 LOC)
 - [x] CI/CD pipelines (3 GitHub Actions workflows)
   - `deploy-kernel.yml` — Multi-platform builds Linux/Windows
   - `deploy-dashboard.yml` — PWA build
   - `release.yml` — Agent releases Linux/Windows/macOS
-- [x] Rate limiting auth (5 attempts/15min, `auth.rs:145-188`)
 - [x] CI/CD test suite (`cargo test` dans deploy-kernel + release workflows)
+- [x] Rate limiting auth (5 attempts/15min, `auth.rs:145-188`)
+- [x] Rate limiting global IP-based (300 req/min, Cloudflare-aware, `rate_limiter.rs`)
 - [x] Docker containerization (`docker/`, `docker-compose.yml`)
   - `kernel.Dockerfile` — Multi-stage build + tests + healthcheck
   - `dashboard.Dockerfile` — Node build + nginx serve
   - `docker-compose.yml` — Stack complet (mosquitto + kernel + dashboard)
+- [x] Health probes Kubernetes-compatible (`http.rs:220-221, 651-668`)
+  - `/health/live` — Liveness probe (always "ok")
+  - `/health/ready` — Readiness probe (MQTT + uptime + agents JSON)
+- [x] Log rotation journald (`systemd/journald-symbion.conf`)
+  - 500M max, 50M/fichier, 30j rétention, compression auto
+- [x] Database backups automatiques (`scripts/backup-symbion.sh`)
+  - Systemd timer quotidien 3h (`systemd/symbion-backup.timer`)
+  - Compression tar.gz, rotation 30 jours
+- [x] Monitoring externe healthcheck.io (`scripts/monitor-symbion.sh`)
+  - Ping success/fail conditionnel via `HEALTHCHECK_UUID`
 
-**Restant** (6/13) :
-- [ ] Let's Encrypt ACME integration
-- [ ] SQLite/PostgreSQL migration (JSON files actuels)
-- [ ] Database backups automatiques
-- [ ] Rate limiting global (IP-based, pas seulement auth)
-- [ ] Monitoring externe (healthcheck.io ou équivalent)
-- [ ] Log rotation (structuré → fichier rotatif)
+**Restant** (2/14) :
+- [ ] Let's Encrypt ACME integration (auto-renouvellement certificats)
+- [ ] SQLite/PostgreSQL migration (JSON files actuels suffisants pour l'échelle actuelle)
 
 ---
 
@@ -278,11 +285,12 @@ Tracking activité PC (idle/work/game) et prévention burnout.
 
 ---
 
-### F3 — Intentions Log ⚪ 0%
+### F3 — Intentions Log ⚪ ~5%
 **Effort estimé** : 5 jours
 
 Persistence et analytics historique des intentions Decision Engine.
 
+- ~~Type `Intention` défini~~ (`decision/environment.rs:39-47`)
 - Storage JSON/SQLite avec retention 90 jours
 - API analytics (filtres type, impact, date range)
 - PWA page paginée + export CSV
@@ -316,7 +324,7 @@ Contrôle lumières connectées avec abstraction générique.
 - [x] ~~**PC_ACTIVE non normalisé**~~ → Weighted cosine similarity (pc_active × 0.3) (`inference.rs:677-710`)
 - [x] ~~**Trust Tracker sans decay**~~ → Decay exponentiel half-life 30j (`trust_tracker.rs:262-272`)
 
-### P2 — Améliorations (Corrigés 17 Février 2026)
+### P2 — Corrigés (17 Février 2026)
 - [x] ~~Tie-breaking top-k~~ → timestamp comme critère secondaire (`inference.rs:404`)
 - [x] ~~Bootstrap multi-slot~~ → 7 time-slot samples à l'init (`bootstrap.rs:148-210`)
 - [x] ~~SSID case-insensitive~~ → `eq_ignore_ascii_case` per RFC 802.11 (`trust.rs:119`)
@@ -324,7 +332,7 @@ Contrôle lumières connectées avec abstraction générique.
 - [x] ~~Clock skew protection~~ → `Duration` clamped à zero si NTP drift (`sessions.rs:144`)
 - [x] ~~Compaction périodique~~ → compact() toutes les 100 cycles (~50 min) (`context_intelligence.rs`)
 - [x] ~~Stability score decay~~ → decay exponentiel half-life 60 min (`sessions.rs:184-192`)
-- [ ] **symbion-devkit obsolète** : API plugin a évolué, devkit ne compile plus (lifetime error tests)
+- [x] ~~symbion-devkit obsolète~~ → Supprimé du workspace (commit `b9c013b`)
 
 ---
 
@@ -335,16 +343,15 @@ Contrôle lumières connectées avec abstraction générique.
 2. ~~**Corriger tous les P0**~~ ✅ — Broadcast 512, atomic write, normalisation 1e-6
 3. ~~**Corriger tous les P1**~~ ✅ — I/O async, confidence, PendingActions, PC_ACTIVE, Trust decay
 4. ~~**Corriger tous les P2**~~ ✅ — Tie-break, bootstrap 7 slots, SSID, timezone, clock skew, compaction, stability decay
+5. ~~**PR6 Quick Wins**~~ ✅ — Rate limiting global, health probes, log rotation, backups, monitoring externe
 
 ### Court Terme (Mars 2026)
-5. **F2 Digital Hygiene** — Activity tracking + burnout detection
-6. **PR6 CI/CD tests** — Ajouter `cargo test` aux 3 workflows GitHub Actions
-7. **PR6 Docker** — Dockerfile kernel + dashboard + docker-compose
+6. **F2 Digital Hygiene** — Activity tracking + burnout detection
+7. **F3 Intentions Log** — Audit trail + analytics + PWA page
 
 ### Moyen Terme (Q2 2026)
-8. **F3 Intentions Log** — Audit trail + analytics
-9. **PR6 suite** — SQLite migration, ACME, backups, rate limiting global
-10. **F5 Light Actuator** (si matériel Tuya confirmé)
+8. **PR6 finalisation** — Let's Encrypt ACME, SQLite migration
+9. **F5 Light Actuator** (si matériel Tuya confirmé)
 
 ---
 
@@ -364,7 +371,7 @@ SESSION MANAGER (sessions.rs) — Hysteresis 4 couches
 DECISION ENGINE (decision/) — Guards → Trust → Threshold
     ↓  Impact: Low(0.3) | Medium(0.5) | High(0.7) | VeryHigh(0.9)
 AUTOMATION ENGINE (automations/) — Trigger → Condition → Action
-    ↓  15 automations actives, scheduler cron-like
+    ↓  19 automations actives, scheduler cron-like
 ```
 
 ---
