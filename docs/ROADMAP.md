@@ -314,12 +314,12 @@ Contrôle lumières connectées avec abstraction générique.
 
 ### P2 — Améliorations
 - [x] ~~Tie-breaking top-k~~ → timestamp comme critère secondaire (`inference.rs:404`)
-- [ ] Bootstrap multi-slot (7+ samples à l'init)
+- [x] ~~Bootstrap multi-slot~~ → 7 time-slot samples à l'init (`bootstrap.rs:148-210`)
 - [x] ~~SSID case-insensitive~~ → `eq_ignore_ascii_case` per RFC 802.11 (`trust.rs:119`)
-- [ ] Timezone configurable (hardcodé Europe/Paris)
+- [x] ~~Timezone configurable~~ → `SYMBION_TIMEZONE` env var, centralisé `local_now()` (`intelligence/mod.rs:137-165`)
 - [x] ~~Clock skew protection~~ → `Duration` clamped à zero si NTP drift (`sessions.rs:144`)
-- [ ] Compaction périodique automatique
-- [ ] Stability score decay temporel
+- [x] ~~Compaction périodique~~ → compact() toutes les 100 cycles (~50 min) (`context_intelligence.rs`)
+- [x] ~~Stability score decay~~ → decay exponentiel half-life 60 min (`sessions.rs:184-192`)
 - [ ] **symbion-devkit obsolète** : API plugin a évolué, devkit ne compile plus (lifetime error tests)
 
 ---

@@ -14,7 +14,6 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use time::{Duration, OffsetDateTime};
-use time_tz::{timezones, OffsetDateTimeExt};
 
 // ============================================================================
 // Session Source
@@ -179,6 +178,16 @@ impl ActiveSession {
         self.consecutive_matches = 0;
         // Decrease stability
         self.stability_score = (self.stability_score - 0.05).max(0.0);
+    }
+
+    /// Get stability score with time-based decay.
+    /// Decays toward 0.0 based on time since last confirmation.
+    /// Half-life: 60 minutes (stability halves every hour without confirmation).
+    pub fn decayed_stability(&self) -> f32 {
+        let elapsed = now_paris() - self.last_confirmed_at;
+        let minutes = if elapsed.is_negative() { 0.0 } else { elapsed.whole_minutes() as f32 };
+        let decay = (-minutes * 0.693 / 60.0).exp(); // half-life 60 min
+        self.stability_score * decay
     }
 }
 
@@ -348,7 +357,7 @@ impl SessionManager {
                 reason: format!(
                     "Prediction matches current mode '{}' (stability: {:.0}%)",
                     session.mode,
-                    session.stability_score * 100.0
+                    session.decayed_stability() * 100.0
                 ),
             };
         }
@@ -492,7 +501,7 @@ impl SessionManager {
             current_mode: session.mode.clone(),
             source: session.source,
             duration_minutes: session.duration_minutes(),
-            stability_score: session.stability_score,
+            stability_score: session.decayed_stability(),
             consecutive_matches: session.consecutive_matches,
             is_in_cooldown: session.is_in_cooldown(),
             is_override_expired: session.is_override_expired(),
@@ -520,9 +529,9 @@ pub struct SessionStats {
 // Helpers
 // ============================================================================
 
-/// Get current time in Paris timezone
+/// Get current time in configured local timezone
 fn now_paris() -> OffsetDateTime {
-    OffsetDateTime::now_utc().to_timezone(timezones::db::europe::PARIS)
+    super::local_now()
 }
 
 #[cfg(test)]

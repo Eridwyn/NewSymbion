@@ -20,7 +20,6 @@
 use std::collections::HashMap;
 use serde::Serialize;
 use time::OffsetDateTime;
-use time_tz::{timezones, OffsetDateTimeExt};
 
 use super::{FeatureRegistry, FeatureValue, feature_ids};
 
@@ -226,8 +225,7 @@ impl<'a> VectorBuilder<'a> {
     /// Process time-related features
     fn process_time_features(&mut self) {
         // Use current time in Paris timezone
-        let now_utc = OffsetDateTime::now_utc();
-        let now = now_utc.to_timezone(timezones::db::europe::PARIS);
+        let now = super::local_now();
         let hour = now.hour() as f32;
         let weekday = now.weekday().number_days_from_monday(); // 0=Monday
 
@@ -385,8 +383,7 @@ impl<'a> VectorBuilder<'a> {
 
                 if comm_count > 0 {
                     // Communication is ambiguous, slight work bias during work hours
-                    let now_utc = OffsetDateTime::now_utc();
-                    let now = now_utc.to_timezone(timezones::db::europe::PARIS);
+                    let now = super::local_now();
                     let hour = now.hour();
 
                     if (9..18).contains(&hour) {

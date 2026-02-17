@@ -19,10 +19,11 @@
 
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
-use time_tz::{timezones, OffsetDateTimeExt};
+
+use std::collections::HashMap;
 
 use super::inference::{InferenceEngine, SampleSource};
-use super::vector::ContextVector;
+use super::vector::{ContextVector, dimensions};
 
 // ============================================================================
 // Bootstrap Config
@@ -143,9 +144,9 @@ impl BootstrapScheduler {
         }
     }
 
-    /// Generate bootstrap samples and add to inference engine
-    /// Call this during system initialization
-    pub fn seed_inference_engine(&self, engine: &InferenceEngine, vector: &ContextVector) {
+    /// Generate bootstrap samples covering 7 time slots and add to inference engine.
+    /// Each slot gets a synthetic vector matching its expected context.
+    pub fn seed_inference_engine(&self, engine: &InferenceEngine, _vector: &ContextVector) {
         if !self.config.enabled {
             eprintln!("[bootstrap] disabled, skipping seed");
             return;
@@ -158,12 +159,52 @@ impl BootstrapScheduler {
             return;
         }
 
-        // Add bootstrap samples for different time slots
-        let suggested = self.suggest_mode();
-        if let Some(mode) = suggested {
-            engine.record_bootstrap(vector, &mode);
-            eprintln!("[bootstrap] seeded inference engine with mode '{}' (based on current time)", mode);
+        // Define 7 time slots with representative vectors
+        let slots: Vec<(&str, HashMap<String, f32>)> = vec![
+            // Weekday morning work (9-12h)
+            (&self.config.weekday_work_mode, Self::make_vector(0.2, 0.6, 0.5, 0.05, 0.7)),
+            // Weekday afternoon work (13-18h)
+            (&self.config.weekday_work_mode, Self::make_vector(0.25, 0.5, 0.4, 0.05, 0.6)),
+            // Weekday evening (19-21h)
+            (&self.config.weekday_evening_mode, Self::make_vector(0.7, 0.1, 0.1, 0.1, 0.3)),
+            // Night (22h-6h)
+            (&self.config.night_mode, Self::make_vector(0.3, 0.0, 0.0, 0.7, 0.0)),
+            // Weekend daytime (9-18h)
+            (&self.config.weekend_mode, Self::make_vector(0.6, 0.1, 0.15, 0.05, 0.4)),
+            // Weekend evening (19-21h)
+            (&self.config.weekend_mode, Self::make_vector(0.7, 0.05, 0.05, 0.15, 0.2)),
+            // Early morning transition (7-8h)
+            (&self.config.weekday_evening_mode, Self::make_vector(0.5, 0.2, 0.1, 0.2, 0.1)),
+        ];
+
+        let mut seeded = 0;
+        for (mode, dims) in &slots {
+            let vector = ContextVector {
+                dimensions: dims.clone(),
+                why: HashMap::new(),
+                built_at: OffsetDateTime::now_utc(),
+                feature_count: 5,
+            };
+            engine.record_bootstrap(&vector, mode);
+            seeded += 1;
         }
+
+        eprintln!("[bootstrap] seeded inference engine with {} time-slot samples", seeded);
+    }
+
+    /// Create a synthetic dimension vector for bootstrap
+    fn make_vector(home: f32, work: f32, focus: f32, sleep: f32, pc: f32) -> HashMap<String, f32> {
+        let mut dims = HashMap::new();
+        // Normalize mode probabilities to sum to ~1.0
+        let sum = home + work + focus + sleep;
+        if sum > 1e-6 {
+            dims.insert(dimensions::HOME_PROB.to_string(), home / sum);
+            dims.insert(dimensions::WORK_PROB.to_string(), work / sum);
+            dims.insert(dimensions::FOCUS_PROB.to_string(), focus / sum);
+            dims.insert(dimensions::SLEEP_PROB.to_string(), sleep / sum);
+        }
+        dims.insert(dimensions::PC_ACTIVE.to_string(), pc);
+        dims
     }
 
     /// Check if bootstrap is still needed
@@ -242,7 +283,7 @@ impl std::str::FromStr for IntelligenceMode {
 // ============================================================================
 
 fn now_paris() -> OffsetDateTime {
-    OffsetDateTime::now_utc().to_timezone(timezones::db::europe::PARIS)
+    super::local_now()
 }
 
 #[cfg(test)]
