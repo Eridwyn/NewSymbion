@@ -21,7 +21,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 /// Configuration du rate limiter
-const REQUESTS_PER_WINDOW: usize = 120;
+const REQUESTS_PER_WINDOW: usize = 300;
 const WINDOW_SECONDS: u64 = 60;
 const CLEANUP_INTERVAL: usize = 500; // Cleanup toutes les 500 requêtes
 
@@ -132,6 +132,12 @@ pub async fn rate_limit_middleware(
     }
 
     let client_ip = extract_client_ip(&req);
+
+    // Exempter les connexions directes (localhost/LAN sans proxy)
+    // Le rate limiting protège uniquement les accès via proxy externe (Cloudflare/nginx)
+    if client_ip == "direct" {
+        return Ok(next.run(req).await);
+    }
 
     if let Err(retry_after) = app.rate_limiter.check_and_record(&client_ip) {
         eprintln!(
