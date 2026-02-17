@@ -1,9 +1,13 @@
 /**
  * Automation Timeline Component - Symbion
- * Grille visuelle 24h x 7 jours pour les automations planifiees
+ * Planning hebdomadaire continu — barres positionnees aux heures exactes
  */
 
 import { LitElement, html, css } from 'lit'
+
+const MIN_HOUR = 6
+const MAX_HOUR = 24
+const TOTAL_HOURS = MAX_HOUR - MIN_HOUR
 
 class AutomationTimeline extends LitElement {
   static properties = {
@@ -40,81 +44,126 @@ class AutomationTimeline extends LitElement {
       gap: 0.5rem;
     }
 
-    .timeline-grid {
+    /* Layout: hour labels + 7 day columns */
+    .planning {
       display: grid;
-      grid-template-columns: 50px repeat(7, 1fr);
-      gap: 2px;
-      font-size: 0.75rem;
+      grid-template-columns: 32px repeat(7, 1fr);
+      gap: 3px;
     }
 
-    .grid-header {
-      background: var(--bg-secondary, rgba(40, 45, 55, 0.8));
-      padding: 0.5rem 0.25rem;
+    .day-header {
       text-align: center;
-      color: var(--text-secondary, rgba(255, 255, 255, 0.7));
-      font-weight: 500;
-      border-radius: 4px;
-    }
-
-    .grid-header.corner {
-      background: transparent;
-    }
-
-    .hour-label {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--text-secondary, rgba(255, 255, 255, 0.6));
       font-size: 0.7rem;
-      padding: 0 0.25rem;
+      font-weight: 600;
+      color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+      padding-bottom: 0.5rem;
     }
 
-    .grid-cell {
-      background: var(--bg-tertiary, rgba(50, 55, 65, 0.5));
-      min-height: 24px;
+    .day-header.corner { }
+
+    .hour-axis {
+      position: relative;
+      height: 320px;
+    }
+
+    .hour-tick {
+      position: absolute;
+      left: 0;
+      right: 0;
+      font-size: 0.6rem;
+      color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+      transform: translateY(-50%);
+      text-align: right;
+      padding-right: 4px;
+      line-height: 1;
+    }
+
+    /* Each day column */
+    .day-column {
+      position: relative;
+      height: 320px;
+      background: var(--bg-tertiary, rgba(50, 55, 65, 0.3));
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    /* Hour grid lines */
+    .hour-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: var(--border-color, rgba(255, 255, 255, 0.06));
+    }
+
+    /* Automation bar */
+    .auto-bar {
+      position: absolute;
+      left: 2px;
+      right: 2px;
       border-radius: 4px;
       cursor: pointer;
-      transition: all 0.2s ease;
-      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
+      gap: 2px;
+      transition: opacity 0.2s, box-shadow 0.2s;
+      overflow: hidden;
+      min-height: 14px;
+      z-index: 1;
     }
 
-    .grid-cell:hover {
-      background: var(--bg-hover, rgba(60, 65, 75, 0.8));
-      transform: scale(1.02);
-    }
-
-    .grid-cell.has-automation {
-      background: var(--primary-color, rgba(0, 212, 170, 0.3));
-      border: 1px solid var(--primary-color, rgba(0, 212, 170, 0.5));
-    }
-
-    .grid-cell.highlighted {
-      background: var(--primary-color, rgba(0, 212, 170, 0.5));
-      box-shadow: 0 0 8px var(--primary-color, rgba(0, 212, 170, 0.5));
-    }
-
-    .cell-icon {
-      font-size: 0.9rem;
+    .auto-bar:hover {
       opacity: 0.9;
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.15);
+      z-index: 2;
     }
 
-    .cell-count {
-      position: absolute;
-      top: 2px;
-      right: 2px;
-      font-size: 0.6rem;
-      background: var(--primary-color, #00d4aa);
-      color: var(--bg-primary, #1a1f2e);
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .auto-bar.highlighted {
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+      z-index: 3;
+    }
+
+    .bar-icon {
+      font-size: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .bar-label {
+      font-size: 0.55rem;
       font-weight: 600;
+      color: rgba(255, 255, 255, 0.9);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .bar-hours {
+      font-size: 0.5rem;
+      color: rgba(255, 255, 255, 0.7);
+      white-space: nowrap;
+    }
+
+    /* Current time indicator */
+    .now-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #ef4444;
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .now-line::before {
+      content: '';
+      position: absolute;
+      left: -3px;
+      top: -3px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
     }
 
     .legend {
@@ -129,14 +178,14 @@ class AutomationTimeline extends LitElement {
     .legend-item {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.4rem;
       font-size: 0.75rem;
       color: var(--text-secondary, rgba(255, 255, 255, 0.7));
     }
 
     .legend-color {
-      width: 16px;
-      height: 16px;
+      width: 14px;
+      height: 14px;
       border-radius: 4px;
     }
 
@@ -152,26 +201,29 @@ class AutomationTimeline extends LitElement {
     }
 
     @media (max-width: 768px) {
-      .timeline-grid {
-        grid-template-columns: 35px repeat(7, 1fr);
-        gap: 1px;
+      .planning {
+        grid-template-columns: 26px repeat(7, 1fr);
+        gap: 2px;
       }
 
-      .grid-header {
-        padding: 0.25rem;
+      .hour-axis, .day-column {
+        height: 260px;
+      }
+
+      .day-header {
+        font-size: 0.6rem;
+      }
+
+      .hour-tick {
+        font-size: 0.5rem;
+      }
+
+      .bar-label {
+        display: none;
+      }
+
+      .bar-icon {
         font-size: 0.65rem;
-      }
-
-      .grid-cell {
-        min-height: 20px;
-      }
-
-      .hour-label {
-        font-size: 0.55rem;
-      }
-
-      .cell-icon {
-        font-size: 0.7rem;
       }
     }
   `
@@ -183,7 +235,6 @@ class AutomationTimeline extends LitElement {
     this.highlightedId = null
   }
 
-  // Jours de la semaine (commence par Lundi)
   get weekdays() {
     return [
       { value: 1, short: 'Lun', full: 'Lundi' },
@@ -196,28 +247,27 @@ class AutomationTimeline extends LitElement {
     ]
   }
 
-  // Heures affichees (blocs de 2h, 6h-22h)
-  get displayHours() {
-    return [6, 8, 10, 12, 14, 16, 18, 20, 22]
+  // Heures affichees sur l'axe (ticks)
+  get hourTicks() {
+    return [6, 8, 10, 12, 14, 16, 18, 20, 22, 24]
   }
 
-  // Extraire les automations planifiees avec leurs plages horaires
+  // Position en % pour une heure donnee
+  hourToPercent(hour) {
+    return ((hour - MIN_HOUR) / TOTAL_HOURS) * 100
+  }
+
   getScheduledAutomations() {
     if (!this.automations) return []
 
     return this.automations.filter(auto => {
       if (!auto.enabled) return false
-
-      // Chercher dans conditions (time_range, day_of_week)
       const conditions = auto.conditions?.conditions || []
+      const triggers = auto.triggers?.triggers || []
       const hasTimeRange = conditions.some(c => c.type === 'time_range')
       const hasDayOfWeek = conditions.some(c => c.type === 'day_of_week')
-
-      // Chercher dans triggers (scheduled)
-      const triggers = auto.triggers?.triggers || []
       const hasScheduled = triggers.some(t => t.type === 'scheduled')
         || auto.trigger?.type === 'scheduled'
-
       return hasScheduled || (hasTimeRange && hasDayOfWeek)
     }).map(auto => {
       const conditions = auto.conditions?.conditions || []
@@ -230,15 +280,19 @@ class AutomationTimeline extends LitElement {
         name: auto.name,
         startHour: timeRange.start_hour ?? 0,
         endHour: timeRange.end_hour ?? 24,
-        days: dayOfWeek.days || [1, 2, 3, 4, 5],
+        days: (dayOfWeek.days || [1, 2, 3, 4, 5]).map(d => parseInt(d)),
         mode: forceMode?.mode || null,
         icon: this.getModeIcon(forceMode?.mode)
       }
     })
   }
 
+  // Automations pour un jour donne
+  getAutomationsForDay(dayValue) {
+    return this.getScheduledAutomations().filter(auto => auto.days.includes(dayValue))
+  }
+
   getModeIcon(modeSlug) {
-    // Chercher dans les modes dynamiques d'abord
     if (this.modes?.length && modeSlug) {
       const mode = this.modes.find(m => m.value === modeSlug || m.slug === modeSlug)
       if (mode?.label) {
@@ -250,19 +304,22 @@ class AutomationTimeline extends LitElement {
     return fallback[modeSlug?.toLowerCase()] || '⚡'
   }
 
-  getModeColor(modeSlug) {
-    // Chercher la couleur dans les modes dynamiques
+  getModeColor(modeSlug, alpha = 0.5) {
     if (this.modes?.length && modeSlug) {
       const mode = this.modes.find(m => m.value === modeSlug || m.slug === modeSlug)
-      if (mode?.color) return this._hexToRgba(mode.color, 0.4)
+      if (mode?.color) return this._hexToRgba(mode.color, alpha)
     }
     const fallback = {
-      'pro': 'rgba(37, 99, 235, 0.4)',
-      'focus': 'rgba(99, 102, 241, 0.4)',
-      'maison': 'rgba(16, 185, 129, 0.4)',
-      'veille': 'rgba(107, 114, 128, 0.4)'
+      'pro': `rgba(37, 99, 235, ${alpha})`,
+      'focus': `rgba(99, 102, 241, ${alpha})`,
+      'maison': `rgba(16, 185, 129, ${alpha})`,
+      'veille': `rgba(107, 114, 128, ${alpha})`
     }
-    return fallback[modeSlug?.toLowerCase()] || 'rgba(0, 212, 170, 0.3)'
+    return fallback[modeSlug?.toLowerCase()] || `rgba(0, 212, 170, ${alpha})`
+  }
+
+  getModeBorder(modeSlug) {
+    return this.getModeColor(modeSlug, 0.8)
   }
 
   _hexToRgba(hex, alpha) {
@@ -273,52 +330,77 @@ class AutomationTimeline extends LitElement {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`
   }
 
-  // Trouver les automations pour une cellule specifique
-  getAutomationsForCell(hour, dayValue) {
-    const scheduled = this.getScheduledAutomations()
-    return scheduled.filter(auto => {
-      // Verifier le jour
-      const dayInRange = auto.days.map(d => parseInt(d)).includes(dayValue)
-      if (!dayInRange) return false
-
-      // Verifier l'heure (plage de 2h pour chaque cellule)
-      const hourEnd = hour + 2
-      const autoStart = auto.startHour
-      const autoEnd = auto.endHour
-
-      // Intersection des plages
-      return autoStart < hourEnd && autoEnd > hour
-    })
+  // Position de la ligne "maintenant"
+  getNowPercent() {
+    const now = new Date()
+    const hour = now.getHours() + now.getMinutes() / 60
+    if (hour < MIN_HOUR || hour > MAX_HOUR) return null
+    return this.hourToPercent(hour)
   }
 
-  handleCellClick(hour, day, automations) {
+  getCurrentDayValue() {
+    return new Date().getDay() // 0=dim, 1=lun...
+  }
+
+  handleBarClick(auto, day) {
     this.dispatchEvent(new CustomEvent('slot-click', {
-      detail: { hour, day: day.value, dayName: day.full, automations },
+      detail: { hour: auto.startHour, day: day.value, dayName: day.full, automations: [auto] },
       bubbles: true,
       composed: true
     }))
   }
 
-  handleCellHover(automations, entering) {
-    if (automations.length > 0 && entering) {
-      this.dispatchEvent(new CustomEvent('automation-highlight', {
-        detail: { id: automations[0].id },
-        bubbles: true,
-        composed: true
-      }))
-    } else if (!entering) {
-      this.dispatchEvent(new CustomEvent('automation-highlight', {
-        detail: { id: null },
-        bubbles: true,
-        composed: true
-      }))
-    }
+  renderDayColumn(day, scheduled) {
+    const dayAutos = scheduled.filter(a => a.days.includes(day.value))
+    const nowPct = this.getNowPercent()
+    const isToday = day.value === this.getCurrentDayValue()
+
+    return html`
+      <div class="day-column">
+        <!-- Grid lines -->
+        ${this.hourTicks.map(h => html`
+          <div class="hour-line" style="top: ${this.hourToPercent(h)}%"></div>
+        `)}
+
+        <!-- Automation bars -->
+        ${dayAutos.map(auto => {
+          const startClamped = Math.max(auto.startHour, MIN_HOUR)
+          const endClamped = Math.min(auto.endHour, MAX_HOUR)
+          const top = this.hourToPercent(startClamped)
+          const height = this.hourToPercent(endClamped) - top
+          const isHighlighted = auto.id === this.highlightedId
+          const barHeight = height
+
+          return html`
+            <div
+              class="auto-bar ${isHighlighted ? 'highlighted' : ''}"
+              style="
+                top: ${top}%;
+                height: ${height}%;
+                background: ${this.getModeColor(auto.mode, 0.45)};
+                border: 1px solid ${this.getModeBorder(auto.mode)};
+              "
+              title="${auto.name} — ${auto.startHour}h-${auto.endHour}h"
+              @click=${() => this.handleBarClick(auto, day)}
+              @mouseenter=${() => this.dispatchEvent(new CustomEvent('automation-highlight', { detail: { id: auto.id }, bubbles: true, composed: true }))}
+              @mouseleave=${() => this.dispatchEvent(new CustomEvent('automation-highlight', { detail: { id: null }, bubbles: true, composed: true }))}
+            >
+              <span class="bar-icon">${auto.icon}</span>
+              ${barHeight > 20 ? html`<span class="bar-label">${auto.startHour}h-${auto.endHour}h</span>` : ''}
+            </div>
+          `
+        })}
+
+        <!-- Now indicator -->
+        ${isToday && nowPct !== null ? html`
+          <div class="now-line" style="top: ${nowPct}%"></div>
+        ` : ''}
+      </div>
+    `
   }
 
   render() {
     const scheduled = this.getScheduledAutomations()
-
-    // Construire la legende des modes utilises
     const usedModes = [...new Set(scheduled.map(s => s.mode).filter(Boolean))]
 
     return html`
@@ -337,54 +419,32 @@ class AutomationTimeline extends LitElement {
           <div class="empty-state">
             <div class="empty-state-icon">📆</div>
             <div>Aucune automation planifiee</div>
-            <div style="font-size: 0.7rem; margin-top: 0.5rem;">
-              Cliquez sur une cellule pour creer une automation
-            </div>
           </div>
         ` : ''}
 
-        <div class="timeline-grid">
-          <!-- Header row -->
-          <div class="grid-header corner"></div>
+        <div class="planning">
+          <!-- Headers -->
+          <div class="day-header corner"></div>
           ${this.weekdays.map(day => html`
-            <div class="grid-header">${day.short}</div>
+            <div class="day-header" style="${day.value === this.getCurrentDayValue() ? 'color: var(--primary-color, #00d4aa); font-weight: 700;' : ''}">${day.short}</div>
           `)}
 
-          <!-- Hour rows -->
-          ${this.displayHours.map(hour => html`
-            <div class="hour-label">${hour}h</div>
-            ${this.weekdays.map(day => {
-              const cellAutos = this.getAutomationsForCell(hour, day.value)
-              const hasAutomation = cellAutos.length > 0
-              const isHighlighted = cellAutos.some(a => a.id === this.highlightedId)
-              const primaryAuto = cellAutos[0]
+          <!-- Hour axis -->
+          <div class="hour-axis">
+            ${this.hourTicks.map(h => html`
+              <div class="hour-tick" style="top: ${this.hourToPercent(h)}%">${h}h</div>
+            `)}
+          </div>
 
-              return html`
-                <div
-                  class="grid-cell ${hasAutomation ? 'has-automation' : ''} ${isHighlighted ? 'highlighted' : ''}"
-                  style="${hasAutomation ? `background: ${this.getModeColor(primaryAuto?.mode)}` : ''}"
-                  @click=${() => this.handleCellClick(hour, day, cellAutos)}
-                  @mouseenter=${() => this.handleCellHover(cellAutos, true)}
-                  @mouseleave=${() => this.handleCellHover(cellAutos, false)}
-                  title="${hasAutomation ? cellAutos.map(a => `${a.name} (${a.startHour}h-${a.endHour}h)`).join(', ') : `${day.full} ${hour}h-${hour + 2}h`}"
-                >
-                  ${hasAutomation ? html`
-                    <span class="cell-icon">${primaryAuto.icon}</span>
-                    ${cellAutos.length > 1 ? html`
-                      <span class="cell-count">${cellAutos.length}</span>
-                    ` : ''}
-                  ` : ''}
-                </div>
-              `
-            })}
-          `)}
+          <!-- Day columns -->
+          ${this.weekdays.map(day => this.renderDayColumn(day, scheduled))}
         </div>
 
         ${usedModes.length > 0 ? html`
           <div class="legend">
             ${usedModes.map(mode => html`
               <div class="legend-item">
-                <div class="legend-color" style="background: ${this.getModeColor(mode)}"></div>
+                <div class="legend-color" style="background: ${this.getModeColor(mode, 0.6)}; border: 1px solid ${this.getModeBorder(mode)};"></div>
                 <span>${this.getModeIcon(mode)} ${mode}</span>
               </div>
             `)}
