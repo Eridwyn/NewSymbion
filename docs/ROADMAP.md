@@ -236,24 +236,27 @@ Correction prédiction intelligence directement depuis l'interface PWA.
 
 ## Phase Active
 
-### PR6 — Production Readiness 🟡 ~38%
+### PR6 — Production Readiness 🟡 ~54%
 **En cours** — Démarré Novembre 2025
 
-**Complété** (5/13) :
+**Complété** (7/13) :
 - [x] CSP headers (strict default-deny) (`http.rs:459-494`)
 - [x] HSTS headers (`http.rs:445-457`)
 - [x] Security documentation (`docs/api/security.md`, 768 LOC)
 - [x] CI/CD pipelines (3 GitHub Actions workflows)
-  - `deploy-kernel.yml` — Multi-platform builds Linux/Windows (203 LOC)
-  - `deploy-dashboard.yml` — PWA build (158 LOC)
-  - `release.yml` — Agent releases Linux/Windows/macOS (171 LOC)
+  - `deploy-kernel.yml` — Multi-platform builds Linux/Windows
+  - `deploy-dashboard.yml` — PWA build
+  - `release.yml` — Agent releases Linux/Windows/macOS
 - [x] Rate limiting auth (5 attempts/15min, `auth.rs:145-188`)
+- [x] CI/CD test suite (`cargo test` dans deploy-kernel + release workflows)
+- [x] Docker containerization (`docker/`, `docker-compose.yml`)
+  - `kernel.Dockerfile` — Multi-stage build + tests + healthcheck
+  - `dashboard.Dockerfile` — Node build + nginx serve
+  - `docker-compose.yml` — Stack complet (mosquitto + kernel + dashboard)
 
-**Restant** (8/13) :
+**Restant** (6/13) :
 - [ ] Let's Encrypt ACME integration
 - [ ] SQLite/PostgreSQL migration (JSON files actuels)
-- [ ] Docker containerization
-- [ ] CI/CD test suite (builds OK, tests manquants dans CI)
 - [ ] Database backups automatiques
 - [ ] Rate limiting global (IP-based, pas seulement auth)
 - [ ] Monitoring externe (healthcheck.io ou équivalent)

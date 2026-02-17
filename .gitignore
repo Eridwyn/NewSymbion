@@ -93,8 +93,8 @@ private/
 # Claude Code configuration (local settings, commands custom)
 .claude/
 
-# GitHub Actions workflows (CI/CD - à gérer séparément si besoin)
-.github/
+# GitHub Actions workflows - tracked in git
+# .github/
 
 # Test integration artifacts
 test-integration/
