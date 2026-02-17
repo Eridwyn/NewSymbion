@@ -16,6 +16,10 @@ STATE_FILE="/tmp/symbion-monitor.state"
 ERROR_DIR="/tmp/symbion-errors"
 CURL_OPTS="-k"  # Accept self-signed certificates
 
+# Healthcheck.io ping (optionnel) — creer un check sur https://healthchecks.io
+# et coller l'UUID ici ou dans l'env HEALTHCHECK_UUID
+HEALTHCHECK_UUID="${HEALTHCHECK_UUID:-}"
+
 # Créer le répertoire d'erreurs si nécessaire
 mkdir -p "$ERROR_DIR"
 
@@ -410,6 +414,20 @@ EOF
     else
         error "Des problèmes ont été détectés"
         save_state "error"
+    fi
+
+    # Ping healthcheck.io (monitoring externe)
+    if [ -n "$HEALTHCHECK_UUID" ]; then
+        local hc_url="https://hc-ping.com/$HEALTHCHECK_UUID"
+        if $all_ok; then
+            curl -fsS -m 10 --retry 3 "$hc_url" > /dev/null 2>&1 && \
+                log "📡 Healthcheck.io: ping OK" || \
+                warn "Healthcheck.io: ping failed (network?)"
+        else
+            curl -fsS -m 10 --retry 3 "$hc_url/fail" > /dev/null 2>&1 && \
+                log "📡 Healthcheck.io: ping FAIL envoyé" || \
+                warn "Healthcheck.io: ping failed (network?)"
+        fi
     fi
 
     log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

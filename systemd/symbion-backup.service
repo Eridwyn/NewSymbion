@@ -1,0 +1,10 @@
+[Unit]
+Description=Symbion Data Backup
+After=network.target
+
+[Service]
+Type=oneshot
+User=eridwyn
+ExecStart=/home/eridwyn/RustroverProjects/NewSymbion/scripts/backup-symbion.sh
+StandardOutput=journal
+StandardError=journal
