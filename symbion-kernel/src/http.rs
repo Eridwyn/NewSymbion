@@ -206,6 +206,8 @@ pub struct AppState {
     pub session_manager: crate::intelligence::SharedSessionManager,
     // Trust Tracker for evolving action statistics
     pub trust_tracker: crate::decision::SharedTrustTracker,
+    // Global IP-based rate limiter
+    pub rate_limiter: crate::rate_limiter::RateLimitStore,
 }
 
 #[derive(Debug, Deserialize)]
@@ -215,6 +217,8 @@ pub fn build_router(app_state: AppState) -> Router {
     // Routes publiques (sans version, sans auth, sans rate limit strict)
     let public_routes = Router::new()
         .route("/health", get(|| async { "ok" }))
+        .route("/health/live", get(|| async { "ok" }))
+        .route("/health/ready", get(health_readiness_check))
         .route("/system/health", get(get_system_health))
         // Metrics API (PR4 - public for monitoring tools)
         .route("/metrics", get(prometheus_metrics_endpoint))
@@ -434,6 +438,8 @@ pub fn build_router(app_state: AppState) -> Router {
                 ])
                 .allow_credentials(true) // Requis pour cookies (historique, device_token maintenant via header)
         )
+        // Rate limiting global IP-based (120 req/min, Cloudflare/nginx aware)
+        .layer(middleware::from_fn_with_state(app_state.clone(), crate::rate_limiter::rate_limit_middleware))
         // Timeout de 30s pour toutes requêtes - Prévient blocages deadlock
         .layer(TimeoutLayer::new(std::time::Duration::from_secs(30)))
         // HSTS header - Force HTTPS, max-age 1 year
@@ -640,6 +646,28 @@ async fn get_contract(
 async fn get_system_health(State(app): State<AppState>) -> Json<crate::health::KernelHealth> {
     let health = app.health_tracker.get_health(&app.contracts, &app.agents, &app.plugin_registry);
     Json(health)
+}
+
+/// GET /health/ready — Readiness probe pour monitoring externe (healthcheck.io, UptimeRobot, k8s)
+/// Vérifie que le kernel est prêt à servir des requêtes (MQTT connecté, contracts chargés)
+async fn health_readiness_check(State(app): State<AppState>) -> Result<Json<serde_json::Value>, StatusCode> {
+    let health = app.health_tracker.get_health(&app.contracts, &app.agents, &app.plugin_registry);
+
+    let mqtt_ok = health.mqtt_status == "connected";
+    let ready = mqtt_ok;
+
+    if ready {
+        Ok(Json(serde_json::json!({
+            "status": "ready",
+            "mqtt": health.mqtt_status,
+            "contracts": health.contracts_loaded,
+            "uptime": health.uptime_seconds,
+            "agents": health.agents_count,
+            "plugins": health.plugins_active,
+        })))
+    } else {
+        Err(StatusCode::SERVICE_UNAVAILABLE)
+    }
 }
 
 // GET /context/current (mode contextuel actuel)

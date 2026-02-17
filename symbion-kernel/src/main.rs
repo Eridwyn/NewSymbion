@@ -46,6 +46,7 @@ mod context_intelligence;  // Intelligent context adaptation system
 mod intelligence_http;  // Intelligence API endpoints
 mod plugins;  // Plugin Contract v1 - Plugin system structures and types
 mod mqtt_watchdog;  // MQTT connection watchdog - detects half-dead connections
+mod rate_limiter;  // Global IP-based rate limiting middleware
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -523,6 +524,7 @@ async fn main() {
         inference_engine: inference_engine.clone(),
         session_manager: session_manager.clone(),
         trust_tracker: trust_tracker.clone(),
+        rate_limiter: crate::rate_limiter::RateLimitStore::new(),
     };
 
     // HTTPS avec TLS (PWA + mTLS)
