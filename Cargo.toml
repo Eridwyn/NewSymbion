@@ -4,7 +4,6 @@
 # - symbion-kernel : Serveur central (API REST + Event Bus MQTT + Plugin Manager)
 # - symbion-agent-host : Agent multi-OS complet (monitoring + contrôle système + auto-update)  
 # - symbion-plugin-notes : Plugin notes distribuées via MQTT (CRUD complet)
-# - devkit : Suite de développement avec scaffolding et tests automatisés
 #
 # FONCTIONNALITÉS v1.0.2+ :
 # - ✅ Interactive CLI setup wizard (first-time configuration)
@@ -20,6 +19,6 @@
 # cargo run -p symbion-kernel   # Lancer le kernel principal
 
 [workspace]
-members = ["symbion-kernel","symbion-plugin-notes","symbion-plugin-sensors","symbion-plugin-common","symbion-plugin-freebox","symbion-plugin-ssl","devkit","symbion-agent-host"]
+members = ["symbion-kernel","symbion-plugin-notes","symbion-plugin-sensors","symbion-plugin-common","symbion-plugin-freebox","symbion-plugin-ssl","symbion-agent-host"]
 exclude = ["test-*"]  # Exclure tests temporaires
 resolver = "2"        # Resolver moderne pour édition 2021
