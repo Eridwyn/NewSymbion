@@ -1,0 +1,56 @@
+# Symbion Stack - Docker Compose
+#
+# Usage:
+#   docker compose up -d          # Start all services
+#   docker compose logs -f kernel # Follow kernel logs
+#   docker compose down           # Stop all services
+#
+# Requirements:
+#   - Create .env file with SYMBION_JWT_SECRET and SYMBION_API_KEY
+
+services:
+  # MQTT Broker
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+    restart: unless-stopped
+
+  # Symbion Kernel
+  kernel:
+    build:
+      context: .
+      dockerfile: docker/kernel.Dockerfile
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+    volumes:
+      - kernel-data:/opt/symbion/data
+    environment:
+      - SYMBION_MQTT_BROKER=mosquitto:1883
+      - SYMBION_JWT_SECRET=${SYMBION_JWT_SECRET:-change-me-in-production}
+      - SYMBION_API_KEY=${SYMBION_API_KEY:-s3cr3t-42}
+      - SYMBION_TIMEZONE=${SYMBION_TIMEZONE:-Europe/Paris}
+    depends_on:
+      - mosquitto
+    restart: unless-stopped
+
+  # PWA Dashboard
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/dashboard.Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - kernel
+    restart: unless-stopped
+
+volumes:
+  mosquitto-data:
+  mosquitto-log:
+  kernel-data:
