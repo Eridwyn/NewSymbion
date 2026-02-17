@@ -204,49 +204,31 @@ impl MemoryMetrics {
 
 impl DiskMetrics {
     fn collect(_sys: &System) -> Result<Vec<Self>> {
-        let mut disk_metrics = Vec::new();
-        
-        // Use native system call for disk stats (cross-platform via std)
-        if cfg!(unix) {
-            // On Unix, use statvfs for root filesystem
-            if let Ok(stat) = std::fs::metadata("/") {
-                // Simple approach: get root filesystem info
-                let path = std::path::Path::new("/");
-                if let Ok(entries) = std::fs::read_dir(path) {
-                    // Use du command for accurate disk usage (Unix only)
-                    if let Ok(output) = std::process::Command::new("df")
-                        .arg("/")
-                        .arg("--output=size,used,avail,pcent")
-                        .arg("--block-size=1G")
-                        .output()
-                    {
-                        if let Ok(output_str) = String::from_utf8(output.stdout) {
-                            let lines: Vec<&str> = output_str.lines().collect();
-                            if lines.len() > 1 {
-                                let parts: Vec<&str> = lines[1].split_whitespace().collect();
-                                if parts.len() >= 4 {
-                                    let total_gb: f64 = parts[0].parse().unwrap_or(0.0);
-                                    let used_gb: f64 = parts[1].parse().unwrap_or(0.0);
-                                    let free_gb: f64 = parts[2].parse().unwrap_or(0.0);
-                                    let percent_str = parts[3].trim_end_matches('%');
-                                    let percent_used: f32 = percent_str.parse().unwrap_or(0.0);
-                                    
-                                    disk_metrics.push(DiskMetrics {
-                                        path: "/".to_string(),
-                                        total_gb,
-                                        used_gb,
-                                        free_gb,
-                                        percent_used,
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
+        // Cross-platform disk metrics via sysinfo (works on Linux, Windows, macOS)
+        let disks = sysinfo::Disks::new_with_refreshed_list();
+        let mut disk_metrics: Vec<Self> = disks.iter().map(|disk| {
+            let total_bytes = disk.total_space() as f64;
+            let available_bytes = disk.available_space() as f64;
+            let used_bytes = total_bytes - available_bytes;
+            let total_gb = total_bytes / (1024.0 * 1024.0 * 1024.0);
+            let used_gb = used_bytes / (1024.0 * 1024.0 * 1024.0);
+            let free_gb = available_bytes / (1024.0 * 1024.0 * 1024.0);
+            let percent_used = if total_bytes > 0.0 {
+                (used_bytes / total_bytes * 100.0) as f32
+            } else {
+                0.0
+            };
+
+            DiskMetrics {
+                path: disk.mount_point().to_string_lossy().to_string(),
+                total_gb,
+                used_gb,
+                free_gb,
+                percent_used,
             }
-        }
-        
-        // Fallback - better than fake 50/100
+        }).collect();
+
+        // Fallback if no disks found
         if disk_metrics.is_empty() {
             disk_metrics.push(DiskMetrics {
                 path: "/".to_string(),
@@ -256,7 +238,7 @@ impl DiskMetrics {
                 percent_used: 0.0,
             });
         }
-        
+
         Ok(disk_metrics)
     }
 }

@@ -314,7 +314,11 @@ async fn run_ssl_check(state: &Arc<PluginState>) {
                     &old_fp[..16],
                     &fingerprint[..16]
                 );
-                // TODO: Publish fingerprint change event for automation
+                if let Err(e) = state.mqtt.publish_fingerprint_change(
+                    &domain.id, &domain.hostname, &old_fp, fingerprint,
+                ).await {
+                    warn!("Failed to publish fingerprint change: {}", e);
+                }
             }
             // Update fingerprint in state
             let _ = state.domains.update_fingerprint(&domain.id, fingerprint).await;

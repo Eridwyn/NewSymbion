@@ -32,8 +32,8 @@ services:
       - kernel-data:/opt/symbion/data
     environment:
       - SYMBION_MQTT_BROKER=mosquitto:1883
-      - SYMBION_JWT_SECRET=${SYMBION_JWT_SECRET:-change-me-in-production}
-      - SYMBION_API_KEY=${SYMBION_API_KEY:-s3cr3t-42}
+      - SYMBION_JWT_SECRET=${SYMBION_JWT_SECRET:?Set SYMBION_JWT_SECRET in .env}
+      - SYMBION_API_KEY=${SYMBION_API_KEY:?Set SYMBION_API_KEY in .env}
       - SYMBION_TIMEZONE=${SYMBION_TIMEZONE:-Europe/Paris}
     depends_on:
       - mosquitto

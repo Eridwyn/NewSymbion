@@ -119,8 +119,9 @@ impl TrainingSample {
         let age_days = (OffsetDateTime::now_utc() - self.timestamp).whole_days() as f32;
 
         // Bootstrap samples have faster decay (configurable half-life)
+        // Guard: ensure decay_rate is never 0 to avoid NaN from division by zero
         let decay_rate = if self.source.is_bootstrap() {
-            bootstrap_half_life_days // Default: half weight after 7 days
+            bootstrap_half_life_days.max(1.0) // Default: half weight after 7 days
         } else {
             30.0 // Normal samples: half weight after 30 days
         };
@@ -341,18 +342,18 @@ impl InferenceEngine {
     pub fn add_sample(&self, sample: TrainingSample) {
         {
             let mut samples = self.samples.write();
-            samples.push(sample);
 
-            // Enforce max samples limit
-            if samples.len() > self.config.max_samples {
-                // Remove oldest samples with lowest weight
-                samples.sort_by(|a, b| {
-                    b.effective_weight()
-                        .partial_cmp(&a.effective_weight())
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                });
-                samples.truncate(self.config.max_samples);
+            // Evict weakest sample BEFORE push to stay within limit (O(n) vs O(n log n) sort)
+            if samples.len() >= self.config.max_samples {
+                if let Some((idx, _)) = samples.iter().enumerate()
+                    .min_by(|(_, a), (_, b)| a.effective_weight()
+                        .partial_cmp(&b.effective_weight())
+                        .unwrap_or(std::cmp::Ordering::Equal))
+                {
+                    samples.swap_remove(idx);
+                }
             }
+            samples.push(sample);
         } // Release write lock before saving
 
         // Persist to disk
