@@ -25,6 +25,7 @@ mod gui;
 use anyhow::{Result, Context};
 use std::env;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use chrono::{DateTime, Utc};
 use discovery::SystemInfo;
 use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, QoS};
@@ -137,6 +138,7 @@ struct Agent {
     command_receiver: mpsc::Receiver<ReceivedCommand>,
     local_api: Option<Arc<local_api::LocalApiServer>>,
     system_tray: Option<system_tray::SystemTray>,
+    mqtt_connected: Arc<AtomicBool>,
 }
 
 impl Agent {
@@ -171,6 +173,10 @@ impl Agent {
         // Clone mqtt_client for the event loop to re-subscribe after reconnection
         let mqtt_client_for_loop = mqtt_client.clone();
 
+        // Shared MQTT connection state
+        let mqtt_connected = Arc::new(AtomicBool::new(false));
+        let mqtt_connected_clone = mqtt_connected.clone();
+
         // Start MQTT event loop in background
         tokio::spawn(async move {
             let mut is_subscribed = false;
@@ -179,6 +185,7 @@ impl Agent {
                 match eventloop.poll().await {
                     Ok(Event::Incoming(Incoming::ConnAck(_))) => {
                         // Reconnected - resubscribe to command topic
+                        mqtt_connected_clone.store(true, Ordering::Relaxed);
                         info!("🔄 MQTT connected/reconnected - subscribing to command topic...");
                         if let Err(e) = mqtt_client_for_loop.subscribe("symbion/agents/command@v1", QoS::AtLeastOnce).await {
                             error!("Failed to subscribe to command topic: {}", e);
@@ -209,6 +216,7 @@ impl Agent {
                     }
                     Ok(_) => {}
                     Err(e) => {
+                        mqtt_connected_clone.store(false, Ordering::Relaxed);
                         error!("MQTT connection error: {}", e);
                         is_subscribed = false;
                         tokio::time::sleep(Duration::from_secs(5)).await;
@@ -228,6 +236,7 @@ impl Agent {
             command_receiver,
             local_api: None,
             system_tray: None,
+            mqtt_connected,
         })
     }
     
@@ -273,8 +282,9 @@ impl Agent {
                         info!("✅ Heartbeat sent successfully");
                     }
 
-                    // Update local API status
-                    self.update_local_api_status(true).await;
+                    // Update local API status with real MQTT connection state
+                    let is_connected = self.mqtt_connected.load(Ordering::Relaxed);
+                    self.update_local_api_status(is_connected).await;
                 }
                 
                 _ = registration_timer.tick() => {

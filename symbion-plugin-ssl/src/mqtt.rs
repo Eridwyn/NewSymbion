@@ -248,6 +248,47 @@ impl MqttPublisher {
         Ok(())
     }
 
+    /// Publish fingerprint change event for automation triggers
+    pub async fn publish_fingerprint_change(
+        &self,
+        domain_id: &str,
+        hostname: &str,
+        old_fingerprint: &str,
+        new_fingerprint: &str,
+    ) -> Result<()> {
+        let topic = format!("{}/{}/fingerprint-change", TOPIC_PREFIX, domain_id);
+        let payload = serde_json::json!({
+            "domain_id": domain_id,
+            "hostname": hostname,
+            "old_fingerprint": old_fingerprint,
+            "new_fingerprint": new_fingerprint,
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        });
+
+        self.client
+            .publish(&topic, QoS::AtLeastOnce, false, payload.to_string())
+            .await
+            .context("Failed to publish fingerprint change")?;
+
+        // Publish feature for automation triggers
+        let feature = FeatureUpdate {
+            source: "plugin.ssl".to_string(),
+            signal_type: "ssl.fingerprint_changed".to_string(),
+            feature_id: format!("ssl.{}.fingerprint_changed", domain_id),
+            value: serde_json::Value::Bool(true),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            ttl_seconds: 3600, // 1 hour TTL
+        };
+
+        let feature_topic = format!("{}/update", FEATURES_TOPIC);
+        self.client
+            .publish(&feature_topic, QoS::AtLeastOnce, false, serde_json::to_string(&feature)?)
+            .await
+            .context("Failed to publish fingerprint change feature")?;
+
+        Ok(())
+    }
+
     /// Publish summary of all domains
     pub async fn publish_summary(&self, domains: &[DomainStatus]) -> Result<()> {
         let total = domains.len();

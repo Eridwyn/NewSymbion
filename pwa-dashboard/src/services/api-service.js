@@ -6,6 +6,7 @@
  */
 
 import { LitElement } from 'lit'
+import DOMPurify from 'dompurify'
 import authService from './auth-service.js'
 import csrfService from './csrf-service.js'
 
@@ -153,9 +154,10 @@ class ApiService extends LitElement {
       
       const contentType = response.headers.get('content-type')
       if (contentType && contentType.includes('application/json')) {
-        return await response.json()
+        const data = await response.json()
+        return this._sanitizeResponse(data)
       }
-      
+
       return await response.text()
       
     } catch (error) {
@@ -195,6 +197,26 @@ class ApiService extends LitElement {
     )
 
     return fallback
+  }
+
+  /**
+   * Sanitize API response to strip potential XSS from string values
+   */
+  _sanitizeResponse(data) {
+    if (typeof data === 'string') {
+      return DOMPurify.sanitize(data, { ALLOWED_TAGS: [] })
+    }
+    if (Array.isArray(data)) {
+      return data.map(item => this._sanitizeResponse(item))
+    }
+    if (data !== null && typeof data === 'object') {
+      const clean = {}
+      for (const [key, value] of Object.entries(data)) {
+        clean[key] = this._sanitizeResponse(value)
+      }
+      return clean
+    }
+    return data
   }
 
   // ===== Endpoints spécifiques =====

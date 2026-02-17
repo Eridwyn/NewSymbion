@@ -41,7 +41,7 @@ jobs:
         cd pwa-dashboard
         npm run build
       env:
-        VITE_SYMBION_API_KEY: ${{ secrets.SYMBION_API_KEY || 's3cr3t-42' }}
+        VITE_SYMBION_API_KEY: ${{ secrets.SYMBION_API_KEY }}
 
     - name: Prepare artifacts with version
       run: |

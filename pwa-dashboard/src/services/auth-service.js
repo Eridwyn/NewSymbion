@@ -75,7 +75,7 @@ class AuthService extends EventTarget {
     sessionStorage.removeItem(USER_KEY)
     sessionStorage.removeItem(LOGIN_TIME_KEY)
     sessionStorage.removeItem('symbion_boot_completed') // Reset boot pour prochaine session
-    // SECURITY: symbion_device_token persists 30 days for device trust (see note above)
+    localStorage.removeItem('symbion_device_token') // Clear device trust on logout
     this.token = null
     this.userInfo = null
     this.loginTime = null

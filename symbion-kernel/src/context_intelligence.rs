@@ -46,6 +46,9 @@ pub use crate::intelligence::{
     mode_display_name,
 };
 
+/// Maximum number of predictions to keep in history
+const MAX_PREDICTION_HISTORY: usize = 1000;
+
 /// Shared type alias for ContextIntelligence
 pub type SharedContextIntelligence = Arc<ContextIntelligence>;
 
@@ -1070,7 +1073,7 @@ impl ContextIntelligence {
         };
 
         let mut history = self.prediction_history.write();
-        if history.len() >= 1000 {
+        if history.len() >= MAX_PREDICTION_HISTORY {
             history.pop_front();
         }
         history.push_back(record);

@@ -290,8 +290,10 @@ impl AutomationEngine {
         // Build decision context if we have a decision engine AND automation is not trusted
         let decision_ctx = if is_trusted {
             None // Bypass Decision Engine for trusted automations
+        } else if ctx.decision_engine.is_some() {
+            Some(Self::build_decision_context(ctx).await)
         } else {
-            ctx.decision_engine.as_ref().map(|_| Self::build_decision_context(ctx))
+            None
         };
 
         if is_trusted {
@@ -630,20 +632,29 @@ impl AutomationEngine {
         }
     }
 
-    /// Build DecisionContext from ExecutionContext
-    fn build_decision_context(ctx: &ExecutionContext) -> DecisionContext {
+    /// Build DecisionContext from ExecutionContext (async to access agent registry)
+    async fn build_decision_context(ctx: &ExecutionContext) -> DecisionContext {
         let current_mode = ctx.context_engine.current_mode_str();
-        // SSID is tracked elsewhere - for automations we use "local" as placeholder
         let current_ssid = "local".to_string();
 
-        // Build agent states from agent registry synchronously
-        // Note: We can't easily call async list_agents() from sync context,
-        // so we build a minimal context based on what we know
-        let agents = HashMap::new();
+        // Build agent states from agent registry
+        let agents_map = ctx.agents.list_agents().await;
+        let agents = agents_map.into_iter().map(|(id, agent)| {
+            let (cpu_usage, memory_usage) = agent.status.system.as_ref()
+                .map(|s| (s.cpu.percent / 100.0, s.memory.percent_used / 100.0))
+                .unwrap_or((0.0, 0.0));
 
-        // For now, we skip agent state building since it requires async
-        // The DecisionEngine will handle missing agents gracefully
-        // TODO: Make this async or cache agent states
+            (id.clone(), crate::decision::AgentState {
+                id,
+                last_seen: agent.last_seen,
+                metrics: crate::decision::AgentMetrics {
+                    cpu_usage,
+                    memory_usage_percent: memory_usage,
+                },
+                maintenance_mode: agent.status.status == "maintenance",
+                last_reconnect: None,
+            })
+        }).collect();
 
         DecisionContext {
             mode: current_mode,

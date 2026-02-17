@@ -10,6 +10,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import DOMPurify from 'dompurify'
 import '../components/organic-loader.js'
 import { Chart, registerables } from 'chart.js'
 import csrfService from '../services/csrf-service.js'
@@ -782,7 +783,7 @@ class EnvironmentWidget extends LitElement {
       </div>
     `
 
-    this.modalContainer.innerHTML = modalHTML
+    this.modalContainer.innerHTML = DOMPurify.sanitize(modalHTML, { ADD_TAGS: ['canvas'], ADD_ATTR: ['id', 'style'] })
 
     // Attach event listeners
     const overlay = this.modalContainer.querySelector('#modal-overlay')
