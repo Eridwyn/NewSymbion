@@ -1,8 +1,8 @@
 # Roadmap Technique - NewSymbion
 
 **Version** : 2026-02 (Post Intelligence v2 + Automations)
-**Statut** : Fondations complètes, système intelligent opérationnel
-**Dernière mise à jour** : 16 Février 2026
+**Statut** : Fondations complètes, système intelligent opérationnel, tous P0/P1/P2 corrigés
+**Dernière mise à jour** : 17 Février 2026
 
 ---
 
@@ -12,22 +12,22 @@
 
 | Composant | Langage | LOC | Fichiers |
 |-----------|---------|----:|----------|
-| **symbion-kernel** | Rust | 36,304 | 34 modules |
-| **pwa-dashboard** | JS (Lit) | 28,966 | 13+ composants |
-| **symbion-agent-host** | Rust | 4,292 | Multi-platform |
-| **Plugins** (5) | Rust | 4,900 | 5 crates |
-| **Total** | | **~74,500** | |
+| **symbion-kernel** | Rust | 36,689 | 79 fichiers |
+| **pwa-dashboard** | JS (Lit) | 28,088 | 40 fichiers |
+| **symbion-agent-host** | Rust | 4,292 | 13 fichiers |
+| **Plugins** (5) | Rust | 4,900 | 14 fichiers |
+| **Total** | | **~74,000** | **146** |
 
 ### Chiffres Clés
 
 | Métrique | Valeur |
 |----------|--------|
-| Unit Tests | 287 (0 failed) |
-| API Routes (http.rs) | 176 |
+| Unit Tests | 301 (287 kernel + 14 agent, 0 failed) |
+| API Routes (http.rs) | 104 .route() |
 | MQTT Topics | 10 subscriptions |
-| Automations actives | 16 |
+| Automations actives | 15 (+ 5 intelligence-managed) |
 | Modes contextuels | 4 système + custom |
-| Intelligence Samples | 26+ (apprentissage) |
+| Intelligence Samples | 28+ (apprentissage) |
 | Data files (JSON) | 12 |
 
 ---
@@ -76,7 +76,7 @@
 - Validation workflow + audit trail
 - 93 unit tests
 
-**Fichiers** : `decision/` (16 modules, 6,120 LOC)
+**Fichiers** : `decision/` (13 modules, 6,177 LOC)
 
 ---
 
@@ -123,25 +123,25 @@ Moteur d'inférence case-based reasoning avec apprentissage continu.
 - **Persistence atomique** : temp file + rename (P0 fix)
 - **Normalisation** : Seuil 1e-6 (P0 fix)
 
-**Fichiers** : `intelligence/` (9 modules, 3,821 LOC), `context_intelligence.rs` (1,784 LOC)
+**Fichiers** : `intelligence/` (8 modules, 3,977 LOC), `context_intelligence.rs` (1,784 LOC)
 
 ---
 
 ### Automation Engine 🟢 100%
 **Complété** : Janvier-Février 2026
 
-Moteur event-driven avec 16 automations actives.
+Moteur event-driven avec 15 automations actives (+ 5 intelligence-managed).
 
 - **7 types de triggers** : mode_change, sensor_alert, agent_status, manual, plugin_health, scheduled, polling
 - **9 types de conditions** : mode, time_range, day_of_week, sensor_threshold, agent_online, custom, AND, OR, NOT
 - **Actions** : MQTT publish, mode change, notification, webhook
-- **Scheduler** : Cron-like avec timezone Europe/Paris
+- **Scheduler** : Cron-like avec timezone configurable (`SYMBION_TIMEZONE`)
 - **Decision Bridge** : Intégration Decision Engine pour validation
 - **Pending Actions** : Workflow approbation manuelle
 - **Broadcast channel** : Capacité 512 events (P0 fix)
 - **Persistence** : `data/automations.json` + `data/automations_history.json`
 
-**Fichiers** : `automations/` (11 modules, 6,156 LOC)
+**Fichiers** : `automations/` (12 modules, 6,280 LOC)
 
 ---
 
@@ -236,19 +236,20 @@ Correction prédiction intelligence directement depuis l'interface PWA.
 
 ## Phase Active
 
-### PR6 — Production Readiness 🟡 ~30%
+### PR6 — Production Readiness 🟡 ~38%
 **En cours** — Démarré Novembre 2025
 
-**Complété** :
+**Complété** (5/13) :
 - [x] CSP headers (strict default-deny) (`http.rs:459-494`)
 - [x] HSTS headers (`http.rs:445-457`)
-- [x] Security documentation
+- [x] Security documentation (`docs/api/security.md`, 768 LOC)
 - [x] CI/CD pipelines (3 GitHub Actions workflows)
-  - `deploy-kernel.yml` — Multi-platform builds (Linux/Windows/macOS)
-  - `deploy-dashboard.yml` — PWA build
-  - `release.yml` — Agent releases
+  - `deploy-kernel.yml` — Multi-platform builds Linux/Windows (203 LOC)
+  - `deploy-dashboard.yml` — PWA build (158 LOC)
+  - `release.yml` — Agent releases Linux/Windows/macOS (171 LOC)
+- [x] Rate limiting auth (5 attempts/15min, `auth.rs:145-188`)
 
-**Restant** :
+**Restant** (8/13) :
 - [ ] Let's Encrypt ACME integration
 - [ ] SQLite/PostgreSQL migration (JSON files actuels)
 - [ ] Docker containerization
@@ -312,7 +313,7 @@ Contrôle lumières connectées avec abstraction générique.
 - [x] ~~**PC_ACTIVE non normalisé**~~ → Weighted cosine similarity (pc_active × 0.3) (`inference.rs:677-710`)
 - [x] ~~**Trust Tracker sans decay**~~ → Decay exponentiel half-life 30j (`trust_tracker.rs:262-272`)
 
-### P2 — Améliorations
+### P2 — Améliorations (Corrigés 17 Février 2026)
 - [x] ~~Tie-breaking top-k~~ → timestamp comme critère secondaire (`inference.rs:404`)
 - [x] ~~Bootstrap multi-slot~~ → 7 time-slot samples à l'init (`bootstrap.rs:148-210`)
 - [x] ~~SSID case-insensitive~~ → `eq_ignore_ascii_case` per RFC 802.11 (`trust.rs:119`)
@@ -326,20 +327,21 @@ Contrôle lumières connectées avec abstraction générique.
 
 ## Recommandations Prochains Sprints
 
-### Sprint Immédiat (Février 2026)
+### Sprint Complété (Février 2026) ✅
 1. ~~**Correction prediction PWA**~~ ✅ — Bouton "corriger" dans l'onglet Intelligence
-2. ~~**Corriger P1 I/O synchrone**~~ ✅ — `std::thread::spawn` pour file I/O
-3. ~~**Propager confidence**~~ ✅ — `contribution × confidence` dans VectorBuilder
+2. ~~**Corriger tous les P0**~~ ✅ — Broadcast 512, atomic write, normalisation 1e-6
+3. ~~**Corriger tous les P1**~~ ✅ — I/O async, confidence, PendingActions, PC_ACTIVE, Trust decay
+4. ~~**Corriger tous les P2**~~ ✅ — Tie-break, bootstrap 7 slots, SSID, timezone, clock skew, compaction, stability decay
 
 ### Court Terme (Mars 2026)
-4. **F2 Digital Hygiene** — Activity tracking + burnout detection
-5. ~~**Persister PendingActions**~~ ✅ — JSON atomique + load au démarrage
-6. ~~**Trust Tracker decay**~~ ✅ — Half-life 30 jours, decay exponentiel
+5. **F2 Digital Hygiene** — Activity tracking + burnout detection
+6. **PR6 CI/CD tests** — Ajouter `cargo test` aux 3 workflows GitHub Actions
+7. **PR6 Docker** — Dockerfile kernel + dashboard + docker-compose
 
 ### Moyen Terme (Q2 2026)
-7. **F3 Intentions Log** — Audit trail + analytics
-8. **PR6 suite** — SQLite migration, Docker, CI/CD
-9. **F5 Light Actuator** (si matériel Tuya confirmé)
+8. **F3 Intentions Log** — Audit trail + analytics
+9. **PR6 suite** — SQLite migration, ACME, backups, rate limiting global
+10. **F5 Light Actuator** (si matériel Tuya confirmé)
 
 ---
 
@@ -359,7 +361,7 @@ SESSION MANAGER (sessions.rs) — Hysteresis 4 couches
 DECISION ENGINE (decision/) — Guards → Trust → Threshold
     ↓  Impact: Low(0.3) | Medium(0.5) | High(0.7) | VeryHigh(0.9)
 AUTOMATION ENGINE (automations/) — Trigger → Condition → Action
-    ↓  16 automations actives, scheduler cron-like
+    ↓  15 automations actives, scheduler cron-like
 ```
 
 ---
