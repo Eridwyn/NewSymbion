@@ -330,10 +330,12 @@ impl InferenceEngine {
             let tmp_path = path.with_extension("json.tmp");
             if let Err(e) = std::fs::write(&tmp_path, &json) {
                 eprintln!("[inference] Failed to write temp samples file: {}", e);
+                let _ = std::fs::remove_file(&tmp_path);
                 return;
             }
             if let Err(e) = std::fs::rename(&tmp_path, &path) {
                 eprintln!("[inference] Failed to rename temp samples file: {}", e);
+                let _ = std::fs::remove_file(&tmp_path);
             }
         });
     }

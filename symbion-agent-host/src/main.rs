@@ -139,6 +139,7 @@ struct Agent {
     local_api: Option<Arc<local_api::LocalApiServer>>,
     system_tray: Option<system_tray::SystemTray>,
     mqtt_connected: Arc<AtomicBool>,
+    reconnect_rx: Option<mpsc::Receiver<()>>,
 }
 
 impl Agent {
@@ -180,11 +181,13 @@ impl Agent {
         // Start MQTT event loop in background
         tokio::spawn(async move {
             let mut is_subscribed = false;
+            let mut retry_count: u32 = 0;
 
             loop {
                 match eventloop.poll().await {
                     Ok(Event::Incoming(Incoming::ConnAck(_))) => {
                         // Reconnected - resubscribe to command topic
+                        retry_count = 0; // Reset backoff on successful connection
                         mqtt_connected_clone.store(true, Ordering::Relaxed);
                         info!("🔄 MQTT connected/reconnected - subscribing to command topic...");
                         if let Err(e) = mqtt_client_for_loop.subscribe("symbion/agents/command@v1", QoS::AtLeastOnce).await {
@@ -217,9 +220,11 @@ impl Agent {
                     Ok(_) => {}
                     Err(e) => {
                         mqtt_connected_clone.store(false, Ordering::Relaxed);
-                        error!("MQTT connection error: {}", e);
+                        retry_count = retry_count.saturating_add(1);
+                        let backoff_secs = 2u64.saturating_pow(retry_count.min(5)); // 2→4→8→16→32s
+                        error!("MQTT error (retry #{}, backoff {}s): {}", retry_count, backoff_secs, e);
                         is_subscribed = false;
-                        tokio::time::sleep(Duration::from_secs(5)).await;
+                        tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
                     }
                 }
             }
@@ -237,12 +242,18 @@ impl Agent {
             local_api: None,
             system_tray: None,
             mqtt_connected,
+            reconnect_rx: None,
         })
     }
     
     /// Set local API server for status updates
     fn set_local_api(&mut self, local_api: Arc<local_api::LocalApiServer>) {
         self.local_api = Some(local_api);
+    }
+
+    /// Set reconnect receiver (from local API /reconnect endpoint)
+    fn set_reconnect_rx(&mut self, rx: mpsc::Receiver<()>) {
+        self.reconnect_rx = Some(rx);
     }
 
     /// Initialize system tray (optional)
@@ -267,11 +278,14 @@ impl Agent {
 
         // Initial registration
         self.register().await?;
-        
+
         // Set up periodic tasks
         let mut heartbeat_timer = interval(Duration::from_secs(self.config.heartbeat_interval_secs));
         let mut registration_timer = interval(Duration::from_secs(300)); // Re-register every 5 minutes (reduced from 60s to avoid CMD windows)
-        
+
+        // Take reconnect receiver for use in select! loop
+        let mut reconnect_rx = self.reconnect_rx.take();
+
         loop {
             tokio::select! {
                 _ = heartbeat_timer.tick() => {
@@ -286,13 +300,13 @@ impl Agent {
                     let is_connected = self.mqtt_connected.load(Ordering::Relaxed);
                     self.update_local_api_status(is_connected).await;
                 }
-                
+
                 _ = registration_timer.tick() => {
                     if let Err(e) = self.register().await {
                         error!("Failed to re-register: {}", e);
                     }
                 }
-                
+
                 command = self.command_receiver.recv() => {
                     match command {
                         Some(cmd) => {
@@ -305,6 +319,21 @@ impl Agent {
                             warn!("Command channel closed");
                             break Ok(());
                         }
+                    }
+                }
+
+                _ = async {
+                    if let Some(ref mut rx) = reconnect_rx {
+                        rx.recv().await
+                    } else {
+                        std::future::pending::<Option<()>>().await
+                    }
+                } => {
+                    info!("Reconnect signal received from local API, forcing re-registration...");
+                    if let Err(e) = self.register().await {
+                        error!("Failed to re-register after reconnect signal: {}", e);
+                    } else {
+                        info!("Re-registration successful after reconnect signal");
                     }
                 }
             }
@@ -1098,9 +1127,11 @@ async fn main() -> Result<()> {
     let system_info = SystemInfo::discover().await
         .context("Failed to discover system info")?;
     
+    let (reconnect_tx, reconnect_rx) = tokio::sync::mpsc::channel::<()>(1);
     let local_api = Arc::new(local_api::LocalApiServer::new(
         system_info.agent_id.clone(),
         system_info.hostname.clone(),
+        reconnect_tx,
     ));
     
     // Start API server in background
@@ -1119,8 +1150,9 @@ async fn main() -> Result<()> {
     let mut agent = Agent::new_with_config(agent_config).await
         .context("Failed to create agent")?;
 
-    // Pass local API to agent for status updates
+    // Pass local API and reconnect channel to agent
     agent.set_local_api(local_api);
+    agent.set_reconnect_rx(reconnect_rx);
 
     // Run with GUI or terminal mode
     #[cfg(feature = "gui")]

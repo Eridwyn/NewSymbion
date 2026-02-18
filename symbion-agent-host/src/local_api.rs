@@ -6,7 +6,7 @@
 use serde::Serialize;
 use warp::Filter;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, mpsc};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -36,10 +36,11 @@ pub struct SystemStatus {
 
 pub struct LocalApiServer {
     status: Arc<RwLock<AgentStatus>>,
+    reconnect_tx: mpsc::Sender<()>,
 }
 
 impl LocalApiServer {
-    pub fn new(agent_id: String, hostname: String) -> Self {
+    pub fn new(agent_id: String, hostname: String, reconnect_tx: mpsc::Sender<()>) -> Self {
         let initial_status = AgentStatus {
             agent_id,
             hostname,
@@ -52,6 +53,7 @@ impl LocalApiServer {
 
         Self {
             status: Arc::new(RwLock::new(initial_status)),
+            reconnect_tx,
         }
     }
 
@@ -66,14 +68,21 @@ impl LocalApiServer {
             .and_then(get_status);
 
         // POST /reconnect - Force MQTT reconnection
+        let reconnect_tx = self.reconnect_tx.clone();
         let reconnect_route = warp::path("reconnect")
             .and(warp::post())
-            .map(|| {
-                // TODO: Signal main agent to reconnect
-                warp::reply::json(&serde_json::json!({
-                    "success": true,
-                    "message": "Reconnect signal sent"
-                }))
+            .and(warp::any().map(move || reconnect_tx.clone()))
+            .and_then(|tx: mpsc::Sender<()>| async move {
+                match tx.try_send(()) {
+                    Ok(_) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                        "success": true,
+                        "message": "Reconnect signal sent to agent"
+                    }))),
+                    Err(_) => Ok(warp::reply::json(&serde_json::json!({
+                        "success": false,
+                        "message": "Reconnect already in progress"
+                    }))),
+                }
             });
 
         // GET /logs - Agent logs (if available)

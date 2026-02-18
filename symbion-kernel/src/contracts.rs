@@ -99,18 +99,30 @@ impl ContractRegistry {
     }
 
     /// Valide qu'un message MQTT respecte son contrat
-    /// Vérification que le payload JSON correspond au schéma attendu
+    /// Vérifie le parsing JSON et les champs obligatoires du schéma
     #[allow(dead_code)]
     pub fn validate_message(&self, topic: &str, payload: &str) -> Result<(), String> {
         let contract_name = extract_contract_name(topic);
-        
-        let _contract = self.contracts.get(&contract_name)
+
+        let contract = self.contracts.get(&contract_name)
             .ok_or_else(|| format!("Contrat '{}' inconnu", contract_name))?;
 
-        // Validation basique : parsing JSON réussi
-        // TODO: validation JSON Schema complète avec jsonschema crate
-        serde_json::from_str::<serde_json::Value>(payload)
+        let value: serde_json::Value = serde_json::from_str(payload)
             .map_err(|e| format!("JSON invalide: {}", e))?;
+
+        // Validate required top-level fields from schema
+        if let Some(required) = contract.schema.get("required").and_then(|r| r.as_array()) {
+            for field in required {
+                if let Some(field_name) = field.as_str() {
+                    if value.get(field_name).is_none() {
+                        return Err(format!(
+                            "Champ obligatoire '{}' manquant (contrat {})",
+                            field_name, contract_name
+                        ));
+                    }
+                }
+            }
+        }
 
         Ok(())
     }

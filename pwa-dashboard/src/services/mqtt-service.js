@@ -328,7 +328,16 @@ class MqttService extends LitElement {
   handleIndividualAgent(agentId, agent) {
     // Stocker/mettre à jour l'agent dans le cache
     this.agentsCache = this.agentsCache || {}
-    this.agentsCache[agentId] = agent
+    this.agentsCache[agentId] = { ...agent, _lastSeen: Date.now() }
+
+    // LRU eviction: max 50 agents en cache
+    const keys = Object.keys(this.agentsCache)
+    if (keys.length > 50) {
+      const oldest = keys.reduce((a, b) =>
+        (this.agentsCache[a]._lastSeen || 0) < (this.agentsCache[b]._lastSeen || 0) ? a : b
+      )
+      delete this.agentsCache[oldest]
+    }
 
     // Convertir le cache en array et dispatcher (même format qu'avant)
     const agents = Object.values(this.agentsCache)

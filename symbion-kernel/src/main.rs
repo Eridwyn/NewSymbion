@@ -428,6 +428,23 @@ async fn main() {
 
     println!("[kernel] initialized Decision Engine PR3 (with Trust Tracker)");
 
+    // Periodic cleanup of expired validations and overrides (every 10 minutes)
+    {
+        let vm = decision_validation_manager.clone();
+        let om = decision_override_manager.clone();
+        tokio::spawn(async move {
+            let mut timer = tokio::time::interval(std::time::Duration::from_secs(600));
+            loop {
+                timer.tick().await;
+                let v = vm.cleanup_expired();
+                let o = om.cleanup_expired();
+                if v > 0 || o > 0 {
+                    eprintln!("[decision] Cleanup: {} expired validations, {} expired overrides", v, o);
+                }
+            }
+        });
+    }
+
     // Pending Action Registry for post-approval execution
     let pending_action_registry = Arc::new(crate::automations::PendingActionRegistry::new(Some(std::path::PathBuf::from("./data"))));
     println!("[kernel] initialized Pending Action Registry");

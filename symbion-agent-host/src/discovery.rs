@@ -61,24 +61,24 @@ impl SystemInfo {
     /// Discover complete system information
     pub async fn discover() -> Result<Self> {
         info!("Starting system discovery...");
-        
+
         let network = NetworkInfo::discover()
             .await
             .context("Failed to discover network information")?;
-            
+
         let hostname = gethostname::gethostname()
             .to_string_lossy()
             .to_string();
-            
+
         let os = std::env::consts::OS.to_string();
         let architecture = std::env::consts::ARCH.to_string();
-        
-        // Generate agent ID from primary MAC (remove colons)
-        let agent_id = network.primary_mac.replace(":", "");
-        
-        info!("Discovery complete - Agent ID: {}, Hostname: {}, OS: {}", 
+
+        // Load persisted agent ID, or generate from MAC and persist
+        let agent_id = Self::load_or_generate_agent_id(&network.primary_mac)?;
+
+        info!("Discovery complete - Agent ID: {}, Hostname: {}, OS: {}",
               agent_id, hostname, os);
-              
+
         Ok(SystemInfo {
             agent_id,
             hostname,
@@ -86,6 +86,57 @@ impl SystemInfo {
             architecture,
             network,
         })
+    }
+
+    /// Load agent ID from persistent storage, or generate and persist it
+    fn load_or_generate_agent_id(primary_mac: &str) -> Result<String> {
+        let id_path = Self::agent_id_path()?;
+
+        // Try to read existing persisted ID
+        if id_path.exists() {
+            if let Ok(id) = std::fs::read_to_string(&id_path) {
+                let id = id.trim().to_string();
+                if !id.is_empty() {
+                    info!("Loaded persisted agent ID from {}", id_path.display());
+                    return Ok(id);
+                }
+            }
+        }
+
+        // Generate from MAC address (fallback)
+        let agent_id = primary_mac.replace(":", "");
+        info!("Generated new agent ID: {}", agent_id);
+
+        // Persist for future use
+        if let Some(parent) = id_path.parent() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                warn!("Failed to create config dir {}: {}", parent.display(), e);
+                return Ok(agent_id);
+            }
+        }
+        if let Err(e) = std::fs::write(&id_path, &agent_id) {
+            warn!("Failed to persist agent ID to {}: {}", id_path.display(), e);
+        } else {
+            info!("Persisted agent ID to {}", id_path.display());
+        }
+
+        Ok(agent_id)
+    }
+
+    /// Get the path to the persisted agent-id file
+    fn agent_id_path() -> Result<std::path::PathBuf> {
+        #[cfg(target_os = "windows")]
+        {
+            let base = std::env::var("LOCALAPPDATA")
+                .unwrap_or_else(|_| std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string()));
+            Ok(std::path::PathBuf::from(base).join("Symbion").join("agent-id"))
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let home = std::env::var("HOME")
+                .unwrap_or_else(|_| "/tmp".to_string());
+            Ok(std::path::PathBuf::from(home).join(".config").join("symbion").join("agent-id"))
+        }
     }
 }
 

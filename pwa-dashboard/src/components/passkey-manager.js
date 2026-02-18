@@ -191,7 +191,7 @@ class PasskeyManager extends LitElement {
     this.success = null
     this.registering = false
     // Base URL dynamique (même logique que api-service)
-    this.baseUrl = window.SYMBION_CONFIG?.API_BASE || 'https://symbion.local:8443'
+    this.baseUrl = window.SYMBION_CONFIG?.API_BASE || window.location.origin
   }
 
   connectedCallback() {
