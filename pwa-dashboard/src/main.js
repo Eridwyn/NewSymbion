@@ -13,6 +13,40 @@ import './services/api-service.js'
 import './services/mqtt-service.js'
 // Widget registry temporarily disabled due to initialization issues
 
+// ============================================================================
+// Console Log Interception — BroadcastChannel pour Log Viewer
+// ============================================================================
+;(() => {
+  const channel = new BroadcastChannel('symbion-logs')
+  const originalLog = console.log.bind(console)
+  const originalWarn = console.warn.bind(console)
+  const originalError = console.error.bind(console)
+
+  function parseComponent(msg) {
+    if (typeof msg !== 'string') return 'pwa'
+    const m = msg.match(/^\[([^\]]+)\]/)
+    return m ? m[1] : 'pwa'
+  }
+
+  function intercept(level, originalFn, args) {
+    originalFn(...args)
+    try {
+      const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ')
+      channel.postMessage({
+        timestamp: new Date().toISOString(),
+        level,
+        component: parseComponent(args[0]),
+        message: msg,
+        source: 'pwa'
+      })
+    } catch (_) { /* ignore serialization errors */ }
+  }
+
+  console.log = (...args) => intercept('info', originalLog, args)
+  console.warn = (...args) => intercept('warning', originalWarn, args)
+  console.error = (...args) => intercept('error', originalError, args)
+})()
+
 console.log('🚀 Starting Symbion Dashboard v0.1.0')
 
 // Configuration chargée depuis /public/config.js (ne pas écraser ici)
