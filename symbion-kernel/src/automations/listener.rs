@@ -197,6 +197,14 @@ impl AutomationListener {
                 automation.actions.len()
             );
 
+            // Record execution IMMEDIATELY for cooldown enforcement (before actions)
+            if let Err(e) = self.store.record_execution(&automation.id) {
+                eprintln!(
+                    "[automations] Failed to record execution for '{}': {}",
+                    automation.name, e
+                );
+            }
+
             // Execute actions
             let action_results = AutomationEngine::execute_actions(&automation, &ctx).await;
 
@@ -247,14 +255,6 @@ impl AutomationListener {
                 decision_outcome: overall_decision_outcome,
             };
             let _ = self.store.add_history(record);
-
-            // Update execution tracking (for cooldown)
-            if let Err(e) = self.store.record_execution(&automation.id) {
-                eprintln!(
-                    "[automations] Failed to record execution for '{}': {}",
-                    automation.name, e
-                );
-            }
 
             eprintln!(
                 "[automations]   {} '{}' execution {}",

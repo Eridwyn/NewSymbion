@@ -17,6 +17,7 @@ use crate::freebox::{ConnectionStatus, DownloadsSummary, LanDevice};
 pub struct MqttPublisher {
     client: AsyncClient,
     topic_prefix: String,
+    _shutdown_tx: mpsc::Sender<()>, // Keep event loop alive
 }
 
 /// Presence status for a tracked device
@@ -82,12 +83,10 @@ impl MqttPublisher {
             }
         });
 
-        // Store shutdown handle (we don't use it but keep connection alive)
-        std::mem::forget(tx);
-
         Ok(Self {
             client,
             topic_prefix: config.topic_prefix.clone(),
+            _shutdown_tx: tx, // Keep sender alive to prevent event loop shutdown
         })
     }
 

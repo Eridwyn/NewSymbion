@@ -635,7 +635,10 @@ impl AutomationEngine {
     /// Build DecisionContext from ExecutionContext (async to access agent registry)
     async fn build_decision_context(ctx: &ExecutionContext) -> DecisionContext {
         let current_mode = ctx.context_engine.current_mode_str();
-        let current_ssid = "local".to_string();
+        let current_ssid = ctx.feature_registry
+            .as_ref()
+            .and_then(|fr| fr.get_string("net.ssid"))
+            .unwrap_or_else(|| "unknown".to_string());
 
         // Build agent states from agent registry
         let agents_map = ctx.agents.list_agents().await;

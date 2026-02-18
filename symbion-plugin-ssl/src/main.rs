@@ -566,7 +566,9 @@ async fn create_domain_handler(
         ))?;
 
     // Save immediately
-    state.domains.save().await.ok();
+    if let Err(e) = state.domains.save().await {
+        warn!("Failed to save SSL domain state: {}", e);
+    }
 
     // Trigger SSL check for new domain
     let _ = state.check_trigger.send(());
@@ -588,7 +590,9 @@ async fn update_domain_handler(
         ))?;
 
     // Save immediately
-    state.domains.save().await.ok();
+    if let Err(e) = state.domains.save().await {
+        warn!("Failed to save SSL domain state: {}", e);
+    }
 
     info!("Updated domain: {} ({})", domain.id, domain.hostname);
 
@@ -609,7 +613,9 @@ async fn delete_domain_handler(
     state.domain_statuses.write().await.remove(&id);
 
     // Save immediately
-    state.domains.save().await.ok();
+    if let Err(e) = state.domains.save().await {
+        warn!("Failed to save SSL domain state: {}", e);
+    }
 
     info!("Deleted domain: {} ({})", domain.id, domain.hostname);
 

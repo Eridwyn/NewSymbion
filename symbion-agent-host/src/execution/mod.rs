@@ -248,56 +248,82 @@ impl CommandExecutor {
     }
     
     async fn execute_unix_command(command: &str, timeout_secs: u32) -> Result<(String, i32)> {
-        let output = tokio::time::timeout(
+        let child = AsyncCommand::new("bash")
+            .arg("-c")
+            .arg(command)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .context("Failed to spawn command")?;
+
+        // Save PID before wait_with_output() takes ownership
+        let child_pid = child.id();
+
+        match tokio::time::timeout(
             Duration::from_secs(timeout_secs as u64),
-            AsyncCommand::new("bash")
-                .arg("-c")
-                .arg(command)
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .output()
-        )
-        .await
-        .context("Command timed out")?
-        .context("Failed to execute command")?;
-        
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let combined_output = if stderr.is_empty() {
-            stdout.to_string()
-        } else {
-            format!("{}\nSTDERR:\n{}", stdout, stderr)
-        };
-        
-        let exit_code = output.status.code().unwrap_or(-1);
-        
-        Ok((combined_output, exit_code))
+            child.wait_with_output()
+        ).await {
+            Ok(result) => {
+                let output = result.context("Failed to execute command")?;
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let combined_output = if stderr.is_empty() {
+                    stdout.to_string()
+                } else {
+                    format!("{}\nSTDERR:\n{}", stdout, stderr)
+                };
+                let exit_code = output.status.code().unwrap_or(-1);
+                Ok((combined_output, exit_code))
+            }
+            Err(_) => {
+                // Timeout — kill the orphaned child process by PID
+                if let Some(pid) = child_pid {
+                    let _ = std::process::Command::new("kill")
+                        .args(["-9", &pid.to_string()])
+                        .output();
+                }
+                Err(anyhow!("Command timed out after {}s (process killed)", timeout_secs))
+            }
+        }
     }
     
     async fn execute_windows_command(command: &str, timeout_secs: u32) -> Result<(String, i32)> {
-        let output = tokio::time::timeout(
+        let child = AsyncCommand::new("cmd")
+            .args(["/C", command])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .context("Failed to spawn command")?;
+
+        // Save PID before wait_with_output() takes ownership
+        let child_pid = child.id();
+
+        match tokio::time::timeout(
             Duration::from_secs(timeout_secs as u64),
-            AsyncCommand::new("cmd")
-                .args(["/C", command])
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .output()
-        )
-        .await
-        .context("Command timed out")?
-        .context("Failed to execute command")?;
-        
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let combined_output = if stderr.is_empty() {
-            stdout.to_string()
-        } else {
-            format!("{}\nSTDERR:\n{}", stdout, stderr)
-        };
-        
-        let exit_code = output.status.code().unwrap_or(-1);
-        
-        Ok((combined_output, exit_code))
+            child.wait_with_output()
+        ).await {
+            Ok(result) => {
+                let output = result.context("Failed to execute command")?;
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let combined_output = if stderr.is_empty() {
+                    stdout.to_string()
+                } else {
+                    format!("{}\nSTDERR:\n{}", stdout, stderr)
+                };
+                let exit_code = output.status.code().unwrap_or(-1);
+                Ok((combined_output, exit_code))
+            }
+            Err(_) => {
+                // Timeout — kill the orphaned child process by PID
+                if let Some(pid) = child_pid {
+                    let _ = std::process::Command::new("taskkill")
+                        .args(["/PID", &pid.to_string(), "/F"])
+                        .output();
+                }
+                Err(anyhow!("Command timed out after {}s (process killed)", timeout_secs))
+            }
+        }
     }
     
     async fn kill_process_unix(pid: u32) -> Result<String> {
