@@ -11,6 +11,7 @@
 
 import { defineConfig, loadEnv } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { resolve } from 'path'
 import fs from 'fs'
 import path from 'path'
 
@@ -87,6 +88,12 @@ export default defineConfig(({ mode }) => {
   },
   build: {
     outDir: 'dist',
-    sourcemap: true    // Debug en production si nécessaire
+    sourcemap: true,    // Debug en production si nécessaire
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        logs: resolve(__dirname, 'logs.html')
+      }
+    }
   }
 }})

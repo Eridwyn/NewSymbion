@@ -305,6 +305,39 @@ class UserSettingsPage extends LitElement {
       border-bottom: none;
     }
 
+    .toggle-switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.3s;
+      border: none;
+      padding: 0;
+    }
+
+    .toggle-switch.active {
+      background: rgba(99, 102, 241, 0.5);
+    }
+
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 18px;
+      height: 18px;
+      background: #e0e0e0;
+      border-radius: 50%;
+      transition: transform 0.3s;
+    }
+
+    .toggle-switch.active::after {
+      transform: translateX(20px);
+      background: #818cf8;
+    }
+
     .info-label {
       color: #888;
       font-size: 0.9em;
@@ -1132,6 +1165,16 @@ class UserSettingsPage extends LitElement {
               <span class="info-value">${this.getSessionDuration()}</span>
             </div>
           </div>
+
+          <div class="section" style="margin-top: 1.5rem;">
+            <h2 class="section-title">Avance</h2>
+            <div class="info-row">
+              <span class="info-label">Afficher icone Logs</span>
+              <button class="toggle-switch ${this._isLogsEnabled() ? 'active' : ''}"
+                      @click="${this._toggleLogs}"
+                      title="Affiche une icone en bas du dashboard pour ouvrir le log viewer"></button>
+            </div>
+          </div>
         </div>
 
         <!-- Tab Sécurité -->
@@ -1801,6 +1844,18 @@ class UserSettingsPage extends LitElement {
       case 'LOW': return '#4caf50'
       default: return '#888'
     }
+  }
+
+  _isLogsEnabled() {
+    return localStorage.getItem('symbion_show_logs') === 'true'
+  }
+
+  _toggleLogs() {
+    const enabled = !this._isLogsEnabled()
+    localStorage.setItem('symbion_show_logs', enabled ? 'true' : 'false')
+    this.requestUpdate()
+    // Notify dashboard to show/hide the FAB
+    window.dispatchEvent(new CustomEvent('symbion-logs-toggle', { detail: { enabled } }))
   }
 }
 

@@ -600,6 +600,39 @@ class DashboardApp extends LitElement {
       box-shadow: 0 4px 16px rgba(255, 107, 107, 0.1);
     }
 
+    /* FAB Log Viewer */
+    .logs-fab {
+      position: fixed;
+      bottom: 1.2rem;
+      right: 1.2rem;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      color: #818cf8;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 80;
+      transition: all 0.3s ease;
+      opacity: 0.4;
+    }
+
+    .logs-fab:hover {
+      opacity: 1;
+      background: rgba(99, 102, 241, 0.25);
+      border-color: rgba(99, 102, 241, 0.5);
+      transform: scale(1.1);
+    }
+
+    @media (max-width: 768px) {
+      .logs-fab {
+        bottom: 5rem;
+      }
+    }
+
     /* Tabs mobile */
     .tabs-container {
       display: none;
@@ -772,7 +805,8 @@ class DashboardApp extends LitElement {
     showSslConfigPage: { type: Boolean },
     currentUser: { type: Object },
     activeTab: { type: String },
-    currentTime: { type: String }
+    currentTime: { type: String },
+    showLogsFab: { type: Boolean }
   }
   
   constructor() {
@@ -789,6 +823,7 @@ class DashboardApp extends LitElement {
     this.showNotesPage = false
     this.showContextEnginePage = false
     this.showSslConfigPage = false
+    this.showLogsFab = localStorage.getItem('symbion_show_logs') === 'true'
     this.currentUser = authService.getCurrentUser()
     // Restaurer le dernier onglet actif depuis sessionStorage (persiste aux reloads, reset à la fermeture du navigateur)
     this.activeTab = sessionStorage.getItem('dashboardTab') || 'controle'
@@ -843,6 +878,10 @@ class DashboardApp extends LitElement {
     // Écouter auth:expired pour rediriger vers login (session expirée)
     this._boundHandlers.authExpired = this.handleAuthExpired.bind(this)
     window.addEventListener('auth:expired', this._boundHandlers.authExpired)
+
+    // Écouter le toggle logs depuis les paramètres
+    this._boundHandlers.logsToggle = (e) => { this.showLogsFab = e.detail.enabled }
+    window.addEventListener('symbion-logs-toggle', this._boundHandlers.logsToggle)
 
     // Log context changes (theme is applied via CSS variables by context-service)
     this._boundHandlers.contextChange = (e) => {
@@ -1251,9 +1290,23 @@ class DashboardApp extends LitElement {
         ` : ''}
       </div>
 
+      <!-- FAB Logs (discret, bas-droite) -->
+      ${this.showLogsFab ? html`
+        <button class="logs-fab" @click="${this._openLogViewer}" title="Ouvrir Log Viewer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 17 10 11 4 5"></polyline>
+            <line x1="12" y1="19" x2="20" y2="19"></line>
+          </svg>
+        </button>
+      ` : ''}
+
       <!-- Toast Notifications (position fixe) -->
       <toast-notifications></toast-notifications>
     `
+  }
+
+  _openLogViewer() {
+    window.open('/logs.html', '_blank')
   }
   
   setActiveTab(tab) {

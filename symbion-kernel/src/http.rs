@@ -367,6 +367,8 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/automations/schema", get(crate::automations_http::get_automations_schema))
         .route("/automations/history", get(crate::automations_http::get_automations_history))
         .route("/automations/{automation_id}", get(crate::automations_http::get_automation))
+        // Logs API
+        .route("/logs", get(get_logs))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(app_state.clone(), require_auth));
         // NOTE: Rate limiting tower_governor désactivé (incompatibilité localhost)
@@ -3631,4 +3633,152 @@ async fn update_notification_config(
         .update(&type_id, update)
         .map(Json)
         .map_err(|e| (StatusCode::NOT_FOUND, e))
+}
+
+// ===== Logs API =====
+
+#[derive(Deserialize)]
+struct LogsQuery {
+    level: Option<String>,    // comma-separated: "info,warn,error"
+    search: Option<String>,
+    limit: Option<u32>,       // default 200
+    since: Option<String>,    // "5m", "15m", "1h", "6h", "24h"
+}
+
+#[derive(serde::Serialize)]
+struct LogEntry {
+    timestamp: String,
+    level: String,
+    component: String,
+    message: String,
+    source: String,    // "kernel"
+    raw: serde_json::Value,
+}
+
+/// GET /logs - Récupère les logs kernel depuis journalctl
+async fn get_logs(
+    Query(params): Query<LogsQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let limit = params.limit.unwrap_or(200).min(1000);
+    let since = params.since.as_deref().unwrap_or("1h");
+
+    // Convert since shorthand to journalctl format
+    let since_arg = match since {
+        "5m" => "5 minutes ago",
+        "15m" => "15 minutes ago",
+        "1h" => "1 hour ago",
+        "6h" => "6 hours ago",
+        "24h" => "24 hours ago",
+        other => other,
+    };
+
+    let output = tokio::process::Command::new("journalctl")
+        .args([
+            "--output=json",
+            "-u", "symbion-kernel",
+            "--no-pager",
+            "-n", &limit.to_string(),
+            "--since", since_arg,
+        ])
+        .output()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to run journalctl: {}", e)))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("journalctl failed: {}", stderr)));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Parse level filter
+    let level_filter: Option<Vec<String>> = params.level.as_ref().map(|l| {
+        l.split(',').map(|s| s.trim().to_lowercase()).collect()
+    });
+
+    let search_lower = params.search.as_ref().map(|s| s.to_lowercase());
+
+    let mut entries: Vec<LogEntry> = Vec::new();
+
+    for line in stdout.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let raw: serde_json::Value = match serde_json::from_str(line) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        // Parse priority (syslog: 0=emerg .. 7=debug)
+        let priority = raw.get("PRIORITY")
+            .and_then(|v| v.as_str())
+            .unwrap_or("6");
+        let level = match priority {
+            "0" | "1" | "2" => "critical",
+            "3" => "error",
+            "4" => "warning",
+            "5" => "notice",
+            "6" => "info",
+            "7" => "debug",
+            _ => "info",
+        };
+
+        // Apply level filter
+        if let Some(ref filters) = level_filter {
+            if !filters.iter().any(|f| f == level) {
+                continue;
+            }
+        }
+
+        // Parse message and extract component from [prefix]
+        let message = raw.get("MESSAGE")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        let component = if let Some(start) = message.find('[') {
+            if let Some(end) = message[start..].find(']') {
+                message[start + 1..start + end].to_string()
+            } else {
+                "kernel".to_string()
+            }
+        } else {
+            "kernel".to_string()
+        };
+
+        // Apply search filter
+        if let Some(ref search) = search_lower {
+            if !message.to_lowercase().contains(search) && !component.to_lowercase().contains(search) {
+                continue;
+            }
+        }
+
+        // Parse timestamp (microseconds since epoch)
+        let timestamp = raw.get("__REALTIME_TIMESTAMP")
+            .and_then(|v| v.as_str())
+            .and_then(|ts| ts.parse::<i64>().ok())
+            .map(|us| {
+                let secs = us / 1_000_000;
+                let nanos = ((us % 1_000_000) * 1000) as u32;
+                let dt = chrono::DateTime::from_timestamp(secs, nanos)
+                    .unwrap_or_default();
+                dt.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
+            })
+            .unwrap_or_default();
+
+        entries.push(LogEntry {
+            timestamp,
+            level: level.to_string(),
+            component,
+            message,
+            source: "kernel".to_string(),
+            raw: raw.clone(),
+        });
+    }
+
+    Ok(Json(serde_json::json!({
+        "entries": entries,
+        "total": entries.len()
+    })))
 }
