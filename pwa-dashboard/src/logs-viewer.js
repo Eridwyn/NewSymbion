@@ -180,6 +180,11 @@ class LogsViewer extends LitElement {
       overflow-x: auto;
     }
 
+    /* Cards hidden on desktop, shown on mobile via media query */
+    .log-cards {
+      display: none;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -343,11 +348,119 @@ class LogsViewer extends LitElement {
       100% { transform: translateX(100%); }
     }
 
+    /* ===== Mobile: card layout instead of table ===== */
     @media (max-width: 768px) {
-      .toolbar { padding: 0.5rem; }
-      .search-input { min-width: 120px; }
-      th, td { padding: 0.3rem 0.5rem; }
-      .td-message { max-width: 300px; }
+      .header {
+        padding: 0.75rem 1rem;
+      }
+
+      .header h1 {
+        font-size: 1em;
+      }
+
+      .toolbar {
+        padding: 0.5rem 0.75rem;
+        gap: 0.4rem;
+      }
+
+      .source-tabs {
+        width: 100%;
+      }
+
+      .source-tab {
+        flex: 1;
+        text-align: center;
+        padding: 0.5rem;
+      }
+
+      .search-input {
+        min-width: 0;
+        width: 100%;
+        order: -1;
+      }
+
+      .filter-select {
+        flex: 1;
+        min-width: 0;
+        font-size: 0.75em;
+      }
+
+      .toolbar-btn {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.75em;
+      }
+
+      /* Hide table, show cards */
+      table, thead {
+        display: none;
+      }
+
+      .log-table-wrapper {
+        overflow-x: visible;
+      }
+
+      .log-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+      }
+
+      .log-card {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 8px;
+        padding: 0.6rem 0.75rem;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+
+      .log-card:active {
+        background: rgba(255,255,255,0.06);
+      }
+
+      .log-card-header {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-bottom: 0.3rem;
+        flex-wrap: wrap;
+      }
+
+      .log-card-time {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.7em;
+        color: #666;
+        margin-left: auto;
+      }
+
+      .log-card-message {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.78em;
+        color: #ccc;
+        word-break: break-word;
+        line-height: 1.4;
+      }
+
+      .log-card-expand {
+        margin-top: 0.5rem;
+        background: rgba(0,0,0,0.3);
+        padding: 0.6rem;
+        border-radius: 6px;
+        border-left: 3px solid #818cf8;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.7em;
+        white-space: pre-wrap;
+        word-break: break-all;
+        color: #aaa;
+        max-height: 250px;
+        overflow-y: auto;
+      }
+
+      .json-expand {
+        font-size: 0.7em;
+        padding: 0.6rem;
+      }
     }
   `
 
@@ -677,6 +790,7 @@ class LogsViewer extends LitElement {
             <p>Aucun log correspondant aux filtres.</p>
           </div>
         ` : html`
+          <!-- Desktop: table -->
           <table>
             <thead>
               <tr>
@@ -718,6 +832,24 @@ class LogsViewer extends LitElement {
               `)}
             </tbody>
           </table>
+
+          <!-- Mobile: cards -->
+          <div class="log-cards">
+            ${logs.map((entry, i) => html`
+              <div class="log-card" @click="${() => this._toggleExpand(i)}">
+                <div class="log-card-header">
+                  <span class="source-badge ${entry.source}">${entry.source}</span>
+                  <span class="level-badge level-${entry.level}">${entry.level}</span>
+                  <span class="td-component">${entry.component}</span>
+                  <span class="log-card-time">${this._formatTimestamp(entry.timestamp)}</span>
+                </div>
+                <div class="log-card-message">${this._highlightTraceId(entry.message)}</div>
+                ${this.expandedRow === i ? html`
+                  <div class="log-card-expand">${JSON.stringify(entry.raw || entry, null, 2)}</div>
+                ` : ''}
+              </div>
+            `)}
+          </div>
         `}
       </div>
     `
