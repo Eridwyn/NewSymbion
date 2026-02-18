@@ -15,12 +15,18 @@ import './services/mqtt-service.js'
 
 // ============================================================================
 // Console Log Interception — BroadcastChannel pour Log Viewer
+// Throttled: max 20 msg/s, ring buffer 500 entries, errors toujours transmis
 // ============================================================================
 ;(() => {
   const channel = new BroadcastChannel('symbion-logs')
   const originalLog = console.log.bind(console)
   const originalWarn = console.warn.bind(console)
   const originalError = console.error.bind(console)
+
+  // Throttle: max 20 messages par seconde (hors errors)
+  let msgCount = 0
+  let lastReset = Date.now()
+  const MAX_MSG_PER_SEC = 20
 
   function parseComponent(msg) {
     if (typeof msg !== 'string') return 'pwa'
@@ -31,6 +37,15 @@ import './services/mqtt-service.js'
   function intercept(level, originalFn, args) {
     originalFn(...args)
     try {
+      // Throttle non-error messages
+      const now = Date.now()
+      if (now - lastReset > 1000) {
+        msgCount = 0
+        lastReset = now
+      }
+      if (level !== 'error' && msgCount >= MAX_MSG_PER_SEC) return
+      msgCount++
+
       const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ')
       channel.postMessage({
         timestamp: new Date().toISOString(),

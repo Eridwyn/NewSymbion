@@ -478,7 +478,8 @@ class LogsViewer extends LitElement {
     loading: { type: Boolean },
     autoRefresh: { type: Boolean },
     authenticated: { type: Boolean },
-    components: { type: Array }
+    components: { type: Array },
+    traceIdFilter: { type: String }
   }
 
   constructor() {
@@ -497,6 +498,7 @@ class LogsViewer extends LitElement {
     this.autoRefresh = false
     this.authenticated = false
     this.components = []
+    this.traceIdFilter = ''
     this._refreshInterval = null
     this._searchDebounce = null
     this._channel = null
@@ -531,7 +533,7 @@ class LogsViewer extends LitElement {
       this._channel = new BroadcastChannel('symbion-logs')
       this._channel.onmessage = (event) => {
         const entry = event.data
-        this.pwaLogs = [entry, ...this.pwaLogs.slice(0, 999)]
+        this.pwaLogs = [entry, ...this.pwaLogs.slice(0, 499)]
         this._updateComponents(entry.component)
         this.requestUpdate()
       }
@@ -554,6 +556,7 @@ class LogsViewer extends LitElement {
       const params = new URLSearchParams()
       if (this.levelFilter) params.set('level', this.levelFilter)
       if (this.searchText) params.set('search', this.searchText)
+      if (this.traceIdFilter) params.set('trace_id', this.traceIdFilter)
       params.set('limit', '500')
       params.set('since', this.sinceFilter)
 
@@ -605,6 +608,13 @@ class LogsViewer extends LitElement {
         l.source === 'kernel' ||
         l.message.toLowerCase().includes(s) ||
         l.component.toLowerCase().includes(s)
+      )
+    }
+
+    // Trace ID filter (client-side for PWA logs)
+    if (this.traceIdFilter) {
+      logs = logs.filter(l =>
+        l.source === 'kernel' || l.message.includes(this.traceIdFilter)
       )
     }
 
@@ -676,6 +686,15 @@ class LogsViewer extends LitElement {
 
   _clearPwaLogs() {
     this.pwaLogs = []
+  }
+
+  _handleTraceIdInput(e) {
+    clearTimeout(this._traceIdDebounce)
+    const val = e.target.value.trim()
+    this._traceIdDebounce = setTimeout(() => {
+      this.traceIdFilter = val
+      if (this.sourceTab !== 'pwa') this.fetchKernelLogs()
+    }, 300)
   }
 
   _formatTimestamp(ts) {
@@ -771,6 +790,11 @@ class LogsViewer extends LitElement {
             <option value="24h">24 heures</option>
           </select>
         ` : ''}
+
+        <input class="search-input" style="max-width:160px"
+               type="text"
+               placeholder="trace_id..."
+               @input="${this._handleTraceIdInput}">
 
         <button class="toolbar-btn" @click="${() => this.fetchKernelLogs()}"
                 title="Rafraichir">&#x21BB; Refresh</button>
