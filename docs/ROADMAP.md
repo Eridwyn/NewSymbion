@@ -1,7 +1,7 @@
 # Roadmap Technique - NewSymbion
 
-**Version** : 2026-02 (Post Audit + Sprint Fiabilité)
-**Statut** : Fondations complètes, 29 issues P0/P1 corrigées, 116 P2/P3 restantes
+**Version** : 2026-02 (Post Audit + Sprint Fiabilité + Log Viewer)
+**Statut** : Fondations complètes, 29 issues P0/P1 corrigées, Log Viewer PWA live
 **Dernière mise à jour** : 18 Février 2026
 **Score global** : 4.2/5
 
@@ -13,19 +13,19 @@
 
 | Composant | Langage | LOC | Fichiers | Score | Tests |
 |-----------|---------|----:|----------|-------|------:|
-| **symbion-kernel** | Rust | ~40,000 | 87 | 4.7/5 | 287 |
-| **pwa-dashboard** | JS (Lit) | ~28,100 | 40 | 3.5/5 | 0 |
+| **symbion-kernel** | Rust | ~40,150 | 87 | 4.7/5 | 287 |
+| **pwa-dashboard** | JS (Lit) | ~29,000 | 43 | 3.5/5 | 0 |
 | **symbion-agent-host** | Rust | ~2,100 | 13 | 4/5 | 14 |
 | **Plugins** (5) | Rust | ~4,900 | 14 | 4.8/5 | 2 |
 | **Infra** (scripts/CI) | Bash/YAML | ~2,400 | 20 | 3.5/5 | - |
-| **Total** | | **~85,100** | **174** | **4.2/5** | **303** |
+| **Total** | | **~86,050** | **177** | **4.2/5** | **303** |
 
 ### Chiffres Clés
 
 | Métrique | Valeur |
 |----------|--------|
 | Unit Tests | 303+ (287 kernel + 14 agent + 2 plugins) |
-| API Routes (http.rs) | 106 .route() |
+| API Routes (http.rs) | 107 .route() |
 | MQTT Topics | 10 subscriptions |
 | Automations actives | 16 (+ intelligence-managed) |
 | Modes contextuels | 4 système + custom |
@@ -93,7 +93,7 @@
 - Agent telemetry (30s heartbeat : CPU, RAM, disk, network, processes)
 - Structured logging par catégorie
 
-**Fichiers** : `decision/metrics.rs` (549 LOC), `http.rs` (3,633 LOC)
+**Fichiers** : `decision/metrics.rs` (549 LOC), `http.rs` (3,783 LOC)
 
 ---
 
@@ -204,6 +204,22 @@
 
 - `POST /v1/intelligence/feedback` enrichi v1+v2
 - Bouton "Corriger la prédiction" dans l'onglet Intelligence PWA
+
+---
+
+### Log Viewer PWA 🟢 100%
+**Complété** : 18 Février 2026
+
+- **Backend** : `GET /v1/logs` — journalctl JSON parser avec filtres (level, search, since, limit)
+- **Console interception** : `console.log/warn/error` capturés via BroadcastChannel cross-tab
+- **Page standalone** : `logs.html` ouverte dans un nouvel onglet (ne ferme pas le dashboard)
+- **Filtres** : source (Kernel/PWA/All), level multi-select, composant, recherche texte (debounce 300ms), plage temps
+- **Table triable** : colonnes cliquables, expand JSON raw, trace_id highlight
+- **Mobile responsive** : layout cards au lieu de table sous 768px
+- **Toggle discret** : icône FAB en bas à droite, visible si activé dans Paramètres > Profil > Avancé
+- **Auto-refresh** : polling 5s kernel + BroadcastChannel temps réel PWA
+
+**Fichiers** : `http.rs` (handler get_logs), `logs-viewer.js` (859 LOC), `logs.html`, `main.js` (interception console)
 
 ---
 
@@ -439,7 +455,7 @@
 | MFA test coverage limitée (backup codes, TOTP window, QR) | `mfa.rs` |
 | Dead code markers (#[allow(dead_code)]) non nettoyés | `agents.rs:202-213` |
 | Old enum naming : Cravate/Intime/Neutre au lieu de Pro/Focus/Maison | `context.rs` |
-| http.rs monolithique (3,633 LOC) — devrait être split en sub-routers | `http.rs` |
+| http.rs monolithique (3,783 LOC) — devrait être split en sub-routers | `http.rs` |
 | Max packet size MQTT hardcodé 1MB | `mqtt.rs:84` |
 | Doc comments manquants sur handlers HTTP | `http.rs` |
 | Erreurs 500 génériques sans messages structurés | `http.rs` |

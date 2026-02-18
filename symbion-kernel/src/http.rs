@@ -1478,14 +1478,7 @@ async fn auth_login(
     let device_token = parts.headers
         .get("x-device-token")
         .and_then(|v| v.to_str().ok())
-        .map(|s| {
-            println!("[device-trust] Header X-Device-Token found: {}...", &s[..std::cmp::min(8, s.len())]);
-            s.to_string()
-        });
-
-    if device_token.is_none() {
-        println!("[device-trust] No X-Device-Token header found in request");
-    }
+        .map(|s| s.to_string());
 
     // Vérifier si le device est de confiance
     let trusted_device = if let Some(ref token) = device_token {
@@ -1496,9 +1489,9 @@ async fn auth_login(
         );
 
         if is_trusted {
-            println!("[device-trust] ✓ Device token valid for user '{}' - MFA will be bypassed", payload.username);
+            println!("[device-trust] ✓ Device token valid - MFA bypassed");
         } else {
-            println!("[device-trust] ✗ Device token invalid or expired for user '{}'", payload.username);
+            println!("[device-trust] ✗ Device token invalid or expired");
         }
 
         is_trusted
@@ -1520,7 +1513,7 @@ async fn auth_login(
                     Ok(token) => {
                         // Retourner le device_token dans la réponse JSON (localStorage frontend)
                         response.device_token = Some(token.clone());
-                        println!("[auth] Device token created for user '{}' (30 days) - sent in JSON response", payload.username);
+                        println!("[auth] Device token created (30 days)");
                     }
                     Err(e) => {
                         eprintln!("[auth] Failed to create device token: {}", e);
@@ -1858,7 +1851,7 @@ async fn mfa_setup(
                     (mfa.secret_base32.clone(), mfa.backup_codes.clone(), false)
                 } else {
                     // Secret expiré, générer un nouveau
-                    println!("[mfa] Previous MFA setup expired for user '{}', generating new secret", username);
+                    println!("[mfa] Previous MFA setup expired, generating new secret");
                     let new_secret = app.mfa_manager.generate_secret()
                         .map_err(|e| (
                             StatusCode::INTERNAL_SERVER_ERROR,
@@ -3641,8 +3634,9 @@ async fn update_notification_config(
 struct LogsQuery {
     level: Option<String>,    // comma-separated: "info,warn,error"
     search: Option<String>,
-    limit: Option<u32>,       // default 200
+    limit: Option<u32>,       // default 200, max 1000
     since: Option<String>,    // "5m", "15m", "1h", "6h", "24h"
+    trace_id: Option<String>, // filter by trace_id in message
 }
 
 #[derive(serde::Serialize)]
@@ -3662,14 +3656,14 @@ async fn get_logs(
     let limit = params.limit.unwrap_or(200).min(1000);
     let since = params.since.as_deref().unwrap_or("1h");
 
-    // Convert since shorthand to journalctl format
+    // Convert since shorthand to journalctl format (whitelist only)
     let since_arg = match since {
         "5m" => "5 minutes ago",
         "15m" => "15 minutes ago",
         "1h" => "1 hour ago",
         "6h" => "6 hours ago",
         "24h" => "24 hours ago",
-        other => other,
+        _ => "1 hour ago", // fallback safe — pas d'input arbitraire
     };
 
     let output = tokio::process::Command::new("journalctl")
@@ -3754,6 +3748,13 @@ async fn get_logs(
             }
         }
 
+        // Apply trace_id filter
+        if let Some(ref trace_id) = params.trace_id {
+            if !message.contains(trace_id.as_str()) {
+                continue;
+            }
+        }
+
         // Parse timestamp (microseconds since epoch)
         let timestamp = raw.get("__REALTIME_TIMESTAMP")
             .and_then(|v| v.as_str())
@@ -3767,13 +3768,22 @@ async fn get_logs(
             })
             .unwrap_or_default();
 
+        // Redact raw journalctl: keep only safe metadata fields
+        let safe_raw = serde_json::json!({
+            "PRIORITY": raw.get("PRIORITY"),
+            "SYSLOG_IDENTIFIER": raw.get("SYSLOG_IDENTIFIER"),
+            "_PID": raw.get("_PID"),
+            "_SYSTEMD_UNIT": raw.get("_SYSTEMD_UNIT"),
+            "__REALTIME_TIMESTAMP": raw.get("__REALTIME_TIMESTAMP"),
+        });
+
         entries.push(LogEntry {
             timestamp,
             level: level.to_string(),
             component,
             message,
             source: "kernel".to_string(),
-            raw: raw.clone(),
+            raw: safe_raw,
         });
     }
 
