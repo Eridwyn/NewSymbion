@@ -6,26 +6,32 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { manageFocusTrap } from '../utils/focus-trap.js'
 import authService from '../services/auth-service.js'
 import csrfService from '../services/csrf-service.js'
 import '../services/api-service.js'
 import '../services/mqtt-service.js'
 import '../services/agents-service.js'
 import '../services/context-service.js'
-import '../widgets/system-health-widget.js'
-import '../widgets/freebox-widget.js'
-import '../widgets/ssl-widget.js'
-// import '../widgets/hosts-widget.js'  // DEPRECATED: remplacé par agents-network-widget
-import '../widgets/plugins-widget.js'
-import '../widgets/notes-widget.js'
-import '../widgets/agents-network-widget.js'
-import '../widgets/agent-control-widget.js'
-import '../widgets/environment-widget.js'
-import '../widgets/context-engine-widget.js'
-import './user-settings-page.js'
-import './notes-page.js'
-import './context-engine-page.js'
-import './ssl-config-page.js'
+// PWA8: Lazy-load widgets and pages (loaded on first render, not at parse time)
+const lazyWidgets = () => {
+  import('../widgets/system-health-widget.js')
+  import('../widgets/freebox-widget.js')
+  import('../widgets/ssl-widget.js')
+  import('../widgets/plugins-widget.js')
+  import('../widgets/notes-widget.js')
+  import('../widgets/agents-network-widget.js')
+  import('../widgets/agent-control-widget.js')
+  import('../widgets/environment-widget.js')
+  import('../widgets/context-engine-widget.js')
+}
+const lazyPages = () => {
+  import('./user-settings-page.js')
+  import('./notes-page.js')
+  import('./context-engine-page.js')
+  import('./ssl-config-page.js')
+}
+// Toast/notifications loaded eagerly (needed immediately for push events)
 import './toast-notifications.js'
 import './notification-center.js'
 import automationsService from '../services/automations-service.js'
@@ -862,6 +868,10 @@ class DashboardApp extends LitElement {
   async connectedCallback() {
     super.connectedCallback()
 
+    // PWA8: Start loading widgets/pages in background (non-blocking)
+    lazyWidgets()
+    lazyPages()
+
     // Démarrer l'horloge
     this.timeInterval = setInterval(() => this.updateTime(), 1000)
 
@@ -937,8 +947,30 @@ class DashboardApp extends LitElement {
         this.mqttService.removeEventListener('system-health', this._boundHandlers.systemHealth)
       }
     }
+
+    // PWA4: Destroy focus traps on disconnect
+    if (this._focusTrap) {
+      this._focusTrap.destroy()
+      this._focusTrap = null
+    }
   }
-  
+
+  // PWA4: Focus trap management for full-page overlays
+  updated(changedProperties) {
+    super.updated(changedProperties)
+    const pageProps = ['showSettingsPage', 'showNotesPage', 'showContextEnginePage', 'showSslConfigPage']
+    const anyPageOpen = pageProps.some(p => changedProperties.has(p))
+
+    if (anyPageOpen) {
+      const isOpen = this.showSettingsPage || this.showNotesPage || this.showContextEnginePage || this.showSslConfigPage
+      // Find the active page overlay in shadow DOM
+      const pageEl = this.shadowRoot.querySelector(
+        'user-settings-page, notes-page, context-engine-page, ssl-config-page'
+      )
+      this._focusTrap = manageFocusTrap(pageEl, isOpen, this._focusTrap)
+    }
+  }
+
   async initializeServices() {
     console.log('🔧 Initializing services...')
 
@@ -1084,11 +1116,11 @@ class DashboardApp extends LitElement {
           <h1><img src="/icon-192-transparent-v2.png" alt="Symbion" class="header-logo"> Symbion Dashboard</h1>
           <div class="status-bar">
             <div class="status-indicator">
-              <div class="status-dot ${this.apiStatus}"></div>
+              <div class="status-dot ${this.apiStatus}" role="status" aria-label="API ${this.apiStatus}"></div>
               <span>API: ${this.apiStatus}</span>
             </div>
             <div class="status-indicator">
-              <div class="status-dot ${this.mqttStatus}"></div>
+              <div class="status-dot ${this.mqttStatus}" role="status" aria-label="MQTT ${this.mqttStatus}"></div>
               <span>MQTT: ${this.mqttStatus}</span>
             </div>
             ${this.systemHealth ? html`
@@ -1109,28 +1141,28 @@ class DashboardApp extends LitElement {
 
         ${this.currentUser ? html`
           <div class="user-menu">
-            <button class="user-button" @click="${this.toggleUserMenu}" aria-expanded="${this.showUserMenu}">
-              <span>👤</span>
+            <button class="user-button" @click="${this.toggleUserMenu}" aria-expanded="${this.showUserMenu}" aria-label="Menu utilisateur">
+              <span aria-hidden="true">👤</span>
               <span>${this.currentUser.username}</span>
             </button>
 
             ${this.showUserMenu ? html`
-              <div class="user-dropdown">
+              <div class="user-dropdown" role="menu" aria-label="Actions utilisateur">
                 <div class="user-info">
                   <div class="user-name">${this.currentUser.username}</div>
                   <div class="user-role">${this.currentUser.role}</div>
                   <div class="user-session">${this.getSessionDuration()}</div>
                 </div>
-                <button class="context-engine-button" @click="${this.handleOpenContextEngine}">
-                  <span>🧠</span>
+                <button class="context-engine-button" @click="${this.handleOpenContextEngine}" aria-label="Decision Engine">
+                  <span aria-hidden="true">🧠</span>
                   <span>Decision Engine</span>
                 </button>
-                <button class="settings-button" @click="${this.handleOpenSettings}">
-                  <span>⚙️</span>
+                <button class="settings-button" @click="${this.handleOpenSettings}" aria-label="Paramètres">
+                  <span aria-hidden="true">⚙️</span>
                   <span>Paramètres</span>
                 </button>
-                <button class="logout-button" @click="${this.handleLogout}">
-                  <span>🚪</span>
+                <button class="logout-button" @click="${this.handleLogout}" aria-label="Déconnexion">
+                  <span aria-hidden="true">🚪</span>
                   <span>Déconnexion</span>
                 </button>
               </div>
@@ -1148,23 +1180,35 @@ class DashboardApp extends LitElement {
 
         <!-- Tabs mobile uniquement -->
         <div class="tabs-container">
-          <div class="tabs">
+          <div class="tabs" role="tablist" aria-label="Sections du dashboard">
             <button class="tab ${this.activeTab === 'controle' ? 'active' : ''}"
-                    @click="${() => this.setActiveTab('controle')}">
-              🎛️ Contrôle
+                    role="tab"
+                    aria-selected="${this.activeTab === 'controle'}"
+                    aria-controls="tab-controle"
+                    @click="${() => this.setActiveTab('controle')}"
+                    @keydown="${this._handleTabKeydown}">
+              <span aria-hidden="true">🎛️</span> Contrôle
             </button>
             <button class="tab ${this.activeTab === 'systeme' ? 'active' : ''}"
-                    @click="${() => this.setActiveTab('systeme')}">
-              ⚙️ Système
+                    role="tab"
+                    aria-selected="${this.activeTab === 'systeme'}"
+                    aria-controls="tab-systeme"
+                    @click="${() => this.setActiveTab('systeme')}"
+                    @keydown="${this._handleTabKeydown}">
+              <span aria-hidden="true">⚙️</span> Système
             </button>
             <button class="tab ${this.activeTab === 'donnees' ? 'active' : ''}"
-                    @click="${() => this.setActiveTab('donnees')}">
-              📝 Données
+                    role="tab"
+                    aria-selected="${this.activeTab === 'donnees'}"
+                    aria-controls="tab-donnees"
+                    @click="${() => this.setActiveTab('donnees')}"
+                    @keydown="${this._handleTabKeydown}">
+              <span aria-hidden="true">📝</span> Données
             </button>
           </div>
 
           <!-- Contenu tab Contrôle -->
-          <div class="tab-content ${this.activeTab === 'controle' ? 'active' : ''}">
+          <div id="tab-controle" role="tabpanel" aria-label="Contrôle" class="tab-content ${this.activeTab === 'controle' ? 'active' : ''}">
             <div class="widget-container">
               <context-engine-widget></context-engine-widget>
             </div>
@@ -1177,7 +1221,7 @@ class DashboardApp extends LitElement {
           </div>
 
           <!-- Contenu tab Système -->
-          <div class="tab-content ${this.activeTab === 'systeme' ? 'active' : ''}">
+          <div id="tab-systeme" role="tabpanel" aria-label="Système" class="tab-content ${this.activeTab === 'systeme' ? 'active' : ''}">
             <div class="widget-container">
               <system-health-widget
                 .health="${this.systemHealth}"
@@ -1193,7 +1237,7 @@ class DashboardApp extends LitElement {
           </div>
 
           <!-- Contenu tab Données -->
-          <div class="tab-content ${this.activeTab === 'donnees' ? 'active' : ''}">
+          <div id="tab-donnees" role="tabpanel" aria-label="Données" class="tab-content ${this.activeTab === 'donnees' ? 'active' : ''}">
             <div class="widget-container">
               <environment-widget></environment-widget>
             </div>
@@ -1312,6 +1356,33 @@ class DashboardApp extends LitElement {
   setActiveTab(tab) {
     this.activeTab = tab
     sessionStorage.setItem('dashboardTab', tab)
+  }
+
+  // PWA7: Arrow key navigation between tabs (WAI-ARIA tabs pattern)
+  _handleTabKeydown(e) {
+    const tabs = ['controle', 'systeme', 'donnees']
+    const currentIndex = tabs.indexOf(this.activeTab)
+    let newIndex = -1
+
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      newIndex = (currentIndex + 1) % tabs.length
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      newIndex = (currentIndex - 1 + tabs.length) % tabs.length
+    } else if (e.key === 'Home') {
+      newIndex = 0
+    } else if (e.key === 'End') {
+      newIndex = tabs.length - 1
+    }
+
+    if (newIndex >= 0) {
+      e.preventDefault()
+      this.setActiveTab(tabs[newIndex])
+      // Focus the newly active tab button
+      this.updateComplete.then(() => {
+        const tabButtons = this.shadowRoot.querySelectorAll('[role="tab"]')
+        tabButtons[newIndex]?.focus()
+      })
+    }
   }
 
   toggleUserMenu() {
