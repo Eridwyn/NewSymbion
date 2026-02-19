@@ -155,6 +155,19 @@ impl Trigger {
     pub fn is_event_based(&self) -> bool {
         !matches!(self, Trigger::Scheduled { .. })
     }
+
+    /// Returns a discriminant tag for fast event-type pre-filtering (D7 optimization)
+    pub fn event_type_tag(&self) -> &'static str {
+        match self {
+            Trigger::ModeChange { .. } => "ModeChange",
+            Trigger::SensorAlert { .. } => "SensorAlert",
+            Trigger::AgentStatus { .. } => "AgentStatus",
+            Trigger::Manual => "Manual",
+            Trigger::PluginHealth { .. } => "PluginHealth",
+            Trigger::Scheduled { .. } => "Scheduled",
+            Trigger::Custom { .. } => "Custom",
+        }
+    }
 }
 
 /// Alert levels for sensor triggers
@@ -209,6 +222,20 @@ pub struct TriggerGroup {
 pub enum TriggerItem {
     Group(Box<TriggerGroup>),
     Single(Trigger),
+}
+
+impl TriggerGroup {
+    /// Collect all event type tags from this group (for D7 pre-filtering)
+    pub fn event_type_tags(&self) -> Vec<&'static str> {
+        let mut tags = Vec::new();
+        for item in &self.triggers {
+            match item {
+                TriggerItem::Single(t) => tags.push(t.event_type_tag()),
+                TriggerItem::Group(g) => tags.extend(g.event_type_tags()),
+            }
+        }
+        tags
+    }
 }
 
 impl Default for TriggerGroup {

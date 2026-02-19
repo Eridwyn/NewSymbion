@@ -112,6 +112,7 @@ impl AutomationListener {
     /// Handle a single event
     async fn handle_event(&self, event: AutomationEvent) {
         let event_type = event.event_type();
+        let event_tag = event.trigger_type_tag();
         eprintln!("[automations] Processing {} event", event_type);
 
         // Get all enabled automations
@@ -120,13 +121,11 @@ impl AutomationListener {
         let mut matched_count = 0;
 
         for automation in automations {
-            // Skip if disabled
-            if !automation.enabled {
+            // D7: Fast pre-filter by event type tag (avoids expensive group matching)
+            let trigger_group = automation.get_trigger_group();
+            if !trigger_group.event_type_tags().contains(&event_tag) {
                 continue;
             }
-
-            // Check if trigger group matches
-            let trigger_group = automation.get_trigger_group();
             if !self.trigger_group_matches(&trigger_group, &event, &automation.id) {
                 continue;
             }

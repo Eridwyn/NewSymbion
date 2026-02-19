@@ -529,7 +529,11 @@ class DashboardApp extends LitElement {
       border-radius: var(--radius-xl);
       padding: var(--space-8);
       backdrop-filter: blur(var(--blur-lg));
-      transition: all var(--duration-slow) var(--ease-out);
+      transition: transform var(--duration-slow) var(--ease-out),
+                  border-color var(--duration-slow) var(--ease-out),
+                  box-shadow var(--duration-slow) var(--ease-out);
+      will-change: transform;
+      contain: paint;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
                   0 0 0 1px color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent),
                   inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent);
@@ -565,18 +569,12 @@ class DashboardApp extends LitElement {
       }
     }
 
-    /* Hover - Activation organique CONTEXTUEL */
+    /* Hover - Activation organique CONTEXTUEL (PWA9: optimisé GPU, 2 shadows au lieu de 4) */
     .widget-container:hover {
       border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
       transform: translateY(-4px);
       box-shadow: 0 16px 48px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent),
-                  0 0 0 1px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent),
-                  0 0 60px color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent),
-                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
-      background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent) 0%,
-        rgba(19, 20, 26, 0.95) 20%,
-        rgba(28, 29, 36, 0.98) 100%);
+                  0 0 0 1px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
     }
 
     .widget-container:hover::before {
