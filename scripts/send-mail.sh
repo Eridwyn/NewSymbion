@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # Helper script pour envoyer emails via msmtp
 # Utilise la même approche que monitor-symbion.sh
 
