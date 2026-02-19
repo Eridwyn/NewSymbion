@@ -153,7 +153,10 @@ impl ActiveSession {
     pub fn is_in_cooldown(&self) -> bool {
         let cooldown = Duration::minutes(self.source.cooldown_minutes());
         let elapsed = now_paris() - self.last_confirmed_at;
-        if elapsed.is_negative() { return true; } // Clock skew: stay in cooldown
+        if elapsed.is_negative() {
+            eprintln!("[sessions] Clock skew detected: last_confirmed_at is {} ms in the future", elapsed.whole_milliseconds().abs());
+            return false; // Clock skew: don't lock in cooldown forever
+        }
         elapsed < cooldown
     }
 
@@ -161,6 +164,10 @@ impl ActiveSession {
     pub fn is_override_expired(&self) -> bool {
         match (self.source, self.override_expires_at) {
             (SessionSource::Override, Some(expiry)) => now_paris() > expiry,
+            (_, Some(_expiry)) => {
+                eprintln!("[sessions] Inconsistent state: override_expires_at set but source is {:?}", self.source);
+                false
+            }
             _ => false,
         }
     }

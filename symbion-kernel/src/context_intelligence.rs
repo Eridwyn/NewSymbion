@@ -189,8 +189,13 @@ impl ContextIntelligence {
             }
         }
 
-        // Update 24h stats (simple rolling - reset if last comparison > 24h ago)
-        // For simplicity, we just track recent comparisons
+        // Update 24h stats — reset if last comparison was > 24h ago
+        if let Some(last_at) = stats.last_comparison_at {
+            let elapsed = time::OffsetDateTime::now_utc() - last_at;
+            if elapsed.whole_hours() >= 24 {
+                stats.last_24h = Default::default();
+            }
+        }
         stats.last_24h.comparisons += 1;
         if v1_mode == v2_mode {
             stats.last_24h.agreements += 1;
@@ -261,11 +266,12 @@ impl ContextIntelligence {
                        else if days_since < 90 { decay_coeffs[2] }
                        else { decay_coeffs[3] };
 
-            // INVARIANT 3: Source-based decay modifier (same as calculate_decay)
+            // INVARIANT 3: Source-based decay modifier
+            // Must match SampleSource::weight_multiplier() in inference.rs
             let source_multiplier = match &p.source {
-                PatternSource::UserCorrection => 1.3,
-                PatternSource::Historical => 1.0,
-                PatternSource::Automation => 1.0,
+                PatternSource::UserCorrection => 1.3, // Same as SampleSource::UserCorrection
+                PatternSource::Historical => 1.0,     // Same as SampleSource::MfaConfirmed
+                PatternSource::Automation => 0.8,     // Same as SampleSource::Automation (was 1.0, inconsistent)
             };
             let decay = (base_decay * source_multiplier).min(1.0);
             let decayed_conf = p.confidence * decay;
@@ -309,8 +315,13 @@ impl ContextIntelligence {
 
         match serde_json::to_string_pretty(&*patterns) {
             Ok(json) => {
-                if let Err(e) = std::fs::write(&path, json) {
-                    eprintln!("[intelligence] Failed to save patterns: {}", e);
+                if let Err(e) = std::fs::write(&path, &json) {
+                    eprintln!("[intelligence] Failed to save patterns (attempt 1): {}", e);
+                    // Retry once after 500ms
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                    if let Err(e2) = std::fs::write(&path, &json) {
+                        eprintln!("[intelligence] Failed to save patterns (attempt 2): {}", e2);
+                    }
                 }
             }
             Err(e) => {
@@ -446,6 +457,8 @@ impl ContextIntelligence {
         let mut pattern_map: HashMap<(String, u8, u8), u32> = HashMap::new();
 
         for entry in manual_changes {
+            // Note: Focus mode uses dynamic ModeRegistry (data/modes.json), not the legacy Mode enum.
+            // When Mode enum gets Focus variant, add it here.
             let mode_slug = match entry.mode {
                 Mode::Cravate => "pro",
                 Mode::Intime => "maison",

@@ -42,7 +42,9 @@ pub enum SampleSource {
 }
 
 impl SampleSource {
-    /// Get the base weight multiplier for this source
+    /// Get the base weight multiplier for this source.
+    /// Range: 0.5 to 1.3 — UserCorrection intentionally > 1.0 to boost user feedback.
+    /// These multipliers match the decay source_multiplier in context_intelligence.rs compact().
     pub fn weight_multiplier(&self) -> f32 {
         match self {
             SampleSource::UserCorrection => 1.3,
@@ -340,7 +342,8 @@ impl InferenceEngine {
         });
     }
 
-    /// Add a training sample
+    /// Add a training sample.
+    /// Write lock is held for both eviction and push atomically to prevent race conditions.
     pub fn add_sample(&self, sample: TrainingSample) {
         {
             let mut samples = self.samples.write();

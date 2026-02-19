@@ -23,9 +23,10 @@ use serde::Deserialize;
 use time::OffsetDateTime;
 use tokio::task;
 
-/// Global process classifier (lazy-loaded with config from ./config/process_categories.toml)
+/// Global process classifier (lazy-loaded, path configurable via SYMBION_CONFIG_DIR)
 static PROCESS_CLASSIFIER: LazyLock<ProcessClassifier> = LazyLock::new(|| {
-    let config_path = std::path::PathBuf::from("./config/process_categories.toml");
+    let config_dir = std::env::var("SYMBION_CONFIG_DIR").unwrap_or_else(|_| "./config".to_string());
+    let config_path = std::path::PathBuf::from(format!("{}/process_categories.toml", config_dir));
     ProcessClassifier::new(config_path)
 });
 

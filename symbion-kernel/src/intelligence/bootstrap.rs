@@ -97,9 +97,18 @@ impl Default for BootstrapScheduler {
     }
 }
 
+/// Valid mode slugs for bootstrap configuration
+const VALID_MODES: &[&str] = &["pro", "focus", "maison", "veille"];
+
 impl BootstrapScheduler {
-    /// Create with custom config
+    /// Create with custom config (validates mode names)
     pub fn new(config: BootstrapConfig) -> Self {
+        let modes = [&config.weekday_work_mode, &config.weekday_evening_mode, &config.weekend_mode, &config.night_mode];
+        for mode in modes {
+            if !VALID_MODES.contains(&mode.as_str()) {
+                eprintln!("[bootstrap] Unknown mode '{}' in config, expected one of {:?}", mode, VALID_MODES);
+            }
+        }
         Self { config }
     }
 
@@ -202,6 +211,12 @@ impl BootstrapScheduler {
             dims.insert(dimensions::WORK_PROB.to_string(), work / sum);
             dims.insert(dimensions::FOCUS_PROB.to_string(), focus / sum);
             dims.insert(dimensions::SLEEP_PROB.to_string(), sleep / sum);
+        } else {
+            // Zero input: use uniform distribution
+            dims.insert(dimensions::HOME_PROB.to_string(), 0.25);
+            dims.insert(dimensions::WORK_PROB.to_string(), 0.25);
+            dims.insert(dimensions::FOCUS_PROB.to_string(), 0.25);
+            dims.insert(dimensions::SLEEP_PROB.to_string(), 0.25);
         }
         dims.insert(dimensions::PC_ACTIVE.to_string(), pc);
         dims

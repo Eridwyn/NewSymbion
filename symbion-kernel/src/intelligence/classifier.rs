@@ -77,6 +77,14 @@ fn default_weight() -> f32 {
     1.0
 }
 
+impl ClassifierConfig {
+    /// Check if any category weight is invalid (negative or > 2.0)
+    fn has_invalid_weights(&self) -> bool {
+        let weights = [self.ide.weight, self.gaming.weight, self.communication.weight, self.media.weight, self.browser.weight, self.office.weight];
+        weights.iter().any(|w| *w < 0.0 || *w > 2.0)
+    }
+}
+
 impl Default for ClassifierConfig {
     fn default() -> Self {
         Self {
@@ -182,8 +190,12 @@ impl ClassifierConfig {
     pub fn load_or_default(path: &Path) -> Self {
         match std::fs::read_to_string(path) {
             Ok(content) => {
-                match toml::from_str(&content) {
+                match toml::from_str::<Self>(&content) {
                     Ok(config) => {
+                        if config.has_invalid_weights() {
+                            eprintln!("[classifier] invalid weights in {}, using defaults", path.display());
+                            return Self::default();
+                        }
                         eprintln!("[classifier] loaded config from {}", path.display());
                         config
                     }
@@ -355,7 +367,8 @@ impl ProcessClassifier {
         matches
     }
 
-    /// Classify and update feature registry
+    /// Classify and update feature registry.
+    /// A process can match multiple categories (e.g. Slack = communication + productivity) — by design.
     pub fn classify_and_update(&self, processes: &[String], registry: &FeatureRegistry) {
         let result = self.classify(processes);
 

@@ -25,8 +25,9 @@ use crate::modes::SharedModeRegistry;
 use crate::notifications::SharedNotificationManager;
 use crate::sensors::SensorRegistry;
 
+use std::collections::HashSet;
 use std::sync::Arc;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, Mutex};
 use time::OffsetDateTime;
 
 /// Listener task that processes automation events
@@ -50,6 +51,8 @@ pub struct AutomationListener {
     mode_registry: Option<SharedModeRegistry>,
     /// Feature Registry for Intelligence v2 condition evaluation
     feature_registry: Option<SharedFeatureRegistry>,
+    /// Track automations currently executing (prevent re-trigger during long actions)
+    executing: Arc<Mutex<HashSet<String>>>,
 }
 
 impl AutomationListener {
@@ -80,6 +83,7 @@ impl AutomationListener {
             context_intelligence,
             mode_registry,
             feature_registry,
+            executing: Arc::new(Mutex::new(HashSet::new())),
         }
     }
 
@@ -136,6 +140,15 @@ impl AutomationListener {
                     );
                 }
                 continue;
+            }
+
+            // Check if already executing (prevent re-trigger during long actions)
+            {
+                let executing = self.executing.lock().await;
+                if executing.contains(&automation.id) {
+                    eprintln!("[automations] '{}' already executing, skipping", automation.name);
+                    continue;
+                }
             }
 
             matched_count += 1;
@@ -197,6 +210,9 @@ impl AutomationListener {
                 automation.actions.len()
             );
 
+            // Mark as executing (prevents re-trigger during long actions)
+            self.executing.lock().await.insert(automation.id.clone());
+
             // Record execution IMMEDIATELY for cooldown enforcement (before actions)
             if let Err(e) = self.store.record_execution(&automation.id) {
                 eprintln!(
@@ -207,6 +223,9 @@ impl AutomationListener {
 
             // Execute actions
             let action_results = AutomationEngine::execute_actions(&automation, &ctx).await;
+
+            // Release execution lock
+            self.executing.lock().await.remove(&automation.id);
 
             // Check overall success
             let all_success = action_results.iter().all(|r| r.success);
