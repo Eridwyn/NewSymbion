@@ -97,7 +97,22 @@ jobs:
         cd release-assets
         sha256sum * > checksums.sha256
         ls -la
-        
+
+    - name: GPG sign release assets
+      if: env.GPG_PRIVATE_KEY != ''
+      env:
+        GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      run: |
+        echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+        cd release-assets
+        for file in symbion-agent-* checksums.sha256; do
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" \
+            --detach-sign --armor "$file"
+        done
+        echo "GPG signatures created:"
+        ls -la *.asc
+
     - name: Get version
       id: get_version
       run: |

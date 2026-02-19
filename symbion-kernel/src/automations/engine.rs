@@ -1015,45 +1015,462 @@ impl AutomationEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::intelligence::FeatureRegistry;
 
-    // Tests would require mocking the context components
-    // For now, just test the helper functions
+    /// Build a minimal ExecutionContext for testing conditions
+    fn test_ctx() -> ExecutionContext {
+        ExecutionContext {
+            context_engine: Arc::new(ContextEngine::new()),
+            agents: Arc::new(crate::agents::AgentRegistry::new("/tmp/test-agents.json")),
+            sensors: Arc::new(SensorRegistry::new("/tmp/test-sensors.json")),
+            notifications_manager: Arc::new(crate::notifications::NotificationManager::new(None)),
+            event: AutomationEvent::Manual {
+                automation_id: "test".to_string(),
+                triggered_by: Some("test".to_string()),
+                timestamp: OffsetDateTime::now_utc(),
+            },
+            decision_engine: None,
+            trust_tracker: None,
+            validation_manager: None,
+            pending_action_registry: None,
+            context_intelligence: None,
+            mode_registry: None,
+            feature_registry: None,
+        }
+    }
+
+    // ========================================================================
+    // Condition type names
+    // ========================================================================
 
     #[test]
     fn test_condition_type_name() {
-        let cond = Condition::CurrentMode {
-            mode: "intime".to_string(),
+        assert_eq!(AutomationEngine::condition_type_name(&Condition::CurrentMode {
+            mode: "pro".into(), operator: ComparisonOperator::Equals,
+        }), "current_mode");
+        assert_eq!(AutomationEngine::condition_type_name(&Condition::TimeRange {
+            start_hour: 9, end_hour: 18,
+        }), "time_range");
+        assert_eq!(AutomationEngine::condition_type_name(&Condition::DayOfWeek {
+            days: vec![1, 2],
+        }), "day_of_week");
+        assert_eq!(AutomationEngine::condition_type_name(&Condition::AgentOnline {
+            agent_id: "pc".into(),
+        }), "agent_online");
+        assert_eq!(AutomationEngine::condition_type_name(&Condition::Feature {
+            feature_id: "test".into(),
             operator: ComparisonOperator::Equals,
-        };
-        assert_eq!(AutomationEngine::condition_type_name(&cond), "current_mode");
+            value: serde_json::Value::Bool(true),
+        }), "feature");
     }
+
+    // ========================================================================
+    // Action type names
+    // ========================================================================
 
     #[test]
     fn test_action_type_name() {
-        let action = ActionDefinition::SendNotification {
-            priority: "P1".to_string(),
-            title: "Test".to_string(),
-            body: "Body".to_string(),
-            impact_level: ImpactLevel::Low,
-        };
-        assert_eq!(AutomationEngine::action_type_name(&action), "send_notification");
+        assert_eq!(AutomationEngine::action_type_name(&ActionDefinition::SendNotification {
+            priority: "P1".into(), title: "T".into(), body: "B".into(), impact_level: ImpactLevel::Low,
+        }), "send_notification");
+        assert_eq!(AutomationEngine::action_type_name(&ActionDefinition::ForceMode {
+            mode: "pro".into(), duration_minutes: None, reason: "test".into(), use_override: None, impact_level: ImpactLevel::Medium,
+        }), "force_mode");
+        assert_eq!(AutomationEngine::action_type_name(&ActionDefinition::Delay { seconds: 5 }), "delay");
     }
+
+    // ========================================================================
+    // Preview actions
+    // ========================================================================
 
     #[test]
     fn test_preview_actions() {
         let actions = vec![
             ActionDefinition::SendNotification {
-                priority: "P1".to_string(),
-                title: "Alert".to_string(),
-                body: "Test".to_string(),
-                impact_level: ImpactLevel::Low,
+                priority: "P1".into(), title: "Alert".into(), body: "Test".into(), impact_level: ImpactLevel::Low,
+            },
+            ActionDefinition::ForceMode {
+                mode: "focus".into(), duration_minutes: Some(30), reason: "test".into(), use_override: None, impact_level: ImpactLevel::Medium,
             },
             ActionDefinition::Delay { seconds: 5 },
         ];
 
         let previews = AutomationEngine::preview_actions(&actions);
-        assert_eq!(previews.len(), 2);
+        assert_eq!(previews.len(), 3);
         assert!(previews[0].contains("Alert"));
-        assert!(previews[1].contains("5 seconds"));
+        assert!(previews[1].contains("focus"));
+        assert!(previews[1].contains("30 minutes"));
+        assert!(previews[2].contains("5 seconds"));
+    }
+
+    #[test]
+    fn test_preview_force_mode_indefinite() {
+        let actions = vec![ActionDefinition::ForceMode {
+            mode: "pro".into(), duration_minutes: None, reason: "test".into(), use_override: None, impact_level: ImpactLevel::Low,
+        }];
+        let previews = AutomationEngine::preview_actions(&actions);
+        assert!(previews[0].contains("indefinitely"));
+    }
+
+    // ========================================================================
+    // Evaluate conditions: None = always pass
+    // ========================================================================
+
+    #[test]
+    fn test_no_conditions_always_pass() {
+        let ctx = test_ctx();
+        let (passed, evals) = AutomationEngine::evaluate_conditions(&None, &ctx);
+        assert!(passed);
+        assert!(evals.is_empty());
+    }
+
+    // ========================================================================
+    // CurrentMode condition
+    // ========================================================================
+
+    #[test]
+    fn test_current_mode_equals() {
+        let ctx = test_ctx();
+        // Default mode is "veille"
+        let cond = Some(ConditionGroup {
+            operator: LogicalOperator::And,
+            conditions: vec![Condition::CurrentMode {
+                mode: "veille".into(),
+                operator: ComparisonOperator::Equals,
+            }],
+        });
+        let (passed, evals) = AutomationEngine::evaluate_conditions(&cond, &ctx);
+        assert!(passed);
+        assert_eq!(evals.len(), 1);
+        assert!(evals[0].passed);
+    }
+
+    #[test]
+    fn test_current_mode_not_equals() {
+        let ctx = test_ctx();
+        let cond = Some(ConditionGroup {
+            operator: LogicalOperator::And,
+            conditions: vec![Condition::CurrentMode {
+                mode: "pro".into(),
+                operator: ComparisonOperator::NotEquals,
+            }],
+        });
+        let (passed, _) = AutomationEngine::evaluate_conditions(&cond, &ctx);
+        assert!(passed); // Default is "veille", != "pro" is true
+    }
+
+    #[test]
+    fn test_current_mode_case_insensitive() {
+        let ctx = test_ctx();
+        let cond = Some(ConditionGroup {
+            operator: LogicalOperator::And,
+            conditions: vec![Condition::CurrentMode {
+                mode: "VEILLE".into(),
+                operator: ComparisonOperator::Equals,
+            }],
+        });
+        let (passed, _) = AutomationEngine::evaluate_conditions(&cond, &ctx);
+        assert!(passed);
+    }
+
+    #[test]
+    fn test_current_mode_mismatch() {
+        let ctx = test_ctx();
+        let cond = Some(ConditionGroup {
+            operator: LogicalOperator::And,
+            conditions: vec![Condition::CurrentMode {
+                mode: "focus".into(),
+                operator: ComparisonOperator::Equals,
+            }],
+        });
+        let (passed, evals) = AutomationEngine::evaluate_conditions(&cond, &ctx);
+        assert!(!passed);
+        assert!(!evals[0].passed);
+    }
+
+    // ========================================================================
+    // AND/OR group logic
+    // ========================================================================
+
+    #[test]
+    fn test_and_group_all_pass() {
+        let ctx = test_ctx();
+        let cond = Some(ConditionGroup {
+            operator: LogicalOperator::And,
+            conditions: vec![
+                Condition::CurrentMode { mode: "veille".into(), operator: ComparisonOperator::Equals },
+                Condition::CurrentMode { mode: "pro".into(), operator: ComparisonOperator::NotEquals },
+            ],
+        });
+        let (passed, evals) = AutomationEngine::evaluate_conditions(&cond, &ctx);
+        assert!(passed);
+        assert_eq!(evals.len(), 2);
+        assert!(evals.iter().all(|e| e.passed));
+    }
+
+    #[test]
+    fn test_and_group_one_fails() {
+        let ctx = test_ctx();
+        let cond = Some(ConditionGroup {
+            operator: LogicalOperator::And,
+            conditions: vec![
+                Condition::CurrentMode { mode: "veille".into(), operator: ComparisonOperator::Equals },
+                Condition::CurrentMode { mode: "veille".into(), operator: ComparisonOperator::NotEquals },
+            ],
+        });
+        let (passed, evals) = AutomationEngine::evaluate_conditions(&cond, &ctx);
+        assert!(!passed);
+        // AND evaluates all conditions for complete report
+        assert_eq!(evals.len(), 2);
+    }
+
+    #[test]
+    fn test_or_group_one_passes() {
+        let ctx = test_ctx();
+        let cond = Some(ConditionGroup {
+            operator: LogicalOperator::Or,
+            conditions: vec![
+                Condition::CurrentMode { mode: "focus".into(), operator: ComparisonOperator::Equals },
+                Condition::CurrentMode { mode: "veille".into(), operator: ComparisonOperator::Equals },
+            ],
+        });
+        let (passed, evals) = AutomationEngine::evaluate_conditions(&cond, &ctx);
+        assert!(passed);
+        assert_eq!(evals.len(), 2);
+    }
+
+    #[test]
+    fn test_or_group_none_passes() {
+        let ctx = test_ctx();
+        let cond = Some(ConditionGroup {
+            operator: LogicalOperator::Or,
+            conditions: vec![
+                Condition::CurrentMode { mode: "focus".into(), operator: ComparisonOperator::Equals },
+                Condition::CurrentMode { mode: "pro".into(), operator: ComparisonOperator::Equals },
+            ],
+        });
+        let (passed, _) = AutomationEngine::evaluate_conditions(&cond, &ctx);
+        assert!(!passed);
+    }
+
+    // ========================================================================
+    // Agent condition (no agents registered = offline)
+    // ========================================================================
+
+    #[test]
+    fn test_agent_offline_when_not_registered() {
+        let ctx = test_ctx();
+        let cond = Some(ConditionGroup {
+            operator: LogicalOperator::And,
+            conditions: vec![Condition::AgentOnline {
+                agent_id: "nonexistent-agent".into(),
+            }],
+        });
+        let (passed, _) = AutomationEngine::evaluate_conditions(&cond, &ctx);
+        assert!(!passed);
+    }
+
+    // ========================================================================
+    // Sensor condition (no sensor data = false)
+    // ========================================================================
+
+    #[test]
+    fn test_sensor_no_data() {
+        let ctx = test_ctx();
+        let cond = Some(ConditionGroup {
+            operator: LogicalOperator::And,
+            conditions: vec![Condition::SensorValue {
+                room_id: "salon".into(),
+                metric: SensorMetric::Temperature,
+                operator: ComparisonOperator::GreaterThan,
+                value: 25.0,
+            }],
+        });
+        let (passed, evals) = AutomationEngine::evaluate_conditions(&cond, &ctx);
+        assert!(!passed);
+        assert!(evals[0].details.contains("no sensor data"));
+    }
+
+    // ========================================================================
+    // Feature condition
+    // ========================================================================
+
+    #[test]
+    fn test_feature_condition_no_registry() {
+        let ctx = test_ctx(); // feature_registry = None
+        let cond = Some(ConditionGroup {
+            operator: LogicalOperator::And,
+            conditions: vec![Condition::Feature {
+                feature_id: "agent.online".into(),
+                operator: ComparisonOperator::Equals,
+                value: serde_json::Value::Bool(true),
+            }],
+        });
+        let (passed, evals) = AutomationEngine::evaluate_conditions(&cond, &ctx);
+        assert!(!passed);
+        assert!(evals[0].details.contains("not available"));
+    }
+
+    #[test]
+    fn test_feature_condition_with_registry() {
+        let mut ctx = test_ctx();
+        let registry = FeatureRegistry::new();
+        registry.set_feature("test.flag", FeatureValue::Bool(true), "test", 0.9, 300);
+        ctx.feature_registry = Some(Arc::new(registry));
+
+        let cond = Some(ConditionGroup {
+            operator: LogicalOperator::And,
+            conditions: vec![Condition::Feature {
+                feature_id: "test.flag".into(),
+                operator: ComparisonOperator::Equals,
+                value: serde_json::Value::Bool(true),
+            }],
+        });
+        let (passed, _) = AutomationEngine::evaluate_conditions(&cond, &ctx);
+        assert!(passed);
+    }
+
+    #[test]
+    fn test_feature_condition_not_found() {
+        let mut ctx = test_ctx();
+        let registry = FeatureRegistry::new();
+        ctx.feature_registry = Some(Arc::new(registry));
+
+        let cond = Some(ConditionGroup {
+            operator: LogicalOperator::And,
+            conditions: vec![Condition::Feature {
+                feature_id: "nonexistent".into(),
+                operator: ComparisonOperator::Equals,
+                value: serde_json::Value::Bool(true),
+            }],
+        });
+        let (passed, evals) = AutomationEngine::evaluate_conditions(&cond, &ctx);
+        assert!(!passed);
+        assert!(evals[0].details.contains("not found"));
+    }
+
+    // ========================================================================
+    // Feature value comparisons
+    // ========================================================================
+
+    #[test]
+    fn test_evaluate_feature_bool() {
+        let (m, _) = AutomationEngine::evaluate_feature_value(
+            &FeatureValue::Bool(true), &ComparisonOperator::Equals,
+            &serde_json::Value::Bool(true), "test",
+        );
+        assert!(m);
+
+        let (m, _) = AutomationEngine::evaluate_feature_value(
+            &FeatureValue::Bool(true), &ComparisonOperator::NotEquals,
+            &serde_json::Value::Bool(false), "test",
+        );
+        assert!(m);
+
+        let (m, _) = AutomationEngine::evaluate_feature_value(
+            &FeatureValue::Bool(true), &ComparisonOperator::GreaterThan,
+            &serde_json::Value::Bool(false), "test",
+        );
+        assert!(!m); // GT not applicable for bools
+    }
+
+    #[test]
+    fn test_evaluate_feature_float() {
+        let (m, _) = AutomationEngine::evaluate_feature_value(
+            &FeatureValue::Float(0.8), &ComparisonOperator::GreaterThan,
+            &serde_json::json!(0.5), "cpu",
+        );
+        assert!(m);
+
+        let (m, _) = AutomationEngine::evaluate_feature_value(
+            &FeatureValue::Float(0.3), &ComparisonOperator::LessOrEqual,
+            &serde_json::json!(0.5), "cpu",
+        );
+        assert!(m);
+
+        let (m, _) = AutomationEngine::evaluate_feature_value(
+            &FeatureValue::Float(0.5), &ComparisonOperator::Equals,
+            &serde_json::json!(0.5), "cpu",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn test_evaluate_feature_string() {
+        let (m, _) = AutomationEngine::evaluate_feature_value(
+            &FeatureValue::String("Firefox".into()), &ComparisonOperator::Equals,
+            &serde_json::json!("firefox"), "app",
+        );
+        assert!(m); // case-insensitive
+
+        let (m, _) = AutomationEngine::evaluate_feature_value(
+            &FeatureValue::String("Firefox Developer".into()), &ComparisonOperator::Contains,
+            &serde_json::json!("firefox"), "app",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn test_evaluate_feature_string_list() {
+        let list = FeatureValue::StringList(vec!["chrome".into(), "slack".into(), "code".into()]);
+
+        let (m, _) = AutomationEngine::evaluate_feature_value(
+            &list, &ComparisonOperator::Contains, &serde_json::json!("slack"), "procs",
+        );
+        assert!(m);
+
+        let (m, _) = AutomationEngine::evaluate_feature_value(
+            &list, &ComparisonOperator::Contains, &serde_json::json!("firefox"), "procs",
+        );
+        assert!(!m);
+
+        let (m, _) = AutomationEngine::evaluate_feature_value(
+            &list, &ComparisonOperator::NotEquals, &serde_json::json!("vim"), "procs",
+        );
+        assert!(m);
+    }
+
+    // ========================================================================
+    // Nested group condition
+    // ========================================================================
+
+    #[test]
+    fn test_nested_group() {
+        let ctx = test_ctx();
+        let cond = Some(ConditionGroup {
+            operator: LogicalOperator::And,
+            conditions: vec![
+                Condition::CurrentMode { mode: "veille".into(), operator: ComparisonOperator::Equals },
+                Condition::Group(Box::new(ConditionGroup {
+                    operator: LogicalOperator::Or,
+                    conditions: vec![
+                        Condition::CurrentMode { mode: "pro".into(), operator: ComparisonOperator::Equals },
+                        Condition::CurrentMode { mode: "veille".into(), operator: ComparisonOperator::Equals },
+                    ],
+                })),
+            ],
+        });
+        let (passed, _) = AutomationEngine::evaluate_conditions(&cond, &ctx);
+        assert!(passed);
+    }
+
+    // ========================================================================
+    // Custom condition (always false, not implemented)
+    // ========================================================================
+
+    #[test]
+    fn test_custom_condition_not_implemented() {
+        let ctx = test_ctx();
+        let cond = Some(ConditionGroup {
+            operator: LogicalOperator::And,
+            conditions: vec![Condition::Custom {
+                plugin_name: "test-plugin".into(),
+                condition_type: "check_something".into(),
+                config: serde_json::Value::Null,
+            }],
+        });
+        let (passed, evals) = AutomationEngine::evaluate_conditions(&cond, &ctx);
+        assert!(!passed);
+        assert!(evals[0].details.contains("not implemented"));
     }
 }
