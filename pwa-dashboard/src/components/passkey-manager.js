@@ -283,7 +283,10 @@ class PasskeyManager extends LitElement {
       // Étape 2: Demander au navigateur de créer la passkey
       // L'utilisateur va devoir utiliser Touch ID, Face ID, Windows Hello, etc.
       console.log('[passkey-manager] Calling navigator.credentials.create()...')
-      const credential = await navigator.credentials.create(preparedOptions)
+      const credential = await Promise.race([
+        navigator.credentials.create(preparedOptions),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('WebAuthn timeout (60s)')), 60000))
+      ])
       console.log('[passkey-manager] Credential created successfully')
 
       console.log('[passkey-manager] Credential created:', credential)

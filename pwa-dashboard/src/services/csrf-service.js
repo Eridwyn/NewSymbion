@@ -64,14 +64,18 @@ class CsrfService extends EventTarget {
       }
 
       // Requête au backend pour obtenir un nonce
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000)
       const response = await fetch(`${API_BASE}/auth/csrf/nonce`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        credentials: 'include'
+        credentials: 'include',
+        signal: controller.signal
       })
+      clearTimeout(timeoutId)
 
       if (!response.ok) {
         const errorText = await response.text()
