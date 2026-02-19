@@ -165,16 +165,23 @@ impl FeatureRegistry {
         self.set(sample);
     }
 
-    /// Get a feature by ID (returns None if expired or not found)
+    /// Get a feature by ID (returns None if expired or not found).
+    /// Expired entries are lazily removed to prevent unbounded ghost entries.
     pub fn get(&self, feature_id: &str) -> Option<FeatureSample> {
-        let features = self.features.read();
-        features.get(feature_id).and_then(|sample| {
-            if sample.is_expired() {
-                None
-            } else {
-                Some(sample.clone())
+        let is_expired;
+        {
+            let features = self.features.read();
+            match features.get(feature_id) {
+                Some(sample) if !sample.is_expired() => return Some(sample.clone()),
+                Some(_) => is_expired = true,
+                None => return None,
             }
-        })
+        }
+        if is_expired {
+            let mut features = self.features.write();
+            features.remove(feature_id);
+        }
+        None
     }
 
     /// Get feature value as bool
@@ -293,15 +300,17 @@ pub struct FeatureRegistrySummary {
 // Feature ID Constants
 // ============================================================================
 
-/// Well-known feature IDs
+/// Well-known feature IDs used across the intelligence pipeline.
+/// These constants ensure consistent naming between producers (agents, plugins, kernel)
+/// and consumers (vector builder, automations, decision engine).
 pub mod feature_ids {
-    // Agent features
+    /// Agent telemetry — published by symbion-agent-host via MQTT
     pub const AGENT_ONLINE: &str = "agent.online";
     pub const AGENT_IDLE_SECONDS: &str = "agent.idle.seconds";
     pub const AGENT_CPU_USAGE: &str = "agent.cpu.usage";
     pub const AGENT_MEMORY_USAGE: &str = "agent.memory.usage";
 
-    // Process category features (from classifier)
+    /// Process categories — computed by ProcessClassifier from agent telemetry
     pub const PROCESS_CATEGORY_IDE: &str = "process.category.ide";
     pub const PROCESS_CATEGORY_BROWSER: &str = "process.category.browser";
     pub const PROCESS_CATEGORY_MEDIA: &str = "process.category.media";
@@ -309,30 +318,30 @@ pub mod feature_ids {
     pub const PROCESS_CATEGORY_GAMING: &str = "process.category.gaming";
     pub const PROCESS_CATEGORY_OFFICE: &str = "process.category.office";
 
-    // Summary process features (computed by classifier)
+    /// Summary work/leisure signals — derived from process categories
     pub const PROCESS_WORK_ACTIVE: &str = "process.work_active";
     pub const PROCESS_LEISURE_ACTIVE: &str = "process.leisure_active";
 
-    // Network features
+    /// Network status — from agent system info
     pub const NET_SSID: &str = "net.ssid";
     pub const NET_CONNECTED: &str = "net.connected";
 
-    // Presence features (from Freebox plugin)
+    /// Presence detection — from Freebox plugin LAN device tracking
     pub const PRESENCE_ANYONE_HOME: &str = "presence.anyone_home";
     pub const PRESENCE_PHONE: &str = "presence.phone";
     pub const PRESENCE_PHONE_IP: &str = "presence.phone.ip";
 
-    // Environment features
+    /// Environment sensors — from sensor MQTT topic
     pub const ENV_TEMPERATURE: &str = "env.temperature";
     pub const ENV_HUMIDITY: &str = "env.humidity";
 
-    // Time features (computed by kernel)
+    /// Temporal features — computed by kernel on each prediction cycle
     pub const TIME_HOUR: &str = "time.hour";
     pub const TIME_DAY_OF_WEEK: &str = "time.day_of_week";
     pub const TIME_IS_WEEKEND: &str = "time.is_weekend";
     pub const TIME_IS_BUSINESS_HOURS: &str = "time.is_business_hours";
 
-    // Context features
+    /// Context state — current mode and duration
     pub const CONTEXT_MODE: &str = "context.mode";
     pub const CONTEXT_TIME_IN_MODE: &str = "context.time_in_mode";
 }

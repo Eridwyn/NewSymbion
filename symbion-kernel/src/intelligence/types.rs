@@ -127,7 +127,10 @@ pub struct UserFeedback {
     pub was_correction: bool,      // true if different from prediction
 }
 
-/// Pattern with computed decay for export/debug (v1.1.9)
+/// Pattern with computed decay for export/debug (v1.1.9).
+/// Note: `decayed_confidence` is a time-dependent snapshot computed at export time.
+/// The same pattern exported at different times will have different decayed values.
+/// Use `days_since_seen` for reproducible comparisons.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PatternExport {
     pub mode: String,

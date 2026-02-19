@@ -33,8 +33,11 @@ pub struct IntelligenceConfig {
 
     // ========== v1.1.9 Stabilization Parameters ==========
 
-    /// Decay coefficients for pattern aging [<7d, <30d, <90d, >90d]
-    /// Default: [1.0, 0.9, 0.7, 0.4] - softer decay for seasonal patterns
+    /// Decay coefficients for pattern aging by recency bracket:
+    /// - [0] <7 days (fresh): 1.0 = full weight, pattern is recent and reliable
+    /// - [1] <30 days (recent): 0.9 = slight decay, still highly relevant
+    /// - [2] <90 days (aging): 0.7 = moderate decay, may be seasonal
+    /// - [3] >90 days (old): 0.4 = significant decay, kept for long-term trends
     pub decay_coefficients: [f32; 4],
 
     /// Days before a dead pattern is eligible for purge
@@ -184,13 +187,19 @@ pub struct SignalWeights {
 
 impl Default for SignalWeights {
     fn default() -> Self {
-        Self {
+        let weights = Self {
             temporal: 0.35,       // Time patterns are reliable
             behavioral: 0.35,     // Learned patterns matter
             agent_activity: 0.15, // Increased: active apps are strong signal
             environmental: 0.05,
             momentum: 0.10,
-        }
+        };
+        debug_assert!({
+            let sum = weights.temporal + weights.behavioral + weights.agent_activity +
+                      weights.environmental + weights.momentum;
+            (sum - 1.0).abs() < 0.01
+        }, "SignalWeights must sum to 1.0");
+        weights
     }
 }
 

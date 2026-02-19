@@ -29,6 +29,31 @@ use std::time::Instant;
 use time::OffsetDateTime;
 // timezone handled via crate::intelligence::local_now()
 
+/// Centralized mode alias table: (input_alias, canonical_slug, base_mode)
+/// Used by ForceMode action to resolve user-friendly names to core modes.
+const MODE_ALIASES: &[(&str, &str, Mode)] = &[
+    ("cravate", "pro", Mode::Cravate),
+    ("work", "pro", Mode::Cravate),
+    ("professional", "pro", Mode::Cravate),
+    ("pro", "pro", Mode::Cravate),
+    ("focus", "focus", Mode::Cravate),     // Focus maps to Cravate theme
+    ("intime", "maison", Mode::Intime),
+    ("home", "maison", Mode::Intime),
+    ("domestic", "maison", Mode::Intime),
+    ("maison", "maison", Mode::Intime),
+    ("neutre", "veille", Mode::Neutre),
+    ("neutral", "veille", Mode::Neutre),
+    ("eco", "veille", Mode::Neutre),
+    ("veille", "veille", Mode::Neutre),
+];
+
+/// Resolve a mode string to its core (Mode, slug) pair via the alias table.
+fn resolve_core_mode(mode_lower: &str) -> Option<(Mode, String)> {
+    MODE_ALIASES.iter()
+        .find(|(alias, _, _)| *alias == mode_lower)
+        .map(|(_, slug, mode)| (*mode, slug.to_string()))
+}
+
 /// Context available during condition evaluation and action execution
 pub struct ExecutionContext {
     pub context_engine: Arc<ContextEngine>,
@@ -131,14 +156,9 @@ impl AutomationEngine {
                     current, mode, operator, matches
                 );
 
-                let op_str = match operator {
-                    ComparisonOperator::Equals => "==",
-                    ComparisonOperator::NotEquals => "!=",
-                    _ => "??",
-                };
                 (
                     matches,
-                    format!("current mode '{}' {} '{}' → {}", current, op_str, mode, matches),
+                    format!("current mode '{}' {} '{}' → {}", current, operator, mode, matches),
                 )
             }
 
@@ -162,7 +182,9 @@ impl AutomationEngine {
 
             Condition::DayOfWeek { days } => {
                 let now_local = crate::intelligence::local_now();
-                let weekday = now_local.weekday().number_days_from_sunday(); // 0=Sun, 6=Sat
+                // Convention: 0=Sunday, 6=Saturday (time crate's number_days_from_sunday)
+                // Automation configs must use this convention for day matching
+                let weekday = now_local.weekday().number_days_from_sunday();
                 let matches = days.contains(&weekday);
                 (
                     matches,
@@ -711,15 +733,9 @@ impl AutomationEngine {
 
             ActionDefinition::ForceMode { mode, duration_minutes, reason, use_override, .. } => {
                 // INVARIANT 2: Validate mode explicitly - no implicit behavior
-                // Phase 1: Check core system modes (backward compatibility)
+                // Phase 1: Check core system modes via centralized alias table
                 let mode_lower = mode.to_lowercase();
-                let core_mode = match mode_lower.as_str() {
-                    "cravate" | "work" | "professional" | "pro" => Some((Mode::Cravate, "pro".to_string())),
-                    "intime" | "home" | "domestic" | "maison" => Some((Mode::Intime, "maison".to_string())),
-                    "neutre" | "neutral" | "eco" | "veille" => Some((Mode::Neutre, "veille".to_string())),
-                    "focus" => Some((Mode::Cravate, "focus".to_string())), // Focus maps to Cravate theme
-                    _ => None,
-                };
+                let core_mode = resolve_core_mode(&mode_lower);
 
                 // Phase 2: If not a core mode, check mode_registry for dynamic modes
                 let (target_mode, mode_slug, theme_override) = if let Some((mode_enum, slug)) = core_mode {
@@ -766,7 +782,8 @@ impl AutomationEngine {
                     )));
                 };
 
-                // Determine if we should use override (temporary) or natural (permanent until next change)
+                // Single-path mode change: either override OR natural, never both.
+                // Each path performs a single atomic call to ContextEngine.
                 let should_use_override = use_override.unwrap_or(false);
 
                 if should_use_override {

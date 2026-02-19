@@ -186,6 +186,14 @@ impl ContextIntelligence {
                 // Extract category from reason (e.g., "insufficient_confidence (...)" -> "insufficient_confidence")
                 let category = reason.split(' ').next().unwrap_or(reason).to_string();
                 *stats.blocked_reasons.entry(category).or_insert(0) += 1;
+                // Cap blocked_reasons to prevent unbounded memory growth
+                if stats.blocked_reasons.len() > 20 {
+                    // Keep top 20 by count, remove least frequent
+                    let mut entries: Vec<_> = stats.blocked_reasons.drain().collect();
+                    entries.sort_by(|a, b| b.1.cmp(&a.1));
+                    entries.truncate(20);
+                    stats.blocked_reasons = entries.into_iter().collect();
+                }
             }
         }
 
@@ -601,6 +609,7 @@ impl ContextIntelligence {
         for room_id in rooms {
             if let Some(env) = self.sensors.get_environment_by_room(&room_id) {
                 // Only use if recent (< 5 minutes old)
+                // Note: uses chrono because EnvironmentReading.timestamp is chrono::DateTime<Utc>
                 let age_seconds = (chrono::Utc::now() - env.current.timestamp).num_seconds();
                 if age_seconds < 300 {
                     return (env.current.temperature_c, env.current.humidity_pct);

@@ -240,6 +240,20 @@ pub enum ComparisonOperator {
     Contains,
 }
 
+impl std::fmt::Display for ComparisonOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Equals => write!(f, "=="),
+            Self::NotEquals => write!(f, "!="),
+            Self::GreaterThan => write!(f, ">"),
+            Self::LessThan => write!(f, "<"),
+            Self::GreaterOrEqual => write!(f, ">="),
+            Self::LessOrEqual => write!(f, "<="),
+            Self::Contains => write!(f, "contains"),
+        }
+    }
+}
+
 /// Sensor metric types for conditions
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

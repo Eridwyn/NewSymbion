@@ -82,9 +82,11 @@ pub fn create_mqtt_client(config: &HostsConfig) -> Result<AsyncClient, Box<dyn s
     
     let mut opts = MqttOptions::new("symbion-kernel-bridge", &mqtt_cfg.host, mqtt_cfg.port);
     opts.set_keep_alive(std::time::Duration::from_secs(15));
-    opts.set_max_packet_size(1024 * 1024, 1024 * 1024); // 1 MB max pour gros payloads (notes, etc.)
+    let max_packet = std::env::var("SYMBION_MQTT_MAX_PACKET")
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(1024 * 1024);
+    opts.set_max_packet_size(max_packet, max_packet);
     let (client, mut eventloop) = AsyncClient::new(opts, 10);
-    
+
     // Lancer l'eventloop du client bridge en arrière-plan
     tokio::spawn(async move {
         loop {
@@ -108,7 +110,9 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
         
         let mut opts = MqttOptions::new("symbion-kernel-listener", &mqtt_cfg.host, mqtt_cfg.port);
         opts.set_keep_alive(std::time::Duration::from_secs(15));
-        opts.set_max_packet_size(1024 * 1024, 1024 * 1024); // 1 MB max pour gros payloads (notes, etc.)
+        let max_packet = std::env::var("SYMBION_MQTT_MAX_PACKET")
+            .ok().and_then(|v| v.parse().ok()).unwrap_or(1024 * 1024);
+        opts.set_max_packet_size(max_packet, max_packet);
         let (client, mut eventloop) = AsyncClient::new(opts, 200); // Buffer increased for streaming (100+ notes)
         
         if let Err(e) = client.subscribe("symbion/hosts/heartbeat@v2", QoS::AtLeastOnce).await {

@@ -190,10 +190,13 @@ impl ActiveSession {
     /// Get stability score with time-based decay.
     /// Decays toward 0.0 based on time since last confirmation.
     /// Half-life: 60 minutes (stability halves every hour without confirmation).
+    /// Formula: score * e^(-t * ln(2) / half_life) where ln(2) ≈ 0.693
     pub fn decayed_stability(&self) -> f32 {
+        const LN2: f32 = 0.693_147;
+        const HALF_LIFE_MINUTES: f32 = 60.0;
         let elapsed = now_paris() - self.last_confirmed_at;
         let minutes = if elapsed.is_negative() { 0.0 } else { elapsed.whole_minutes() as f32 };
-        let decay = (-minutes * 0.693 / 60.0).exp(); // half-life 60 min
+        let decay = (-minutes * LN2 / HALF_LIFE_MINUTES).exp();
         self.stability_score * decay
     }
 }
@@ -408,6 +411,17 @@ impl SessionManager {
 
         // Update pending transition tracker
         let mut pending = self.pending.write();
+
+        // Timeout: reset pending if stuck for > 5 minutes (e.g., oscillating predictions)
+        if let Some(ref p) = *pending {
+            let age = now_paris() - p.first_seen;
+            if age.whole_seconds() > 300 {
+                eprintln!("[sessions] pending transition timed out after {:?} for mode '{}', resetting",
+                    age, p.mode);
+                *pending = None;
+            }
+        }
+
         let consecutive = if let Some(ref mut p) = *pending {
             if p.mode == predicted_mode {
                 p.consecutive_count += 1;

@@ -184,7 +184,7 @@ impl DecisionEngine {
 
     /// Obtenir le seuil selon impact level
     fn get_threshold(&self, impact_level: &ImpactLevel) -> f32 {
-        let config = self.config.read().expect("[decision-engine] Config lock poisoned (read)");
+        let config = self.config.read().unwrap_or_else(|e| e.into_inner());
         match impact_level {
             ImpactLevel::Low => config.impact_thresholds.low,
             ImpactLevel::Medium => config.impact_thresholds.medium,
@@ -195,14 +195,14 @@ impl DecisionEngine {
 
     /// Mettre à jour la configuration
     pub fn update_config(&self, config: DecisionConfig) {
-        let mut current = self.config.write().expect("[decision-engine] Config lock poisoned (write)");
+        let mut current = self.config.write().unwrap_or_else(|e| e.into_inner());
         *current = config;
         eprintln!("[decision-engine] Config updated: {:?}", current.impact_thresholds);
     }
 
     /// Obtenir la configuration actuelle
     pub fn config(&self) -> DecisionConfig {
-        self.config.read().expect("[decision-engine] Config lock poisoned (read)").clone()
+        self.config.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 
