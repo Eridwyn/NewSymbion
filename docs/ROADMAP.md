@@ -1,9 +1,9 @@
 # Roadmap Technique - NewSymbion
 
 **Version** : 2026-02 (Post Audit + Sprint P0/P1/P2 complet)
-**Statut** : Fondations complètes, 29 P0/P1 + 37 P2 corrigées, 5 P2 restantes (4 différées)
+**Statut** : Fondations complètes, 29 P0/P1 + 42 P2 corrigées, 0 P2 restantes
 **Dernière mise à jour** : 19 Février 2026
-**Score global** : 4.4/5
+**Score global** : 4.5/5
 
 ---
 
@@ -13,25 +13,25 @@
 
 | Composant | Langage | LOC | Fichiers | Score | Tests |
 |-----------|---------|----:|----------|-------|------:|
-| **symbion-kernel** | Rust | ~40,150 | 87 | 4.7/5 | 287 |
+| **symbion-kernel** | Rust | ~40,150 | 87 | 4.7/5 | 308 |
 | **pwa-dashboard** | JS (Lit) | ~29,000 | 43 | 3.5/5 | 0 |
 | **symbion-agent-host** | Rust | ~2,100 | 13 | 4/5 | 14 |
 | **Plugins** (5) | Rust | ~4,900 | 14 | 4.8/5 | 2 |
 | **Infra** (scripts/CI) | Bash/YAML | ~2,400 | 20 | 3.5/5 | - |
-| **Total** | | **~86,050** | **177** | **4.2/5** | **303** |
+| **Total** | | **~86,050** | **177** | **4.2/5** | **324** |
 
 ### Chiffres Clés
 
 | Métrique | Valeur |
 |----------|--------|
-| Unit Tests | 303+ (287 kernel + 14 agent + 2 plugins) |
+| Unit Tests | 324+ (308 kernel + 14 agent + 2 plugins) |
 | API Routes (http.rs) | 107 .route() |
 | MQTT Topics | 10 subscriptions |
 | Automations actives | 16 (+ intelligence-managed) |
 | Modes contextuels | 4 système + custom |
 | Intelligence Samples | 34 (apprentissage continu) |
 | Data files (JSON) | 12 |
-| **Issues audit** | **116 identifiées — 29 P0/P1 + 37 P2 corrigées, 5 P2 + 49 P3 restantes** |
+| **Issues audit** | **116 identifiées — 29 P0/P1 + 42 P2 corrigées, 0 P2 + 49 P3 restantes** |
 
 ---
 
@@ -282,14 +282,14 @@
 |--------|-------|-------:|-------:|---:|-----------:|---:|--------:|
 | Kernel Core | 4.8/5 | ~~0~~ | ~~1~~ | ~~3~~ | 0 | 9 | 9 |
 | Intelligence Engine | 4.5/5 | ~~2~~ | ~~2~~ | ~~21~~ | 0 | 13 | 13 |
-| Decision + Automation | 4.6/5 | ~~1~~ | ~~4~~ | ~~9~~ | 1 | 9 | 10 |
+| Decision + Automation | 4.7/5 | ~~1~~ | ~~4~~ | ~~10~~ | 0 | 9 | 9 |
 | Plugins (5) | 4.9/5 | ~~1~~ | ~~2~~ | ~~5~~ | 0 | 4 | 4 |
-| Agent Host | 4.3/5 | ~~4~~ | ~~6~~ | ~~5~~ | 2 | 0 | 2 |
-| PWA Dashboard | 3.8/5 | ~~3~~ | ~~2~~ | ~~10~~ | 1 | 10 | 11 |
-| Infrastructure | 3.8/5 | ~~0~~ | ~~1~~ | ~~9~~ | 1 | 4 | 5 |
-| **Total** | **4.4/5** | **~~11~~** | **~~18~~** | **~~62~~** | **5** | **49** | **54** |
+| Agent Host | 4.5/5 | ~~4~~ | ~~6~~ | ~~7~~ | 0 | 0 | 0 |
+| PWA Dashboard | 3.9/5 | ~~3~~ | ~~2~~ | ~~11~~ | 0 | 10 | 10 |
+| Infrastructure | 4.0/5 | ~~0~~ | ~~1~~ | ~~10~~ | 0 | 4 | 4 |
+| **Total** | **4.5/5** | **~~11~~** | **~~18~~** | **~~67~~** | **0** | **49** | **49** |
 
-> **Tous P0/P1 corrigés** (16-18 Fév), **37 P2 corrigés** Sprint 5A/5B (19 Fév), **5 P2 différés** Sprint 6
+> **Tous P0/P1 corrigés** (16-18 Fév), **37 P2 corrigés** Sprint 5A/5B (19 Fév), **5 P2 corrigés** Sprint 6 (19 Fév) — **0 P2 restantes**
 
 ---
 
@@ -389,7 +389,7 @@
 | ~~Actions si Decision error~~ | `engine.rs` | ✅ `catch_unwind` |
 | ~~Cooldown pendant execution~~ | `listener.rs` | ✅ `Mutex<HashSet>` execution lock |
 | ~~Feature registry silently false~~ | — | 🔇 Déjà corrigé P1 |
-| Test coverage minimale | `engine.rs` | ⏳ Différé Sprint 6 |
+| ~~Test coverage minimale~~ | `engine.rs` | ✅ 24 tests (Sprint 6) |
 
 #### Plugins (5) — ✅ TOUS CORRIGÉS (2 fixés + 3 faux positifs)
 
@@ -401,7 +401,7 @@
 | ~~Freebox downloads API~~ | — | 🔇 Faux positif |
 | ~~Freebox chemins config~~ | — | 🔇 By-design (API Freebox) |
 
-#### Agent Host (7) — 5 corrigés, 2 différés
+#### Agent Host (7) — ✅ TOUS CORRIGÉS
 
 | Issue | Fichier | Status |
 |-------|---------|--------|
@@ -410,10 +410,10 @@
 | ~~Load average 0.0 Windows~~ | — | 🔇 By-design (cross-platform) |
 | ~~Dead code tray.rs~~ | — | 🔇 By-design (conditional) |
 | ~~GitHub API sans token~~ | `updater.rs` | ✅ `GITHUB_TOKEN` optionnel |
-| Gestion services cross-platform | — | ⏳ Différé Sprint 6 |
-| Kill sans restart | — | ⏳ Différé Sprint 6 |
+| ~~Gestion services cross-platform~~ | `execution/mod.rs` | ✅ ServiceManager (Sprint 6) |
+| ~~Kill + restart process~~ | `execution/mod.rs` | ✅ kill_and_restart (Sprint 6) |
 
-#### PWA Dashboard (11) — 10 corrigés, 1 à vérifier
+#### PWA Dashboard (11) — ✅ TOUS CORRIGÉS
 
 | Issue | Fichier | Status |
 |-------|---------|--------|
@@ -423,13 +423,13 @@
 | ~~API_BASE sans cert pinning~~ | — | 🔇 N/A (LAN only, mkcert) |
 | ~~MQTT reconnection counter~~ | — | 🔇 Déjà corrigé |
 | ~~HSL bounds check~~ | — | 🔇 Faux positif (toujours positif) |
-| Login form double-submit | `boot-terminal.js` | ❓ À vérifier |
+| ~~Login form double-submit~~ | `boot-terminal.js` | ✅ disabled + loading state (Sprint 6) |
 | ~~WebAuthn sans timeout~~ | `passkey-manager.js` | ✅ Promise.race 60s |
 | ~~`<br>` au lieu de `<br/>`~~ | `sanitization.js` | ✅ Self-closing tag |
 | ~~Request batching~~ | — | 🔇 N/A (déjà optimisé) |
 | ~~aria-expanded manquant~~ | `dashboard-app.js` | ✅ Attribut ajouté |
 
-#### Infrastructure (10) — 9 corrigés, 1 différé
+#### Infrastructure (10) — ✅ TOUS CORRIGÉS
 
 | Issue | Fichier | Status |
 |-------|---------|--------|
@@ -437,7 +437,7 @@
 | ~~Dashboard systemd WorkingDirectory~~ | `symbion-dashboard.service` | ✅ Chemin corrigé |
 | ~~Plugins systemd tilde~~ | — | 🔇 Faux positif (bash source OK) |
 | ~~Docker resource limits~~ | `docker-compose.yml` | ✅ Memory + CPU limits |
-| Release GPG signing | `release.yml` | ⏳ Différé Sprint 6 |
+| ~~Release GPG signing~~ | `release.yml` | ✅ GPG conditionnel (Sprint 6) |
 | ~~CLAUDE.md exclu git~~ | — | 🔇 Intentionnel |
 | ~~Chemins hardcodés backup~~ | `backup-symbion.sh` | ✅ `SCRIPT_DIR` + env vars |
 | ~~stat GNU-only~~ | — | 🔇 Faux positif (dual syntax déjà) |
@@ -586,7 +586,7 @@
 - [x] ~~Stability score decay~~ → decay exponentiel half-life 60 min (`sessions.rs:184-192`)
 - [x] ~~symbion-devkit obsolète~~ → Supprimé du workspace
 
-### P2 — 37 Corrigés Sprint 5A/5B (19 Février 2026)
+### P2 — 42 Corrigés Sprint 5A/5B + Sprint 6 (19 Février 2026)
 
 **Commit `1789789` — Kernel core + Intelligence + Decision (26 issues)**
 - [x] ~~Notification path hardcodé~~ → `SYMBION_DATA_DIR` env var (`notifications.rs`)
@@ -635,6 +635,13 @@
 - [x] ~~Backup paths hardcodés~~ → `SCRIPT_DIR` + env vars
 - [x] ~~Nginx security headers~~ → X-Content-Type, X-Frame, HSTS, CSP, Referrer
 
+**Commit `f1b1951` — Sprint 6 : P2 Différés (5 issues)**
+- [x] ~~Test coverage automation~~ → 24 tests engine.rs (308 total kernel)
+- [x] ~~ServiceManager cross-platform~~ → systemctl/sc/launchctl (`execution/mod.rs`)
+- [x] ~~Kill + restart process~~ → kill_and_restart par PID + nom (`execution/mod.rs`)
+- [x] ~~GPG signing release~~ → étape conditionnelle (`release.yml`)
+- [x] ~~Login double-submit~~ → disabled + loading state (`boot-terminal.js`)
+
 ---
 
 ## Plan d'Action — Sprints
@@ -676,17 +683,19 @@
 - [x] PWA : CSRF/WebAuthn timeout + br + aria-expanded (4 issues)
 - [x] Infra : pipefail + systemd + docker + backup + nginx (5 issues)
 
-### Sprint 6 (Prochain) — Différés P2 + PR6
+### Sprint 6 — P2 Différés ✅ TERMINÉ (19 Fév 2026)
+- [x] D10 : 24 tests automation engine (308 total kernel)
+- [x] A6 : ServiceManager cross-platform (systemctl/sc/launchctl)
+- [x] A7 : kill_and_restart process
+- [x] I5 : GPG signing conditionnel dans release.yml
+- [x] PWA-7 : Login double-submit disabled + loading state
+
+### Sprint 7 (Prochain) — PR6 + Features
 - [ ] PR6 : Let's Encrypt ACME
 - [ ] PR6 : SQLite migration (12 fichiers JSON)
-- [ ] D10 : Test coverage automation engine (large)
-- [ ] A6 : Gestion services cross-platform (design needed)
-- [ ] A7 : Kill + restart process (depends A6)
-- [ ] I5 : GPG signing release workflow
-- [ ] PWA-7 : Login double-submit (vérifier si problème existe)
 - [ ] Tests PWA (objectif 50%+ coverage)
 
-### Sprint 7+ (Long terme) — Features + P3
+### Sprint 8+ (Long terme) — Features + P3
 - [ ] F3 Intentions Log (type déjà défini)
 - [ ] F2 Digital Hygiene (activity tracking + burnout)
 - [ ] F5 Light Actuator (bridge hardware Tuya)
