@@ -30,6 +30,10 @@ class MqttService extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback()
     if (this.client) {
+      // Unsubscribe all topics before disconnecting
+      if (this.client.connected) {
+        this.client.unsubscribe('#', () => {})
+      }
       this.client.end()
     }
   }
