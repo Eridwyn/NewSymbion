@@ -1109,7 +1109,7 @@ class DashboardApp extends LitElement {
 
         ${this.currentUser ? html`
           <div class="user-menu">
-            <button class="user-button" @click="${this.toggleUserMenu}">
+            <button class="user-button" @click="${this.toggleUserMenu}" aria-expanded="${this.showUserMenu}">
               <span>👤</span>
               <span>${this.currentUser.username}</span>
             </button>

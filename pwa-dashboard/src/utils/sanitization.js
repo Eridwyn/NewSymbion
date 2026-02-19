@@ -26,10 +26,10 @@ export function escapeHtml(text) {
  * Use for multi-line text content
  *
  * @param {string} text - Raw text to escape
- * @returns {string} HTML-safe escaped string with <br> for newlines
+ * @returns {string} HTML-safe escaped string with <br/> for newlines
  */
 export function escapeHtmlPreserveNewlines(text) {
-  return escapeHtml(text).replace(/\n/g, '<br>')
+  return escapeHtml(text).replace(/\n/g, '<br/>')
 }
 
 /**
