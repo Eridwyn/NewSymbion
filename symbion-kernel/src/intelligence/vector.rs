@@ -398,6 +398,7 @@ impl<'a> VectorBuilder<'a> {
     /// Add a contribution to a dimension with explanation
     /// The contribution is multiplied by confidence (0.0-1.0) to weight by source reliability.
     fn add_contribution(&mut self, dimension: &str, contribution: f32, confidence: f32, feature_id: &str, raw_value: &str) {
+        let confidence = confidence.clamp(0.0, 1.0);
         let effective = contribution * confidence;
         let current = self.dimensions.get(dimension).copied().unwrap_or(0.5);
         let new_value = (current + effective).clamp(0.0, 1.0);
@@ -430,6 +431,8 @@ impl<'a> VectorBuilder<'a> {
                     *val /= sum;
                 }
             }
+        } else {
+            eprintln!("[vector] Zero-sum mode probabilities — normalization skipped");
         }
     }
 }

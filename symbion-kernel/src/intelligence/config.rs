@@ -55,6 +55,12 @@ pub struct IntelligenceConfig {
     /// Quiet hours end (7 = 07:00)
     pub quiet_hours_end: u8,
 
+    // ========== Session Hysteresis Parameters ==========
+
+    /// Confidence threshold to EXIT current mode (lower = more sticky)
+    /// Default: 0.35
+    pub session_exit_threshold: f32,
+
     // ========== v2 Stabilization Parameters ==========
 
     /// v2 configuration for strict auto-apply guards
@@ -101,6 +107,25 @@ pub struct V2StabilizationConfig {
     pub suggestions_enabled: bool,
 }
 
+impl V2StabilizationConfig {
+    /// Validate cross-field constraints. Logs warnings and clamps invalid values.
+    pub fn validate(&mut self) {
+        self.auto_apply_threshold = self.auto_apply_threshold.clamp(0.0, 1.0);
+        if self.min_samples_non_bootstrap > self.min_samples_total {
+            eprintln!("[config] min_samples_non_bootstrap ({}) > min_samples_total ({}), clamping",
+                self.min_samples_non_bootstrap, self.min_samples_total);
+            self.min_samples_non_bootstrap = self.min_samples_total;
+        }
+        if self.bootstrap_decay_half_life_days <= 0.0 {
+            eprintln!("[config] bootstrap_decay_half_life_days must be > 0, using 7.0");
+            self.bootstrap_decay_half_life_days = 7.0;
+        }
+        if self.recent_days_window <= 0 {
+            self.recent_days_window = 14;
+        }
+    }
+}
+
 impl Default for V2StabilizationConfig {
     fn default() -> Self {
         Self {
@@ -134,6 +159,8 @@ impl Default for IntelligenceConfig {
             suggestion_cooldown_minutes: 60,
             quiet_hours_start: 23,
             quiet_hours_end: 7,
+            // session hysteresis
+            session_exit_threshold: 0.35,
             // v2 stabilization
             v2: V2StabilizationConfig::default(),
         }

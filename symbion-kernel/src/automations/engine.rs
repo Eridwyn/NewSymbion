@@ -591,8 +591,18 @@ impl AutomationEngine {
         // Convert automation action to decision action
         let decision_action = action_to_decision(action, automation);
 
-        // Get decision
-        let result = engine.decide(&decision_action, ctx);
+        // Get decision (catch panics from Decision Engine)
+        let decide_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            engine.decide(&decision_action, ctx)
+        }));
+
+        let result = match decide_result {
+            Ok(r) => r,
+            Err(_) => {
+                eprintln!("[automations] Decision Engine panicked for '{}' — blocking action as safety fallback", automation.name);
+                return (None, None, Some("blocked".to_string()), Some(vec!["decision_engine_panic".to_string()]));
+            }
+        };
 
         // Extract outcome info
         match &result.outcome {

@@ -88,6 +88,9 @@ impl FeatureSample {
             return false; // Never expires
         }
         let age = OffsetDateTime::now_utc() - self.timestamp;
+        if age.is_negative() {
+            return false; // Clock skew: feature from future, not expired
+        }
         age.whole_seconds() > self.ttl_seconds as i64
     }
 
@@ -114,6 +117,9 @@ pub struct FeatureRegistry {
 
     /// Cleanup interval in seconds
     cleanup_interval_seconds: u64,
+
+    /// Guard to prevent concurrent cleanup runs
+    cleanup_running: std::sync::atomic::AtomicBool,
 }
 
 impl Default for FeatureRegistry {
@@ -129,6 +135,7 @@ impl FeatureRegistry {
             features: RwLock::new(HashMap::new()),
             last_cleanup: RwLock::new(OffsetDateTime::now_utc()),
             cleanup_interval_seconds: 60, // Cleanup every minute
+            cleanup_running: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -235,12 +242,16 @@ impl FeatureRegistry {
         removed
     }
 
-    /// Maybe run cleanup if interval has passed
+    /// Maybe run cleanup if interval has passed (skip if already running)
     fn maybe_cleanup(&self) {
         let last = *self.last_cleanup.read();
         let elapsed = (OffsetDateTime::now_utc() - last).whole_seconds();
         if elapsed >= self.cleanup_interval_seconds as i64 {
-            self.cleanup();
+            // Try to acquire cleanup lock — skip if already in progress
+            if self.cleanup_running.compare_exchange(false, true, std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::Relaxed).is_ok() {
+                self.cleanup();
+                self.cleanup_running.store(false, std::sync::atomic::Ordering::SeqCst);
+            }
         }
     }
 

@@ -72,8 +72,11 @@ pub struct FcmToken {
     pub registered_at: i64,
 }
 
-/// Chemin de persistance des notifications
-const NOTIFICATIONS_FILE: &str = "/var/lib/symbion/notifications.json";
+/// Chemin de persistance des notifications (configurable via SYMBION_DATA_DIR)
+fn notifications_file() -> String {
+    let base = std::env::var("SYMBION_DATA_DIR").unwrap_or_else(|_| "/var/lib/symbion".to_string());
+    format!("{}/notifications.json", base)
+}
 
 /// Manager de notifications avec Firebase FCM + Email SMTP + ntfy.sh + MQTT
 pub struct NotificationManager {
@@ -132,7 +135,10 @@ impl NotificationManager {
         ) {
             Some(SmtpConfig {
                 server,
-                port: port.parse().unwrap_or(587),
+                port: port.parse().unwrap_or_else(|e| {
+                    eprintln!("[notifications] Invalid SMTP port '{}': {} — using default 587", port, e);
+                    587
+                }),
                 username: user,
                 password: pass,
                 from_email: from,
@@ -186,9 +192,9 @@ impl NotificationManager {
 
     /// Charge les notifications depuis le fichier JSON
     fn load_from_file() -> Vec<Notification> {
-        match std::fs::read_to_string(NOTIFICATIONS_FILE) {
+        match std::fs::read_to_string(&notifications_file()) {
             Ok(content) => serde_json::from_str(&content).unwrap_or_else(|e| {
-                eprintln!("[notifications] Failed to parse {}: {}", NOTIFICATIONS_FILE, e);
+                eprintln!("[notifications] Failed to parse {}: {}", &notifications_file(), e);
                 Vec::new()
             }),
             Err(_) => Vec::new(),
@@ -200,13 +206,13 @@ impl NotificationManager {
         let history = self.history.lock().unwrap();
 
         // Create directory if needed
-        if let Some(parent) = std::path::Path::new(NOTIFICATIONS_FILE).parent() {
+        if let Some(parent) = std::path::Path::new(&notifications_file()).parent() {
             let _ = std::fs::create_dir_all(parent);
         }
 
         match serde_json::to_string_pretty(&*history) {
             Ok(json) => {
-                if let Err(e) = std::fs::write(NOTIFICATIONS_FILE, json) {
+                if let Err(e) = std::fs::write(&notifications_file(), json) {
                     eprintln!("[notifications] Failed to save notifications: {}", e);
                 }
             }
