@@ -829,7 +829,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Cleanup old socket at startup (triple safety net)
     if std::path::Path::new(socket_path).exists() {
         eprintln!("[notes] cleaning up old socket at startup");
-        let _ = std::fs::remove_file(socket_path);
+        if let Err(e) = std::fs::remove_file(socket_path) {
+            eprintln!("[notes] failed to remove old socket: {}", e);
+        }
     }
 
     // Create shutdown channel for graceful termination
@@ -920,7 +922,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Cleanup socket
         if std::path::Path::new(&socket_path_for_cleanup).exists() {
             eprintln!("[notes] cleaning up socket: {}", socket_path_for_cleanup);
-            let _ = std::fs::remove_file(&socket_path_for_cleanup);
+            if let Err(e) = std::fs::remove_file(&socket_path_for_cleanup) {
+                eprintln!("[notes] failed to remove socket on shutdown: {}", e);
+            }
         }
 
         // Signal main loop to exit

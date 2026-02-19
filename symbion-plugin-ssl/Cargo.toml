@@ -13,9 +13,6 @@ tokio = { version = "1", features = ["full", "net"] }
 native-tls = "0.2"
 tokio-native-tls = "0.3"
 
-# HTTP client (for health checks)
-reqwest = { version = "0.11", features = ["json"] }
-
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
