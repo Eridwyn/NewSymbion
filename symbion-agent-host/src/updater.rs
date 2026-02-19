@@ -55,11 +55,16 @@ impl AgentUpdater {
         let url = format!("https://api.github.com/repos/{}/{}/releases/latest", owner, repo);
         let client = reqwest::Client::new();
         
-        let response = client
+        let mut request = client
             .get(&url)
-            .header("User-Agent", "symbion-agent")
-            .send()
-            .await?;
+            .header("User-Agent", "symbion-agent");
+
+        // Use GITHUB_TOKEN if available to avoid rate limiting (60 req/h → 5000 req/h)
+        if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+            request = request.header("Authorization", format!("Bearer {}", token));
+        }
+
+        let response = request.send().await?;
         
         if !response.status().is_success() {
             return Err(anyhow::anyhow!("Failed to fetch release info: {}", response.status()));
