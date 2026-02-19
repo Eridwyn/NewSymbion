@@ -197,19 +197,15 @@ pub struct AgentCommand {
     pub timestamp: String,
 }
 
+/// MQTT contract: agent command response payload (fields required for deserialization)
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct AgentCommandResponse {
-    #[allow(dead_code)]
     pub command_id: String,
-    #[allow(dead_code)]
     pub agent_id: String,
-    #[allow(dead_code)]
     pub status: String,             // success, error, timeout
-    #[allow(dead_code)]
     pub result: Option<serde_json::Value>,
-    #[allow(dead_code)]
     pub error_message: Option<String>,
-    #[allow(dead_code)]
     pub timestamp: String,
 }
 
@@ -223,7 +219,7 @@ pub struct AgentRegistrationMessage {
     pub capabilities: Vec<String>,
     pub network: AgentNetwork,
     pub version: Option<String>,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // MQTT contract: required for deserialization
     pub timestamp: String,
 }
 
@@ -234,21 +230,19 @@ pub struct AgentHeartbeatMessage {
     pub system: AgentSystemMetrics,
     pub processes: Option<AgentProcesses>,
     pub services: Option<Vec<AgentService>>,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // MQTT contract: required for deserialization
     pub last_command: Option<AgentLastCommand>,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // MQTT contract: required for deserialization
     pub timestamp: String,
 }
 
+/// MQTT contract: last command status from agent (fields required for deserialization)
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct AgentLastCommand {
-    #[allow(dead_code)]
     pub command_id: String,
-    #[allow(dead_code)]
     pub command_type: String,
-    #[allow(dead_code)]
     pub status: String,
-    #[allow(dead_code)]
     pub timestamp: String,
 }
 

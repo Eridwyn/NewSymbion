@@ -325,7 +325,9 @@ impl ProcessClassifier {
             let active = !matching.is_empty();
             let confidence = if active {
                 // Confidence based on number of matches and category weight
-                let base = (matching.len() as f32 / 3.0).min(1.0);
+                // Normalize by typical active process count per category
+                const PROCESS_COUNT_NORMALIZATION: f32 = 3.0;
+                let base = (matching.len() as f32 / PROCESS_COUNT_NORMALIZATION).min(1.0);
                 base * rules.weight
             } else {
                 0.0

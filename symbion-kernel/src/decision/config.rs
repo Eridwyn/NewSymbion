@@ -115,12 +115,13 @@ impl ConfigManager {
                   thresholds.high, thresholds.very_high);
         }
 
-        // Valider thresholds entre 0.0 et 1.0
+        // Valider thresholds (low/medium/high: 0-1, very_high: 0-2 pour permettre auto-approve impossible)
         if !(0.0..=1.0).contains(&thresholds.low) {
-            bail!("low threshold out of range: {}", thresholds.low);
+            bail!("low threshold out of range [0,1]: {}", thresholds.low);
         }
-        if !(0.0..=1.0).contains(&thresholds.very_high) {
-            bail!("very_high threshold out of range: {}", thresholds.very_high);
+        // very_high > 1.0 is intentional: makes auto-approval impossible for critical actions
+        if !(0.0..=2.0).contains(&thresholds.very_high) {
+            bail!("very_high threshold out of range [0,2]: {}", thresholds.very_high);
         }
 
         Ok(())

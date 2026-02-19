@@ -130,19 +130,30 @@ pub struct TrustTracker {
 }
 
 impl TrustTracker {
-    /// Create a new TrustTracker with default settings
+    /// Create a new TrustTracker with configurable trust evolution parameters.
+    /// Env overrides: SYMBION_TRUST_SUCCESS_INCREMENT, SYMBION_TRUST_FAILURE_DECREMENT,
+    /// SYMBION_TRUST_MAX_MODIFIER, SYMBION_TRUST_DECAY_HALF_LIFE_DAYS
     pub fn new(data_dir: &str) -> Self {
         let data_file = PathBuf::from(data_dir).join("trust_stats.json");
         let stats = Self::load_or_default(&data_file);
 
+        let success_increment = std::env::var("SYMBION_TRUST_SUCCESS_INCREMENT")
+            .ok().and_then(|v| v.parse().ok()).unwrap_or(0.01);
+        let failure_decrement = std::env::var("SYMBION_TRUST_FAILURE_DECREMENT")
+            .ok().and_then(|v| v.parse().ok()).unwrap_or(0.05);
+        let max_modifier = std::env::var("SYMBION_TRUST_MAX_MODIFIER")
+            .ok().and_then(|v| v.parse().ok()).unwrap_or(0.2);
+        let decay_half_life_days = std::env::var("SYMBION_TRUST_DECAY_HALF_LIFE_DAYS")
+            .ok().and_then(|v| v.parse().ok()).unwrap_or(30.0);
+
         Self {
             stats: Arc::new(RwLock::new(stats)),
             data_file,
-            success_increment: 0.01,
-            failure_decrement: 0.05,
-            max_modifier: 0.2,
-            min_modifier: -0.2,
-            decay_half_life_days: 30.0,
+            success_increment,
+            failure_decrement,
+            max_modifier,
+            min_modifier: -max_modifier,
+            decay_half_life_days,
         }
     }
 

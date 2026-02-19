@@ -145,6 +145,8 @@ async fn main() {
         eprintln!("╚════════════════════════════════════════════════════════════════╝\n");
     }));
 
+    let boot_start = std::time::Instant::now();
+
     // Initialiser le CryptoProvider pour Rustls (fix crash rustls 0.23)
     let _ = rustls::crypto::ring::default_provider().install_default();
 
@@ -216,6 +218,7 @@ async fn main() {
         }
     };
     println!("[kernel] initialized Device Trust manager");
+    eprintln!("[kernel] ⏱ auth subsystem ready in {:?}", boot_start.elapsed());
 
     // Client MQTT partagé pour le kernel et bridge notes
     let mqtt_client = match mqtt::create_mqtt_client(&cfg_loaded) {
@@ -269,6 +272,7 @@ async fn main() {
     // Feature Registry for data-driven intelligence (v2)
     let feature_registry = Arc::new(crate::intelligence::FeatureRegistry::new());
     eprintln!("[kernel] initialized Feature Registry");
+    eprintln!("[kernel] ⏱ intelligence subsystem ready in {:?}", boot_start.elapsed());
 
     // Inference Engine for case-based mode prediction (v2) with persistence
     let samples_path = std::path::PathBuf::from("./data/intelligence_samples.json");
@@ -412,6 +416,7 @@ async fn main() {
     // Must be created BEFORE TrustCalculator so it can use the tracker
     let trust_tracker = Arc::new(crate::decision::TrustTracker::new("./data"));
     println!("[kernel] initialized Trust Tracker (evolving statistics)");
+    eprintln!("[kernel] ⏱ decision subsystem ready in {:?}", boot_start.elapsed());
 
     // Trust Calculator with Trust Tracker integration
     let trust_calculator = crate::decision::TrustCalculator::with_trust_tracker(
@@ -571,6 +576,7 @@ async fn main() {
         .await
         .expect(&format!("Failed to load TLS certificates from {} and {}", cert_path, key_path));
 
+    eprintln!("[kernel] ⏱ boot complete in {:?}", boot_start.elapsed());
     println!("[kernel] 🔒 HTTPS enabled - listening on https://{}", https_addr);
     println!("[kernel] TLS cert: {}", cert_path);
     println!("[kernel] TLS key: {}", key_path);

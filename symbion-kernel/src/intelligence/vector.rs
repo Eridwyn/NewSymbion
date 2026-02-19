@@ -405,6 +405,10 @@ impl<'a> VectorBuilder<'a> {
         self.dimensions.insert(dimension.to_string(), new_value);
 
         let why_list = self.why.entry(dimension.to_string()).or_insert_with(Vec::new);
+        // Cap why-chain to avoid unbounded memory growth
+        if why_list.len() >= 50 {
+            why_list.remove(0);
+        }
         why_list.push(WhyItem {
             feature_id: feature_id.to_string(),
             contribution: effective,

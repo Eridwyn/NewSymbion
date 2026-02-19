@@ -250,13 +250,17 @@ pub struct TrustWeights {
     pub user_approval_history: f32,
 }
 
-/// Seuils par impact level
+/// Trust score thresholds per impact level.
+/// Actions with impact >= threshold require manual validation.
+/// Setting very_high > 1.0 intentionally makes auto-approval impossible for
+/// VeryHigh impact actions (e.g., shutdown, security changes), forcing manual review.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ImpactThresholds {
     pub low: f32,
     pub medium: f32,
     pub high: f32,
-    pub very_high: f32,  // > 1.0 = impossible auto-approve
+    /// Intentionally >1.0 in default config to prevent auto-approval of critical actions
+    pub very_high: f32,
 }
 
 /// Mapping agent health
