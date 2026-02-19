@@ -107,7 +107,7 @@ jobs:
       with:
         name: symbion-kernel-${{ matrix.name }}
         path: artifacts/
-        retention-days: 90
+        retention-days: 7
 
   release:
     needs: build
