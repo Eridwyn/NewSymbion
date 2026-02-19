@@ -14,8 +14,10 @@ set -euo pipefail
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 # --- Configuration ---
-DATA_DIR="/home/eridwyn/RustroverProjects/NewSymbion/data"
-BACKUP_ROOT="/home/eridwyn/symbion-backups"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+DATA_DIR="${SYMBION_DATA_DIR:-$PROJECT_DIR/data}"
+BACKUP_ROOT="${SYMBION_BACKUP_DIR:-${HOME}/symbion-backups}"
 RETENTION_DAYS=30
 QUIET="${1:-}"
 DATE=$(date '+%Y-%m-%d_%H%M')

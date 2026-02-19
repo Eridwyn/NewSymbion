@@ -10,7 +10,7 @@ BindsTo=symbion-kernel.service
 Type=simple
 User=eridwyn
 Group=eridwyn
-WorkingDirectory=/var/www/symbion-dashboard
+WorkingDirectory=/home/eridwyn/RustroverProjects/NewSymbion/pwa-dashboard/dist
 
 # Commande de démarrage: serveur HTTP simple Python
 # Alternative production: utiliser nginx ou caddy pour HTTPS
