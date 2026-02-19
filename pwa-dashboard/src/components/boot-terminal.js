@@ -1216,8 +1216,8 @@ class BootTerminal extends LitElement {
                     required>
                 </div>
 
-                <button type="submit" class="submit-btn">
-                  Se connecter
+                <button type="submit" class="submit-btn" ?disabled="${this.phase === 'authenticating'}">
+                  ${this.phase === 'authenticating' ? 'Connexion...' : 'Se connecter'}
                 </button>
               </form>
 
@@ -1269,8 +1269,8 @@ class BootTerminal extends LitElement {
                   </div>
                 </div>
 
-                <button type="submit" class="submit-btn">
-                  Valider
+                <button type="submit" class="submit-btn" ?disabled="${this.phase === 'authenticating'}">
+                  ${this.phase === 'authenticating' ? 'Validation...' : 'Valider'}
                 </button>
               </form>
             ` : ''}
