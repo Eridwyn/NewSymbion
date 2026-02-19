@@ -90,6 +90,18 @@ impl AutomationEvent {
         }
     }
 
+    /// D7: Discriminant tag matching Trigger::event_type_tag() for fast pre-filtering
+    pub fn trigger_type_tag(&self) -> &'static str {
+        match self {
+            AutomationEvent::ModeChange { .. } => "ModeChange",
+            AutomationEvent::SensorAlert { .. } => "SensorAlert",
+            AutomationEvent::AgentStatus { .. } => "AgentStatus",
+            AutomationEvent::Manual { .. } => "Manual",
+            AutomationEvent::PluginHealth { .. } => "PluginHealth",
+            AutomationEvent::Scheduled { .. } => "Scheduled",
+        }
+    }
+
     /// Get timestamp of event
     pub fn timestamp(&self) -> OffsetDateTime {
         match self {

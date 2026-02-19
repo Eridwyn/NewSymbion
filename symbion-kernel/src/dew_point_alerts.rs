@@ -647,4 +647,162 @@ mod tests {
         assert!(eval.diagnostics["config"]["surface_offset_c"].is_number());
         assert!(eval.diagnostics["calculations"]["dew_point_c"].is_number());
     }
+
+    // === D3: Edge case tests — temperature_c=None, delta_t boundaries ===
+
+    #[test]
+    fn test_evaluate_temperature_none() {
+        let calc = DewPointCalculator::new();
+        let mut state = RoomEnvironmentState::new("chambre".to_string());
+
+        // Sensor offline: temperature=None, humidity present
+        let reading = EnvReading {
+            temperature_c: None,
+            humidity_pct: Some(60.0),
+            timestamp: Utc::now(),
+        };
+        state.update(reading);
+
+        let eval = calc.evaluate(&state);
+        // Without temperature, dew_point and delta_t should be None
+        assert!(eval.dew_point_c.is_none(), "No dew point without temperature");
+        assert!(eval.delta_t.is_none(), "No delta_t without temperature");
+        // Should not trigger high alerts without temperature data
+        assert!(eval.level <= DewPointAlertLevel::Moderate,
+            "Should not trigger high alert without temp data");
+    }
+
+    #[test]
+    fn test_evaluate_humidity_none() {
+        let calc = DewPointCalculator::new();
+        let mut state = RoomEnvironmentState::new("chambre".to_string());
+
+        // Sensor offline: temperature present, humidity=None
+        let reading = EnvReading {
+            temperature_c: Some(20.0),
+            humidity_pct: None,
+            timestamp: Utc::now(),
+        };
+        state.update(reading);
+
+        let eval = calc.evaluate(&state);
+        assert!(eval.dew_point_c.is_none(), "No dew point without humidity");
+        assert!(eval.delta_t.is_none(), "No delta_t without humidity");
+        assert_eq!(eval.level, DewPointAlertLevel::Safe, "Safe when no humidity data");
+    }
+
+    #[test]
+    fn test_evaluate_both_none() {
+        let calc = DewPointCalculator::new();
+        let mut state = RoomEnvironmentState::new("chambre".to_string());
+
+        // Complete sensor failure
+        let reading = EnvReading {
+            temperature_c: None,
+            humidity_pct: None,
+            timestamp: Utc::now(),
+        };
+        state.update(reading);
+
+        let eval = calc.evaluate(&state);
+        assert!(eval.dew_point_c.is_none());
+        assert!(eval.delta_t.is_none());
+        assert!(eval.air_temp_c.is_none());
+        assert!(eval.humidity_pct.is_none());
+        assert_eq!(eval.level, DewPointAlertLevel::Safe, "Safe when all data missing");
+    }
+
+    #[test]
+    fn test_delta_t_sustained_no_current_data() {
+        let calc = DewPointCalculator::new();
+        let mut state = RoomEnvironmentState::new("chambre".to_string());
+
+        // Current reading has no temperature -> delta_t = None
+        state.update(EnvReading {
+            temperature_c: None,
+            humidity_pct: Some(80.0),
+            timestamp: Utc::now(),
+        });
+
+        // is_delta_t_sustained_below should return false (no data = safe default)
+        assert!(!calc.is_delta_t_sustained_below(&state, 3.0, 60),
+            "Should return false when current delta_t unavailable");
+    }
+
+    #[test]
+    fn test_calculate_reading_delta_t_none_propagation() {
+        let calc = DewPointCalculator::new();
+
+        // Temperature None -> delta_t None
+        let r1 = EnvReading { temperature_c: None, humidity_pct: Some(60.0), timestamp: Utc::now() };
+        assert!(calc.calculate_reading_delta_t(&r1).is_none());
+
+        // Humidity None -> delta_t None
+        let r2 = EnvReading { temperature_c: Some(20.0), humidity_pct: None, timestamp: Utc::now() };
+        assert!(calc.calculate_reading_delta_t(&r2).is_none());
+
+        // Both present -> delta_t Some
+        let r3 = EnvReading { temperature_c: Some(20.0), humidity_pct: Some(60.0), timestamp: Utc::now() };
+        assert!(calc.calculate_reading_delta_t(&r3).is_some());
+    }
+
+    #[test]
+    fn test_delta_t_boundary_values() {
+        let calc = DewPointCalculator::new();
+
+        // At T=20°C, RH=100%, dew point ≈ 20°C, surface ≈ 17°C → delta_t ≈ -3°C (negative = condensation)
+        let dew = calc.calculate_dew_point(20.0, 100.0).unwrap();
+        let surface = calc.estimate_surface_temp(20.0); // 17.0
+        let delta_t = surface - dew;
+        assert!(delta_t < 0.0, "Delta_t should be negative at 100% RH, got {}", delta_t);
+
+        // At T=20°C, RH=30%, dew point ≈ 1.9°C, surface ≈ 17°C → delta_t ≈ 15.1°C (very safe)
+        let dew_low = calc.calculate_dew_point(20.0, 30.0).unwrap();
+        let delta_t_low = surface - dew_low;
+        assert!(delta_t_low > 10.0, "Delta_t should be large at low RH, got {}", delta_t_low);
+    }
+
+    #[test]
+    fn test_dew_point_extreme_boundaries() {
+        let calc = DewPointCalculator::new();
+
+        // Boundary valid inputs
+        assert!(calc.calculate_dew_point(-40.0, 50.0).is_some(), "-40°C should be valid");
+        assert!(calc.calculate_dew_point(50.0, 50.0).is_some(), "50°C should be valid");
+        assert!(calc.calculate_dew_point(20.0, 100.0).is_some(), "100% RH should be valid");
+        assert!(calc.calculate_dew_point(20.0, 0.1).is_some(), "0.1% RH should be valid");
+
+        // Just outside boundaries
+        assert!(calc.calculate_dew_point(-40.1, 50.0).is_none(), "-40.1°C should be invalid");
+        assert!(calc.calculate_dew_point(50.1, 50.0).is_none(), "50.1°C should be invalid");
+        assert!(calc.calculate_dew_point(20.0, 100.1).is_none(), "100.1% RH should be invalid");
+    }
+
+    #[test]
+    fn test_evaluate_high_humidity_no_temperature() {
+        // Edge case: Very high humidity but no temperature data
+        // Should still trigger humidity-based alerts (Weak/Moderate) if sustained
+        let calc = DewPointCalculator::new();
+        let mut state = RoomEnvironmentState::new("chambre".to_string());
+
+        // 5 minutes of 80% RH with no temperature
+        let num_readings = 10; // 30sec intervals
+        for i in 0..num_readings {
+            state.update(EnvReading {
+                temperature_c: None, // Sensor offline
+                humidity_pct: Some(80.0), // Very high
+                timestamp: Utc::now() - Duration::seconds(((5 * 60) - (i * 30)) as i64),
+            });
+        }
+        state.update(EnvReading {
+            temperature_c: None,
+            humidity_pct: Some(80.0),
+            timestamp: Utc::now(),
+        });
+
+        let eval = calc.evaluate(&state);
+        // Without temperature, delta_t checks return false, but RH checks may still trigger
+        // Danger requires 5min sustained, which we have, but only RH condition matters
+        assert!(eval.dew_point_c.is_none(), "No dew point without temp");
+    }
 }

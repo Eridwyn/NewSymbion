@@ -323,4 +323,117 @@ mod tests {
         assert!(config.backup_codes.is_empty());
         assert_eq!(config.setup_at, 0);
     }
+
+    // === K1: Tests MFA étendus ===
+
+    #[test]
+    fn test_generate_secret_uniqueness() {
+        let manager = MfaManager::new("Symbion".to_string(), "Symbion".to_string());
+        let secrets: Vec<String> = (0..20)
+            .map(|_| manager.generate_secret().unwrap())
+            .collect();
+        // All secrets should be unique
+        let unique: std::collections::HashSet<_> = secrets.iter().collect();
+        assert_eq!(unique.len(), secrets.len(), "Generated secrets should be unique");
+    }
+
+    #[test]
+    fn test_generate_backup_codes_no_duplicates() {
+        let manager = MfaManager::new("Symbion".to_string(), "Symbion".to_string());
+        let codes = manager.generate_backup_codes(10);
+        let unique: std::collections::HashSet<_> = codes.iter().collect();
+        assert_eq!(unique.len(), codes.len(), "Backup codes should be unique");
+    }
+
+    #[test]
+    fn test_generate_backup_codes_range() {
+        let manager = MfaManager::new("Symbion".to_string(), "Symbion".to_string());
+        let codes = manager.generate_backup_codes(100);
+        for code in &codes {
+            let num: u32 = code.parse().expect("Should be numeric");
+            assert!(num >= 10_000_000 && num < 100_000_000,
+                "Code {} should be in 8-digit range", num);
+        }
+    }
+
+    #[test]
+    fn test_generate_backup_codes_zero() {
+        let manager = MfaManager::new("Symbion".to_string(), "Symbion".to_string());
+        let codes = manager.generate_backup_codes(0);
+        assert!(codes.is_empty());
+    }
+
+    #[test]
+    fn test_backup_code_single_use() {
+        let manager = MfaManager::new("Symbion".to_string(), "Symbion".to_string());
+        let codes = manager.generate_backup_codes(3);
+        let code = codes[0].clone();
+
+        // Setup user with MFA enabled
+        let config = MfaConfig {
+            enabled: true,
+            secret_base32: "JBSWY3DPEHPK3PXP".to_string(),
+            backup_codes: codes,
+            recovery_email: None,
+            setup_at: 1000,
+            last_verified_at: 0,
+        };
+        manager.set_user_config("testuser".to_string(), config);
+
+        // First use: should succeed
+        assert!(manager.verify_backup_code("testuser", &code).unwrap());
+        // Second use: should fail (consumed)
+        assert!(!manager.verify_backup_code("testuser", &code).unwrap());
+    }
+
+    #[test]
+    fn test_backup_code_invalid() {
+        let manager = MfaManager::new("Symbion".to_string(), "Symbion".to_string());
+        let config = MfaConfig {
+            enabled: true,
+            secret_base32: "JBSWY3DPEHPK3PXP".to_string(),
+            backup_codes: vec!["12345678".to_string()],
+            recovery_email: None,
+            setup_at: 1000,
+            last_verified_at: 0,
+        };
+        manager.set_user_config("testuser".to_string(), config);
+
+        // Non-existent code
+        assert!(!manager.verify_backup_code("testuser", "99999999").unwrap());
+        // Empty code
+        assert!(!manager.verify_backup_code("testuser", "").unwrap());
+    }
+
+    #[test]
+    fn test_backup_code_disabled_mfa() {
+        let manager = MfaManager::new("Symbion".to_string(), "Symbion".to_string());
+        let config = MfaConfig {
+            enabled: false, // MFA disabled
+            secret_base32: "JBSWY3DPEHPK3PXP".to_string(),
+            backup_codes: vec!["12345678".to_string()],
+            recovery_email: None,
+            setup_at: 1000,
+            last_verified_at: 0,
+        };
+        manager.set_user_config("testuser".to_string(), config);
+
+        // Should return false even with valid code when MFA disabled
+        assert!(!manager.verify_backup_code("testuser", "12345678").unwrap());
+    }
+
+    #[test]
+    fn test_qr_code_format() {
+        let manager = MfaManager::new("Symbion".to_string(), "SymbionIoT".to_string());
+        let secret = manager.generate_secret().unwrap();
+        let qr = manager.generate_qr_code("admin", &secret).unwrap();
+
+        // Should be a data URI with SVG base64
+        assert!(qr.starts_with("data:image/svg+xml;base64,"), "QR should be SVG data URI");
+        // Decode base64 to verify it's valid
+        let b64_part = &qr["data:image/svg+xml;base64,".len()..];
+        let decoded = BASE64.decode(b64_part).expect("Should be valid base64");
+        let svg = String::from_utf8(decoded).expect("Should be valid UTF-8");
+        assert!(svg.contains("<svg"), "Decoded content should be SVG");
+    }
 }
