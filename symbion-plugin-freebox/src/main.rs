@@ -185,9 +185,11 @@ async fn presence_loop(state: Arc<PluginState>) {
                     warn!("Failed to publish presence: {}", e);
                 }
 
+                // Health update: short write lock, safe since RwLock serializes writes
                 let mut health = state.health.write().await;
                 health.last_presence_check = Some(chrono::Utc::now().to_rfc3339());
                 health.freebox_connected = true;
+                health.error = None;
             }
             Err(e) => {
                 error!("Presence check failed: {}", e);
