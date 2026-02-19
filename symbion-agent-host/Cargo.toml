@@ -56,6 +56,8 @@ process_control = "4.0"  # Cross-platform process execution with timeout
 self_update = "0.42.0"
 reqwest = "0.12.23"
 keyring = "3.6.3"
+rpassword = "7.3"
+zeroize = "1.7"
 toml = "0.8"
 dirs = "5.0"
 

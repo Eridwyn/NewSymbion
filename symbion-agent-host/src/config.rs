@@ -10,6 +10,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use keyring::Entry;
 use std::path::PathBuf;
+use zeroize::Zeroize;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
@@ -33,6 +34,14 @@ pub struct ElevationConfig {
     pub auto_elevate: bool,
     #[serde(skip)] // Never serialize passwords
     pub cached_password: Option<String>,
+}
+
+impl Drop for ElevationConfig {
+    fn drop(&mut self) {
+        if let Some(ref mut pw) = self.cached_password {
+            pw.zeroize();
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

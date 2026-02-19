@@ -357,20 +357,16 @@ impl SetupWizard {
     }
     
     fn prompt_password(prompt: &str) -> Result<Option<String>> {
-        // Note: For security, we should use a proper password input library in production
-        // For now, we'll use regular input with a warning
-        println!("⚠️  WARNING: Password input will be visible on screen.");
         print!("🔐 {}: ", prompt);
         io::stdout().flush()?;
-        
-        let mut input = String::new();
-        io::stdin().read_line(&mut input)?;
-        let input = input.trim();
-        
+
+        let input = rpassword::read_password()?;
+        let input = input.trim().to_string();
+
         if input.is_empty() {
             Ok(None)
         } else {
-            Ok(Some(input.to_string()))
+            Ok(Some(input))
         }
     }
     
