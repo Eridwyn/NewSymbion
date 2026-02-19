@@ -304,13 +304,9 @@ impl NotesStorage {
         Ok(note)
     }
     
-    /// Liste les notes avec filtrage optionnel
+    /// Liste les notes avec filtrage optionnel.
+    /// Notes are kept in-memory (synced on create/update/delete), no disk reload needed.
     pub fn list_notes(&self, filters: Option<HashMap<String, serde_json::Value>>) -> Vec<Note> {
-        // Reload depuis le disque pour avoir les dernières modifications
-        if let Err(e) = self.reload_from_disk() {
-            eprintln!("[notes] failed to reload from disk: {}", e);
-        }
-
         let notes = self.notes.lock();
 
         if let Some(filters) = filters {
@@ -819,12 +815,16 @@ fn build_router(state: AppState) -> Router {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("[notes] symbion plugin notes v1.1.0 (Contract v1.0) starting...");
 
-    // Initialisation du stockage
-    let storage = NotesStorage::new("./notes.json")?;
+    // Initialisation du stockage (configurable via env)
+    let storage_path = std::env::var("SYMBION_NOTES_FILE")
+        .unwrap_or_else(|_| "./notes.json".to_string());
+    let storage = NotesStorage::new(&storage_path)?;
     let storage = Arc::new(storage);
 
-    // Unix socket path (systemd RuntimeDirectory)
-    let socket_path = "/run/symbion-plugins/notes.sock";
+    // Unix socket path (configurable via env, default: systemd RuntimeDirectory)
+    let socket_path = std::env::var("SYMBION_NOTES_SOCKET")
+        .unwrap_or_else(|_| "/run/symbion-plugins/notes.sock".to_string());
+    let socket_path: &str = Box::leak(socket_path.into_boxed_str());
 
     // Cleanup old socket at startup (triple safety net)
     if std::path::Path::new(socket_path).exists() {
