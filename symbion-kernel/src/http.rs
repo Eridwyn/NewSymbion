@@ -46,6 +46,16 @@ use base64::Engine;
 
 
 
+/// Structured error response helper for consistent API error format.
+/// Returns `(StatusCode, Json)` with fields: error (code), message (human-readable), status (number).
+fn error_response(status: StatusCode, code: &str, message: impl std::fmt::Display) -> (StatusCode, Json<serde_json::Value>) {
+    (status, Json(serde_json::json!({
+        "error": code,
+        "message": message.to_string(),
+        "status": status.as_u16(),
+    })))
+}
+
 #[derive(serde::Serialize)]
 struct HostView {
     host_id: String,

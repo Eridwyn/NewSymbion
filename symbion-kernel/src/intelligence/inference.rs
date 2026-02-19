@@ -330,15 +330,25 @@ impl InferenceEngine {
         let path = path.clone();
         std::thread::spawn(move || {
             let tmp_path = path.with_extension("json.tmp");
+
+            // Guard: ensure tmp file is cleaned up even on panic
+            struct TmpGuard<'a> { path: &'a std::path::Path, done: bool }
+            impl<'a> Drop for TmpGuard<'a> {
+                fn drop(&mut self) {
+                    if !self.done { let _ = std::fs::remove_file(self.path); }
+                }
+            }
+            let mut guard = TmpGuard { path: &tmp_path, done: false };
+
             if let Err(e) = std::fs::write(&tmp_path, &json) {
                 eprintln!("[inference] Failed to write temp samples file: {}", e);
-                let _ = std::fs::remove_file(&tmp_path);
-                return;
+                return; // guard Drop cleans up tmp
             }
             if let Err(e) = std::fs::rename(&tmp_path, &path) {
                 eprintln!("[inference] Failed to rename temp samples file: {}", e);
-                let _ = std::fs::remove_file(&tmp_path);
+                return; // guard Drop cleans up tmp
             }
+            guard.done = true; // rename succeeded, don't delete
         });
     }
 

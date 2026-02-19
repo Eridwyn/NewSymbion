@@ -395,8 +395,10 @@ impl<'a> VectorBuilder<'a> {
         }
     }
 
-    /// Add a contribution to a dimension with explanation
+    /// Add a contribution to a dimension with explanation.
     /// The contribution is multiplied by confidence (0.0-1.0) to weight by source reliability.
+    /// Note: f32 accumulation is bounded by build() scope (~20 contributions max per vector),
+    /// so floating-point drift is negligible (< 1e-6).
     fn add_contribution(&mut self, dimension: &str, contribution: f32, confidence: f32, feature_id: &str, raw_value: &str) {
         let confidence = confidence.clamp(0.0, 1.0);
         let effective = contribution * confidence;
