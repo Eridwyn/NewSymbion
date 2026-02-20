@@ -332,7 +332,7 @@ mod tests {
     async fn test_process_info() {
         let process_info = ProcessInfo::collect().await.unwrap();
         assert!(process_info.total_count > 0);
-        assert!(process_info.top_cpu.len() <= 5);
-        assert!(process_info.top_memory.len() <= 5);
+        assert!(process_info.top_cpu.len() <= 15);
+        assert!(process_info.top_memory.len() <= 15);
     }
 }

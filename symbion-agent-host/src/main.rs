@@ -180,7 +180,7 @@ impl Agent {
 
         // Start MQTT event loop in background
         tokio::spawn(async move {
-            let mut is_subscribed = false;
+            let mut _is_subscribed = false;
             let mut retry_count: u32 = 0;
 
             loop {
@@ -192,10 +192,10 @@ impl Agent {
                         info!("🔄 MQTT connected/reconnected - subscribing to command topic...");
                         if let Err(e) = mqtt_client_for_loop.subscribe("symbion/agents/command@v1", QoS::AtLeastOnce).await {
                             error!("Failed to subscribe to command topic: {}", e);
-                            is_subscribed = false;
+                            _is_subscribed = false;
                         } else {
                             info!("✅ Subscribed to symbion/agents/command@v1");
-                            is_subscribed = true;
+                            _is_subscribed = true;
                         }
                     }
                     Ok(Event::Incoming(Incoming::Publish(publish))) => {
@@ -223,7 +223,7 @@ impl Agent {
                         retry_count = retry_count.saturating_add(1);
                         let backoff_secs = 2u64.saturating_pow(retry_count.min(5)); // 2→4→8→16→32s
                         error!("MQTT error (retry #{}, backoff {}s): {}", retry_count, backoff_secs, e);
-                        is_subscribed = false;
+                        _is_subscribed = false;
                         tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
                     }
                 }
