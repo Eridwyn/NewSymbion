@@ -147,9 +147,9 @@ pub(super) async fn handle_memo_create(
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
             .or_else(|| {
-                // Injecter automatiquement le mode contextuel actuel
+                // Injecter automatiquement le mode contextuel actuel (supporte modes dynamiques)
                 app.context_engine.get_state()
-                    .map(|state| format!("{:?}", state.mode).to_lowercase())
+                    .and_then(|state| state.mode_slug.or_else(|| Some(format!("{:?}", state.mode).to_lowercase())))
             });
 
         // Convertir les données en format CreateNoteRequest

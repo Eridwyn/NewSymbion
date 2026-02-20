@@ -5,10 +5,21 @@
  * Logique pure, sans dépendance UI
  */
 
+// Alias map: new mode names → old names (K3 backward compat)
+const MODE_ALIASES = {
+  pro: ['cravate', 'pro'],
+  maison: ['intime', 'maison'],
+  veille: ['neutre', 'veille'],
+  // Old names map to themselves + new name
+  cravate: ['cravate', 'pro'],
+  intime: ['intime', 'maison'],
+  neutre: ['neutre', 'veille'],
+}
+
 /**
- * Filtre les notes par contexte
+ * Filtre les notes par contexte (supports old and new mode names + dynamic modes)
  * @param {Array} notes - Liste des notes
- * @param {string} context - Contexte à filtrer (cravate, intime, neutre)
+ * @param {string} context - Contexte à filtrer (pro, maison, veille, focus, ou custom)
  * @returns {Array} Notes filtrées
  */
 export function filterByContext(notes, context) {
@@ -16,7 +27,14 @@ export function filterByContext(notes, context) {
     return notes || []
   }
 
-  return notes.filter(note => note.data?.context === context)
+  const contextLower = context.toLowerCase()
+  // Get all accepted values for this context (alias + exact match)
+  const accepted = MODE_ALIASES[contextLower] || [contextLower]
+
+  return notes.filter(note => {
+    const noteCtx = note.data?.context?.toLowerCase()
+    return noteCtx && accepted.includes(noteCtx)
+  })
 }
 
 /**

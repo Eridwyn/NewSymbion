@@ -247,7 +247,7 @@ class NotesWidget extends LitElement {
   handleContextChange(event) {
     console.log('[notes-widget] Context changed:', event.detail.context)
     const oldContext = this.currentContext
-    const newMode = event.detail.context?.mode || event.detail.context
+    const newMode = event.detail.context?.mode_slug || event.detail.context?.mode || event.detail.context
     this.currentContext = newMode
 
     // Recharger l'affichage si le contexte a changé
@@ -277,12 +277,12 @@ class NotesWidget extends LitElement {
         console.log('[notes-widget] Waiting for context ready (2s timeout)...')
         const contextState = await this.contextService.waitForContextReady(2000)
 
-        if (contextState && contextState.mode) {
-          this.currentContext = contextState.mode
+        if (contextState && (contextState.mode_slug || contextState.mode)) {
+          this.currentContext = contextState.mode_slug || (typeof contextState.mode === 'string' ? contextState.mode : null) || 'veille'
           console.log('[notes-widget] ✅ Context ready:', this.currentContext)
         } else {
-          console.warn('[notes-widget] ⏱️ Context timeout, defaulting to neutre')
-          this.currentContext = 'neutre' // Fallback
+          console.warn('[notes-widget] ⏱️ Context timeout, defaulting to veille')
+          this.currentContext = 'veille' // Fallback
         }
 
         // Charger les notes (affichera toutes les notes si contexte pas prêt)

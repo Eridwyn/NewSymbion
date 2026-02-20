@@ -2,7 +2,7 @@
  * Service Contexte Symbion
  *
  * Gère la détection et l'affichage du mode contextuel actuel
- * Modes: Cravate (👔 pro), Intime (🏡 home), Neutre (🌱 idle)
+ * Modes chargés dynamiquement depuis /v1/modes
  */
 
 import { LitElement } from 'lit'
@@ -17,12 +17,13 @@ class ContextService extends LitElement {
 
   constructor() {
     super()
-    this.currentMode = 'neutre'
+    this.currentMode = 'veille'
     this.contextState = null
     this.status = 'loading'
     this.pollInterval = null
     this.retryCount = 0
     this.maxRetries = 10 // Max 10 retries (5 seconds total)
+    this.dynamicModes = new Map() // slug → { name, icon, theme }
   }
 
   connectedCallback() {
@@ -31,6 +32,7 @@ class ContextService extends LitElement {
     // Listen for login success event
     window.addEventListener('login-success', () => {
       console.log('[context-service] User logged in, fetching context...')
+      this.fetchModes() // Load dynamic modes from API
       this.fetchContext()
 
       // Start polling only after successful login
@@ -44,9 +46,11 @@ class ContextService extends LitElement {
     // Listen for external context-change events (from context-engine-page)
     this._externalContextHandler = (event) => {
       if (event.detail?.context) {
-        console.log('[context-service] External context change received:', event.detail.context.mode)
-        this.currentMode = event.detail.context.mode
-        this.contextState = event.detail.context
+        const ctx = event.detail.context
+        const mode = ctx.mode_slug || ctx.mode
+        console.log('[context-service] External context change received:', mode)
+        this.currentMode = mode
+        this.contextState = ctx
         // Apply theme immediately
         if (event.detail.context.theme) {
           this.applyTheme(event.detail.context.theme)
@@ -58,6 +62,7 @@ class ContextService extends LitElement {
     // Check if already logged in (use authService to verify)
     if (authService.isAuthenticated()) {
       console.log('[context-service] User already authenticated, fetching context...')
+      this.fetchModes()
       this.fetchContext()
 
       // Poll context every 30 seconds (same as backend detection interval)
@@ -77,6 +82,28 @@ class ContextService extends LitElement {
     }
     if (this._externalContextHandler) {
       document.body.removeEventListener('context-change', this._externalContextHandler)
+    }
+  }
+
+  async fetchModes() {
+    try {
+      const apiService = document.querySelector('api-service')
+      if (!apiService) return
+
+      const modes = await apiService.request('/modes')
+      if (Array.isArray(modes)) {
+        this.dynamicModes.clear()
+        modes.forEach(m => {
+          this.dynamicModes.set(m.slug, {
+            name: m.name,
+            icon: m.icon,
+            theme: m.theme
+          })
+        })
+        console.log(`[context-service] Loaded ${this.dynamicModes.size} dynamic modes`)
+      }
+    } catch (error) {
+      console.warn('[context-service] Failed to fetch modes:', error)
     }
   }
 
@@ -219,33 +246,23 @@ class ContextService extends LitElement {
   }
 
   getModeIcon() {
-    const icons = {
-      // Legacy modes
-      'cravate': '👔',
-      'intime': '🏡',
-      'neutre': '🌱',
-      // New dynamic modes
-      'pro': '👔',
-      'focus': '🎯',
-      'maison': '🏡',
-      'veille': '🌱'
-    }
-    return icons[this.currentMode] || '🤔'
+    // Dynamic modes from API (preferred)
+    const dynamic = this.dynamicModes.get(this.currentMode)
+    if (dynamic?.icon) return dynamic.icon
+
+    // Fallback for legacy/offline
+    const fallback = { 'pro': '👔', 'focus': '🎯', 'maison': '🏡', 'veille': '🌱' }
+    return fallback[this.currentMode] || '🤔'
   }
 
   getModeName() {
-    const names = {
-      // Legacy modes
-      'cravate': 'Focus Pro',
-      'intime': 'Maison',
-      'neutre': 'Veille',
-      // New dynamic modes
-      'pro': 'Pro',
-      'focus': 'Focus',
-      'maison': 'Maison',
-      'veille': 'Veille'
-    }
-    return names[this.currentMode] || 'Inconnu'
+    // Dynamic modes from API (preferred)
+    const dynamic = this.dynamicModes.get(this.currentMode)
+    if (dynamic?.name) return dynamic.name
+
+    // Fallback for legacy/offline
+    const fallback = { 'pro': 'Pro', 'focus': 'Focus', 'maison': 'Maison', 'veille': 'Veille' }
+    return fallback[this.currentMode] || 'Inconnu'
   }
 
   getTheme() {
@@ -277,7 +294,7 @@ class ContextService extends LitElement {
       const onContextChange = (event) => {
         clearTimeout(timeoutId)
         window.removeEventListener('context-change', onContextChange)
-        console.log('[context-service] ✅ Context ready:', event.detail.context.mode)
+        console.log('[context-service] Context ready:', event.detail.context.mode_slug || event.detail.context.mode)
         resolve(event.detail.context)
       }
 
