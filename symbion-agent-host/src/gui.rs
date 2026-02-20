@@ -13,8 +13,8 @@ use tray_icon::{
 };
 use tao::{
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoopBuilder, EventLoop},
-    window::{WindowBuilder, Window},
+    event_loop::{ControlFlow, EventLoopBuilder},
+    window::WindowBuilder,
     dpi::LogicalSize,
 };
 use wry::WebViewBuilder;
