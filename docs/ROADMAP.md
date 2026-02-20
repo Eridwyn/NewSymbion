@@ -1,9 +1,9 @@
 # Roadmap Technique - NewSymbion
 
-**Version** : 2026-02 (Post Audit + Sprint P0/P1/P2/P3 complet)
-**Statut** : Fondations complètes, 29 P0/P1 + 42 P2 + 38 P3 corrigées, 8 P3 differees + 3 faux positifs
-**Derniere mise a jour** : 19 Fevrier 2026
-**Score global** : 4.6/5
+**Version** : 2026-02 (Post Audit + Sprint P0/P1/P2/P3 + Sprint 5/5 K3+K4)
+**Statut** : Fondations complètes, 29 P0/P1 + 42 P2 + 44 P3 corrigées, 2 P3 différées + 3 faux positifs
+**Dernière mise à jour** : 20 Février 2026
+**Score global** : 4.7/5
 
 ---
 
@@ -13,25 +13,25 @@
 
 | Composant | Langage | LOC | Fichiers | Score | Tests |
 |-----------|---------|----:|----------|-------|------:|
-| **symbion-kernel** | Rust | ~40,150 | 87 | 4.7/5 | 308 |
+| **symbion-kernel** | Rust | ~38,100 | 86 | 4.8/5 | 324 |
 | **pwa-dashboard** | JS (Lit) | ~29,000 | 43 | 3.5/5 | 0 |
 | **symbion-agent-host** | Rust | ~2,100 | 13 | 4/5 | 14 |
 | **Plugins** (5) | Rust | ~4,900 | 14 | 4.8/5 | 2 |
 | **Infra** (scripts/CI) | Bash/YAML | ~2,400 | 20 | 3.5/5 | - |
-| **Total** | | **~86,050** | **177** | **4.2/5** | **324** |
+| **Total** | | **~84,170** | **176** | **4.3/5** | **324** |
 
 ### Chiffres Clés
 
 | Métrique | Valeur |
 |----------|--------|
-| Unit Tests | 324+ (308 kernel + 14 agent + 2 plugins) |
-| API Routes (http.rs) | 107 .route() |
+| Unit Tests | 324+ (324 kernel + 14 agent + 2 plugins) |
+| API Routes (http/) | 107 .route() across 7 modules |
 | MQTT Topics | 10 subscriptions |
 | Automations actives | 16 (+ intelligence-managed) |
 | Modes contextuels | 4 système + custom |
 | Intelligence Samples | 34 (apprentissage continu) |
 | Data files (JSON) | 12 |
-| **Issues audit** | **116 identifiees — 29 P0/P1 + 42 P2 + 38 P3 corrigees, 8 P3 differees, 3 faux positifs** |
+| **Issues audit** | **116 identifiées — 29 P0/P1 + 42 P2 + 44 P3 corrigées, 2 P3 différées, 3 faux positifs** |
 
 ---
 
@@ -93,7 +93,7 @@
 - Agent telemetry (30s heartbeat : CPU, RAM, disk, network, processes)
 - Structured logging par catégorie
 
-**Fichiers** : `decision/metrics.rs` (549 LOC), `http.rs` (3,783 LOC)
+**Fichiers** : `decision/metrics.rs` (549 LOC), `http/` (7 modules, 3,834 LOC total)
 
 ---
 
@@ -219,7 +219,7 @@
 - **Toggle discret** : icône FAB en bas à droite, visible si activé dans Paramètres > Profil > Avancé
 - **Auto-refresh** : polling 5s kernel + BroadcastChannel temps réel PWA
 
-**Fichiers** : `http.rs` (handler get_logs), `logs-viewer.js` (859 LOC), `logs.html`, `main.js` (interception console)
+**Fichiers** : `http/system.rs` (handler get_logs), `logs-viewer.js` (859 LOC), `logs.html`, `main.js` (interception console)
 
 ---
 
@@ -278,18 +278,18 @@
 
 ### Résumé par Module (post-fix P0/P1)
 
-| Module | Score | ~~P0~~ | ~~P1~~ | ~~P2~~ | ~~P3~~ | P3 differe | Restant |
+| Module | Score | ~~P0~~ | ~~P1~~ | ~~P2~~ | ~~P3~~ | P3 différé | Restant |
 |--------|-------|-------:|-------:|-------:|-------:|-----------:|--------:|
-| Kernel Core | 4.9/5 | ~~0~~ | ~~1~~ | ~~3~~ | ~~4~~ | 5 LARGE | 5 |
-| Intelligence Engine | 4.7/5 | ~~2~~ | ~~2~~ | ~~21~~ | ~~10~~ | 3 (tests+opt) | 3 |
-| Decision + Automation | 4.8/5 | ~~1~~ | ~~4~~ | ~~10~~ | ~~7~~ | 2 (tests+opt) | 2 |
+| Kernel Core | 4.9/5 | ~~0~~ | ~~1~~ | ~~3~~ | ~~7~~ | 2 (doc+OpenAPI) | 2 |
+| Intelligence Engine | 4.7/5 | ~~2~~ | ~~2~~ | ~~21~~ | ~~13~~ | 0 | 0 |
+| Decision + Automation | 4.8/5 | ~~1~~ | ~~4~~ | ~~10~~ | ~~9~~ | 0 | 0 |
 | Plugins (5) | 4.9/5 | ~~1~~ | ~~2~~ | ~~5~~ | ~~3~~ | 0 | 0 |
 | Agent Host | 4.5/5 | ~~4~~ | ~~6~~ | ~~7~~ | 0 | 0 | 0 |
-| PWA Dashboard | 4.2/5 | ~~3~~ | ~~2~~ | ~~11~~ | ~~7~~ | 1 (CSS perf) | 1 |
+| PWA Dashboard | 4.3/5 | ~~3~~ | ~~2~~ | ~~11~~ | ~~8~~ | 0 | 0 |
 | Infrastructure | 4.3/5 | ~~0~~ | ~~1~~ | ~~10~~ | ~~4~~ | 0 | 0 |
-| **Total** | **4.6/5** | **~~11~~** | **~~18~~** | **~~67~~** | **~~38~~** | **8 differees** | **11** |
+| **Total** | **4.7/5** | **~~11~~** | **~~18~~** | **~~67~~** | **~~44~~** | **2 différées** | **2** |
 
-> **Tous P0/P1 corrigés** (16-18 Fév), **42 P2 corrigés** Sprint 5A/5B+6 (19 Fév), **38 P3 corrigés** Sprint P3 (19 Fév), **3 faux positifs**, **8 différées Sprint 8+**
+> **Tous P0/P1 corrigés** (16-18 Fév), **42 P2 corrigés** Sprint 5A/5B+6 (19 Fév), **44 P3 corrigés** Sprint P3+5/5 (19-20 Fév), **3 faux positifs**, **2 différées Sprint 8+**
 
 ---
 
@@ -446,19 +446,19 @@
 
 ---
 
-### P3 — Issues Mineures (49) — 38 CORRIGEES, 3 faux positifs, 8 differees
+### P3 — Issues Mineures (49) — 44 CORRIGÉES, 3 faux positifs, 2 différées
 
-#### Kernel (9) — 4 corrigees, 5 differees LARGE Sprint 8+
+#### Kernel (9) — 7 corrigées, 2 différées Sprint 8+
 
 | Issue | Statut | Fix |
 |-------|--------|-----|
 | ~~Dead code markers non nettoyés~~ | ✅ | Consolidé struct-level `#[allow(dead_code)]` (`agents.rs`) |
 | ~~Max packet MQTT hardcodé 1MB~~ | ✅ | `SYMBION_MQTT_MAX_PACKET` env var (`mqtt.rs`) |
-| ~~Erreurs 500 génériques~~ | ✅ | `error_response()` helper (`http.rs`) |
+| ~~Erreurs 500 génériques~~ | ✅ | `error_response()` helper (`http/mod.rs`) |
 | ~~Startup sans timers~~ | ✅ | `Instant::now()` + 4 subsystem timings (`main.rs`) |
-| MFA test coverage limitée | ⏳ Sprint 8+ | Test-only, zero risque prod |
-| Old enum naming Cravate→Pro | ⏳ Sprint 8+ | 44 references, migration risquée |
-| http.rs monolithique 3,793 LOC | ⏳ Sprint 8+ | Split en sub-routers (LARGE) |
+| ~~MFA test coverage limitée~~ | ✅ | 11 tests MFA (`mfa.rs`) — commit `748f0e9` |
+| ~~Old enum naming Cravate→Pro~~ | ✅ | Serde alias backward-compat (`context.rs`) — commit `0de5d73` |
+| ~~http.rs monolithique 3,793 LOC~~ | ✅ | Split en 7 modules (`http/`) — commit `0de5d73` |
 | Doc comments handlers HTTP | ⏳ Sprint 8+ | 80+ handlers (LARGE) |
 | OpenAPI/Swagger non généré | ⏳ Sprint 8+ | Nouveau crate + annotations (LARGE) |
 
@@ -480,7 +480,7 @@
 | ~~Expired features lazy-delete~~ | ✅ | Remove expired dans get() (`features.rs`) |
 | ~~Mixed chrono/time~~ | ✅ | Doc: chrono requis par EnvironmentReading (`context_intelligence.rs`) |
 
-#### Decision + Automation (9) — 7 corrigees, 2 differees
+#### Decision + Automation (9) — ✅ TOUS CORRIGÉS
 
 | Issue | Statut | Fix |
 |-------|--------|-----|
@@ -491,8 +491,8 @@
 | ~~Mode change non atomique~~ | ✅ | Doc: single-path déjà atomique (`automations/engine.rs`) |
 | ~~Operator conversion dupliquée~~ | ✅ | `impl Display for ComparisonOperator` (`automations/types.rs`) |
 | ~~Day of week convention~~ | ✅ | Doc: 0=Sunday (time crate) (`automations/engine.rs`) |
-| Edge case tests manquants | ⏳ Sprint 8+ | Test-only, zero risque prod |
-| Trigger matching inefficiency | ⏳ Sprint 8+ | Optimisation, necessite benchmark |
+| ~~Edge case tests manquants~~ | ✅ | 9 tests environment (`decision/environment.rs`) — commit `748f0e9` |
+| ~~Trigger matching inefficiency~~ | ✅ | Pre-filter par event_type_tag (`automations/engine.rs`) — commit `748f0e9` |
 
 #### Plugins (4) — 3 corrigees, 1 faux positif
 
@@ -503,7 +503,7 @@
 | ~~Freebox health race~~ | ✅ | Doc write lock + clear error on success (`freebox/main.rs`) |
 | ~~Freebox mem::forget~~ | ❌ Faux positif | Déjà corrigé P1 (`_shutdown_tx` pattern) |
 
-#### PWA Dashboard (10) — 7 corrigees, 2 faux positifs, 1 differee
+#### PWA Dashboard (10) — ✅ TOUS CORRIGÉS (8 fixés + 2 faux positifs)
 
 | Issue | Statut | Fix |
 |-------|--------|-----|
@@ -516,7 +516,7 @@
 | ~~Widgets lazy loading~~ | ✅ | `import()` dynamique (`dashboard-app.js`) |
 | ~~Login autocomplete~~ | ❌ Faux positif | Déjà présent (`boot-terminal.js:1199`) |
 | ~~Agent cache unbounded~~ | ❌ Faux positif | LRU max 50 déjà implémenté (`mqtt-service.js`) |
-| CSS hover animations perf | ⏳ Sprint 8+ | Audit perf requis |
+| ~~CSS hover animations perf~~ | ✅ | `will-change` + `contain:paint` (`dashboard-app.js`) — commit `748f0e9` |
 
 #### Infrastructure (4) — 4 corrigees
 
@@ -751,26 +751,43 @@
 - [x] 3 issues Plugins (notes perf, notes env paths, freebox health doc)
 - [x] 7 issues PWA (MQTT unsubscribe, ARIA tabs, focus trap, emoji labels, lazy loading)
 - [x] 4 issues Infrastructure (CI retention, Dockerfile pin, SETUP.md, MONITORING.md)
-- 3 faux positifs eliminés (Freebox mem::forget, Login autocomplete, Agent cache)
-- 8 différées Sprint 8+ (5 LARGE kernel, 2 tests, 1 CSS perf)
+- 3 faux positifs éliminés (Freebox mem::forget, Login autocomplete, Agent cache)
+- ~~8~~ 2 différées Sprint 8+ (K6 doc comments, K8 OpenAPI)
+
+### Sprint Quick Wins + 5/5 ✅ TERMINÉ (19-20 Fév 2026)
+
+**Commit `748f0e9` — 4 P3 différées (quick wins)**
+- [x] K1 : 11 tests MFA (backup codes, QR format, uniqueness, range) → `mfa.rs`
+- [x] D3 : 9 tests environment (temperature_c=None, delta_t, boundaries) → `decision/environment.rs`
+- [x] D7 : Trigger pre-filter par event_type_tag O(n)→O(m) → `automations/engine.rs`
+- [x] PWA9 : `will-change` + `contain:paint` + transition ciblée → `dashboard-app.js`
+- Tests : 308 → 324 (+16)
+
+**Commit `0de5d73` — K3 enum rename + K4 http.rs split**
+- [x] K3 : Rename `Mode::Cravate→Pro`, `Mode::Intime→Maison`, `Mode::Neutre→Veille`
+  - Serde alias backward-compat (`#[serde(rename = "pro", alias = "cravate")]`)
+  - 15 fichiers, 161 références mises à jour
+- [x] K4 : Split `http.rs` monolithique (3,804 LOC) → 7 modules (3,834 LOC total)
+  - `http/mod.rs` (494 LOC) — AppState, middleware, build_router
+  - `http/auth.rs` (1,014 LOC) — login, MFA, WebAuthn, CSRF, users
+  - `http/agents.rs` (557 LOC) — registry, commands, telemetry
+  - `http/context.rs` (349 LOC) — modes, schedule, context, memos
+  - `http/decision.rs` (513 LOC) — evaluate, validations, overrides
+  - `http/notifications.rs` (166 LOC) — push, FCM, configs
+  - `http/system.rs` (741 LOC) — health, metrics, hosts, logs
+- 324 tests OK, 0 régressions
 
 ### Sprint 7 (Prochain) — PR6 + Features
 - [ ] PR6 : Let's Encrypt ACME
 - [ ] PR6 : SQLite migration (12 fichiers JSON)
 - [ ] Tests PWA (objectif 50%+ coverage)
 
-### Sprint 8+ (Long terme) — Features + P3 differees
-- [ ] F3 Intentions Log (type deja defini)
+### Sprint 8+ (Long terme) — Features + P3 différées
+- [ ] F3 Intentions Log (type déjà défini)
 - [ ] F2 Digital Hygiene (activity tracking + burnout)
 - [ ] F5 Light Actuator (bridge hardware Tuya)
-- [ ] K3 : Kernel http.rs split en sub-routers (3,793 LOC)
-- [ ] K4 : Old enum naming cleanup (Cravate→Pro, 44 references)
 - [ ] K6 : Doc comments 80+ handlers HTTP
 - [ ] K8 : OpenAPI/Swagger documentation
-- [ ] PWA9 : CSS hover animations audit perf
-- [ ] K1 : MFA test coverage (5-8 cas)
-- [ ] D3 : Environment edge case tests
-- [ ] D7 : Trigger matching HashMap optimization
 
 ---
 
