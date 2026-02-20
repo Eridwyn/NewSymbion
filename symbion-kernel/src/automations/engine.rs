@@ -32,19 +32,19 @@ use time::OffsetDateTime;
 /// Centralized mode alias table: (input_alias, canonical_slug, base_mode)
 /// Used by ForceMode action to resolve user-friendly names to core modes.
 const MODE_ALIASES: &[(&str, &str, Mode)] = &[
-    ("cravate", "pro", Mode::Cravate),
-    ("work", "pro", Mode::Cravate),
-    ("professional", "pro", Mode::Cravate),
-    ("pro", "pro", Mode::Cravate),
-    ("focus", "focus", Mode::Cravate),     // Focus maps to Cravate theme
-    ("intime", "maison", Mode::Intime),
-    ("home", "maison", Mode::Intime),
-    ("domestic", "maison", Mode::Intime),
-    ("maison", "maison", Mode::Intime),
-    ("neutre", "veille", Mode::Neutre),
-    ("neutral", "veille", Mode::Neutre),
-    ("eco", "veille", Mode::Neutre),
-    ("veille", "veille", Mode::Neutre),
+    ("cravate", "pro", Mode::Pro),
+    ("work", "pro", Mode::Pro),
+    ("professional", "pro", Mode::Pro),
+    ("pro", "pro", Mode::Pro),
+    ("focus", "focus", Mode::Pro),     // Focus maps to Pro theme
+    ("intime", "maison", Mode::Maison),
+    ("home", "maison", Mode::Maison),
+    ("domestic", "maison", Mode::Maison),
+    ("maison", "maison", Mode::Maison),
+    ("neutre", "veille", Mode::Veille),
+    ("neutral", "veille", Mode::Veille),
+    ("eco", "veille", Mode::Veille),
+    ("veille", "veille", Mode::Veille),
 ];
 
 /// Resolve a mode string to its core (Mode, slug) pair via the alias table.
@@ -746,11 +746,11 @@ impl AutomationEngine {
                         // Dynamic mode found - infer base Mode enum from system mode mappings
                         // Custom modes default to Neutre unless they match a known pattern
                         let base_mode = if dynamic_mode.slug.contains("pro") || dynamic_mode.slug.contains("work") {
-                            Mode::Cravate
+                            Mode::Pro
                         } else if dynamic_mode.slug.contains("maison") || dynamic_mode.slug.contains("home") {
-                            Mode::Intime
+                            Mode::Maison
                         } else {
-                            Mode::Neutre // Safe default for custom modes
+                            Mode::Veille // Safe default for custom modes
                         };
                         let theme = crate::context::Theme {
                             primary: dynamic_mode.theme.primary.clone(),

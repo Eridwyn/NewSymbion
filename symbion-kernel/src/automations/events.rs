@@ -269,13 +269,13 @@ mod tests {
     async fn test_mode_change_dispatch() {
         let (dispatcher, mut receiver) = EventDispatcher::new();
 
-        dispatcher.dispatch_mode_change("neutre", "cravate", "test reason");
+        dispatcher.dispatch_mode_change("veille", "pro", "test reason");
 
         let event = receiver.recv().await.unwrap();
         match event {
             AutomationEvent::ModeChange { from_mode, to_mode, reason, .. } => {
-                assert_eq!(from_mode, "neutre");
-                assert_eq!(to_mode, "cravate");
+                assert_eq!(from_mode, "veille");
+                assert_eq!(to_mode, "pro");
                 assert_eq!(reason, "test reason");
             }
             _ => panic!("Wrong event type"),

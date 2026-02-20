@@ -468,9 +468,9 @@ impl ContextIntelligence {
             // Note: Focus mode uses dynamic ModeRegistry (data/modes.json), not the legacy Mode enum.
             // When Mode enum gets Focus variant, add it here.
             let mode_slug = match entry.mode {
-                Mode::Cravate => "pro",
-                Mode::Intime => "maison",
-                Mode::Neutre => "veille",
+                Mode::Pro => "pro",
+                Mode::Maison => "maison",
+                Mode::Veille => "veille",
             };
             let weekday = entry.timestamp.weekday().number_from_monday() as u8 - 1; // 0=Mon, 6=Sun
             let hour = entry.timestamp.hour();

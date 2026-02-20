@@ -261,12 +261,12 @@ mod tests {
             trace_id: "trace1".into(),
             expires_at: None,
             dry_run: false,
-            expected_mode: Some("intime".into()),
+            expected_mode: Some("maison".into()),
             expected_ssid: Some("home-wifi".into()),
         };
 
         let context = DecisionContext {
-            mode: "intime".into(),
+            mode: "maison".into(),
             ssid: "home-wifi".into(),
             agents: HashMap::new(),
         };
@@ -288,12 +288,12 @@ mod tests {
             trace_id: "trace1".into(),
             expires_at: None,
             dry_run: false,
-            expected_mode: Some("cravate".into()),
+            expected_mode: Some("pro".into()),
             expected_ssid: None,
         };
 
         let context = DecisionContext {
-            mode: "intime".into(),
+            mode: "maison".into(),
             ssid: "home-wifi".into(),
             agents: HashMap::new(),
         };
@@ -324,7 +324,7 @@ mod tests {
         );
 
         let context = DecisionContext {
-            mode: "intime".into(),
+            mode: "maison".into(),
             ssid: "home-wifi".into(),
             agents,
         };
@@ -355,7 +355,7 @@ mod tests {
         );
 
         let context = DecisionContext {
-            mode: "intime".into(),
+            mode: "maison".into(),
             ssid: "home-wifi".into(),
             agents,
         };
@@ -377,7 +377,7 @@ mod tests {
             trace_id: "trace1".into(),
             expires_at: None,
             dry_run: false,
-            expected_mode: Some("intime".into()),
+            expected_mode: Some("maison".into()),
             expected_ssid: Some("home-wifi".into()),
         };
 
@@ -397,7 +397,7 @@ mod tests {
         );
 
         let context = DecisionContext {
-            mode: "intime".into(),
+            mode: "maison".into(),
             ssid: "home-wifi".into(),
             agents,
         };

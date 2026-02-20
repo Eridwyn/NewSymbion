@@ -1078,9 +1078,9 @@ mod tests {
             },
         ];
         let modes = vec![
-            ("cravate".to_string(), "Cravate".to_string(), "Mode Pro".to_string()),
-            ("intime".to_string(), "Intime".to_string(), "Mode Maison".to_string()),
-            ("neutre".to_string(), "Neutre".to_string(), "Mode Veille".to_string()),
+            ("pro".to_string(), "Pro".to_string(), "Mode Pro".to_string()),
+            ("maison".to_string(), "Maison".to_string(), "Mode Maison".to_string()),
+            ("veille".to_string(), "Veille".to_string(), "Mode Veille".to_string()),
         ];
 
         let schema = SchemaRegistry::get_schema(&agents, &rooms, &sensors, &modes);

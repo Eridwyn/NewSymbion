@@ -167,7 +167,7 @@ mod tests {
     fn test_dry_run_conversion() {
         let automation = create_test_automation();
         let action = ActionDefinition::ForceMode {
-            mode: "cravate".to_string(),
+            mode: "pro".to_string(),
             duration_minutes: Some(30),
             reason: "Test".to_string(),
             impact_level: ImpactLevel::Medium,
