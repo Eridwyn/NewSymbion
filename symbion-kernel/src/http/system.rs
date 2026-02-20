@@ -11,6 +11,7 @@ use crate::wol::trigger_wol_udp;
 // Host Views
 // ============================================================================
 
+/// Serializable view of a host's current state for API responses.
 #[derive(serde::Serialize)]
 pub(super) struct HostView {
     host_id: String,
@@ -22,6 +23,7 @@ pub(super) struct HostView {
     ip: Option<String>,
 }
 
+/// Convert a HostState into a HostView, computing staleness from the current time.
 pub(super) fn to_view(h: &HostState) -> HostView {
     let now = OffsetDateTime::now_utc();
     let age = now - h.last_seen;
@@ -41,6 +43,7 @@ pub(super) fn to_view(h: &HostState) -> HostView {
 // Wake Params
 // ============================================================================
 
+/// Query parameters for the Wake-on-LAN endpoint.
 #[derive(Debug, Deserialize)]
 pub(super) struct WakeParams { pub host_id: String }
 
@@ -48,7 +51,7 @@ pub(super) struct WakeParams { pub host_id: String }
 // Hosts / Contracts / Health Handlers
 // ============================================================================
 
-// GET /hosts (liste)
+/// GET /hosts -- Return a list of all known hosts with their current state.
 pub(super) async fn get_hosts(State(app): State<AppState>) -> Json<Vec<HostView>> {
     let list: Vec<HostView> = {
         let states = app.states.lock();
@@ -57,7 +60,7 @@ pub(super) async fn get_hosts(State(app): State<AppState>) -> Json<Vec<HostView>
     Json(list)
 }
 
-// GET /hosts/:id (détail)
+/// GET /hosts/:id -- Return a single host by ID, or 404 if not found.
 pub(super) async fn get_host(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -71,6 +74,7 @@ pub(super) async fn get_host(
 }
 
 
+/// POST /wake -- Send a Wake-on-LAN magic packet to the specified host.
 pub(super) async fn wake(
     State(app): State<AppState>,
     Query(params): Query<WakeParams>,
@@ -148,12 +152,12 @@ pub(super) async fn send_magic_packet(mac: &str) -> (StatusCode, Json<serde_json
     }
 }
 
-// GET /contracts (liste)
+/// GET /contracts -- Return the list of all registered MQTT contract names.
 pub(super) async fn list_contracts(State(app): State<AppState>) -> Json<Vec<String>> {
     Json(app.contracts.list_contracts())
 }
 
-// GET /contracts/{name} (détail)
+/// GET /contracts/{name} -- Return a single MQTT contract by name, or 404 if not found.
 pub(super) async fn get_contract(
     State(app): State<AppState>,
     Path(name): Path<String>,
@@ -164,7 +168,7 @@ pub(super) async fn get_contract(
     }
 }
 
-// GET /system/health (état infrastructure)
+/// GET /system/health -- Return full infrastructure health status (MQTT, agents, plugins).
 pub(super) async fn get_system_health(State(app): State<AppState>) -> Json<crate::health::KernelHealth> {
     let health = app.health_tracker.get_health(&app.contracts, &app.agents, &app.plugin_registry);
     Json(health)
@@ -212,6 +216,7 @@ pub(super) struct AgentMetrics {
     processes: AgentProcessMetrics,
 }
 
+/// CPU telemetry for a single agent (percent, load average, core count).
 #[derive(serde::Serialize)]
 pub(super) struct AgentCpuMetrics {
     percent: f32,
@@ -219,6 +224,7 @@ pub(super) struct AgentCpuMetrics {
     core_count: u32,
 }
 
+/// Memory telemetry for a single agent (total, used, available, percent).
 #[derive(serde::Serialize)]
 pub(super) struct AgentMemoryMetrics {
     total_mb: u64,
@@ -227,6 +233,7 @@ pub(super) struct AgentMemoryMetrics {
     percent_used: f32,
 }
 
+/// Disk usage telemetry for a single mount point on an agent.
 #[derive(serde::Serialize)]
 pub(super) struct AgentDiskMetrics {
     path: String,
@@ -236,6 +243,7 @@ pub(super) struct AgentDiskMetrics {
     percent_used: f32,
 }
 
+/// Network interface telemetry for a single agent (bytes sent/received, link status).
 #[derive(serde::Serialize)]
 pub(super) struct AgentNetworkMetrics {
     name: String,
@@ -244,12 +252,14 @@ pub(super) struct AgentNetworkMetrics {
     is_up: bool,
 }
 
+/// Process count summary for a single agent (total and running).
 #[derive(serde::Serialize)]
 pub(super) struct AgentProcessMetrics {
     total_count: u32,
     running_count: u32,
 }
 
+/// GET /v1/metrics/agents -- Return per-agent telemetry (CPU, RAM, disk, network, processes).
 pub(super) async fn get_metrics_agents(
     State(app): State<AppState>,
 ) -> Json<Vec<AgentMetrics>> {
@@ -336,6 +346,7 @@ pub(super) struct SystemMetrics {
     decision_engine: DecisionEngineMetrics,
 }
 
+/// Kernel runtime stats (uptime, memory usage, contracts loaded).
 #[derive(serde::Serialize)]
 pub(super) struct KernelRuntimeMetrics {
     uptime_seconds: u64,
@@ -343,6 +354,7 @@ pub(super) struct KernelRuntimeMetrics {
     contracts_loaded: u32,
 }
 
+/// MQTT broker connection and throughput metrics.
 #[derive(serde::Serialize)]
 pub(super) struct MqttMetrics {
     status: String, // "connected", "disconnected", "reconnecting"
@@ -351,6 +363,7 @@ pub(super) struct MqttMetrics {
     messages_total: u64,
 }
 
+/// Summary counts of agents by online/offline status.
 #[derive(serde::Serialize)]
 pub(super) struct AgentsSummaryMetrics {
     total: usize,
@@ -358,6 +371,7 @@ pub(super) struct AgentsSummaryMetrics {
     offline: usize,
 }
 
+/// Plugin system status counts (total, running, failed).
 #[derive(serde::Serialize)]
 pub(super) struct PluginsMetrics {
     total: u32,
@@ -365,12 +379,14 @@ pub(super) struct PluginsMetrics {
     failed: u32,
 }
 
+/// Context engine state (current mode and detection confidence).
 #[derive(serde::Serialize)]
 pub(super) struct ContextMetrics {
     current_mode: String, // "veille", "pro", "maison"
     confidence: f32,
 }
 
+/// Decision engine counters (total, approved, blocked, pending validations, active overrides).
 #[derive(serde::Serialize)]
 pub(super) struct DecisionEngineMetrics {
     decisions_total: u64,
@@ -380,6 +396,7 @@ pub(super) struct DecisionEngineMetrics {
     overrides_active: usize,
 }
 
+/// GET /v1/metrics/system -- Return aggregated kernel performance metrics (runtime, MQTT, agents, plugins, context, decisions).
 pub(super) async fn get_metrics_system(
     State(app): State<AppState>,
 ) -> Json<SystemMetrics> {
@@ -577,6 +594,7 @@ pub(super) async fn prometheus_metrics_endpoint(
 // Logs API
 // ============================================================================
 
+/// Query parameters for the logs endpoint (level filter, search, limit, time range, trace ID).
 #[derive(Deserialize)]
 pub(super) struct LogsQuery {
     level: Option<String>,    // comma-separated: "info,warn,error"
@@ -586,6 +604,7 @@ pub(super) struct LogsQuery {
     trace_id: Option<String>, // filter by trace_id in message
 }
 
+/// A single parsed and sanitized log entry from journalctl output.
 #[derive(serde::Serialize)]
 pub(super) struct LogEntry {
     timestamp: String,

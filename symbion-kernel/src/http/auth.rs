@@ -9,7 +9,7 @@ use base64::Engine;
 
 // =============== AUTH ENDPOINTS ===============
 
-// POST /auth/login - Authentification utilisateur
+/// POST /auth/login — Authenticate user with username/password, return JWT token with optional MFA and device trust.
 pub(super) async fn auth_login(
     State(app): State<AppState>,
     req: Request,
@@ -137,7 +137,7 @@ pub(super) async fn auth_login(
     }
 }
 
-// GET /auth/verify - Vérifier validité token (depuis header Authorization)
+/// GET /auth/verify — Verify JWT token validity and return decoded claims.
 pub(super) async fn auth_verify(
     State(app): State<AppState>,
     req: Request,
@@ -160,7 +160,7 @@ pub(super) async fn auth_verify(
     }
 }
 
-// GET /auth/session - Informations session courante
+/// GET /auth/session — Retrieve current session information for the authenticated user.
 pub(super) async fn auth_session(
     State(app): State<AppState>,
     req: Request,
@@ -178,7 +178,7 @@ pub(super) async fn auth_session(
     }
 }
 
-// POST /auth/logout - Déconnexion (pour l'instant juste un success)
+/// POST /auth/logout — Log out the current user (client-side token removal).
 pub(super) async fn auth_logout() -> Json<serde_json::Value> {
     // JWT est stateless - le client doit juste supprimer le token
     // On pourrait implémenter une blacklist de tokens pour invalidation côté serveur
@@ -208,6 +208,7 @@ pub(super) async fn auth_reload_users(
 // User Management Endpoints (Admin)
 // ============================================================================
 
+/// Request payload for creating a new user with username, password, and role.
 #[derive(Debug, serde::Deserialize)]
 pub(super) struct CreateUserRequest {
     username: String,
@@ -215,6 +216,7 @@ pub(super) struct CreateUserRequest {
     role: String,
 }
 
+/// Request payload for updating a user password with current and new password fields.
 #[derive(Debug, serde::Deserialize)]
 pub(super) struct UpdatePasswordRequest {
     current_password: String,
@@ -356,12 +358,14 @@ pub(super) async fn mfa_status(
     }
 }
 
+/// MFA setup request with optional recovery email address.
 #[derive(serde::Deserialize)]
 pub(super) struct MfaSetupRequest {
     #[serde(default)]
     recovery_email: Option<String>,
 }
 
+/// MFA setup response containing the TOTP secret, QR code, and backup codes.
 #[derive(serde::Serialize)]
 pub(super) struct MfaSetupResponse {
     secret: String,
@@ -481,6 +485,7 @@ pub(super) async fn mfa_setup(
     }))
 }
 
+/// MFA verification request containing the TOTP code to validate.
 #[derive(serde::Deserialize)]
 pub(super) struct MfaVerifyRequest {
     code: String,
@@ -645,7 +650,7 @@ pub(super) async fn csrf_generate_nonce(
     })))
 }
 
-// GET /ca-certificate - Téléchargement du certificat CA
+/// GET /ca-certificate — Download the CA certificate as a PEM file.
 pub(super) async fn download_ca_certificate() -> Result<impl IntoResponse, StatusCode> {
     use axum::http::header;
 
@@ -677,13 +682,13 @@ pub(super) async fn download_ca_certificate() -> Result<impl IntoResponse, Statu
 // WebAuthn Biometric Authentication Endpoints
 // ============================================================================
 
-/// POST /auth/webauthn/register-start - Démarrer l'enregistrement d'une passkey
-/// Protégé par JWT - l'utilisateur doit être authentifié pour ajouter une passkey
+/// Registration start request containing a friendly name for the new passkey.
 #[derive(serde::Deserialize)]
 pub(super) struct WebAuthnRegisterStartRequest {
     friendly_name: String, // Ex: "iPhone 15 Pro", "Windows Hello"
 }
 
+/// POST /auth/webauthn/register-start — Start passkey registration for the authenticated user.
 pub(super) async fn webauthn_register_start(
     State(app): State<AppState>,
     req: Request,
@@ -727,13 +732,14 @@ pub(super) async fn webauthn_register_start(
     Ok(Json(ccr))
 }
 
-/// POST /auth/webauthn/register-finish - Terminer l'enregistrement d'une passkey
+/// Registration finish request containing the friendly name and the public key credential.
 #[derive(serde::Deserialize)]
 pub(super) struct WebAuthnRegisterFinishRequest {
     friendly_name: String,
     credential: webauthn_rs::prelude::RegisterPublicKeyCredential,
 }
 
+/// POST /auth/webauthn/register-finish — Complete passkey registration and persist the credential.
 pub(super) async fn webauthn_register_finish(
     State(app): State<AppState>,
     req: Request,
@@ -902,12 +908,13 @@ pub(super) async fn webauthn_delete_passkey(
     })))
 }
 
-/// POST /auth/webauthn/authenticate-start - Démarrer l'authentification avec passkey
+/// Authentication start request containing the username to authenticate.
 #[derive(serde::Deserialize)]
 pub(super) struct WebAuthnAuthenticateStartRequest {
     username: String,
 }
 
+/// POST /auth/webauthn/authenticate-start — Start passkey authentication for a given username.
 pub(super) async fn webauthn_authenticate_start(
     State(app): State<AppState>,
     Json(payload): Json<WebAuthnAuthenticateStartRequest>,
@@ -925,8 +932,7 @@ pub(super) async fn webauthn_authenticate_start(
     Ok(Json(rcr))
 }
 
-/// POST /auth/webauthn/authenticate-discoverable-start - Démarrer l'authentification sans username
-/// Mode "discoverable credentials" : l'authenticator présente toutes les passkeys disponibles
+/// POST /auth/webauthn/authenticate-discoverable-start — Start passwordless authentication using discoverable credentials.
 pub(super) async fn webauthn_authenticate_discoverable_start(
     State(app): State<AppState>,
 ) -> Result<Json<webauthn_rs::prelude::RequestChallengeResponse>, (StatusCode, Json<serde_json::Value>)> {
@@ -943,13 +949,13 @@ pub(super) async fn webauthn_authenticate_discoverable_start(
     Ok(Json(rcr))
 }
 
-/// POST /auth/webauthn/authenticate-finish - Terminer l'authentification avec passkey
-/// Retourne un JWT token si succès
+/// Authentication finish request containing the signed public key credential.
 #[derive(serde::Deserialize)]
 pub(super) struct WebAuthnAuthenticateFinishRequest {
     credential: webauthn_rs::prelude::PublicKeyCredential,
 }
 
+/// POST /auth/webauthn/authenticate-finish — Complete passkey authentication and return a JWT token.
 pub(super) async fn webauthn_authenticate_finish(
     State(app): State<AppState>,
     req: Request,

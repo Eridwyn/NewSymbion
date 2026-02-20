@@ -6,6 +6,7 @@ use time::OffsetDateTime;
 use crate::decision_http::{EvaluateRequest, AuditQueryParams, ResolveValidationRequest, CreateOverrideRequest, RevokeOverrideRequest};
 use crate::context_intelligence::DecisionSignal;
 
+/// POST /decision/evaluate -- Evaluate an action through the Decision Engine.
 pub(super) async fn decision_evaluate(
     State(app): State<AppState>,
     Json(req): Json<EvaluateRequest>,
@@ -21,6 +22,7 @@ pub(super) async fn decision_evaluate(
     crate::decision_http::evaluate_action(State(state), Json(req)).await
 }
 
+/// GET /decision/audit -- Retrieve the decision audit trail with optional query filters.
 pub(super) async fn decision_get_audit(
     State(app): State<AppState>,
     Query(params): Query<AuditQueryParams>,
@@ -36,6 +38,7 @@ pub(super) async fn decision_get_audit(
     crate::decision_http::get_audit_trail(State(state), Query(params)).await
 }
 
+/// GET /decision/metrics -- Return Decision Engine metrics in Prometheus text format.
 pub(super) async fn decision_get_metrics(
     State(app): State<AppState>,
 ) -> Result<String, StatusCode> {
@@ -50,6 +53,7 @@ pub(super) async fn decision_get_metrics(
     crate::decision_http::get_metrics(State(state)).await
 }
 
+/// GET /decision/validations/pending -- List all pending validation requests.
 pub(super) async fn decision_list_pending_validations(
     State(app): State<AppState>,
 ) -> Json<Vec<crate::decision::ValidationRequest>> {
@@ -64,6 +68,7 @@ pub(super) async fn decision_list_pending_validations(
     crate::decision_http::list_pending_validations(State(state)).await
 }
 
+/// POST /decision/validation/{id}/resolve -- Approve or reject a pending validation and execute the associated action if approved.
 pub(super) async fn decision_resolve_validation(
     State(app): State<AppState>,
     Path(validation_id): Path<String>,
@@ -382,6 +387,7 @@ pub(super) async fn execute_pending_action(
     }
 }
 
+/// POST /decision/override -- Create a new master override for the Decision Engine.
 pub(super) async fn decision_create_override(
     State(app): State<AppState>,
     Json(req): Json<CreateOverrideRequest>,
@@ -397,6 +403,7 @@ pub(super) async fn decision_create_override(
     crate::decision_http::create_override(State(state), Json(req)).await
 }
 
+/// GET /decision/overrides/active -- List all currently active master overrides.
 pub(super) async fn decision_list_active_overrides(
     State(app): State<AppState>,
 ) -> Json<Vec<crate::decision::MasterOverride>> {
@@ -411,6 +418,7 @@ pub(super) async fn decision_list_active_overrides(
     crate::decision_http::list_active_overrides(State(state)).await
 }
 
+/// DELETE /decision/override/{id} -- Revoke an active master override by ID.
 pub(super) async fn decision_revoke_override(
     State(app): State<AppState>,
     Path(override_id): Path<String>,
@@ -427,6 +435,7 @@ pub(super) async fn decision_revoke_override(
     crate::decision_http::revoke_override(State(state), Path(override_id), Json(req)).await
 }
 
+/// GET /decision/config -- Return the current Decision Engine configuration.
 pub(super) async fn decision_get_config(
     State(app): State<AppState>,
 ) -> Json<crate::decision::DecisionConfig> {
@@ -441,6 +450,7 @@ pub(super) async fn decision_get_config(
     crate::decision_http::get_config(State(state)).await
 }
 
+/// GET /decision/agent-health -- Return health status for all registered agents.
 pub(super) async fn decision_get_agent_health(
     State(app): State<AppState>,
 ) -> Json<serde_json::Value> {
@@ -455,6 +465,7 @@ pub(super) async fn decision_get_agent_health(
     crate::decision_http::get_agent_health(State(state)).await
 }
 
+/// GET /decision/stats -- Return aggregate Decision Engine statistics.
 pub(super) async fn decision_get_stats(
     State(app): State<AppState>,
 ) -> Json<crate::decision_http::DecisionStats> {
@@ -469,6 +480,7 @@ pub(super) async fn decision_get_stats(
     crate::decision_http::get_stats(State(state)).await
 }
 
+/// GET /decision/validations/expired -- List all expired validation requests.
 pub(super) async fn decision_list_expired_validations(
     State(app): State<AppState>,
 ) -> Json<Vec<crate::decision::ValidationRequest>> {
@@ -483,6 +495,7 @@ pub(super) async fn decision_list_expired_validations(
     crate::decision_http::list_expired_validations(State(state)).await
 }
 
+/// DELETE /decision/validation/{id} -- Delete a specific validation request by ID.
 pub(super) async fn decision_delete_validation(
     State(app): State<AppState>,
     Path(validation_id): Path<String>,
@@ -498,6 +511,7 @@ pub(super) async fn decision_delete_validation(
     crate::decision_http::delete_validation(State(state), Path(validation_id)).await
 }
 
+/// DELETE /decision/validations/expired -- Delete all expired validation requests.
 pub(super) async fn decision_delete_all_expired_validations(
     State(app): State<AppState>,
 ) -> Json<serde_json::Value> {

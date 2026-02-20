@@ -8,28 +8,28 @@ use serde::Deserialize;
 // Notifications Endpoints
 // ============================================================================
 
-/// GET /notifications - Liste toutes les notifications (historique)
+/// GET /notifications — List all notifications from history.
 pub(super) async fn list_notifications(
     State(app): State<AppState>,
 ) -> Json<Vec<crate::notifications::Notification>> {
     Json(app.notifications_manager.list_all())
 }
 
-/// GET /notifications/active - Liste les notifications non acquittées
+/// GET /notifications/active — List all unacknowledged notifications.
 pub(super) async fn list_active_notifications(
     State(app): State<AppState>,
 ) -> Json<Vec<crate::notifications::Notification>> {
     Json(app.notifications_manager.list_active())
 }
 
-/// GET /notifications/tokens - Liste les tokens FCM enregistrés
+/// GET /notifications/tokens — List all registered FCM tokens.
 pub(super) async fn list_fcm_tokens(
     State(app): State<AppState>,
 ) -> Json<Vec<crate::notifications::FcmToken>> {
     Json(app.notifications_manager.list_fcm_tokens())
 }
 
-/// Request body pour envoyer une notification
+/// Request body for sending a new notification.
 #[derive(Debug, Deserialize)]
 pub(super) struct SendNotificationRequest {
     title: String,
@@ -44,7 +44,7 @@ pub(super) struct SendNotificationRequest {
     data: Option<serde_json::Value>,
 }
 
-/// POST /notifications - Envoie une nouvelle notification
+/// POST /notifications — Send a new notification with optional priority and actions.
 pub(super) async fn send_notification(
     State(app): State<AppState>,
     Json(request): Json<SendNotificationRequest>,
@@ -77,7 +77,7 @@ pub(super) async fn send_notification(
     })))
 }
 
-/// POST /notifications/{id}/acknowledge - Acquitte une notification
+/// POST /notifications/{id}/acknowledge — Acknowledge a notification by ID.
 pub(super) async fn acknowledge_notification(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -91,7 +91,7 @@ pub(super) async fn acknowledge_notification(
     })))
 }
 
-/// DELETE /notifications/{id} - Supprime une notification
+/// DELETE /notifications/{id} — Delete a notification by ID.
 pub(super) async fn delete_notification(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -105,7 +105,7 @@ pub(super) async fn delete_notification(
     })))
 }
 
-/// Request body pour enregistrer un token FCM
+/// Request body for registering an FCM push token.
 #[derive(Debug, Deserialize)]
 pub(super) struct RegisterFcmTokenRequest {
     user_id: String,
@@ -114,7 +114,7 @@ pub(super) struct RegisterFcmTokenRequest {
     device_name: Option<String>,
 }
 
-/// POST /notifications/tokens - Enregistre un token FCM
+/// POST /notifications/tokens — Register an FCM push token for a user/device.
 pub(super) async fn register_fcm_token(
     State(app): State<AppState>,
     Json(request): Json<RegisterFcmTokenRequest>,
@@ -135,14 +135,14 @@ pub(super) async fn register_fcm_token(
 // Notification Config API
 // =============================================================================
 
-/// GET /notifications/config - Liste toutes les configurations de notifications
+/// GET /notifications/config — List all notification type configurations.
 pub(super) async fn list_notification_configs(
     State(app): State<AppState>,
 ) -> Json<Vec<crate::notification_config::NotificationTypeConfig>> {
     Json(app.notification_config.list_all())
 }
 
-/// GET /notifications/config/{type_id} - Récupère une configuration spécifique
+/// GET /notifications/config/{type_id} — Retrieve a specific notification type configuration.
 pub(super) async fn get_notification_config(
     State(app): State<AppState>,
     Path(type_id): Path<String>,
@@ -153,7 +153,7 @@ pub(super) async fn get_notification_config(
         .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Notification type '{}' not found", type_id)))
 }
 
-/// PUT /notifications/config/{type_id} - Met à jour une configuration
+/// PUT /notifications/config/{type_id} — Update a notification type configuration.
 pub(super) async fn update_notification_config(
     State(app): State<AppState>,
     Path(type_id): Path<String>,

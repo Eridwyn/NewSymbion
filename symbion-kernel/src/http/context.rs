@@ -6,7 +6,7 @@ use crate::notes_bridge;
 use crate::context_intelligence::DecisionSignal;
 use std::collections::HashMap;
 
-// GET /context/current (mode contextuel actuel)
+/// GET /context/current — Return the current contextual mode state.
 pub(super) async fn get_context_current(State(app): State<AppState>) -> Result<Json<crate::context::ContextState>, StatusCode> {
     match app.context_engine.get_state() {
         Some(state) => Ok(Json(state)),
@@ -14,7 +14,7 @@ pub(super) async fn get_context_current(State(app): State<AppState>) -> Result<J
     }
 }
 
-// POST /context/override (forcer manuellement un mode)
+/// Request body for POST /context/override to manually force a contextual mode.
 #[derive(serde::Deserialize)]
 pub(super) struct ContextOverrideRequest {
     mode: String,  // Slug du mode dynamique: "pro", "focus", "maison", "veille", ou custom
@@ -22,6 +22,7 @@ pub(super) struct ContextOverrideRequest {
     reason: Option<String>,
 }
 
+/// POST /context/override — Force a manual contextual mode override and record intelligence feedback.
 pub(super) async fn set_context_override(
     State(app): State<AppState>,
     Json(req): Json<ContextOverrideRequest>,
@@ -77,6 +78,7 @@ pub(super) async fn set_context_override(
     }
 }
 
+/// Convert a `Mode` enum variant to its lowercase string slug.
 pub(super) fn mode_to_str(mode: &crate::context::Mode) -> String {
     use crate::context::Mode;
     match mode {
@@ -86,7 +88,7 @@ pub(super) fn mode_to_str(mode: &crate::context::Mode) -> String {
     }
 }
 
-// POST /context/clear (annuler l'override manuel)
+/// POST /context/clear — Cancel the active manual mode override and revert to automatic context.
 pub(super) async fn clear_context_override(State(app): State<AppState>) -> Result<Json<crate::context::ContextState>, StatusCode> {
     let agents_map = app.agents.list_agents().await;
     let agents_list: Vec<crate::agents::Agent> = agents_map.values().cloned().collect();
@@ -97,25 +99,26 @@ pub(super) async fn clear_context_override(State(app): State<AppState>) -> Resul
     }
 }
 
-// GET /context/history (historique des changements de mode)
+/// GET /context/history — Return the chronological history of mode changes.
 pub(super) async fn get_context_history(State(app): State<AppState>) -> Json<Vec<crate::context::ModeHistoryEntry>> {
     Json(app.context_engine.get_history())
 }
 
-// GET /context/stats (statistiques par mode)
+/// GET /context/stats — Return aggregated usage statistics per contextual mode.
 pub(super) async fn get_context_stats(State(app): State<AppState>) -> Json<Vec<crate::context::ModeStats>> {
     Json(app.context_engine.calculate_stats())
 }
 
 // Note: GET /context/patterns removed - use /intelligence/patterns instead
 
-// GET /context/productivity (métriques de productivité par mode)
+/// GET /context/productivity — Return productivity metrics broken down by contextual mode.
 pub(super) async fn get_context_productivity(State(app): State<AppState>) -> Json<Vec<crate::context::ProductivityMetrics>> {
     Json(app.context_engine.calculate_productivity())
 }
 
 // ============ MEMO HANDLERS (Plugin Bridge Only) ============
 
+/// GET /memo — List notes via the notes plugin bridge, with optional query filters.
 pub(super) async fn handle_memo_list(
     State(app): State<AppState>,
     Query(params): Query<HashMap<String, String>>,
@@ -132,6 +135,7 @@ pub(super) async fn handle_memo_list(
     Err(StatusCode::SERVICE_UNAVAILABLE)
 }
 
+/// POST /memo — Create a new note via the notes plugin bridge, injecting contextual mode automatically.
 pub(super) async fn handle_memo_create(
     State(app): State<AppState>,
     Json(note_data): Json<serde_json::Value>,
@@ -174,6 +178,7 @@ pub(super) async fn handle_memo_create(
     Err(StatusCode::SERVICE_UNAVAILABLE)
 }
 
+/// DELETE /memo/:id — Delete a note by ID via the notes plugin bridge.
 pub(super) async fn handle_memo_delete(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -190,6 +195,7 @@ pub(super) async fn handle_memo_delete(
     Err(StatusCode::SERVICE_UNAVAILABLE)
 }
 
+/// PUT /memo/:id — Update an existing note by ID via the notes plugin bridge.
 pub(super) async fn handle_memo_update(
     State(app): State<AppState>,
     Path(id): Path<String>,
