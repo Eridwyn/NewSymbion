@@ -31,7 +31,7 @@
 | Modes contextuels | 4 système + custom |
 | Intelligence Samples | 34 (apprentissage continu) |
 | Data files (JSON) | 12 |
-| **Issues audit** | **116 identifiées — 29 P0/P1 + 42 P2 + 44 P3 corrigées, 2 P3 différées, 3 faux positifs** |
+| **Issues audit** | **116 identifiées — 29 P0/P1 + 42 P2 + 45 P3 corrigées, 1 P3 différée (K8 OpenAPI), 3 faux positifs** |
 
 ---
 
@@ -280,16 +280,16 @@
 
 | Module | Score | ~~P0~~ | ~~P1~~ | ~~P2~~ | ~~P3~~ | P3 différé | Restant |
 |--------|-------|-------:|-------:|-------:|-------:|-----------:|--------:|
-| Kernel Core | 4.9/5 | ~~0~~ | ~~1~~ | ~~3~~ | ~~7~~ | 2 (doc+OpenAPI) | 2 |
+| Kernel Core | 4.9/5 | ~~0~~ | ~~1~~ | ~~3~~ | ~~8~~ | 1 (OpenAPI) | 1 |
 | Intelligence Engine | 4.7/5 | ~~2~~ | ~~2~~ | ~~21~~ | ~~13~~ | 0 | 0 |
 | Decision + Automation | 4.8/5 | ~~1~~ | ~~4~~ | ~~10~~ | ~~9~~ | 0 | 0 |
 | Plugins (5) | 4.9/5 | ~~1~~ | ~~2~~ | ~~5~~ | ~~3~~ | 0 | 0 |
 | Agent Host | 4.5/5 | ~~4~~ | ~~6~~ | ~~7~~ | 0 | 0 | 0 |
 | PWA Dashboard | 4.3/5 | ~~3~~ | ~~2~~ | ~~11~~ | ~~8~~ | 0 | 0 |
 | Infrastructure | 4.3/5 | ~~0~~ | ~~1~~ | ~~10~~ | ~~4~~ | 0 | 0 |
-| **Total** | **4.7/5** | **~~11~~** | **~~18~~** | **~~67~~** | **~~44~~** | **2 différées** | **2** |
+| **Total** | **4.7/5** | **~~11~~** | **~~18~~** | **~~67~~** | **~~45~~** | **1 différée** | **1** |
 
-> **Tous P0/P1 corrigés** (16-18 Fév), **42 P2 corrigés** Sprint 5A/5B+6 (19 Fév), **44 P3 corrigés** Sprint P3+5/5 (19-20 Fév), **3 faux positifs**, **2 différées Sprint 8+**
+> **Tous P0/P1 corrigés** (16-18 Fév), **42 P2 corrigés** Sprint 5A/5B+6 (19 Fév), **45 P3 corrigés** Sprint P3+5/5+K6 (19-20 Fév), **3 faux positifs**, **1 différée Sprint 8+ (K8 OpenAPI)**
 
 ---
 
@@ -446,9 +446,9 @@
 
 ---
 
-### P3 — Issues Mineures (49) — 44 CORRIGÉES, 3 faux positifs, 2 différées
+### P3 — Issues Mineures (49) — 45 CORRIGÉES, 3 faux positifs, 1 différée
 
-#### Kernel (9) — 7 corrigées, 2 différées Sprint 8+
+#### Kernel (9) — 8 corrigées, 1 différée Sprint 8+
 
 | Issue | Statut | Fix |
 |-------|--------|-----|
@@ -459,7 +459,7 @@
 | ~~MFA test coverage limitée~~ | ✅ | 11 tests MFA (`mfa.rs`) — commit `748f0e9` |
 | ~~Old enum naming Cravate→Pro~~ | ✅ | Serde alias backward-compat (`context.rs`) — commit `0de5d73` |
 | ~~http.rs monolithique 3,793 LOC~~ | ✅ | Split en 7 modules (`http/`) — commit `0de5d73` |
-| Doc comments handlers HTTP | ⏳ Sprint 8+ | 80+ handlers (LARGE) |
+| ~~Doc comments handlers HTTP~~ | ✅ | 109 doc comments sur 6 modules (`http/`) — commit `f50e662` |
 | OpenAPI/Swagger non généré | ⏳ Sprint 8+ | Nouveau crate + annotations (LARGE) |
 
 #### Intelligence (13) — 10 corrigees, 3 differees
@@ -752,7 +752,7 @@
 - [x] 7 issues PWA (MQTT unsubscribe, ARIA tabs, focus trap, emoji labels, lazy loading)
 - [x] 4 issues Infrastructure (CI retention, Dockerfile pin, SETUP.md, MONITORING.md)
 - 3 faux positifs éliminés (Freebox mem::forget, Login autocomplete, Agent cache)
-- ~~8~~ 2 différées Sprint 8+ (K6 doc comments, K8 OpenAPI)
+- ~~8~~ 1 différée Sprint 8+ (K8 OpenAPI)
 
 ### Sprint Quick Wins + 5/5 ✅ TERMINÉ (19-20 Fév 2026)
 
@@ -777,17 +777,21 @@
   - `http/system.rs` (741 LOC) — health, metrics, hosts, logs
 - 324 tests OK, 0 régressions
 
+**Commit `f50e662` — K6 doc comments 80+ handlers HTTP**
+- [x] K6 : 109 `///` doc comments sur 6 modules HTTP
+  - `http/auth.rs` (26 items), `http/agents.rs` (20), `http/system.rs` (24)
+  - `http/decision.rs` (15), `http/context.rs` (12), `http/notifications.rs` (12)
+
 ### Sprint 7 (Prochain) — PR6 + Features
 - [ ] PR6 : Let's Encrypt ACME
 - [ ] PR6 : SQLite migration (12 fichiers JSON)
 - [ ] Tests PWA (objectif 50%+ coverage)
 
-### Sprint 8+ (Long terme) — Features + P3 différées
+### Sprint 8+ (Long terme) — Features + P3 différée
 - [ ] F3 Intentions Log (type déjà défini)
 - [ ] F2 Digital Hygiene (activity tracking + burnout)
 - [ ] F5 Light Actuator (bridge hardware Tuya)
-- [ ] K6 : Doc comments 80+ handlers HTTP
-- [ ] K8 : OpenAPI/Swagger documentation
+- [ ] K8 : OpenAPI/Swagger documentation (seule P3 restante)
 
 ---
 
