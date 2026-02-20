@@ -992,7 +992,7 @@ class NotesPage extends LitElement {
     this.notes = []
     this.apiService = null
     this.contextService = null
-    this.currentContext = 'neutre'
+    this.currentContext = 'veille'
     this.searchQuery = ''
     this.currentFilter = 'all'
     this.selectedTags = []
@@ -1239,8 +1239,12 @@ class NotesPage extends LitElement {
 
   getContextIcon(context) {
     const icons = {
+      'pro': '👔',
       'cravate': '👔',
+      'maison': '🏡',
       'intime': '🏡',
+      'focus': '🎯',
+      'veille': '🌱',
       'neutre': '🌱'
     }
     return icons[context] || '📍'
@@ -1406,8 +1410,8 @@ class NotesPage extends LitElement {
                 <input
                   name="context"
                   id="context"
-                  placeholder="cravate, intime, neutre..."
-                  .value="${this.currentContext || 'neutre'}">
+                  placeholder="pro, maison, veille, focus..."
+                  .value="${this.currentContext || 'veille'}">
               </div>
 
               <div class="form-field">
@@ -1508,7 +1512,7 @@ class NotesPage extends LitElement {
                 <input
                   name="context"
                   id="edit-context"
-                  placeholder="cravate, intime, neutre..."
+                  placeholder="pro, maison, veille, focus..."
                   .value="${this.editingNote.data.context || ''}">
               </div>
 

@@ -58,6 +58,13 @@ class NotesStreamService extends LitElement {
       return
     }
 
+    // Skip connection if no auth token available yet
+    const token = authService.getToken()
+    if (!token && !window.SYMBION_CONFIG?.API_KEY) {
+      console.log('[notes-stream] No auth token available, skipping connection')
+      return
+    }
+
     try {
       console.log(`[notes-stream] Connecting to ${this.wsUrl}`)
       this.ws = new WebSocket(this.wsUrl)
@@ -135,6 +142,9 @@ class NotesStreamService extends LitElement {
    * Demander la liste des notes avec filtres optionnels
    */
   async loadNotes(filters = {}) {
+    // Reset reconnect counter for explicit load requests
+    this.reconnectAttempts = 0
+
     if (!this.connected) {
       // Attendre la connexion si pas encore connecté
       await new Promise((resolve, reject) => {
@@ -230,8 +240,7 @@ class NotesStreamService extends LitElement {
 
   connectedCallback() {
     super.connectedCallback()
-    // Auto-connect au montage
-    this.connect()
+    // Connection deferred to loadNotes() — avoids wasting reconnect attempts before auth
   }
 
   disconnectedCallback() {
