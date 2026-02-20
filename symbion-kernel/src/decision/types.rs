@@ -41,7 +41,7 @@ impl Action {
 /// Contexte de decision
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DecisionContext {
-    pub mode: String,           // Mode contextuel actuel (Cravate, Intime, Neutre)
+    pub mode: String,           // Mode contextuel actuel (Pro, Maison, Veille)
     pub ssid: String,           // SSID actuel
     pub agents: HashMap<String, AgentState>,  // Etats agents
 }

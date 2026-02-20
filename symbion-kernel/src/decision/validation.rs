@@ -307,14 +307,14 @@ mod tests {
             trace_id: "trace1".into(),
             expires_at: None,
             dry_run: false,
-            expected_mode: Some("intime".into()),
+            expected_mode: Some("maison".into()),
             expected_ssid: Some("home-wifi".into()),
         }
     }
 
     fn create_test_context() -> DecisionContext {
         DecisionContext {
-            mode: "intime".into(),
+            mode: "maison".into(),
             ssid: "home-wifi".into(),
             agents: HashMap::new(),
         }

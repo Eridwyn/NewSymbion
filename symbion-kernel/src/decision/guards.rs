@@ -388,7 +388,7 @@ mod tests {
         };
 
         let context = DecisionContext {
-            mode: "neutre".into(),
+            mode: "veille".into(),
             ssid: "test".into(),
             agents: HashMap::new(),
         };
@@ -428,7 +428,7 @@ mod tests {
         );
 
         let context = DecisionContext {
-            mode: "neutre".into(),
+            mode: "veille".into(),
             ssid: "test".into(),
             agents,
         };
@@ -448,12 +448,12 @@ mod tests {
             trace_id: "trace1".into(),
             expires_at: None,
             dry_run: false,
-            expected_mode: Some("cravate".into()),
+            expected_mode: Some("pro".into()),
             expected_ssid: None,
         };
 
         let context = DecisionContext {
-            mode: "intime".into(), // Mismatch
+            mode: "maison".into(), // Mismatch
             ssid: "test".into(),
             agents: HashMap::new(),
         };
@@ -482,7 +482,7 @@ mod tests {
         };
 
         let context = DecisionContext {
-            mode: "neutre".into(),
+            mode: "veille".into(),
             ssid: "test".into(),
             agents: HashMap::new(),
         };

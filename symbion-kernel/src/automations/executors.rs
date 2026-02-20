@@ -209,9 +209,9 @@ impl ForceModeExecutor {
     /// Parse mode string to Mode enum
     fn parse_mode(&self) -> Result<Mode, ActionError> {
         match self.mode.to_lowercase().as_str() {
-            "cravate" | "work" | "professional" | "pro" | "focus" => Ok(Mode::Cravate),
-            "intime" | "home" | "domestic" | "maison" => Ok(Mode::Intime),
-            "neutre" | "neutral" | "eco" | "veille" | "sleep" => Ok(Mode::Neutre),
+            "cravate" | "work" | "professional" | "pro" | "focus" => Ok(Mode::Pro),
+            "intime" | "home" | "domestic" | "maison" => Ok(Mode::Maison),
+            "neutre" | "neutral" | "eco" | "veille" | "sleep" => Ok(Mode::Veille),
             _ => Err(ActionError::new(format!("unknown mode: {}", self.mode))),
         }
     }
@@ -597,23 +597,23 @@ mod tests {
 
     #[test]
     fn test_force_mode_parse_mode() {
-        let executor = ForceModeExecutor::new("cravate".to_string(), None, "test".to_string());
+        let executor = ForceModeExecutor::new("pro".to_string(), None, "test".to_string());
         assert!(executor.parse_mode().is_ok());
 
-        let executor = ForceModeExecutor::new("work".to_string(), None, "test".to_string());
+        let executor = ForceModeExecutor::new("cravate".to_string(), None, "test".to_string());
+        assert!(executor.parse_mode().is_ok()); // alias
+
+        let executor = ForceModeExecutor::new("maison".to_string(), None, "test".to_string());
         assert!(executor.parse_mode().is_ok());
 
         let executor = ForceModeExecutor::new("intime".to_string(), None, "test".to_string());
-        assert!(executor.parse_mode().is_ok());
+        assert!(executor.parse_mode().is_ok()); // alias
 
-        let executor = ForceModeExecutor::new("home".to_string(), None, "test".to_string());
+        let executor = ForceModeExecutor::new("veille".to_string(), None, "test".to_string());
         assert!(executor.parse_mode().is_ok());
 
         let executor = ForceModeExecutor::new("neutre".to_string(), None, "test".to_string());
-        assert!(executor.parse_mode().is_ok());
-
-        let executor = ForceModeExecutor::new("eco".to_string(), None, "test".to_string());
-        assert!(executor.parse_mode().is_ok());
+        assert!(executor.parse_mode().is_ok()); // alias
 
         let executor = ForceModeExecutor::new("invalid".to_string(), None, "test".to_string());
         assert!(executor.parse_mode().is_err());
@@ -632,7 +632,7 @@ mod tests {
         assert_eq!(ActionExecutorRegistry::action_type_name(&action), "send_notification");
 
         let action = ActionDefinition::ForceMode {
-            mode: "cravate".to_string(),
+            mode: "pro".to_string(),
             duration_minutes: Some(30),
             reason: "test".to_string(),
             impact_level: ImpactLevel::Medium,
@@ -673,14 +673,14 @@ mod tests {
             },
             ActionDefinition::Delay { seconds: 5 },
             ActionDefinition::ForceMode {
-                mode: "cravate".to_string(),
+                mode: "pro".to_string(),
                 duration_minutes: Some(30),
                 reason: "meeting".to_string(),
                 impact_level: ImpactLevel::Medium,
                 use_override: None,
             },
             ActionDefinition::ForceMode {
-                mode: "intime".to_string(),
+                mode: "maison".to_string(),
                 duration_minutes: None,
                 reason: "default".to_string(),
                 impact_level: ImpactLevel::Medium,
@@ -715,7 +715,7 @@ mod tests {
 
         // ForceMode
         let action = ActionDefinition::ForceMode {
-            mode: "cravate".to_string(),
+            mode: "pro".to_string(),
             duration_minutes: Some(30),
             reason: "test".to_string(),
             impact_level: ImpactLevel::Medium,
@@ -724,7 +724,7 @@ mod tests {
         let executor = ForceModeExecutor::from_action(&action);
         assert!(executor.is_some());
         let executor = executor.unwrap();
-        assert_eq!(executor.mode, "cravate");
+        assert_eq!(executor.mode, "pro");
         assert_eq!(executor.duration_minutes, Some(30));
 
         // AgentCommand

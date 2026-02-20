@@ -686,8 +686,8 @@ mod tests {
     #[test]
     fn test_trigger_serialization() {
         let trigger = Trigger::ModeChange {
-            from_mode: Some("intime".to_string()),
-            to_mode: Some("cravate".to_string()),
+            from_mode: Some("maison".to_string()),
+            to_mode: Some("pro".to_string()),
         };
 
         let json = serde_json::to_string(&trigger).unwrap();
@@ -696,8 +696,8 @@ mod tests {
 
         let parsed: Trigger = serde_json::from_str(&json).unwrap();
         if let Trigger::ModeChange { from_mode, to_mode } = parsed {
-            assert_eq!(from_mode, Some("intime".to_string()));
-            assert_eq!(to_mode, Some("cravate".to_string()));
+            assert_eq!(from_mode, Some("maison".to_string()));
+            assert_eq!(to_mode, Some("pro".to_string()));
         } else {
             panic!("Wrong trigger type");
         }
@@ -709,7 +709,7 @@ mod tests {
             operator: LogicalOperator::And,
             conditions: vec![
                 Condition::CurrentMode {
-                    mode: "intime".to_string(),
+                    mode: "maison".to_string(),
                     operator: ComparisonOperator::Equals,
                 },
                 Condition::TimeRange {

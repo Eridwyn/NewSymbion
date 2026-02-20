@@ -600,13 +600,13 @@ mod tests {
         let tester = TriggerMatchTester;
 
         let trigger = Trigger::ModeChange {
-            from_mode: Some("neutre".to_string()),
-            to_mode: Some("cravate".to_string()),
+            from_mode: Some("veille".to_string()),
+            to_mode: Some("pro".to_string()),
         };
 
         let event = AutomationEvent::ModeChange {
-            from_mode: "neutre".to_string(),
-            to_mode: "cravate".to_string(),
+            from_mode: "veille".to_string(),
+            to_mode: "pro".to_string(),
             reason: "test".to_string(),
             timestamp: OffsetDateTime::now_utc(),
         };
@@ -619,13 +619,13 @@ mod tests {
         let tester = TriggerMatchTester;
 
         let trigger = Trigger::ModeChange {
-            from_mode: Some("neutre".to_string()),
+            from_mode: Some("veille".to_string()),
             to_mode: None, // Any destination mode
         };
 
         let event = AutomationEvent::ModeChange {
-            from_mode: "neutre".to_string(),
-            to_mode: "intime".to_string(),
+            from_mode: "veille".to_string(),
+            to_mode: "maison".to_string(),
             reason: "test".to_string(),
             timestamp: OffsetDateTime::now_utc(),
         };
@@ -638,13 +638,13 @@ mod tests {
         let tester = TriggerMatchTester;
 
         let trigger = Trigger::ModeChange {
-            from_mode: Some("cravate".to_string()),
-            to_mode: Some("neutre".to_string()),
+            from_mode: Some("pro".to_string()),
+            to_mode: Some("veille".to_string()),
         };
 
         let event = AutomationEvent::ModeChange {
-            from_mode: "neutre".to_string(),
-            to_mode: "cravate".to_string(),
+            from_mode: "veille".to_string(),
+            to_mode: "pro".to_string(),
             reason: "test".to_string(),
             timestamp: OffsetDateTime::now_utc(),
         };
@@ -822,13 +822,13 @@ mod tests {
         let tester = TriggerMatchTester;
 
         let trigger = Trigger::ModeChange {
-            from_mode: Some("NEUTRE".to_string()),
-            to_mode: Some("CRAVATE".to_string()),
+            from_mode: Some("VEILLE".to_string()),
+            to_mode: Some("PRO".to_string()),
         };
 
         let event = AutomationEvent::ModeChange {
-            from_mode: "neutre".to_string(),
-            to_mode: "cravate".to_string(),
+            from_mode: "veille".to_string(),
+            to_mode: "pro".to_string(),
             reason: "test".to_string(),
             timestamp: OffsetDateTime::now_utc(),
         };

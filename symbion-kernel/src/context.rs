@@ -10,46 +10,48 @@ use time::OffsetDateTime;
 
 /// Mode contextuel de Symbion
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 pub enum Mode {
     /// Mode professionnel (bureau, travail)
-    Cravate,
+    #[serde(rename = "pro", alias = "cravate")]
+    Pro,
     /// Mode domestique (maison, détente)
-    Intime,
+    #[serde(rename = "maison", alias = "intime")]
+    Maison,
     /// Mode surveillance (économie énergie, maintenance)
-    Neutre,
+    #[serde(rename = "veille", alias = "neutre")]
+    Veille,
 }
 
 impl Mode {
     pub fn icon(&self) -> &'static str {
         match self {
-            Mode::Cravate => "👔",
-            Mode::Intime => "🏡",
-            Mode::Neutre => "🌱",
+            Mode::Pro => "👔",
+            Mode::Maison => "🏡",
+            Mode::Veille => "🌱",
         }
     }
 
     pub fn name(&self) -> &'static str {
         match self {
-            Mode::Cravate => "Focus Pro",
-            Mode::Intime => "Maison",
-            Mode::Neutre => "Veille",
+            Mode::Pro => "Focus Pro",
+            Mode::Maison => "Maison",
+            Mode::Veille => "Veille",
         }
     }
 
     pub fn theme(&self) -> Theme {
         match self {
-            Mode::Cravate => Theme {
+            Mode::Pro => Theme {
                 primary: "#2563eb".to_string(),
                 bg: "#f8fafc".to_string(),
                 accent: "#1e40af".to_string(),
             },
-            Mode::Intime => Theme {
+            Mode::Maison => Theme {
                 primary: "#10b981".to_string(),
                 bg: "#ecfdf5".to_string(),
                 accent: "#059669".to_string(),
             },
-            Mode::Neutre => Theme {
+            Mode::Veille => Theme {
                 primary: "#6b7280".to_string(),
                 bg: "#f9fafb".to_string(),
                 accent: "#4b5563".to_string(),
@@ -218,12 +220,12 @@ impl ContextEngine {
 
     fn default_state() -> ContextState {
         ContextState {
-            mode: Mode::Neutre,
+            mode: Mode::Veille,
             mode_slug: Some("veille".to_string()),
             changed_at: OffsetDateTime::now_utc(),
             reason: "Initialisation système".to_string(),
             confidence: 1.0,
-            theme: Mode::Neutre.theme(),
+            theme: Mode::Veille.theme(),
             manual_override: None,
         }
     }
@@ -256,7 +258,7 @@ impl ContextEngine {
     pub fn detect_mode(&self, agents: &[Agent]) -> Option<(Mode, String, f32)> {
         // Pas d'agents = mode neutre
         if agents.is_empty() {
-            return Some((Mode::Neutre, "Aucun agent actif".to_string(), 1.0));
+            return Some((Mode::Veille, "Aucun agent actif".to_string(), 1.0));
         }
 
         // La détection temporelle est gérée par les automations avec force_mode
@@ -311,17 +313,17 @@ impl ContextEngine {
                 None => {
                     // Détection échouée mais override expiré - fallback vers mode Neutre
                     println!("[context] Override expiré, détection échouée - fallback vers Veille");
-                    state.mode = Mode::Neutre;
+                    state.mode = Mode::Veille;
                     state.mode_slug = Some("veille".to_string());
                     state.changed_at = OffsetDateTime::now_utc();
                     state.reason = "Override expiré, retour mode par défaut".to_string();
                     state.confidence = 0.5;
-                    state.theme = Mode::Neutre.theme();
+                    state.theme = Mode::Veille.theme();
 
                     let result = state.clone();
                     drop(state);
 
-                    self.add_to_history(Mode::Neutre, Some("veille".to_string()),
+                    self.add_to_history(Mode::Veille, Some("veille".to_string()),
                         "Override expiré, détection échouée".to_string(), false);
                     self.save_state();
 
@@ -345,7 +347,7 @@ impl ContextEngine {
         }
 
         // Candidat != mode actuel, vérifier emportement priorité
-        let has_priority = candidate_mode == Mode::Neutre;
+        let has_priority = candidate_mode == Mode::Veille;
 
         if has_priority {
             // Mode Neutre a priorité, bypass hystérésis
@@ -467,9 +469,9 @@ impl ContextEngine {
                 // Préférer le slug dynamique s'il existe
                 s.mode_slug.unwrap_or_else(|| {
                     match s.mode {
-                        Mode::Cravate => "pro".to_string(),
-                        Mode::Intime => "maison".to_string(),
-                        Mode::Neutre => "veille".to_string(),
+                        Mode::Pro => "pro".to_string(),
+                        Mode::Maison => "maison".to_string(),
+                        Mode::Veille => "veille".to_string(),
                     }
                 })
             })
@@ -506,29 +508,29 @@ impl ContextEngine {
     /// Retourne la liste des modes disponibles (pour schema automations)
     pub fn get_available_modes(&self) -> Vec<String> {
         vec![
-            "cravate".to_string(),
-            "intime".to_string(),
-            "neutre".to_string(),
+            "pro".to_string(),
+            "maison".to_string(),
+            "veille".to_string(),
         ]
     }
 
     /// Convertit un Mode enum vers son slug correspondant
     fn mode_to_slug(mode: Mode) -> String {
         match mode {
-            Mode::Cravate => "pro".to_string(),
-            Mode::Intime => "maison".to_string(),
-            Mode::Neutre => "veille".to_string(),
+            Mode::Pro => "pro".to_string(),
+            Mode::Maison => "maison".to_string(),
+            Mode::Veille => "veille".to_string(),
         }
     }
 
     /// Convertit un slug vers le Mode enum correspondant (pour compatibilité)
     pub fn slug_to_mode(slug: &str) -> Mode {
         match slug.to_lowercase().as_str() {
-            "pro" | "cravate" | "work" | "professional" => Mode::Cravate,
-            "focus" => Mode::Cravate,  // Focus maps to Cravate for legacy compat
-            "maison" | "intime" | "home" | "domestic" => Mode::Intime,
-            "veille" | "neutre" | "neutral" | "eco" => Mode::Neutre,
-            _ => Mode::Neutre,  // Default to Neutre for unknown slugs
+            "pro" | "cravate" | "work" | "professional" => Mode::Pro,
+            "focus" => Mode::Pro,  // Focus maps to Pro for legacy compat
+            "maison" | "intime" | "home" | "domestic" => Mode::Maison,
+            "veille" | "neutre" | "neutral" | "eco" => Mode::Veille,
+            _ => Mode::Veille,  // Default to Veille for unknown slugs
         }
     }
 
@@ -645,12 +647,12 @@ impl ContextEngine {
                 state.theme = new_mode.theme();
             } else {
                 // Fallback: mode veille si détection échoue
-                state.mode = Mode::Neutre;
+                state.mode = Mode::Veille;
                 state.mode_slug = Some("veille".to_string());
                 state.changed_at = OffsetDateTime::now_utc();
                 state.reason = "Override annulé, mode par défaut".to_string();
                 state.confidence = 0.5;
-                state.theme = Mode::Neutre.theme();
+                state.theme = Mode::Veille.theme();
             }
 
             let result = state.clone();
@@ -734,12 +736,12 @@ impl ContextEngine {
         // Mapper contexte → mode (case-insensitive)
         let context_to_mode = |context: &str| -> Option<Mode> {
             let ctx = context.to_lowercase();
-            if ctx.contains("cravate") || ctx.contains("bureau") || ctx.contains("travail") || ctx.contains("pro") {
-                Some(Mode::Cravate)
-            } else if ctx.contains("intime") || ctx.contains("maison") || ctx.contains("home") {
-                Some(Mode::Intime)
-            } else if ctx.contains("neutre") || ctx.contains("veille") || ctx.contains("neutral") {
-                Some(Mode::Neutre)
+            if ctx.contains("pro") || ctx.contains("cravate") || ctx.contains("bureau") || ctx.contains("travail") {
+                Some(Mode::Pro)
+            } else if ctx.contains("maison") || ctx.contains("intime") || ctx.contains("home") {
+                Some(Mode::Maison)
+            } else if ctx.contains("veille") || ctx.contains("neutre") || ctx.contains("neutral") {
+                Some(Mode::Veille)
             } else {
                 None
             }
@@ -778,7 +780,7 @@ impl ContextEngine {
         }
 
         // Créer les métriques pour chaque mode
-        let mut metrics: Vec<ProductivityMetrics> = vec![Mode::Cravate, Mode::Intime, Mode::Neutre]
+        let mut metrics: Vec<ProductivityMetrics> = vec![Mode::Pro, Mode::Maison, Mode::Veille]
             .into_iter()
             .map(|mode| {
                 let notes_count = *notes_by_mode.get(&mode).unwrap_or(&0);
@@ -878,23 +880,23 @@ mod tests {
         let agents = vec![]; // Pas d'agents
 
         let (mode, reason, _) = engine.detect_mode(&agents).unwrap();
-        assert_eq!(mode, Mode::Neutre);
+        assert_eq!(mode, Mode::Veille);
         assert!(reason.contains("Aucun agent"));
     }
 
     #[test]
     fn test_mode_icons() {
-        assert_eq!(Mode::Cravate.icon(), "👔");
-        assert_eq!(Mode::Intime.icon(), "🏡");
-        assert_eq!(Mode::Neutre.icon(), "🌱");
+        assert_eq!(Mode::Pro.icon(), "👔");
+        assert_eq!(Mode::Maison.icon(), "🏡");
+        assert_eq!(Mode::Veille.icon(), "🌱");
     }
 
     #[test]
     fn test_mode_themes() {
-        let theme = Mode::Cravate.theme();
+        let theme = Mode::Pro.theme();
         assert_eq!(theme.primary, "#2563eb");
 
-        let theme = Mode::Intime.theme();
+        let theme = Mode::Maison.theme();
         assert_eq!(theme.primary, "#10b981");
     }
 
@@ -902,14 +904,14 @@ mod tests {
     fn test_hysteresis_structure() {
         // Test que la structure PendingChange est créée correctement
         let pending = PendingChange {
-            target_mode: Mode::Cravate,
+            target_mode: Mode::Pro,
             reason: "Test".to_string(),
             confidence: 0.85,
             started_at: Instant::now(),
             created_at: OffsetDateTime::now_utc(),
         };
 
-        assert_eq!(pending.target_mode, Mode::Cravate);
+        assert_eq!(pending.target_mode, Mode::Pro);
         assert_eq!(pending.reason, "Test");
         assert_eq!(pending.confidence, 0.85);
 
@@ -920,15 +922,15 @@ mod tests {
 
     #[test]
     fn test_priority_neutre_mode() {
-        // Vérifier que Mode::Neutre est bien identifié comme prioritaire
-        // (Dans la logique update(), has_priority = candidate_mode == Mode::Neutre)
-        let neutre_priority = Mode::Neutre;
-        let cravate_no_priority = Mode::Cravate;
-        let intime_no_priority = Mode::Intime;
+        // Vérifier que Mode::Veille est bien identifié comme prioritaire
+        // (Dans la logique update(), has_priority = candidate_mode == Mode::Veille)
+        let neutre_priority = Mode::Veille;
+        let cravate_no_priority = Mode::Pro;
+        let intime_no_priority = Mode::Maison;
 
-        // Mode::Neutre devrait bypasser hystérésis
-        assert_eq!(neutre_priority, Mode::Neutre);
-        assert_ne!(cravate_no_priority, Mode::Neutre);
-        assert_ne!(intime_no_priority, Mode::Neutre);
+        // Mode::Veille devrait bypasser hystérésis
+        assert_eq!(neutre_priority, Mode::Veille);
+        assert_ne!(cravate_no_priority, Mode::Veille);
+        assert_ne!(intime_no_priority, Mode::Veille);
     }
 }
