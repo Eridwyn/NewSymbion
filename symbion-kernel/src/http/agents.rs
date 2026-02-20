@@ -7,6 +7,7 @@ use time::format_description::well_known::Rfc3339;
 
 // ====== AGENTS ENDPOINTS ======
 
+/// Serializable view of an agent for API responses.
 #[derive(serde::Serialize)]
 pub(super) struct AgentView {
     agent_id: String,
@@ -24,18 +25,21 @@ pub(super) struct AgentView {
     memory_percent: Option<f32>,
 }
 
+/// Request body for sending a shell command to an agent.
 #[derive(Deserialize)]
 pub(super) struct AgentCommandRequest {
     command: String,
     parameters: Option<serde_json::Value>,
 }
 
+/// Request body for sending a tracked command to an agent.
 #[derive(Deserialize)]
 pub(super) struct AgentCommandTrackingRequest {
     command_type: String,
     parameters: serde_json::Value,
 }
 
+/// Convert an internal Agent model into an AgentView for API serialization.
 pub(super) fn agent_to_view(agent: &crate::agents::Agent) -> AgentView {
     // Prefer IPv4 over IPv6 for display (IPv6 are too long for UI)
     let primary_ip = agent.network.interfaces
@@ -62,14 +66,14 @@ pub(super) fn agent_to_view(agent: &crate::agents::Agent) -> AgentView {
     }
 }
 
-// GET /agents - Liste des agents
+/// GET /v1/agents -- List all registered agents with their current status.
 pub(super) async fn list_agents_endpoint(State(app): State<AppState>) -> Json<Vec<AgentView>> {
     let agents = app.agents.list_agents().await;
     let list: Vec<AgentView> = agents.values().map(agent_to_view).collect();
     Json(list)
 }
 
-// GET /agents/{id} - Détail d'un agent
+/// GET /v1/agents/{id} -- Return full details of a single agent by ID.
 pub(super) async fn get_agent_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -80,7 +84,7 @@ pub(super) async fn get_agent_endpoint(
     }
 }
 
-// DELETE /v1/agents/{id} - Suppression agent (soft delete, purge après 7 jours)
+/// DELETE /v1/agents/{id} -- Soft-delete an agent (purged after 7 days).
 pub(super) async fn delete_agent_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -104,7 +108,7 @@ pub(super) async fn delete_agent_endpoint(
     }
 }
 
-// DELETE /v1/environment/sensors/{sensor_id} - Suppression capteur (soft delete, purge après 7 jours)
+/// DELETE /v1/environment/sensors/{sensor_id} -- Soft-delete a sensor (purged after 7 days).
 pub(super) async fn delete_sensor_endpoint(
     State(app): State<AppState>,
     Path(sensor_id): Path<String>,
@@ -123,7 +127,7 @@ pub(super) async fn delete_sensor_endpoint(
     }
 }
 
-// POST /agents/{id}/shutdown - Extinction système
+/// POST /v1/agents/{id}/shutdown -- Send a shutdown command to the specified agent.
 pub(super) async fn agent_shutdown_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -141,7 +145,7 @@ pub(super) async fn agent_shutdown_endpoint(
     }
 }
 
-// POST /agents/{id}/reboot - Redémarrage système
+/// POST /v1/agents/{id}/reboot -- Send a reboot command to the specified agent.
 pub(super) async fn agent_reboot_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -159,7 +163,7 @@ pub(super) async fn agent_reboot_endpoint(
     }
 }
 
-// POST /agents/{id}/hibernate - Mise en veille
+/// POST /v1/agents/{id}/hibernate -- Send a hibernate (sleep) command to the specified agent.
 pub(super) async fn agent_hibernate_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -177,7 +181,7 @@ pub(super) async fn agent_hibernate_endpoint(
     }
 }
 
-// POST /v1/agents/{id}/reconnect - Demande de reconnexion agent
+/// POST /v1/agents/{id}/reconnect -- Send a reconnect command to the specified agent via MQTT.
 pub(super) async fn agent_reconnect_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -202,7 +206,7 @@ pub(super) async fn agent_reconnect_endpoint(
     }
 }
 
-// GET /agents/{id}/processes - Liste des processus
+/// GET /v1/agents/{id}/processes -- Return the process list for an agent, or request it via MQTT.
 pub(super) async fn agent_processes_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -230,7 +234,7 @@ pub(super) async fn agent_processes_endpoint(
     }
 }
 
-// POST /agents/{id}/processes/{pid}/kill - Tuer un processus
+/// POST /v1/agents/{id}/processes/{pid}/kill -- Kill a specific process on the agent by PID.
 pub(super) async fn agent_kill_process_endpoint(
     State(app): State<AppState>,
     Path((id, pid)): Path<(String, u32)>,
@@ -250,7 +254,7 @@ pub(super) async fn agent_kill_process_endpoint(
     }
 }
 
-// POST /agents/{id}/command - Exécuter une commande shell
+/// POST /v1/agents/{id}/command -- Execute a shell command on the specified agent.
 pub(super) async fn agent_command_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -274,7 +278,7 @@ pub(super) async fn agent_command_endpoint(
     }
 }
 
-// GET /agents/{id}/metrics - Métriques système temps réel
+/// GET /v1/agents/{id}/metrics -- Return real-time system metrics for an agent, or request them via MQTT.
 pub(super) async fn agent_metrics_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -302,7 +306,7 @@ pub(super) async fn agent_metrics_endpoint(
     }
 }
 
-// GET /agents/{id}/commands - Liste des commandes en cours pour un agent
+/// GET /v1/agents/{id}/commands -- List pending commands for the specified agent.
 pub(super) async fn agent_commands_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -314,7 +318,7 @@ pub(super) async fn agent_commands_endpoint(
     })))
 }
 
-// POST /agents/{id}/commands - Nouvelle API avec tracking pour exécuter des commandes
+/// POST /v1/agents/{id}/commands -- Submit a tracked command for execution on the agent.
 pub(super) async fn agent_commands_post_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -357,7 +361,7 @@ pub(super) async fn agent_commands_post_endpoint(
     }
 }
 
-// POST /commands/{command_id}/cancel - Annule une commande
+/// POST /v1/commands/{command_id}/cancel -- Cancel a pending or in-progress command.
 pub(super) async fn cancel_command_endpoint(
     State(app): State<AppState>,
     Path(command_id): Path<String>,
@@ -385,7 +389,7 @@ pub(super) async fn cancel_command_endpoint(
     }
 }
 
-// GET /commands/{command_id}/status - Statut d'une commande
+/// GET /v1/commands/{command_id}/status -- Return the current status and output of a command.
 pub(super) async fn command_status_endpoint(
     State(app): State<AppState>,
     Path(command_id): Path<String>,
