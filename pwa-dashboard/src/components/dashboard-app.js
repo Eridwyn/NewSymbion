@@ -114,48 +114,45 @@ class DashboardApp extends LitElement {
       content: '';
       position: absolute;
       border-radius: 50%;
-      filter: blur(60px);
+      filter: blur(30px);
       will-change: transform, opacity;
     }
 
     .ambient-particles::before {
-      width: 400px;
-      height: 400px;
+      width: 300px;
+      height: 300px;
       top: 15%;
       left: 10%;
-      background: radial-gradient(circle, var(--context-primary, #00d4aa) 0%, transparent 70%);
+      background: var(--context-primary, #00d4aa);
+      opacity: 0.08;
       animation: particleDrift 20s ease-in-out infinite;
     }
 
     .ambient-particles::after {
-      width: 350px;
-      height: 350px;
+      width: 250px;
+      height: 250px;
       bottom: 25%;
       right: 15%;
-      background: radial-gradient(circle, var(--context-primary, #00d4aa) 0%, transparent 70%);
+      background: var(--context-primary, #00d4aa);
+      opacity: 0.06;
       animation: particleDrift 25s ease-in-out infinite 8s reverse;
     }
 
-    /* Header bioluminescent avec glassmorphism CONTEXTUEL */
+    /* Header avec glassmorphism contextuel */
     .header {
-      background: linear-gradient(135deg,
-        var(--ctx-bg) 0%,
-        rgba(19, 20, 26, 0.85) 50%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 6%, transparent) 100%);
+      background: rgba(14, 14, 19, 0.88);
       backdrop-filter: blur(var(--blur-xl));
       -webkit-backdrop-filter: blur(var(--blur-xl));
       border-bottom: 1px solid var(--ctx-border);
-      padding: var(--space-6) var(--space-8);
+      padding: var(--space-5) var(--space-8);
       position: -webkit-sticky;
       position: sticky;
       top: 0;
       z-index: var(--z-sticky);
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3),
-                  0 0 0 1px var(--ctx-border-subtle),
-                  inset 0 1px 0 var(--ctx-border-subtle);
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      align-items: center;
       gap: var(--space-4);
       transition: all var(--duration-base) var(--ease-out);
     }
@@ -229,35 +226,32 @@ class DashboardApp extends LitElement {
               drop-shadow(0 0 40px color-mix(in srgb, var(--context-primary, #00d4aa) 60%, transparent)) !important;
     }
 
-    /* Status Bar - Modern Pills */
+    /* Status Bar */
     .status-bar {
       display: flex;
-      gap: var(--space-3);
+      gap: var(--space-2);
       align-items: center;
-      margin-top: var(--space-3);
-      font-size: var(--text-sm);
-      font-weight: var(--font-medium);
+      margin-top: var(--space-2);
     }
 
     .status-indicator {
       display: flex;
       align-items: center;
       gap: var(--space-2);
-      padding: var(--space-2) var(--space-3);
-      background: var(--ctx-bg);
+      padding: var(--space-1) var(--space-3);
+      background: transparent;
       border-radius: var(--radius-md);
-      border: 1px solid var(--ctx-border-medium);
+      border: 1px solid var(--border-default);
       transition: all var(--duration-base) var(--ease-out);
       font-size: 0.7rem;
       letter-spacing: 0.03em;
       font-weight: var(--font-medium);
-      color: var(--context-primary, #00d4aa);
+      color: var(--color-dark-text-secondary, #d1d5db);
     }
 
     .status-indicator:hover {
-      background: var(--ctx-bg-medium);
-      border-color: var(--ctx-bg-intense);
-      transform: translateY(-1px);
+      border-color: var(--ctx-border);
+      color: var(--color-dark-text-primary, #f8f9fa);
     }
 
     /* Status Dots - Bioluminescent pulse */
@@ -356,54 +350,41 @@ class DashboardApp extends LitElement {
     }
 
     .user-button {
-      background: linear-gradient(135deg,
-        var(--ctx-border) 0%,
-        var(--ctx-border-subtle) 100%);
-      border: 1px solid var(--ctx-border-strong);
-      color: var(--context-primary, #00d4aa);
+      background: var(--ctx-bg);
+      border: 1px solid var(--ctx-border-medium);
+      color: var(--color-dark-text-primary, #f8f9fa);
       padding: var(--space-3) var(--space-4);
       border-radius: var(--radius-md);
       font-size: var(--text-sm);
-      font-weight: var(--font-semibold);
+      font-weight: var(--font-medium);
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: var(--space-2);
       transition: all var(--duration-base) var(--ease-out);
-      box-shadow: 0 0 20px var(--ctx-border-medium),
-                  inset 0 1px 0 var(--ctx-border-subtle);
-      animation: borderGlow var(--bio-breathe-slow, 12s) ease-in-out infinite;
     }
 
     .user-button:hover {
-      background: linear-gradient(135deg,
-        var(--ctx-bg-emphasis) 0%,
-        var(--ctx-border) 100%);
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 60%, transparent);
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px var(--ctx-border-strong),
-                  0 0 30px var(--ctx-bg-intense),
-                  inset 0 1px 0 var(--ctx-border-medium);
+      background: var(--ctx-bg-medium);
+      border-color: var(--ctx-border-strong);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px var(--ctx-border-subtle);
     }
 
-    /* User Dropdown - Bio-Organic Menu */
+    /* User Dropdown */
     .user-dropdown {
       position: absolute;
-      top: calc(100% + var(--space-3));
+      top: calc(100% + var(--space-2));
       right: 0;
-      background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 4%, rgba(19, 20, 26, 0.98)) 0%,
-        rgba(15, 15, 15, 0.96) 100%);
+      background: rgba(14, 14, 19, 0.97);
       backdrop-filter: blur(var(--blur-xl));
       -webkit-backdrop-filter: blur(var(--blur-xl));
-      border: 1px solid var(--ctx-bg-emphasis);
+      border: 1px solid var(--ctx-border);
       border-radius: var(--radius-lg);
-      padding: var(--space-5);
-      min-width: 260px;
+      padding: var(--space-4);
+      min-width: 240px;
       box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6),
-                  0 0 0 1px var(--ctx-border),
-                  0 0 40px var(--ctx-border-subtle),
-                  inset 0 1px 0 var(--ctx-bg);
+                  0 0 0 1px var(--ctx-border-subtle);
       z-index: 1000;
       animation: dropdownSlide var(--duration-slow) var(--ease-out);
     }
@@ -411,7 +392,7 @@ class DashboardApp extends LitElement {
     @keyframes dropdownSlide {
       from {
         opacity: 0;
-        transform: translateY(-12px) scale(0.95);
+        transform: translateY(-8px) scale(0.97);
       }
       to {
         opacity: 1;
@@ -420,35 +401,20 @@ class DashboardApp extends LitElement {
     }
 
     .user-info {
-      padding-bottom: var(--space-4);
-      border-bottom: 1px solid var(--ctx-border-medium);
-      margin-bottom: var(--space-4);
-      position: relative;
-    }
-
-    .user-info::after {
-      content: '';
-      position: absolute;
-      bottom: -1px;
-      left: 0;
-      width: 40%;
-      height: 1px;
-      background: linear-gradient(90deg,
-        var(--context-primary, #00d4aa) 0%,
-        transparent 100%);
-      opacity: 0.6;
+      padding-bottom: var(--space-3);
+      border-bottom: 1px solid var(--border-default);
+      margin-bottom: var(--space-3);
     }
 
     .user-name {
-      color: var(--context-primary, #00d4aa);
+      color: var(--color-dark-text-primary, #f8f9fa);
       font-weight: var(--font-semibold);
       font-size: var(--text-base);
-      margin-bottom: var(--space-2);
-      text-shadow: 0 0 12px var(--ctx-border-medium);
+      margin-bottom: var(--space-1);
     }
 
     .user-role {
-      color: var(--color-dark-text-secondary);
+      color: var(--color-dark-text-tertiary);
       font-size: var(--text-xs);
       text-transform: uppercase;
       letter-spacing: var(--tracking-wider);
@@ -460,99 +426,57 @@ class DashboardApp extends LitElement {
       font-size: var(--text-xs);
       margin-top: var(--space-2);
       font-family: var(--font-mono);
-      opacity: 0.8;
+      opacity: 0.7;
     }
 
-    /* Bouton Paramètres - Style contextuel */
-    .settings-button {
+    /* Dropdown menu buttons — shared base */
+    .settings-button,
+    .context-engine-button,
+    .logout-button {
       width: 100%;
-      background: linear-gradient(135deg,
-        var(--ctx-bg-medium) 0%,
-        var(--ctx-bg) 100%);
-      border: 1px solid var(--ctx-bg-intense);
-      color: var(--context-primary, #00d4aa);
+      background: transparent;
+      border: 1px solid transparent;
       padding: var(--space-3) var(--space-4);
       border-radius: var(--radius-md);
       font-size: var(--text-sm);
-      font-weight: var(--font-semibold);
+      font-weight: var(--font-medium);
       cursor: pointer;
       transition: all var(--duration-base) var(--ease-out);
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: var(--space-2);
-      margin-bottom: var(--space-3);
+      gap: var(--space-3);
+      margin-bottom: var(--space-1);
+    }
+
+    /* Paramètres */
+    .settings-button {
+      color: var(--color-dark-text-primary, #f8f9fa);
     }
 
     .settings-button:hover {
-      background: linear-gradient(135deg,
-        var(--ctx-border-medium) 0%,
-        var(--ctx-border) 100%);
-      border-color: var(--ctx-border-intense);
-      transform: translateY(-2px);
-      box-shadow: 0 6px 16px var(--ctx-border-medium),
-                  0 0 24px var(--ctx-border);
+      background: var(--ctx-bg);
+      border-color: var(--ctx-border);
     }
 
-    /* Bouton Context Engine - Style distinctif */
+    /* Context Engine — accent violet */
     .context-engine-button {
-      width: 100%;
-      background: linear-gradient(135deg,
-        rgba(147, 51, 234, 0.15) 0%,
-        rgba(147, 51, 234, 0.08) 100%);
-      border: 1px solid rgba(147, 51, 234, 0.35);
-      color: #a855f7;
-      padding: var(--space-3) var(--space-4);
-      border-radius: var(--radius-md);
-      font-size: var(--text-sm);
-      font-weight: var(--font-semibold);
-      cursor: pointer;
-      transition: all var(--duration-base) var(--ease-out);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: var(--space-2);
-      margin-bottom: var(--space-3);
+      color: #a78bfa;
     }
 
     .context-engine-button:hover {
-      background: linear-gradient(135deg,
-        rgba(147, 51, 234, 0.25) 0%,
-        rgba(147, 51, 234, 0.15) 100%);
-      border-color: rgba(147, 51, 234, 0.5);
-      transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(147, 51, 234, 0.2),
-                  0 0 24px rgba(147, 51, 234, 0.15);
+      background: rgba(147, 51, 234, 0.1);
+      border-color: rgba(147, 51, 234, 0.3);
     }
 
-    /* Bouton Déconnexion - Style danger mais élégant */
+    /* Déconnexion — accent rouge */
     .logout-button {
-      width: 100%;
-      background: linear-gradient(135deg,
-        rgba(239, 68, 68, 0.15) 0%,
-        rgba(239, 68, 68, 0.08) 100%);
-      border: 1px solid rgba(239, 68, 68, 0.35);
-      color: #ff6b6b;
-      padding: var(--space-3) var(--space-4);
-      border-radius: var(--radius-md);
-      font-size: var(--text-sm);
-      font-weight: var(--font-semibold);
-      cursor: pointer;
-      transition: all var(--duration-base) var(--ease-out);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: var(--space-2);
+      color: #f87171;
+      margin-bottom: 0;
     }
 
     .logout-button:hover {
-      background: linear-gradient(135deg,
-        rgba(239, 68, 68, 0.25) 0%,
-        rgba(239, 68, 68, 0.15) 100%);
-      border-color: rgba(239, 68, 68, 0.55);
-      transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(239, 68, 68, 0.25),
-                  0 0 24px rgba(239, 68, 68, 0.2);
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.3);
     }
 
     /* Main Content - Spacious Layout */
@@ -591,20 +515,19 @@ class DashboardApp extends LitElement {
                   inset 0 1px 0 var(--ctx-bg-subtle);
       position: relative;
       overflow: hidden;
-      /* Bioluminescent entrance + breathing border glow */
-      animation: widgetEntrance var(--bio-entrance, 0.6s) cubic-bezier(0.4, 0, 0.2, 1) backwards,
-                 borderGlow var(--bio-breathe-slow, 12s) ease-in-out infinite;
+      /* Bioluminescent staggered entrance */
+      animation: widgetEntrance var(--bio-entrance, 0.6s) cubic-bezier(0.4, 0, 0.2, 1) backwards;
     }
 
     /* Staggered entrance delays for each widget */
-    .widget-container:nth-child(1) { animation-delay: 0.05s, 0s; }
-    .widget-container:nth-child(2) { animation-delay: 0.1s, 1s; }
-    .widget-container:nth-child(3) { animation-delay: 0.15s, 2s; }
-    .widget-container:nth-child(4) { animation-delay: 0.2s, 3s; }
-    .widget-container:nth-child(5) { animation-delay: 0.25s, 4s; }
-    .widget-container:nth-child(6) { animation-delay: 0.3s, 5s; }
-    .widget-container:nth-child(7) { animation-delay: 0.35s, 6s; }
-    .widget-container:nth-child(8) { animation-delay: 0.4s, 7s; }
+    .widget-container:nth-child(1) { animation-delay: 0.05s; }
+    .widget-container:nth-child(2) { animation-delay: 0.1s; }
+    .widget-container:nth-child(3) { animation-delay: 0.15s; }
+    .widget-container:nth-child(4) { animation-delay: 0.2s; }
+    .widget-container:nth-child(5) { animation-delay: 0.25s; }
+    .widget-container:nth-child(6) { animation-delay: 0.3s; }
+    .widget-container:nth-child(7) { animation-delay: 0.35s; }
+    .widget-container:nth-child(8) { animation-delay: 0.4s; }
 
     /* Border bioluminescent qui pulse comme un influx nerveux */
     .widget-container::before {
@@ -719,91 +642,49 @@ class DashboardApp extends LitElement {
       }
     }
 
-    /* Tabs mobile */
+    /* ============================================================
+       TABS NAVIGATION (mobile = bottom bar, desktop = hidden)
+       ============================================================ */
     .tabs-container {
       display: none;
     }
 
     .tabs {
       display: flex;
-      gap: 0.5rem;
-      border-bottom: 2px solid var(--ctx-border-medium);
+      gap: var(--space-2);
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
     }
 
-    @media (max-width: 768px) {
-      .tabs {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        margin-bottom: 0;
-        background: linear-gradient(to top,
-          rgba(10, 10, 11, 0.98) 0%,
-          rgba(15, 15, 15, 0.95) 100%);
-        backdrop-filter: blur(var(--blur-xl));
-        -webkit-backdrop-filter: blur(var(--blur-xl));
-        z-index: 90;
-        padding: 0.5rem 1rem;
-        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
-        border-top: 1px solid var(--ctx-border-medium);
-      }
-
-      .tab.active {
-        background: var(--ctx-bg);
-        border-radius: var(--radius-sm);
-        border-bottom: none;
-        box-shadow: 0 0 16px var(--ctx-border-medium);
-      }
-
-      .tab.active::after {
-        display: none;
-      }
-
-      .tabs-container {
-        padding-bottom: 70px; /* Espace pour les tabs fixes */
-      }
-    }
-
     .tab {
-      padding: 0.75rem 1.25rem;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      padding: var(--space-3) var(--space-4);
       background: transparent;
       border: none;
-      color: #888;
-      font-size: 0.9em;
-      font-weight: 500;
+      color: var(--color-dark-text-tertiary, #6b7280);
+      font-size: var(--text-sm);
+      font-weight: var(--font-medium);
       cursor: pointer;
       transition: all var(--duration-base) var(--ease-out);
-      border-bottom: 2px solid transparent;
       white-space: nowrap;
       position: relative;
-      bottom: -2px;
+      border-radius: var(--radius-md);
     }
 
     .tab:hover {
-      color: var(--context-primary, #00d4aa);
-      text-shadow: 0 0 12px var(--ctx-border-subtle);
-      background: var(--ctx-bg-subtle);
-      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+      color: var(--color-dark-text-secondary, #d1d5db);
+      background: var(--ctx-bg);
     }
 
     .tab.active {
       color: var(--context-primary, #00d4aa);
-      border-bottom-color: var(--context-primary, #00d4aa);
-      text-shadow: 0 0 16px var(--ctx-border);
-      animation: textGlow var(--bio-breathe-fast, 8s) ease-in-out infinite;
-    }
-
-    .tab.active::after {
-      content: '';
-      position: absolute;
-      bottom: -2px;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--context-primary, #00d4aa), transparent);
-      box-shadow: 0 0 12px var(--ctx-border), 0 0 24px var(--ctx-border-subtle);
+      background: var(--ctx-bg);
+      box-shadow: inset 0 0 0 1px var(--ctx-border),
+                  0 0 12px var(--ctx-border-subtle);
     }
 
     .tab-content {
@@ -816,41 +697,85 @@ class DashboardApp extends LitElement {
       gap: 1.2rem;
     }
 
-    /* Mobile Responsive - Compact */
+    @media (max-width: 768px) {
+      .tabs {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        margin-bottom: 0;
+        background: linear-gradient(to top,
+          rgba(10, 10, 15, 0.98) 0%,
+          rgba(14, 14, 19, 0.95) 100%);
+        backdrop-filter: blur(var(--blur-xl));
+        -webkit-backdrop-filter: blur(var(--blur-xl));
+        z-index: 90;
+        padding: var(--space-2) var(--space-3);
+        gap: var(--space-2);
+        border-top: 1px solid var(--ctx-border);
+        box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.6),
+                    0 -1px 0 var(--ctx-border-subtle);
+      }
+
+      .tab {
+        flex-direction: column;
+        gap: 0.2rem;
+        padding: var(--space-2) var(--space-2);
+        font-size: 0.7rem;
+        border-radius: var(--radius-sm);
+        min-height: 44px;
+      }
+
+      .tab span[aria-hidden] {
+        font-size: 1.2em;
+      }
+
+      .tab.active {
+        background: var(--ctx-bg-medium);
+        box-shadow: inset 0 0 0 1px var(--ctx-border-medium),
+                    0 0 16px var(--ctx-border-subtle);
+      }
+
+      .tabs-container {
+        padding-bottom: 70px;
+      }
+    }
+
+    /* Mobile Responsive */
     @media (max-width: 768px) {
       .header {
-        padding: var(--space-3) var(--space-3);
+        padding: var(--space-3);
         gap: var(--space-2);
       }
 
       .header h1 {
-        font-size: var(--text-base); /* Plus petit sur mobile */
+        font-size: var(--text-base);
       }
 
       .header-logo {
-        width: 1.25rem; /* Logo plus petit */
+        width: 1.25rem;
         height: 1.25rem;
       }
 
       .status-bar {
         flex-wrap: nowrap;
-        gap: var(--space-2);
-        margin-top: var(--space-2);
+        gap: var(--space-1);
+        margin-top: var(--space-1);
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
-        scrollbar-width: none; /* Firefox */
+        scrollbar-width: none;
       }
 
       .status-bar::-webkit-scrollbar {
-        display: none; /* Chrome/Safari */
+        display: none;
       }
 
       .status-indicator {
-        padding: 0.25rem 0.5rem;
+        padding: 0.2rem 0.4rem;
         font-size: 0.65rem;
         white-space: nowrap;
         flex-shrink: 0;
-        gap: 0.25rem;
+        gap: 0.2rem;
         letter-spacing: 0;
       }
 
@@ -866,31 +791,29 @@ class DashboardApp extends LitElement {
       }
 
       .user-button {
-        padding: 0.35rem 0.6rem;
-        font-size: 0.65rem;
-        gap: 0.25rem;
+        padding: 0.3rem 0.5rem;
+        font-size: 0.7rem;
         min-width: 44px;
         min-height: 44px;
       }
 
       .main-content {
-        padding: var(--space-5) var(--space-3);
+        padding: var(--space-4) var(--space-3);
       }
 
       .widgets-grid {
-        display: none; /* Hide grid on mobile */
+        display: none;
         grid-template-columns: 1fr;
         gap: var(--space-4);
       }
 
       .tabs-container {
-        display: block; /* Show tabs on mobile */
+        display: block;
       }
 
       .widget-container {
-        padding: var(--space-6);
+        padding: var(--space-5);
         border-radius: var(--radius-lg);
-        /* Simplified animation on mobile — entrance only, no breathing border */
         animation: widgetEntrance 0.4s cubic-bezier(0.4, 0, 0.2, 1) backwards;
       }
 
@@ -902,6 +825,31 @@ class DashboardApp extends LitElement {
       /* Disable ambient particles on mobile (perf) */
       .ambient-particles {
         display: none;
+      }
+
+      /* Dropdown prend toute la largeur sur mobile */
+      .user-dropdown {
+        position: fixed;
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+        min-width: unset;
+        padding: var(--space-5);
+        border-bottom: none;
+        animation: dropdownSlideUp var(--duration-slow) var(--ease-out);
+      }
+
+      @keyframes dropdownSlideUp {
+        from {
+          opacity: 0;
+          transform: translateY(100%);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
       }
     }
 
