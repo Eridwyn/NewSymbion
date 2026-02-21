@@ -39,6 +39,7 @@ export class SslWidget extends LitElement {
       display: flex;
       align-items: center;
       gap: 0.5rem;
+      animation: textGlow var(--bio-breathe-fast, 8s) ease-in-out infinite;
     }
 
     .header-right {
@@ -117,6 +118,8 @@ export class SslWidget extends LitElement {
     .domain-card:hover {
       background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
       border-color: var(--border-hover);
+      box-shadow: 0 8px 32px var(--ctx-border-medium, rgba(0,212,170,0.2)),
+                  0 0 40px var(--ctx-bg-subtle, rgba(0,212,170,0.05));
     }
 
     .domain-card.critical {

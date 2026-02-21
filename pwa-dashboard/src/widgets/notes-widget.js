@@ -13,13 +13,14 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedAnimations } from '../styles/shared-animations.js'
 import { getTopPriorityNotes, isHighPriority } from '../utils/notes-scoring.js'
 import { applyAllFilters } from '../utils/notes-filters.js'
 import notesStreamService from '../services/notes-stream-service.js'
 import '../components/organic-loader.js'
 
 class NotesWidget extends LitElement {
-  static styles = css`
+  static styles = [sharedAnimations, css`
     :host {
       display: block;
     }
@@ -35,6 +36,7 @@ class NotesWidget extends LitElement {
       font-size: 1.1em;
       font-weight: 600;
       color: #e0e0e0;
+      animation: textGlow var(--bio-breathe-fast, 8s) ease-in-out infinite;
     }
 
     .header-actions {
@@ -97,6 +99,8 @@ class NotesWidget extends LitElement {
       border-color: rgba(0, 212, 170, 0.4);
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
       transform: translateY(-1px);
+      box-shadow: 0 8px 32px var(--ctx-border-medium, rgba(0,212,170,0.2)),
+                  0 0 40px var(--ctx-bg-subtle, rgba(0,212,170,0.05));
     }
 
     .note-card:hover::before {
@@ -207,7 +211,7 @@ class NotesWidget extends LitElement {
         font-size: 0.8em;
       }
     }
-  `
+  `]
 
   static properties = {
     notes: { type: Array },

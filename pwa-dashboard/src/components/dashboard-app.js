@@ -6,6 +6,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedAnimations } from '../styles/shared-animations.js'
 import { manageFocusTrap } from '../utils/focus-trap.js'
 import authService from '../services/auth-service.js'
 import csrfService from '../services/csrf-service.js'
@@ -37,7 +38,7 @@ import './notification-center.js'
 import automationsService from '../services/automations-service.js'
 
 class DashboardApp extends LitElement {
-  static styles = css`
+  static styles = [sharedAnimations, css`
     :host {
       display: block;
       min-height: 100vh;
@@ -83,6 +84,56 @@ class DashboardApp extends LitElement {
     @keyframes glowPulse {
       0%, 100% { opacity: 0.2; }
       50% { opacity: 0.35; }
+    }
+
+    /* Background breathing overlay — vignette + glow with breathing animation */
+    .bio-background {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(1200px 800px at 15% 5%, color-mix(in srgb, var(--context-primary, #00d4aa) 6%, transparent), transparent 50%),
+        radial-gradient(900px 700px at 85% 20%, color-mix(in srgb, var(--context-primary, #00d4aa) 3%, transparent), transparent 55%),
+        radial-gradient(1400px 900px at 50% 85%, rgba(0, 0, 0, 0.7), transparent 50%),
+        radial-gradient(closest-side at 50% 50%, transparent, rgba(0, 0, 0, 0.4));
+      animation: bgBreathing 10s ease-in-out infinite;
+    }
+
+    /* Ambient drifting particles — large blurred orbs */
+    .ambient-particles {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .ambient-particles::before,
+    .ambient-particles::after {
+      content: '';
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(60px);
+      will-change: transform, opacity;
+    }
+
+    .ambient-particles::before {
+      width: 300px;
+      height: 300px;
+      top: 20%;
+      left: 15%;
+      background: radial-gradient(circle, var(--context-primary, #00d4aa) 0%, transparent 70%);
+      animation: particleDrift 20s ease-in-out infinite;
+    }
+
+    .ambient-particles::after {
+      width: 250px;
+      height: 250px;
+      bottom: 30%;
+      right: 20%;
+      background: radial-gradient(circle, var(--context-primary, #00d4aa) 0%, transparent 70%);
+      animation: particleDrift 25s ease-in-out infinite 8s reverse;
     }
 
     /* Header bioluminescent avec glassmorphism CONTEXTUEL */
@@ -532,14 +583,27 @@ class DashboardApp extends LitElement {
       transition: transform var(--duration-slow) var(--ease-out),
                   border-color var(--duration-slow) var(--ease-out),
                   box-shadow var(--duration-slow) var(--ease-out);
-      will-change: transform;
+      will-change: transform, box-shadow;
       contain: paint;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
                   0 0 0 1px var(--ctx-bg),
                   inset 0 1px 0 var(--ctx-bg-subtle);
       position: relative;
       overflow: hidden;
+      /* Bioluminescent entrance + breathing border glow */
+      animation: widgetEntrance var(--bio-entrance, 0.6s) cubic-bezier(0.4, 0, 0.2, 1) backwards,
+                 borderGlow var(--bio-breathe-slow, 12s) ease-in-out infinite;
     }
+
+    /* Staggered entrance delays for each widget */
+    .widget-container:nth-child(1) { animation-delay: 0.05s, 0s; }
+    .widget-container:nth-child(2) { animation-delay: 0.1s, 1s; }
+    .widget-container:nth-child(3) { animation-delay: 0.15s, 2s; }
+    .widget-container:nth-child(4) { animation-delay: 0.2s, 3s; }
+    .widget-container:nth-child(5) { animation-delay: 0.25s, 4s; }
+    .widget-container:nth-child(6) { animation-delay: 0.3s, 5s; }
+    .widget-container:nth-child(7) { animation-delay: 0.35s, 6s; }
+    .widget-container:nth-child(8) { animation-delay: 0.4s, 7s; }
 
     /* Border bioluminescent qui pulse comme un influx nerveux */
     .widget-container::before {
@@ -591,6 +655,23 @@ class DashboardApp extends LitElement {
         opacity: 1;
         transform: translateX(100%);
       }
+    }
+
+    /* Sheen sweep on hover — glossy light pass */
+    .widget-container::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(110deg, transparent 30%, var(--surface-glass-bright, rgba(255,255,255,0.15)) 50%, transparent 70%);
+      opacity: 0;
+      pointer-events: none;
+      border-radius: inherit;
+      z-index: 10;
+    }
+
+    .widget-container:hover::after {
+      opacity: 1;
+      animation: sheenSweep 0.8s ease-out forwards;
     }
 
     .error-message {
@@ -778,6 +859,18 @@ class DashboardApp extends LitElement {
       .widget-container {
         padding: var(--space-6);
         border-radius: var(--radius-lg);
+        /* Simplified animation on mobile — entrance only, no breathing border */
+        animation: widgetEntrance 0.4s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+      }
+
+      /* Disable sheen sweep on mobile (no hover) */
+      .widget-container::after {
+        display: none;
+      }
+
+      /* Disable ambient particles on mobile (perf) */
+      .ambient-particles {
+        display: none;
       }
     }
 
@@ -794,8 +887,8 @@ class DashboardApp extends LitElement {
         grid-template-columns: repeat(3, 1fr);
       }
     }
-  `
-  
+  `]
+
   static properties = {
     connected: { type: Boolean },
     mqttStatus: { type: String },
@@ -1111,6 +1204,10 @@ class DashboardApp extends LitElement {
   
   render() {
     return html`
+      <!-- Living background layers -->
+      <div class="bio-background"></div>
+      <div class="ambient-particles"></div>
+
       <div class="header">
         <div class="header-left">
           <h1><img src="/icon-192-transparent-v2.png" alt="Symbion" class="header-logo"> Symbion Dashboard</h1>

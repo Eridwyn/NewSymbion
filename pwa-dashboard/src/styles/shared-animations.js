@@ -142,4 +142,66 @@ export const sharedAnimations = css`
       background-position: 100% 50%;
     }
   }
+
+  /* === Bioluminescent Animations === */
+
+  @keyframes borderGlow {
+    0%, 100% {
+      box-shadow: 0 0 12px var(--ctx-border-subtle, rgba(0, 212, 170, 0.1)),
+                  inset 0 1px 0 var(--ctx-border-subtle, rgba(0, 212, 170, 0.1));
+    }
+    50% {
+      box-shadow: 0 0 20px var(--ctx-border, rgba(0, 212, 170, 0.15)),
+                  inset 0 1px 0 var(--ctx-border, rgba(0, 212, 170, 0.15));
+    }
+  }
+
+  @keyframes textGlow {
+    0%, 100% { text-shadow: 0 0 8px var(--ctx-border-subtle, rgba(0, 212, 170, 0.1)); }
+    50% { text-shadow: 0 0 16px var(--ctx-border, rgba(0, 212, 170, 0.15)); }
+  }
+
+  @keyframes sheenSweep {
+    from { transform: translateX(-100%) skewX(-15deg); }
+    to { transform: translateX(200%) skewX(-15deg); }
+  }
+
+  @keyframes widgetEntrance {
+    from {
+      opacity: 0;
+      transform: translateY(24px) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes dataFlash {
+    0% { background: transparent; }
+    30% { background: var(--ctx-bg-subtle, rgba(0, 212, 170, 0.05)); }
+    100% { background: transparent; }
+  }
+
+  @keyframes bgBreathing {
+    0%, 100% { opacity: 0.03; }
+    50% { opacity: 0.07; }
+  }
+
+  @keyframes metricPulse {
+    0%, 100% {
+      filter: drop-shadow(0 0 4px var(--ctx-border-subtle, rgba(0, 212, 170, 0.1)));
+    }
+    50% {
+      filter: drop-shadow(0 0 10px var(--ctx-border, rgba(0, 212, 170, 0.15)));
+    }
+  }
+
+  @keyframes particleDrift {
+    0% { transform: translate(0, 0) scale(1); opacity: 0.04; }
+    25% { transform: translate(60px, -40px) scale(1.3); opacity: 0.07; }
+    50% { transform: translate(-30px, -80px) scale(0.8); opacity: 0.05; }
+    75% { transform: translate(-60px, 20px) scale(1.1); opacity: 0.06; }
+    100% { transform: translate(0, 0) scale(1); opacity: 0.04; }
+  }
 `

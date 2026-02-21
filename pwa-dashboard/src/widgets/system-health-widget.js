@@ -25,6 +25,7 @@ class SystemHealthWidget extends LitElement {
       font-size: 1.2em;
       font-weight: 600;
       color: #e0e0e0;
+      animation: textGlow var(--bio-breathe-fast, 8s) ease-in-out infinite;
     }
     
     .status-badge {
@@ -123,7 +124,8 @@ class SystemHealthWidget extends LitElement {
       background: linear-gradient(135deg, var(--surface-glass-bright) 0%, var(--surface-glass) 100%);
       border-color: var(--ctx-border-strong);
       transform: translateY(-4px);
-      box-shadow: 0 8px 24px var(--ctx-border);
+      box-shadow: 0 8px 32px var(--ctx-border-medium, rgba(0,212,170,0.2)),
+                  0 0 40px var(--ctx-bg-subtle, rgba(0,212,170,0.05));
     }
 
     .metric-card:hover::before {
@@ -139,7 +141,7 @@ class SystemHealthWidget extends LitElement {
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
-      animation: gradient-shift 3s ease infinite;
+      animation: gradient-shift 3s ease infinite, metricPulse 3s ease-in-out infinite;
       filter: drop-shadow(0 2px 4px var(--ctx-border-strong));
     }
 
