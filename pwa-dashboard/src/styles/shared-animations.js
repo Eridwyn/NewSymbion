@@ -147,18 +147,20 @@ export const sharedAnimations = css`
 
   @keyframes borderGlow {
     0%, 100% {
-      box-shadow: 0 0 12px var(--ctx-border-subtle, rgba(0, 212, 170, 0.1)),
-                  inset 0 1px 0 var(--ctx-border-subtle, rgba(0, 212, 170, 0.1));
+      box-shadow: 0 0 15px var(--ctx-border-medium, rgba(0, 212, 170, 0.2)),
+                  0 0 30px var(--ctx-border-subtle, rgba(0, 212, 170, 0.1)),
+                  inset 0 1px 0 var(--ctx-border, rgba(0, 212, 170, 0.15));
     }
     50% {
-      box-shadow: 0 0 20px var(--ctx-border, rgba(0, 212, 170, 0.15)),
-                  inset 0 1px 0 var(--ctx-border, rgba(0, 212, 170, 0.15));
+      box-shadow: 0 0 25px var(--ctx-border-strong, rgba(0, 212, 170, 0.4)),
+                  0 0 50px var(--ctx-border-medium, rgba(0, 212, 170, 0.2)),
+                  inset 0 1px 0 var(--ctx-border-medium, rgba(0, 212, 170, 0.2));
     }
   }
 
   @keyframes textGlow {
-    0%, 100% { text-shadow: 0 0 8px var(--ctx-border-subtle, rgba(0, 212, 170, 0.1)); }
-    50% { text-shadow: 0 0 16px var(--ctx-border, rgba(0, 212, 170, 0.15)); }
+    0%, 100% { text-shadow: 0 0 10px var(--ctx-border-medium, rgba(0, 212, 170, 0.2)); }
+    50% { text-shadow: 0 0 24px var(--ctx-border-strong, rgba(0, 212, 170, 0.4)); }
   }
 
   @keyframes sheenSweep {
@@ -184,24 +186,24 @@ export const sharedAnimations = css`
   }
 
   @keyframes bgBreathing {
-    0%, 100% { opacity: 0.03; }
-    50% { opacity: 0.07; }
+    0%, 100% { opacity: 0.06; }
+    50% { opacity: 0.15; }
   }
 
   @keyframes metricPulse {
     0%, 100% {
-      filter: drop-shadow(0 0 4px var(--ctx-border-subtle, rgba(0, 212, 170, 0.1)));
+      filter: drop-shadow(0 0 8px var(--ctx-border-medium, rgba(0, 212, 170, 0.2)));
     }
     50% {
-      filter: drop-shadow(0 0 10px var(--ctx-border, rgba(0, 212, 170, 0.15)));
+      filter: drop-shadow(0 0 20px var(--ctx-border-strong, rgba(0, 212, 170, 0.4)));
     }
   }
 
   @keyframes particleDrift {
-    0% { transform: translate(0, 0) scale(1); opacity: 0.04; }
-    25% { transform: translate(60px, -40px) scale(1.3); opacity: 0.07; }
-    50% { transform: translate(-30px, -80px) scale(0.8); opacity: 0.05; }
-    75% { transform: translate(-60px, 20px) scale(1.1); opacity: 0.06; }
-    100% { transform: translate(0, 0) scale(1); opacity: 0.04; }
+    0% { transform: translate(0, 0) scale(1); opacity: 0.12; }
+    25% { transform: translate(80px, -60px) scale(1.4); opacity: 0.2; }
+    50% { transform: translate(-40px, -100px) scale(0.8); opacity: 0.14; }
+    75% { transform: translate(-80px, 30px) scale(1.2); opacity: 0.18; }
+    100% { transform: translate(0, 0) scale(1); opacity: 0.12; }
   }
 `
