@@ -41,8 +41,8 @@ class HostsWidget extends LitElement {
     }
     
     .host-card {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--surface-glass-subtle);
+      border: 1px solid var(--border-default);
       border-radius: 8px;
       padding: 1rem;
       transition: all 0.3s ease;
@@ -50,7 +50,7 @@ class HostsWidget extends LitElement {
     
     .host-card:hover {
       border-color: rgba(0, 122, 204, 0.3);
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-glass);
     }
     
     .host-card.online {

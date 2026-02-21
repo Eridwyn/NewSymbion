@@ -39,7 +39,7 @@ class AgentsNetworkWidget extends LitElement {
       align-items: center;
       margin-bottom: 16px;
       padding-bottom: 12px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      border-bottom: 1px solid var(--border-medium);
     }
 
     .widget-title {
@@ -53,8 +53,8 @@ class AgentsNetworkWidget extends LitElement {
 
     .view-toggle {
       display: flex;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 6px;
+      background: var(--surface-glass-strong);
+      border-radius: var(--radius-sm);
       padding: 2px;
     }
 
@@ -64,7 +64,7 @@ class AgentsNetworkWidget extends LitElement {
       background: transparent;
       color: #ccc;
       cursor: pointer;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       transition: all 0.2s ease;
       font-size: 14px;
     }
@@ -109,8 +109,8 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .agent-card {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
-      border: 1px solid rgba(0, 212, 170, 0.2);
+      background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
+      border: 1px solid var(--ctx-border-medium);
       border-radius: var(--radius-md);
       padding: 18px;
       transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -127,12 +127,12 @@ class AgentsNetworkWidget extends LitElement {
       left: 0;
       width: 4px;
       height: 100%;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
     }
 
     .agent-card.online::before {
-      background: linear-gradient(180deg, #00d4aa 0%, #22c55e 100%);
-      box-shadow: 0 0 20px rgba(0, 212, 170, 0.5);
+      background: linear-gradient(180deg, var(--context-primary, #00d4aa) 0%, #22c55e 100%);
+      box-shadow: 0 0 20px var(--ctx-border-intense);
     }
 
     .agent-card.offline::before {
@@ -141,10 +141,10 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .agent-card:hover {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
-      border-color: rgba(0, 212, 170, 0.4);
+      background: linear-gradient(135deg, var(--surface-glass-bright) 0%, var(--surface-glass) 100%);
+      border-color: var(--ctx-border-strong);
       transform: translateY(-4px) scale(1.02);
-      box-shadow: 0 12px 32px rgba(0, 212, 170, 0.2);
+      box-shadow: 0 12px 32px var(--ctx-border-medium);
     }
 
     .agent-card:hover::before {
@@ -167,7 +167,7 @@ class AgentsNetworkWidget extends LitElement {
     .os-icon {
       font-size: 28px;
       filter: grayscale(0) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
     }
 
     .agent-card:hover .os-icon {
@@ -198,18 +198,18 @@ class AgentsNetworkWidget extends LitElement {
       font-size: 11px;
       font-weight: 600;
       padding: 6px 12px;
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       text-transform: uppercase;
       letter-spacing: 0.8px;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
     .agent-status.online {
-      background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, rgba(0, 212, 170, 0.2) 100%);
-      color: #00d4aa;
-      border: 1px solid rgba(0, 212, 170, 0.3);
-      box-shadow: 0 2px 12px rgba(0, 212, 170, 0.3);
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, var(--ctx-border-medium) 100%);
+      color: var(--context-primary, #00d4aa);
+      border: 1px solid var(--ctx-border-strong);
+      box-shadow: 0 2px 12px var(--ctx-border-strong);
     }
 
     .agent-status.offline {
@@ -275,7 +275,7 @@ class AgentsNetworkWidget extends LitElement {
       width: 0;
       height: 0;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass-strong);
       transform: translate(-50%, -50%);
       transition: width 0.4s, height 0.4s;
     }
@@ -320,14 +320,14 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .action-btn.wake {
-      background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, rgba(0, 212, 170, 0.2) 100%);
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, var(--ctx-border-medium) 100%);
       color: #4ade80;
       border: 1px solid rgba(34, 197, 94, 0.4);
       box-shadow: 0 2px 8px rgba(34, 197, 94, 0.2);
     }
 
     .action-btn.wake:hover:not(:disabled) {
-      background: linear-gradient(135deg, rgba(34, 197, 94, 0.35) 0%, rgba(0, 212, 170, 0.3) 100%);
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.35) 0%, var(--ctx-border-strong) 100%);
       border-color: rgba(0, 212, 170, 0.6);
       transform: translateY(-2px) scale(1.05);
       box-shadow: 0 4px 16px rgba(0, 212, 170, 0.35);
@@ -353,12 +353,12 @@ class AgentsNetworkWidget extends LitElement {
       height: 10px;
       border-radius: 50%;
       display: inline-block;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
     }
 
     .status-indicator.online {
-      background: #00d4aa;
-      box-shadow: 0 0 12px rgba(0, 212, 170, 0.7), 0 0 24px rgba(0, 212, 170, 0.4);
+      background: var(--context-primary, #00d4aa);
+      box-shadow: 0 0 12px rgba(0, 212, 170, 0.7), 0 0 24px var(--ctx-border-strong);
       animation: pulse-glow 2s ease-in-out infinite;
     }
 
@@ -400,7 +400,7 @@ class AgentsNetworkWidget extends LitElement {
       background: rgba(59, 130, 246, 0.2);
       color: #3b82f6;
       border: 1px solid rgba(59, 130, 246, 0.3);
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       padding: 8px 16px;
       cursor: pointer;
       transition: all 0.2s ease;

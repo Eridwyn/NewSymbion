@@ -49,16 +49,16 @@ export class SslWidget extends LitElement {
 
     .summary-badge {
       padding: 0.4rem 0.8rem;
-      border-radius: 20px;
+      border-radius: var(--radius-xl);
       font-size: 0.75em;
       font-weight: 600;
       letter-spacing: 0.5px;
     }
 
     .summary-ok {
-      background: linear-gradient(135deg, rgba(0, 212, 170, 0.25) 0%, rgba(34, 197, 94, 0.2) 100%);
-      color: #00d4aa;
-      border: 1px solid rgba(0, 212, 170, 0.4);
+      background: linear-gradient(135deg, var(--ctx-bg-emphasis) 0%, rgba(34, 197, 94, 0.2) 100%);
+      color: var(--context-primary, #00d4aa);
+      border: 1px solid var(--ctx-border-strong);
     }
 
     .summary-warning {
@@ -75,10 +75,10 @@ export class SslWidget extends LitElement {
 
     .refresh-btn {
       background: transparent;
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid var(--border-hover);
       color: #888;
-      width: 32px;
-      height: 32px;
+      min-width: 44px;
+      min-height: 44px;
       border-radius: var(--radius-base);
       cursor: pointer;
       display: flex;
@@ -88,7 +88,7 @@ export class SslWidget extends LitElement {
     }
 
     .refresh-btn:hover {
-      background: rgba(255, 255, 255, 0.08);
+      background: var(--surface-glass-hover);
       color: #00d4ff;
       border-color: rgba(0, 212, 255, 0.3);
     }
@@ -104,8 +104,8 @@ export class SslWidget extends LitElement {
     }
 
     .domain-card {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: linear-gradient(135deg, var(--border-subtle) 0%, var(--surface-glass-faint) 100%);
+      border: 1px solid var(--border-medium);
       border-radius: var(--radius-md);
       padding: 1rem;
       display: flex;
@@ -115,8 +115,8 @@ export class SslWidget extends LitElement {
     }
 
     .domain-card:hover {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
-      border-color: rgba(255, 255, 255, 0.15);
+      background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
+      border-color: var(--border-hover);
     }
 
     .domain-card.critical {
@@ -141,8 +141,8 @@ export class SslWidget extends LitElement {
     }
 
     .status-dot.ok {
-      background: #00d4aa;
-      box-shadow: 0 0 8px rgba(0, 212, 170, 0.5);
+      background: var(--context-primary, #00d4aa);
+      box-shadow: 0 0 8px var(--ctx-border-intense);
     }
 
     .status-dot.warning {
@@ -201,7 +201,7 @@ export class SslWidget extends LitElement {
       font-weight: 600;
     }
 
-    .days-remaining.ok { color: #00d4aa; }
+    .days-remaining.ok { color: var(--context-primary, #00d4aa); }
     .days-remaining.warning { color: #fbbf24; }
     .days-remaining.critical { color: #ff6b6b; }
     .days-remaining.error { color: #666; }
@@ -221,7 +221,7 @@ export class SslWidget extends LitElement {
     .last-update {
       margin-top: 1rem;
       padding-top: 0.75rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      border-top: 1px solid var(--border-subtle);
       font-size: 0.7em;
       color: #555;
       text-align: right;
@@ -245,7 +245,7 @@ export class SslWidget extends LitElement {
       z-index: 1000;
       opacity: 0;
       visibility: hidden;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
     }
 
     .config-overlay.open {
@@ -262,7 +262,7 @@ export class SslWidget extends LitElement {
       max-width: 95vw;
       height: 100vh;
       background: linear-gradient(180deg, #12121a 0%, #0d0d14 100%);
-      border-left: 1px solid rgba(0, 212, 170, 0.2);
+      border-left: 1px solid var(--ctx-border-medium);
       z-index: 1001;
       transform: translateX(100%);
       transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -281,8 +281,8 @@ export class SslWidget extends LitElement {
       align-items: center;
       justify-content: space-between;
       padding: 1rem 1.25rem;
-      background: rgba(0, 212, 170, 0.08);
-      border-bottom: 1px solid rgba(0, 212, 170, 0.15);
+      background: var(--ctx-bg);
+      border-bottom: 1px solid var(--ctx-border);
     }
 
     .config-header-left {
@@ -294,12 +294,12 @@ export class SslWidget extends LitElement {
     .config-header-icon {
       width: 36px;
       height: 36px;
-      background: linear-gradient(135deg, rgba(0, 212, 170, 0.2) 0%, rgba(0, 180, 140, 0.1) 100%);
+      background: linear-gradient(135deg, var(--ctx-border-medium) 0%, rgba(0, 180, 140, 0.1) 100%);
       border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #00d4aa;
+      color: var(--context-primary, #00d4aa);
     }
 
     .config-title {
@@ -346,7 +346,7 @@ export class SslWidget extends LitElement {
     }
 
     .section-title {
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       font-weight: 600;
       color: #666;
       text-transform: uppercase;
@@ -356,9 +356,9 @@ export class SslWidget extends LitElement {
     .section-badge {
       font-size: 0.7rem;
       padding: 0.2rem 0.5rem;
-      background: rgba(0, 212, 170, 0.15);
-      color: #00d4aa;
-      border-radius: 4px;
+      background: var(--ctx-border);
+      color: var(--context-primary, #00d4aa);
+      border-radius: var(--radius-sm);
     }
 
     /* Domain List */
@@ -371,16 +371,16 @@ export class SslWidget extends LitElement {
     .domain-card {
       display: flex;
       align-items: stretch;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: var(--surface-glass-subtle);
+      border: 1px solid var(--border-subtle);
       border-radius: 10px;
       overflow: hidden;
       transition: all 0.2s ease;
     }
 
     .domain-card:hover {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass);
+      border-color: var(--border-medium);
     }
 
     .domain-card-main {
@@ -398,7 +398,7 @@ export class SslWidget extends LitElement {
     }
 
     .domain-card-host {
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       color: #666;
       font-family: monospace;
     }
@@ -412,7 +412,7 @@ export class SslWidget extends LitElement {
     .threshold-tag {
       font-size: 0.65rem;
       padding: 0.15rem 0.4rem;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       font-weight: 500;
     }
 
@@ -429,7 +429,7 @@ export class SslWidget extends LitElement {
     .domain-card-actions {
       display: flex;
       flex-direction: column;
-      border-left: 1px solid rgba(255, 255, 255, 0.06);
+      border-left: 1px solid var(--border-subtle);
     }
 
     .domain-card-actions button {
@@ -443,11 +443,11 @@ export class SslWidget extends LitElement {
     }
 
     .domain-card-actions button:first-child {
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      border-bottom: 1px solid var(--border-subtle);
     }
 
     .domain-card-actions button:hover {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-glass);
     }
 
     .domain-card-actions .edit-btn:hover {
@@ -460,8 +460,8 @@ export class SslWidget extends LitElement {
 
     /* Form */
     .form-card {
-      background: rgba(0, 212, 170, 0.05);
-      border: 1px solid rgba(0, 212, 170, 0.15);
+      background: var(--ctx-bg-subtle);
+      border: 1px solid var(--ctx-border);
       border-radius: var(--radius-md);
       padding: 1rem;
     }
@@ -469,7 +469,7 @@ export class SslWidget extends LitElement {
     .form-card-title {
       font-size: 0.85rem;
       font-weight: 600;
-      color: #00d4aa;
+      color: var(--context-primary, #00d4aa);
       margin-bottom: 1rem;
       display: flex;
       align-items: center;
@@ -482,7 +482,7 @@ export class SslWidget extends LitElement {
 
     .form-label {
       display: block;
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       font-weight: 500;
       color: #888;
       margin-bottom: 0.375rem;
@@ -492,18 +492,18 @@ export class SslWidget extends LitElement {
       width: 100%;
       padding: 0.625rem 0.875rem;
       background: rgba(0, 0, 0, 0.4);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--border-medium);
       border-radius: var(--radius-base);
       color: #e0e0e0;
-      font-size: 0.875rem;
+      font-size: var(--text-sm);
       box-sizing: border-box;
       transition: all 0.2s ease;
     }
 
     .form-input:focus {
       outline: none;
-      border-color: rgba(0, 212, 170, 0.5);
-      box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.1);
+      border-color: var(--ctx-border-intense);
+      box-shadow: 0 0 0 3px var(--ctx-border-subtle);
     }
 
     .form-input::placeholder {
@@ -537,21 +537,21 @@ export class SslWidget extends LitElement {
 
     .btn-primary {
       flex: 1;
-      background: linear-gradient(135deg, #00d4aa 0%, #00b89c 100%);
+      background: linear-gradient(135deg, var(--context-primary, #00d4aa) 0%, #00b89c 100%);
       border: none;
       color: #0a0a0f;
     }
 
     .btn-primary:hover {
       transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(0, 212, 170, 0.3);
+      box-shadow: 0 4px 16px var(--ctx-border-strong);
     }
 
     .btn-primary:disabled {
       opacity: 0.4;
       cursor: not-allowed;
       transform: none;
-      background: rgba(0, 212, 170, 0.3);
+      background: var(--ctx-bg-intense);
     }
 
     .btn-primary:disabled:hover {
@@ -561,12 +561,12 @@ export class SslWidget extends LitElement {
 
     .btn-secondary {
       background: transparent;
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid var(--border-hover);
       color: #888;
     }
 
     .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-glass);
       color: #e0e0e0;
     }
 
@@ -574,7 +574,7 @@ export class SslWidget extends LitElement {
     .check-now-section {
       margin-top: 1.5rem;
       padding-top: 1rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      border-top: 1px solid var(--border-subtle);
     }
 
     .check-now-btn {
@@ -602,10 +602,10 @@ export class SslWidget extends LitElement {
     /* Config button in header */
     .config-btn {
       background: transparent;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--border-medium);
       color: #666;
-      width: 32px;
-      height: 32px;
+      min-width: 44px;
+      min-height: 44px;
       border-radius: var(--radius-base);
       cursor: pointer;
       display: flex;
@@ -615,9 +615,9 @@ export class SslWidget extends LitElement {
     }
 
     .config-btn:hover {
-      background: rgba(0, 212, 170, 0.1);
-      border-color: rgba(0, 212, 170, 0.3);
-      color: #00d4aa;
+      background: var(--ctx-border-subtle);
+      border-color: var(--ctx-border-strong);
+      color: var(--context-primary, #00d4aa);
     }
 
     /* Empty state */
@@ -628,12 +628,44 @@ export class SslWidget extends LitElement {
     }
 
     .empty-state-icon {
-      font-size: 2rem;
+      font-size: var(--text-3xl);
       margin-bottom: 0.5rem;
     }
 
     .empty-state-text {
       font-size: 0.85rem;
+    }
+
+    /* Mobile responsive */
+    @media (max-width: 768px) {
+      .domains-list {
+        gap: 0.5rem;
+      }
+      .widget-header {
+        flex-direction: column;
+        gap: 0.5rem;
+        text-align: center;
+      }
+      .header-right {
+        justify-content: center;
+      }
+      .domain-card {
+        padding: 0.75rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+      }
+      .domain-info {
+        width: 100%;
+      }
+      .expiry-info {
+        align-items: flex-start;
+        text-align: left;
+        width: 100%;
+      }
+      .config-panel {
+        width: 100%;
+      }
     }
   `]
 

@@ -24,7 +24,7 @@ class LogsViewer extends LitElement {
       justify-content: space-between;
       padding: 1rem 1.5rem;
       background: linear-gradient(135deg, #111 0%, #1a1a2e 100%);
-      border-bottom: 1px solid rgba(255,255,255,0.08);
+      border-bottom: 1px solid var(--border-default);
       position: sticky;
       top: 0;
       z-index: 10;
@@ -70,16 +70,16 @@ class LogsViewer extends LitElement {
       flex-wrap: wrap;
       gap: 0.6rem;
       padding: 0.8rem 1.5rem;
-      background: rgba(255,255,255,0.02);
-      border-bottom: 1px solid rgba(255,255,255,0.06);
+      background: var(--surface-glass-faint);
+      border-bottom: 1px solid var(--border-subtle);
       align-items: center;
     }
 
     .source-tabs {
       display: flex;
       gap: 0;
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 6px;
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-sm);
       overflow: hidden;
     }
 
@@ -95,7 +95,7 @@ class LogsViewer extends LitElement {
     }
 
     .source-tab:not(:last-child) {
-      border-right: 1px solid rgba(255,255,255,0.1);
+      border-right: 1px solid var(--border-medium);
     }
 
     .source-tab.active {
@@ -104,7 +104,7 @@ class LogsViewer extends LitElement {
     }
 
     .source-tab:hover:not(.active) {
-      background: rgba(255,255,255,0.05);
+      background: var(--surface-glass);
       color: #ccc;
     }
 
@@ -112,9 +112,9 @@ class LogsViewer extends LitElement {
       flex: 1;
       min-width: 180px;
       padding: 0.45rem 0.8rem;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 6px;
+      background: var(--surface-glass);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-sm);
       color: #e0e0e0;
       font-size: 0.85em;
       font-family: inherit;
@@ -132,9 +132,9 @@ class LogsViewer extends LitElement {
 
     .filter-select {
       padding: 0.45rem 0.6rem;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 6px;
+      background: var(--surface-glass);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-sm);
       color: #e0e0e0;
       font-size: 0.8em;
       font-family: inherit;
@@ -149,9 +149,9 @@ class LogsViewer extends LitElement {
 
     .toolbar-btn {
       padding: 0.45rem 0.8rem;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 6px;
+      background: var(--surface-glass);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-sm);
       color: #e0e0e0;
       font-size: 0.8em;
       cursor: pointer;
@@ -160,7 +160,7 @@ class LogsViewer extends LitElement {
     }
 
     .toolbar-btn:hover {
-      background: rgba(255,255,255,0.1);
+      background: var(--surface-glass-strong);
       border-color: rgba(255,255,255,0.2);
     }
 
@@ -206,7 +206,7 @@ class LogsViewer extends LitElement {
       font-size: 0.85em;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
+      border-bottom: 1px solid var(--border-default);
       cursor: pointer;
       user-select: none;
       white-space: nowrap;
@@ -237,7 +237,7 @@ class LogsViewer extends LitElement {
     }
 
     tr:hover {
-      background: rgba(255,255,255,0.03);
+      background: var(--surface-glass-subtle);
     }
 
     tr.clickable {
@@ -258,7 +258,7 @@ class LogsViewer extends LitElement {
     .source-badge {
       display: inline-block;
       padding: 0.15rem 0.45rem;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       font-size: 0.8em;
       font-weight: 500;
     }
@@ -276,7 +276,7 @@ class LogsViewer extends LitElement {
     .level-badge {
       display: inline-block;
       padding: 0.15rem 0.45rem;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       font-size: 0.8em;
       font-weight: 600;
       min-width: 55px;
@@ -407,8 +407,8 @@ class LogsViewer extends LitElement {
       }
 
       .log-card {
-        background: rgba(255,255,255,0.03);
-        border: 1px solid rgba(255,255,255,0.06);
+        background: var(--surface-glass-subtle);
+        border: 1px solid var(--border-subtle);
         border-radius: 8px;
         padding: 0.6rem 0.75rem;
         cursor: pointer;
@@ -446,7 +446,7 @@ class LogsViewer extends LitElement {
         margin-top: 0.5rem;
         background: rgba(0,0,0,0.3);
         padding: 0.6rem;
-        border-radius: 6px;
+        border-radius: var(--radius-sm);
         border-left: 3px solid #818cf8;
         font-family: 'JetBrains Mono', monospace;
         font-size: 0.7em;

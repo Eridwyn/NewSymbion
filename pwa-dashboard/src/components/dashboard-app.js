@@ -88,20 +88,20 @@ class DashboardApp extends LitElement {
     /* Header bioluminescent avec glassmorphism CONTEXTUEL */
     .header {
       background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent) 0%,
+        var(--ctx-bg) 0%,
         rgba(19, 20, 26, 0.85) 50%,
         color-mix(in srgb, var(--context-primary, #00d4aa) 6%, transparent) 100%);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-bottom: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+      backdrop-filter: blur(var(--blur-xl));
+      -webkit-backdrop-filter: blur(var(--blur-xl));
+      border-bottom: 1px solid var(--ctx-border);
       padding: var(--space-6) var(--space-8);
       position: -webkit-sticky;
       position: sticky;
       top: 0;
       z-index: var(--z-sticky);
       box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3),
-                  0 0 0 1px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
-                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
+                  0 0 0 1px var(--ctx-border-subtle),
+                  inset 0 1px 0 var(--ctx-border-subtle);
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
@@ -154,7 +154,7 @@ class DashboardApp extends LitElement {
               hue-rotate(var(--context-logo-hue, 100deg))
               brightness(var(--context-logo-brightness, 1.1))
               drop-shadow(0 0 12px color-mix(in srgb, var(--context-primary, #00d4aa) 60%, transparent))
-              drop-shadow(0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent));
+              drop-shadow(0 0 20px var(--ctx-bg-intense));
     }
 
     @keyframes logo-bio-pulse {
@@ -193,9 +193,9 @@ class DashboardApp extends LitElement {
       align-items: center;
       gap: var(--space-2);
       padding: var(--space-2) var(--space-3);
-      background: color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
+      background: var(--ctx-bg);
       border-radius: var(--radius-md);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      border: 1px solid var(--ctx-border-medium);
       transition: all var(--duration-base) var(--ease-out);
       font-size: 0.7rem;
       letter-spacing: 0.03em;
@@ -204,8 +204,8 @@ class DashboardApp extends LitElement {
     }
 
     .status-indicator:hover {
-      background: color-mix(in srgb, var(--context-primary, #00d4aa) 12%, transparent);
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+      background: var(--ctx-bg-medium);
+      border-color: var(--ctx-bg-intense);
       transform: translateY(-1px);
     }
 
@@ -221,7 +221,7 @@ class DashboardApp extends LitElement {
     .status-dot.connected {
       background: var(--context-primary, #00d4aa);
       box-shadow: 0 0 15px color-mix(in srgb, var(--context-primary, #00d4aa) 70%, transparent),
-                  0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent),
+                  0 0 30px var(--ctx-border-strong),
                   inset 0 0 10px color-mix(in srgb, var(--context-primary, #00d4aa) 30%, white);
       animation: bio-pulse-glow 2.5s ease-in-out infinite;
     }
@@ -306,9 +306,9 @@ class DashboardApp extends LitElement {
 
     .user-button {
       background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent);
+        var(--ctx-border) 0%,
+        var(--ctx-border-subtle) 100%);
+      border: 1px solid var(--ctx-border-strong);
       color: var(--context-primary, #00d4aa);
       padding: var(--space-3) var(--space-4);
       border-radius: var(--radius-md);
@@ -319,19 +319,19 @@ class DashboardApp extends LitElement {
       align-items: center;
       gap: var(--space-2);
       transition: all var(--duration-base) var(--ease-out);
-      box-shadow: 0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent),
-                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
+      box-shadow: 0 0 20px var(--ctx-border-medium),
+                  inset 0 1px 0 var(--ctx-border-subtle);
     }
 
     .user-button:hover {
       background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 100%);
+        var(--ctx-bg-emphasis) 0%,
+        var(--ctx-border) 100%);
       border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 60%, transparent);
       transform: translateY(-2px);
-      box-shadow: 0 6px 20px color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent),
-                  0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent),
-                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      box-shadow: 0 6px 20px var(--ctx-border-strong),
+                  0 0 30px var(--ctx-bg-intense),
+                  inset 0 1px 0 var(--ctx-border-medium);
     }
 
     /* User Dropdown - Bio-Organic Menu */
@@ -344,14 +344,14 @@ class DashboardApp extends LitElement {
         rgba(15, 15, 15, 0.96) 100%);
       backdrop-filter: blur(var(--blur-xl));
       -webkit-backdrop-filter: blur(var(--blur-xl));
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
+      border: 1px solid var(--ctx-bg-emphasis);
       border-radius: var(--radius-lg);
       padding: var(--space-5);
       min-width: 260px;
       box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6),
-                  0 0 0 1px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent),
-                  0 0 40px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
-                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
+                  0 0 0 1px var(--ctx-border),
+                  0 0 40px var(--ctx-border-subtle),
+                  inset 0 1px 0 var(--ctx-bg);
       z-index: 1000;
       animation: dropdownSlide var(--duration-slow) var(--ease-out);
     }
@@ -369,7 +369,7 @@ class DashboardApp extends LitElement {
 
     .user-info {
       padding-bottom: var(--space-4);
-      border-bottom: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      border-bottom: 1px solid var(--ctx-border-medium);
       margin-bottom: var(--space-4);
       position: relative;
     }
@@ -392,7 +392,7 @@ class DashboardApp extends LitElement {
       font-weight: var(--font-semibold);
       font-size: var(--text-base);
       margin-bottom: var(--space-2);
-      text-shadow: 0 0 12px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      text-shadow: 0 0 12px var(--ctx-border-medium);
     }
 
     .user-role {
@@ -415,9 +415,9 @@ class DashboardApp extends LitElement {
     .settings-button {
       width: 100%;
       background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 12%, transparent) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+        var(--ctx-bg-medium) 0%,
+        var(--ctx-bg) 100%);
+      border: 1px solid var(--ctx-bg-intense);
       color: var(--context-primary, #00d4aa);
       padding: var(--space-3) var(--space-4);
       border-radius: var(--radius-md);
@@ -434,12 +434,12 @@ class DashboardApp extends LitElement {
 
     .settings-button:hover {
       background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 100%);
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 50%, transparent);
+        var(--ctx-border-medium) 0%,
+        var(--ctx-border) 100%);
+      border-color: var(--ctx-border-intense);
       transform: translateY(-2px);
-      box-shadow: 0 6px 16px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent),
-                  0 0 24px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+      box-shadow: 0 6px 16px var(--ctx-border-medium),
+                  0 0 24px var(--ctx-border);
     }
 
     /* Bouton Context Engine - Style distinctif */
@@ -525,7 +525,7 @@ class DashboardApp extends LitElement {
         color-mix(in srgb, var(--context-primary, #00d4aa) 3%, transparent) 0%,
         rgba(19, 20, 26, 0.95) 20%,
         rgba(28, 29, 36, 0.98) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 12%, transparent);
+      border: 1px solid var(--ctx-bg-medium);
       border-radius: var(--radius-xl);
       padding: var(--space-8);
       backdrop-filter: blur(var(--blur-lg));
@@ -535,8 +535,8 @@ class DashboardApp extends LitElement {
       will-change: transform;
       contain: paint;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
-                  0 0 0 1px color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent),
-                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent);
+                  0 0 0 1px var(--ctx-bg),
+                  inset 0 1px 0 var(--ctx-bg-subtle);
       position: relative;
       overflow: hidden;
     }
@@ -571,10 +571,10 @@ class DashboardApp extends LitElement {
 
     /* Hover - Activation organique CONTEXTUEL (PWA9: optimisé GPU, 2 shadows au lieu de 4) */
     .widget-container:hover {
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+      border-color: var(--ctx-bg-intense);
       transform: translateY(-4px);
-      box-shadow: 0 16px 48px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent),
-                  0 0 0 1px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      box-shadow: 0 16px 48px var(--ctx-border),
+                  0 0 0 1px var(--ctx-border-medium);
     }
 
     .widget-container:hover::before {
@@ -609,8 +609,8 @@ class DashboardApp extends LitElement {
       position: fixed;
       bottom: 1.2rem;
       right: 1.2rem;
-      width: 40px;
-      height: 40px;
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
       background: rgba(99, 102, 241, 0.15);
       border: 1px solid rgba(99, 102, 241, 0.25);
@@ -620,7 +620,7 @@ class DashboardApp extends LitElement {
       align-items: center;
       justify-content: center;
       z-index: 80;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
       opacity: 0.4;
     }
 
@@ -645,7 +645,7 @@ class DashboardApp extends LitElement {
     .tabs {
       display: flex;
       gap: 0.5rem;
-      border-bottom: 2px solid color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      border-bottom: 2px solid var(--ctx-border-medium);
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
     }
@@ -658,8 +658,8 @@ class DashboardApp extends LitElement {
         right: 0;
         margin-bottom: 0;
         background: linear-gradient(to top, #0f0f0f 0%, rgba(15, 15, 15, 0.98) 80%, rgba(15, 15, 15, 0.95) 100%);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(var(--blur-md));
+        -webkit-backdrop-filter: blur(var(--blur-md));
         z-index: 90;
         padding: 0.5rem 1rem;
         box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
@@ -678,7 +678,7 @@ class DashboardApp extends LitElement {
       font-size: 0.9em;
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
       border-bottom: 2px solid transparent;
       white-space: nowrap;
       position: relative;
@@ -735,7 +735,7 @@ class DashboardApp extends LitElement {
 
       .status-indicator {
         padding: 0.25rem 0.5rem;
-        font-size: 0.6rem;
+        font-size: 0.65rem;
         white-space: nowrap;
         flex-shrink: 0;
         gap: 0.25rem;
@@ -757,6 +757,8 @@ class DashboardApp extends LitElement {
         padding: 0.35rem 0.6rem;
         font-size: 0.65rem;
         gap: 0.25rem;
+        min-width: 44px;
+        min-height: 44px;
       }
 
       .main-content {

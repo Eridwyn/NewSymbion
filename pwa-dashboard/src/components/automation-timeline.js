@@ -83,7 +83,7 @@ class AutomationTimeline extends LitElement {
       position: relative;
       height: 320px;
       background: var(--bg-tertiary, rgba(50, 55, 65, 0.3));
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       overflow: hidden;
     }
 
@@ -101,7 +101,7 @@ class AutomationTimeline extends LitElement {
       position: absolute;
       left: 2px;
       right: 2px;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -115,7 +115,7 @@ class AutomationTimeline extends LitElement {
 
     .auto-bar:hover {
       opacity: 0.9;
-      box-shadow: 0 0 8px rgba(255, 255, 255, 0.15);
+      box-shadow: 0 0 8px var(--surface-glass-bright);
       z-index: 2;
     }
 
@@ -125,12 +125,12 @@ class AutomationTimeline extends LitElement {
     }
 
     .bar-icon {
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       flex-shrink: 0;
     }
 
     .bar-label {
-      font-size: 0.55rem;
+      font-size: 0.7rem;
       font-weight: 600;
       color: rgba(255, 255, 255, 0.9);
       white-space: nowrap;
@@ -139,7 +139,7 @@ class AutomationTimeline extends LitElement {
     }
 
     .bar-hours {
-      font-size: 0.5rem;
+      font-size: 0.65rem;
       color: rgba(255, 255, 255, 0.7);
       white-space: nowrap;
     }
@@ -179,14 +179,14 @@ class AutomationTimeline extends LitElement {
       display: flex;
       align-items: center;
       gap: 0.4rem;
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       color: var(--text-secondary, rgba(255, 255, 255, 0.7));
     }
 
     .legend-color {
       width: 14px;
       height: 14px;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
     }
 
     .empty-state {
@@ -196,7 +196,7 @@ class AutomationTimeline extends LitElement {
     }
 
     .empty-state-icon {
-      font-size: 2rem;
+      font-size: var(--text-3xl);
       margin-bottom: 0.5rem;
     }
 
@@ -211,11 +211,11 @@ class AutomationTimeline extends LitElement {
       }
 
       .day-header {
-        font-size: 0.6rem;
+        font-size: 0.65rem;
       }
 
       .hour-tick {
-        font-size: 0.5rem;
+        font-size: 0.65rem;
       }
 
       .bar-label {
@@ -410,7 +410,7 @@ class AutomationTimeline extends LitElement {
             <span>📅</span>
             <span>Planning Hebdomadaire</span>
           </div>
-          <span style="font-size: 0.75rem; color: var(--text-secondary);">
+          <span style="font-size: var(--text-xs); color: var(--text-secondary);">
             ${scheduled.length} automation${scheduled.length > 1 ? 's' : ''} planifiee${scheduled.length > 1 ? 's' : ''}
           </span>
         </div>

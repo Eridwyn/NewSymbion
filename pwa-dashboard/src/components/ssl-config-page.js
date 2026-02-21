@@ -53,7 +53,7 @@ export class SslConfigPage extends LitElement {
       justify-content: space-between;
       margin-bottom: 2rem;
       padding-bottom: 1rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid var(--border-default);
     }
 
     .header-left {
@@ -64,7 +64,7 @@ export class SslConfigPage extends LitElement {
 
     .back-btn {
       background: transparent;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--border-medium);
       color: #888;
       width: 40px;
       height: 40px;
@@ -77,7 +77,7 @@ export class SslConfigPage extends LitElement {
     }
 
     .back-btn:hover {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-glass);
       color: #e0e0e0;
     }
 
@@ -88,7 +88,7 @@ export class SslConfigPage extends LitElement {
     }
 
     .page-title {
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
       font-weight: 600;
       color: #e0e0e0;
       display: flex;
@@ -113,8 +113,8 @@ export class SslConfigPage extends LitElement {
     /* Sections */
     .section {
       background: linear-gradient(135deg, rgba(26, 26, 26, 0.9) 0%, rgba(15, 15, 15, 0.85) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
       padding: 1.5rem;
       margin-bottom: 1.5rem;
     }
@@ -136,11 +136,11 @@ export class SslConfigPage extends LitElement {
     }
 
     .section-badge {
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       padding: 0.25rem 0.6rem;
-      background: color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+      background: var(--ctx-border);
       color: var(--context-primary, #00d4aa);
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       font-weight: 500;
     }
 
@@ -152,8 +152,8 @@ export class SslConfigPage extends LitElement {
     }
 
     .domain-card {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: var(--surface-glass-subtle);
+      border: 1px solid var(--border-subtle);
       border-radius: var(--radius-md);
       padding: 1.25rem;
       transition: all 0.2s ease;
@@ -161,7 +161,7 @@ export class SslConfigPage extends LitElement {
 
     .domain-card:hover {
       background: rgba(255, 255, 255, 0.06);
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+      border-color: var(--ctx-bg-intense);
     }
 
     .domain-card-header {
@@ -190,13 +190,13 @@ export class SslConfigPage extends LitElement {
 
     .domain-status {
       padding: 0.35rem 0.7rem;
-      border-radius: 6px;
-      font-size: 0.75rem;
+      border-radius: var(--radius-sm);
+      font-size: var(--text-xs);
       font-weight: 600;
     }
 
     .status-ok {
-      background: color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+      background: var(--ctx-border);
       color: var(--context-primary, #00d4aa);
     }
 
@@ -260,7 +260,7 @@ export class SslConfigPage extends LitElement {
     .threshold-badge {
       font-size: 0.7rem;
       padding: 0.3rem 0.6rem;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       display: flex;
       align-items: center;
       gap: 0.3rem;
@@ -282,7 +282,7 @@ export class SslConfigPage extends LitElement {
       display: flex;
       gap: 0.5rem;
       padding-top: 0.75rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      border-top: 1px solid var(--border-subtle);
     }
 
     .domain-actions button {
@@ -350,7 +350,7 @@ export class SslConfigPage extends LitElement {
     .form-input {
       padding: 0.75rem 1rem;
       background: rgba(0, 0, 0, 0.4);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--border-medium);
       border-radius: 10px;
       color: #e0e0e0;
       font-size: 0.9rem;
@@ -359,8 +359,8 @@ export class SslConfigPage extends LitElement {
 
     .form-input:focus {
       outline: none;
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 50%, transparent);
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
+      border-color: var(--ctx-border-intense);
+      box-shadow: 0 0 0 3px var(--ctx-border-subtle);
     }
 
     .form-input::placeholder {
@@ -403,7 +403,7 @@ export class SslConfigPage extends LitElement {
 
     .btn-primary:hover {
       transform: translateY(-2px);
-      box-shadow: 0 6px 20px color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+      box-shadow: 0 6px 20px var(--ctx-bg-intense);
     }
 
     .btn-primary:disabled {
@@ -415,12 +415,12 @@ export class SslConfigPage extends LitElement {
 
     .btn-secondary {
       background: transparent;
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid var(--border-hover);
       color: #888;
     }
 
     .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-glass);
       color: #e0e0e0;
     }
 
@@ -486,8 +486,8 @@ export class SslConfigPage extends LitElement {
     .add-domain-btn {
       width: 100%;
       padding: 1rem;
-      background: color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
-      border: 2px dashed color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+      background: var(--ctx-bg);
+      border: 2px dashed var(--ctx-bg-intense);
       border-radius: var(--radius-md);
       color: var(--context-primary, #00d4aa);
       font-size: 0.9rem;
@@ -502,14 +502,14 @@ export class SslConfigPage extends LitElement {
     }
 
     .add-domain-btn:hover {
-      background: color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 50%, transparent);
+      background: var(--ctx-border);
+      border-color: var(--ctx-border-intense);
     }
 
     /* Form section collapsible */
     .form-section {
       background: linear-gradient(135deg, rgba(26, 26, 26, 0.95) 0%, rgba(15, 15, 15, 0.9) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
+      border: 1px solid var(--ctx-bg-emphasis);
       animation: slideDown 0.2s ease-out;
     }
 
@@ -525,7 +525,7 @@ export class SslConfigPage extends LitElement {
     }
 
     /* Mobile responsive */
-    @media (max-width: 640px) {
+    @media (max-width: 768px) {
       .page-container {
         padding: 1rem;
       }

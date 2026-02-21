@@ -47,7 +47,7 @@ class UserSettingsPage extends LitElement {
       margin-bottom: var(--space-6);
       padding-bottom: var(--space-4);
       padding-right: 120px; /* Espace pour le bouton fermer */
-      border-bottom: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
+      border-bottom: 1px solid var(--ctx-bg-emphasis);
     }
 
     .settings-header::after {
@@ -72,7 +72,7 @@ class UserSettingsPage extends LitElement {
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
-      filter: drop-shadow(0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent));
+      filter: drop-shadow(0 0 20px var(--ctx-border));
       animation: titlePulse 4s ease-in-out infinite, titleSlideIn 0.6s var(--ease-out);
     }
 
@@ -117,7 +117,7 @@ class UserSettingsPage extends LitElement {
       display: flex;
       gap: var(--space-2);
       margin-bottom: var(--space-6);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid var(--border-default);
     }
 
     .tab {
@@ -222,7 +222,7 @@ class UserSettingsPage extends LitElement {
       background: linear-gradient(135deg,
         color-mix(in srgb, var(--context-primary, #00d4aa) 3%, rgba(19, 20, 26, 0.95)) 0%,
         rgba(15, 15, 15, 0.9) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 12%, transparent);
+      border: 1px solid var(--ctx-bg-medium);
       border-radius: var(--radius-lg);
       padding: var(--space-5);
       margin-bottom: var(--space-5);
@@ -238,14 +238,14 @@ class UserSettingsPage extends LitElement {
     .section:hover {
       border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 18%, transparent);
       box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4),
-                  0 0 0 1px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
-                  0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent),
-                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
+                  0 0 0 1px var(--ctx-border-subtle),
+                  0 0 30px var(--ctx-bg-subtle),
+                  inset 0 1px 0 var(--ctx-bg);
     }
 
     @keyframes sectionPulse {
       0%, 100% {
-        border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 12%, transparent);
+        border-color: var(--ctx-bg-medium);
       }
       50% {
         border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 16%, transparent);
@@ -274,7 +274,7 @@ class UserSettingsPage extends LitElement {
       justify-content: space-between;
       align-items: center;
       padding: 0.8rem 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      border-bottom: 1px solid var(--surface-glass);
     }
 
     .info-row:last-child {
@@ -285,7 +285,7 @@ class UserSettingsPage extends LitElement {
       position: relative;
       width: 44px;
       height: 24px;
-      background: rgba(255,255,255,0.1);
+      background: var(--surface-glass-strong);
       border-radius: var(--radius-md);
       cursor: pointer;
       transition: background 0.3s;
@@ -326,7 +326,7 @@ class UserSettingsPage extends LitElement {
 
     .status-badge {
       padding: 0.3rem 0.8rem;
-      border-radius: 20px;
+      border-radius: var(--radius-xl);
       font-size: 0.8em;
       font-weight: 600;
       text-transform: uppercase;
@@ -347,16 +347,16 @@ class UserSettingsPage extends LitElement {
 
     .button {
       background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+        var(--ctx-border) 0%,
+        var(--ctx-border-subtle) 100%);
+      border: 1px solid var(--ctx-bg-intense);
       color: var(--context-primary, #00d4aa);
       padding: 0.8rem 1.5rem;
       border-radius: var(--radius-base);
       font-size: 0.9em;
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
@@ -372,7 +372,7 @@ class UserSettingsPage extends LitElement {
       width: 0;
       height: 0;
       border-radius: 50%;
-      background: color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      background: var(--ctx-border-medium);
       transform: translate(-50%, -50%);
       transition: width 0.6s ease, height 0.6s ease;
     }
@@ -384,11 +384,11 @@ class UserSettingsPage extends LitElement {
 
     .button:hover {
       background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent) 100%);
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 50%, transparent);
+        var(--ctx-bg-emphasis) 0%,
+        var(--ctx-border-medium) 100%);
+      border-color: var(--ctx-border-intense);
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
+      box-shadow: 0 4px 12px var(--ctx-bg-emphasis);
     }
 
     .button:active {
@@ -424,23 +424,23 @@ class UserSettingsPage extends LitElement {
       max-width: 100%; /* Empêche débordement */
       overflow: hidden; /* Force wrapping du contenu */
       background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent) 0%,
+        var(--ctx-bg-subtle) 0%,
         color-mix(in srgb, var(--context-primary, #00d4aa) 2%, transparent) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      border: 1px solid var(--ctx-border-medium);
       border-radius: var(--radius-md);
-      box-shadow: 0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent),
-                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
+      box-shadow: 0 0 20px var(--ctx-bg-subtle),
+                  inset 0 1px 0 var(--ctx-bg);
       animation: containerGlow 6s ease-in-out infinite; /* Glow pulsant */
     }
 
     @keyframes containerGlow {
       0%, 100% {
-        box-shadow: 0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent),
-                    inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
+        box-shadow: 0 0 20px var(--ctx-bg-subtle),
+                    inset 0 1px 0 var(--ctx-bg);
       }
       50% {
-        box-shadow: 0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
-                    inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 12%, transparent);
+        box-shadow: 0 0 30px var(--ctx-border-subtle),
+                    inset 0 1px 0 var(--ctx-bg-medium);
       }
     }
 
@@ -486,16 +486,7 @@ class UserSettingsPage extends LitElement {
       animation: labelFadeIn 0.4s ease-out; /* Apparition douce */
     }
 
-    @keyframes labelFadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(-4px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
+    /* labelFadeIn — see shared-animations.js */
 
     /* Inputs avec focus bioluminescent */
     .input {
@@ -519,9 +510,9 @@ class UserSettingsPage extends LitElement {
       outline: none;
       background: rgba(0, 0, 0, 0.5);
       border-color: var(--context-primary, #00d4aa);
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent),
-                  0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
-                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
+      box-shadow: 0 0 0 3px var(--ctx-border),
+                  0 0 20px var(--ctx-border-subtle),
+                  inset 0 1px 0 var(--ctx-border-subtle);
       animation: inputGlow 0.6s ease-out; /* Pulse au focus */
     }
 
@@ -556,7 +547,7 @@ class UserSettingsPage extends LitElement {
     .backup-code {
       background: rgba(0, 0, 0, 0.3);
       padding: 0.6rem;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       font-family: 'Courier New', monospace;
       font-size: 0.9em;
       text-align: center;
@@ -600,7 +591,7 @@ class UserSettingsPage extends LitElement {
       display: inline-block;
       width: 40px;
       height: 40px;
-      border: 3px solid rgba(255, 255, 255, 0.1);
+      border: 3px solid var(--border-medium);
       border-top-color: var(--context-primary, #00d4aa);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
@@ -1672,7 +1663,7 @@ class UserSettingsPage extends LitElement {
                   </div>
                 </div>
                 ${validation.reason ? html`
-                  <div style="background: rgba(0, 0, 0, 0.3); border-left: 3px solid var(--context-primary, #00d4aa); padding: 0.8rem; border-radius: 4px;">
+                  <div style="background: rgba(0, 0, 0, 0.3); border-left: 3px solid var(--context-primary, #00d4aa); padding: 0.8rem; border-radius: var(--radius-sm);">
                     <div style="color: #aaa; font-size: 0.85em; margin-bottom: 0.3rem;">Raison:</div>
                     <div style="color: #e0e0e0; font-size: 0.95em;">${validation.reason}</div>
                   </div>
@@ -1734,7 +1725,7 @@ class UserSettingsPage extends LitElement {
                   </button>
                 </div>
                 ${validation.reason ? html`
-                  <div style="background: rgba(0, 0, 0, 0.3); border-left: 3px solid #ffc107; padding: 0.8rem; border-radius: 4px;">
+                  <div style="background: rgba(0, 0, 0, 0.3); border-left: 3px solid #ffc107; padding: 0.8rem; border-radius: var(--radius-sm);">
                     <div style="color: #aaa; font-size: 0.85em; margin-bottom: 0.3rem;">Raison:</div>
                     <div style="color: #e0e0e0; font-size: 0.95em;">${validation.reason}</div>
                   </div>
@@ -1776,12 +1767,12 @@ class UserSettingsPage extends LitElement {
                       Expire: ${override.expires_at ? new Date(override.expires_at).toLocaleString('fr-FR') : 'N/A'}
                     </div>
                   </div>
-                  <div style="background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.3); padding: 0.5rem 1rem; border-radius: 6px;">
+                  <div style="background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.3); padding: 0.5rem 1rem; border-radius: var(--radius-sm);">
                     <span style="color: #ffc107; font-weight: 600; font-size: 0.85em;">ACTIF</span>
                   </div>
                 </div>
                 ${override.reason ? html`
-                  <div style="background: rgba(0, 0, 0, 0.3); border-left: 3px solid #ffc107; padding: 0.8rem; border-radius: 4px; margin-top: 1rem;">
+                  <div style="background: rgba(0, 0, 0, 0.3); border-left: 3px solid #ffc107; padding: 0.8rem; border-radius: var(--radius-sm); margin-top: 1rem;">
                     <div style="color: #aaa; font-size: 0.85em; margin-bottom: 0.3rem;">Raison:</div>
                     <div style="color: #e0e0e0; font-size: 0.95em;">${override.reason}</div>
                   </div>
