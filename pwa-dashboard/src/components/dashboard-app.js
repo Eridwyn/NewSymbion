@@ -93,10 +93,10 @@ class DashboardApp extends LitElement {
       pointer-events: none;
       z-index: 0;
       background:
-        radial-gradient(1200px 800px at 15% 5%, color-mix(in srgb, var(--context-primary, #00d4aa) 6%, transparent), transparent 50%),
-        radial-gradient(900px 700px at 85% 20%, color-mix(in srgb, var(--context-primary, #00d4aa) 3%, transparent), transparent 55%),
-        radial-gradient(1400px 900px at 50% 85%, rgba(0, 0, 0, 0.7), transparent 50%),
-        radial-gradient(closest-side at 50% 50%, transparent, rgba(0, 0, 0, 0.4));
+        radial-gradient(800px 600px at 10% 0%, color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent), transparent 60%),
+        radial-gradient(600px 500px at 90% 15%, color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent), transparent 55%),
+        radial-gradient(700px 500px at 50% 90%, color-mix(in srgb, var(--context-primary, #00d4aa) 6%, transparent), transparent 50%),
+        radial-gradient(closest-side at 50% 50%, transparent, rgba(0, 0, 0, 0.3));
       animation: bgBreathing 10s ease-in-out infinite;
     }
 
@@ -119,19 +119,19 @@ class DashboardApp extends LitElement {
     }
 
     .ambient-particles::before {
-      width: 300px;
-      height: 300px;
-      top: 20%;
-      left: 15%;
+      width: 400px;
+      height: 400px;
+      top: 15%;
+      left: 10%;
       background: radial-gradient(circle, var(--context-primary, #00d4aa) 0%, transparent 70%);
       animation: particleDrift 20s ease-in-out infinite;
     }
 
     .ambient-particles::after {
-      width: 250px;
-      height: 250px;
-      bottom: 30%;
-      right: 20%;
+      width: 350px;
+      height: 350px;
+      bottom: 25%;
+      right: 15%;
       background: radial-gradient(circle, var(--context-primary, #00d4aa) 0%, transparent 70%);
       animation: particleDrift 25s ease-in-out infinite 8s reverse;
     }
@@ -739,12 +739,26 @@ class DashboardApp extends LitElement {
         left: 0;
         right: 0;
         margin-bottom: 0;
-        background: linear-gradient(to top, #0f0f0f 0%, rgba(15, 15, 15, 0.98) 80%, rgba(15, 15, 15, 0.95) 100%);
-        backdrop-filter: blur(var(--blur-md));
-        -webkit-backdrop-filter: blur(var(--blur-md));
+        background: linear-gradient(to top,
+          rgba(10, 10, 11, 0.98) 0%,
+          rgba(15, 15, 15, 0.95) 100%);
+        backdrop-filter: blur(var(--blur-xl));
+        -webkit-backdrop-filter: blur(var(--blur-xl));
         z-index: 90;
         padding: 0.5rem 1rem;
         box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+        border-top: 1px solid var(--ctx-border-medium);
+      }
+
+      .tab.active {
+        background: var(--ctx-bg);
+        border-radius: var(--radius-sm);
+        border-bottom: none;
+        box-shadow: 0 0 16px var(--ctx-border-medium);
+      }
+
+      .tab.active::after {
+        display: none;
       }
 
       .tabs-container {
