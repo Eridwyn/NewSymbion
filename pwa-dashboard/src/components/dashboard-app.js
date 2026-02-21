@@ -372,6 +372,7 @@ class DashboardApp extends LitElement {
       transition: all var(--duration-base) var(--ease-out);
       box-shadow: 0 0 20px var(--ctx-border-medium),
                   inset 0 1px 0 var(--ctx-border-subtle);
+      animation: borderGlow var(--bio-breathe-slow, 12s) ease-in-out infinite;
     }
 
     .user-button:hover {
@@ -768,11 +769,27 @@ class DashboardApp extends LitElement {
 
     .tab:hover {
       color: var(--context-primary, #00d4aa);
+      text-shadow: 0 0 12px var(--ctx-border-subtle);
+      background: var(--ctx-bg-subtle);
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
     }
 
     .tab.active {
       color: var(--context-primary, #00d4aa);
       border-bottom-color: var(--context-primary, #00d4aa);
+      text-shadow: 0 0 16px var(--ctx-border);
+      animation: textGlow var(--bio-breathe-fast, 8s) ease-in-out infinite;
+    }
+
+    .tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--context-primary, #00d4aa), transparent);
+      box-shadow: 0 0 12px var(--ctx-border), 0 0 24px var(--ctx-border-subtle);
     }
 
     .tab-content {
