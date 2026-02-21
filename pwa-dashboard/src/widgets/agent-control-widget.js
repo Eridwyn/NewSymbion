@@ -10,6 +10,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedAnimations } from '../styles/shared-animations.js'
 import '../services/agents-service.js'
 import pollingScheduler from '../services/polling-scheduler.js'
 
@@ -27,8 +28,8 @@ class AgentControlWidget extends LitElement {
     commandInput: { type: String },
     currentCommandId: { type: String }
   }
-  
-  static styles = css`
+
+  static styles = [sharedAnimations, css`
     :host {
       position: fixed;
       top: 0;
@@ -46,15 +47,6 @@ class AgentControlWidget extends LitElement {
       z-index: 9999;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       animation: fadeIn 0.3s ease-out;
-    }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-      }
-      to {
-        opacity: 1;
-      }
     }
 
     :host(:not([is-open])) {
@@ -76,17 +68,6 @@ class AgentControlWidget extends LitElement {
       color: var(--widget-color, #e5e5e5);
       overflow: hidden;
       animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    @keyframes modalSlideIn {
-      from {
-        opacity: 0;
-        transform: translateY(-30px) scale(0.95);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
     }
 
     .modal-header {
@@ -279,11 +260,6 @@ class AgentControlWidget extends LitElement {
       display: block;
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
     .section {
       margin-bottom: 24px;
     }
@@ -361,7 +337,7 @@ class AgentControlWidget extends LitElement {
     .info-card {
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
       border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       padding: 18px;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -390,7 +366,7 @@ class AgentControlWidget extends LitElement {
 
     .processes-table {
       background: rgba(255, 255, 255, 0.05);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       overflow: hidden;
     }
 
@@ -451,7 +427,7 @@ class AgentControlWidget extends LitElement {
     .metric-card {
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
       border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       padding: 24px;
       text-align: center;
       transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -541,15 +517,6 @@ class AgentControlWidget extends LitElement {
       animation: shimmer 2s infinite;
     }
 
-    @keyframes shimmer {
-      0% {
-        transform: translateX(-100%);
-      }
-      100% {
-        transform: translateX(100%);
-      }
-    }
-
     .progress-fill.cpu { background: linear-gradient(90deg, #22c55e, #00d4aa, #007acc); }
     .progress-fill.memory { background: linear-gradient(90deg, #3b82f6, #00d4aa, #8b5cf6); }
     .progress-fill.disk { background: linear-gradient(90deg, #f59e0b, #fbbf24, #ef4444); }
@@ -570,7 +537,7 @@ class AgentControlWidget extends LitElement {
       padding: 12px 16px;
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       color: #ffffff;
       font-family: 'Monaco', 'Consolas', monospace;
       font-size: 14px;
@@ -611,7 +578,7 @@ class AgentControlWidget extends LitElement {
     .command-output {
       background: #0d1117;
       border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       padding: 16px;
       font-family: 'Monaco', 'Consolas', monospace;
       font-size: 13px;
@@ -635,7 +602,7 @@ class AgentControlWidget extends LitElement {
       padding: 16px;
       background: rgba(239, 68, 68, 0.1);
       border: 1px solid rgba(239, 68, 68, 0.3);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       color: #fca5a5;
       text-align: center;
     }
@@ -672,7 +639,7 @@ class AgentControlWidget extends LitElement {
         display: none;
       }
     }
-  `
+  `]
 
   constructor() {
     super()
@@ -1376,7 +1343,7 @@ class AgentControlWidget extends LitElement {
             </p>
             <button
               @click="${this.close}"
-              style="margin-top: 2rem; padding: 0.8rem 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: #fff; cursor: pointer; font-size: 0.95em;">
+              style="margin-top: 2rem; padding: 0.8rem 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: var(--radius-base); color: #fff; cursor: pointer; font-size: 0.95em;">
               Fermer
             </button>
           </div>

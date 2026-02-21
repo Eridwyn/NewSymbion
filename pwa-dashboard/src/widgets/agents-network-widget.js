@@ -26,7 +26,7 @@ class AgentsNetworkWidget extends LitElement {
     :host {
       display: block;
       background: var(--widget-background, #1a1a1a);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       padding: 20px;
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
       color: var(--widget-color, #e5e5e5);
@@ -91,7 +91,7 @@ class AgentsNetworkWidget extends LitElement {
       padding: 20px;
       background: rgba(239, 68, 68, 0.1);
       border: 1px solid rgba(239, 68, 68, 0.3);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       color: #fca5a5;
       text-align: center;
     }
@@ -111,7 +111,7 @@ class AgentsNetworkWidget extends LitElement {
     .agent-card {
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
       border: 1px solid rgba(0, 212, 170, 0.2);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       padding: 18px;
       transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       cursor: pointer;
@@ -255,7 +255,7 @@ class AgentsNetworkWidget extends LitElement {
     .action-btn {
       padding: 8px 14px;
       border: none;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;

@@ -13,9 +13,10 @@ import { calculatePriorityScore, sortNotesByPriority, isHighPriority } from '../
 import { applyAllFilters, extractAllTags } from '../utils/notes-filters.js'
 import notesStreamService from '../services/notes-stream-service.js'
 import '../components/organic-loader.js'
+import { sharedAnimations } from '../styles/shared-animations.js'
 
 class NotesPage extends LitElement {
-  static styles = css`
+  static styles = [sharedAnimations, css`
     :host {
       display: block;
       position: fixed;
@@ -31,28 +32,12 @@ class NotesPage extends LitElement {
       animation: fadeIn 0.3s ease;
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-
     .notes-container {
       max-width: 1200px;
       margin: 2rem auto;
       padding: 2rem;
       overflow-x: hidden; /* Empêche débordement horizontal */
       animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    @keyframes slideUp {
-      from {
-        opacity: 0;
-        transform: translateY(30px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
     }
 
     .notes-header {
@@ -86,15 +71,6 @@ class NotesPage extends LitElement {
       animation: titlePulse 4s ease-in-out infinite;
     }
 
-    @keyframes titlePulse {
-      0%, 100% {
-        filter: drop-shadow(0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent));
-      }
-      50% {
-        filter: drop-shadow(0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent));
-      }
-    }
-
     .close-button {
       position: absolute;
       top: 0;
@@ -103,7 +79,7 @@ class NotesPage extends LitElement {
       border: 1px solid rgba(255, 107, 107, 0.3);
       color: #ff6b6b;
       padding: 0.6rem 1.2rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       font-size: 0.9em;
       font-weight: 500;
       cursor: pointer;
@@ -126,7 +102,7 @@ class NotesPage extends LitElement {
       padding: 1.5rem;
       background: linear-gradient(135deg, rgba(26, 26, 26, 0.9) 0%, rgba(15, 15, 15, 0.85) 100%);
       border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       transition: all var(--duration-base) ease-out;
       animation: toolbarSlideIn 0.5s ease-out 0.2s backwards; /* Delay 0.2s pour stagger */
     }
@@ -158,7 +134,7 @@ class NotesPage extends LitElement {
       box-sizing: border-box;
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       padding: 0.6rem 1rem;
       color: #e0e0e0;
       font-size: 0.9em;
@@ -193,7 +169,7 @@ class NotesPage extends LitElement {
       border: 1px solid rgba(255, 255, 255, 0.15);
       color: #ccc;
       padding: 0.5rem 1rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       font-size: 0.85em;
       font-weight: 500;
       cursor: pointer;
@@ -247,7 +223,7 @@ class NotesPage extends LitElement {
       gap: 0.5rem;
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       padding: 0.5rem 1rem;
       cursor: pointer;
       transition: all 0.3s ease;
@@ -299,7 +275,7 @@ class NotesPage extends LitElement {
       border: 1px solid rgba(0, 212, 170, 0.4);
       color: #00d4aa;
       padding: 0.6rem 1.2rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       font-size: 0.9em;
       font-weight: 500;
       cursor: pointer;
@@ -363,7 +339,7 @@ class NotesPage extends LitElement {
       border: 1px solid rgba(255, 255, 255, 0.1);
       color: #888;
       padding: 0.3rem 0.7rem;
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       font-size: 0.75em;
       cursor: pointer;
       transition: all 0.3s ease;
@@ -391,7 +367,7 @@ class NotesPage extends LitElement {
     .note-card {
       background: linear-gradient(135deg, rgba(26, 26, 26, 0.9) 0%, rgba(15, 15, 15, 0.85) 100%);
       border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       padding: 1.2rem;
       transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
@@ -492,7 +468,7 @@ class NotesPage extends LitElement {
       background: linear-gradient(135deg, rgba(255, 193, 7, 0.25) 0%, rgba(255, 152, 0, 0.2) 100%);
       color: #ffc107;
       padding: 0.2rem 0.5rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       font-size: 0.7em;
       font-weight: 600;
       border: 1px solid rgba(255, 193, 7, 0.3);
@@ -502,7 +478,7 @@ class NotesPage extends LitElement {
       background: linear-gradient(135deg, rgba(0, 122, 204, 0.25) 0%, rgba(0, 212, 170, 0.2) 100%);
       color: #00d4aa;
       padding: 0.2rem 0.6rem;
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       font-size: 0.7em;
       font-weight: 500;
       letter-spacing: 0.5px;
@@ -608,17 +584,6 @@ class NotesPage extends LitElement {
       animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    @keyframes modalSlideIn {
-      from {
-        opacity: 0;
-        transform: translateY(-30px) scale(0.95);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
-    }
-
     .modal-header {
       position: relative;
       margin-bottom: 1.5rem;
@@ -657,7 +622,7 @@ class NotesPage extends LitElement {
       font-size: 24px;
       cursor: pointer;
       padding: 6px 10px;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       transition: all 0.3s ease;
       line-height: 1;
     }
@@ -703,7 +668,7 @@ class NotesPage extends LitElement {
       box-sizing: border-box; /* Padding inclus dans width */
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       padding: 0.7rem 1rem;
       color: #e0e0e0;
       font-family: inherit;
@@ -725,20 +690,6 @@ class NotesPage extends LitElement {
       box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.1),
                   0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
       animation: inputGlow 0.6s ease-out; /* Pulse au focus */
-    }
-
-    @keyframes inputGlow {
-      0% {
-        box-shadow: 0 0 0 0 color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
-      }
-      50% {
-        box-shadow: 0 0 0 6px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
-                    0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
-      }
-      100% {
-        box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.1),
-                    0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
-      }
     }
 
     .form-field input:hover:not(:focus),
@@ -777,7 +728,7 @@ class NotesPage extends LitElement {
 
     .form-btn {
       padding: 0.7rem 1.5rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       font-size: 0.9em;
       font-weight: 500;
       cursor: pointer;
@@ -969,7 +920,7 @@ class NotesPage extends LitElement {
         max-width: calc(100% - 50px);
       }
     }
-  `
+  `]
 
   static properties = {
     notes: { type: Array },

@@ -1,0 +1,114 @@
+/**
+ * Shared Animations — Lit CSS Module
+ *
+ * Centralise les @keyframes les plus dupliqués à travers les composants.
+ * Usage : import { sharedAnimations } from '../styles/shared-animations.js'
+ *         static styles = [sharedAnimations, css`...local...`]
+ */
+import { css } from 'lit'
+
+export const sharedAnimations = css`
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(40px) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translate(0, 0) scale(1);
+      opacity: 0.15;
+    }
+    33% {
+      transform: translate(30px, -30px) scale(1.1);
+      opacity: 0.2;
+    }
+    66% {
+      transform: translate(-20px, 20px) scale(0.9);
+      opacity: 0.12;
+    }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  @keyframes modalSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-30px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes titlePulse {
+    0%, 100% {
+      filter: drop-shadow(0 0 20px var(--ctx-border, rgba(0, 212, 170, 0.15)));
+    }
+    50% {
+      filter: drop-shadow(0 0 30px var(--ctx-border-medium, rgba(0, 212, 170, 0.25)));
+    }
+  }
+
+  @keyframes inputGlow {
+    0% {
+      box-shadow: 0 0 0 0 var(--ctx-border-strong, rgba(0, 212, 170, 0.3));
+    }
+    50% {
+      box-shadow: 0 0 0 8px var(--ctx-border-subtle, rgba(0, 212, 170, 0.1));
+    }
+    100% {
+      box-shadow: 0 0 0 4px var(--ctx-border, rgba(0, 212, 170, 0.15));
+    }
+  }
+`

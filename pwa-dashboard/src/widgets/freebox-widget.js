@@ -77,7 +77,7 @@ class FreeboxWidget extends LitElement {
     .section-card {
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
       border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       padding: 1rem;
     }
 
@@ -173,7 +173,7 @@ class FreeboxWidget extends LitElement {
       text-align: center;
       padding: 0.5rem;
       background: rgba(255, 255, 255, 0.04);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
     }
 
     .stat-value {
@@ -202,7 +202,7 @@ class FreeboxWidget extends LitElement {
       margin-top: 0.75rem;
       padding: 0.5rem;
       background: rgba(255, 255, 255, 0.04);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       color: #888;
       font-size: 0.8em;
     }

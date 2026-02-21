@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "serve": "python -m http.server 3000 -d dist"
+    "serve": "python -m http.server 3000 -d dist",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "chart.js": "^4.5.1",
@@ -18,8 +20,10 @@
   },
   "devDependencies": {
     "bcryptjs": "^3.0.2",
+    "happy-dom": "^20.7.0",
     "vite": "^5.0.0",
-    "vite-plugin-pwa": "^0.17.0"
+    "vite-plugin-pwa": "^0.17.0",
+    "vitest": "^4.0.18"
   },
   "type": "module"
 }

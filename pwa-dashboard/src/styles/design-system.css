@@ -89,6 +89,53 @@
   --color-dark-text-secondary: #cbd5e1;
   --color-dark-text-tertiary: #94a3b8;
 
+  /* Glass Surfaces */
+  --surface-glass: rgba(255, 255, 255, 0.05);
+  --surface-glass-hover: rgba(255, 255, 255, 0.08);
+  --surface-glass-strong: rgba(255, 255, 255, 0.1);
+  --surface-overlay: rgba(0, 0, 0, 0.85);
+
+  /* Borders */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.1);
+  --border-hover: rgba(255, 255, 255, 0.15);
+  --border-strong: rgba(255, 255, 255, 0.25);
+
+  /* Status Colors - Full variants */
+  --color-success-bg: rgba(34, 197, 94, 0.15);
+  --color-success-border: rgba(34, 197, 94, 0.3);
+  --color-success-text: #22c55e;
+
+  --color-warning-bg: rgba(251, 191, 36, 0.15);
+  --color-warning-border: rgba(251, 191, 36, 0.3);
+  --color-warning-text: #fbbf24;
+
+  --color-error-bg: rgba(239, 68, 68, 0.15);
+  --color-error-border: rgba(239, 68, 68, 0.3);
+  --color-error-text: #ef4444;
+
+  --color-danger-bg: rgba(255, 107, 107, 0.15);
+  --color-danger-border: rgba(255, 107, 107, 0.3);
+  --color-danger-text: #ff6b6b;
+
+  --color-info-bg: rgba(59, 130, 246, 0.15);
+  --color-info-border: rgba(59, 130, 246, 0.3);
+  --color-info-text: #3b82f6;
+
+  /* Context-Primary Derived (set --context-primary per mode) */
+  --ctx-border-subtle: color-mix(in srgb, var(--context-primary, #10b981) 10%, transparent);
+  --ctx-border: color-mix(in srgb, var(--context-primary, #10b981) 15%, transparent);
+  --ctx-border-medium: color-mix(in srgb, var(--context-primary, #10b981) 20%, transparent);
+  --ctx-border-strong: color-mix(in srgb, var(--context-primary, #10b981) 40%, transparent);
+  --ctx-bg-subtle: color-mix(in srgb, var(--context-primary, #10b981) 5%, transparent);
+  --ctx-bg: color-mix(in srgb, var(--context-primary, #10b981) 8%, transparent);
+  --ctx-bg-medium: color-mix(in srgb, var(--context-primary, #10b981) 12%, transparent);
+  --ctx-bg-strong: color-mix(in srgb, var(--context-primary, #10b981) 20%, transparent);
+  --ctx-glow-sm: 0 0 10px color-mix(in srgb, var(--context-primary, #10b981) 15%, transparent);
+  --ctx-glow-md: 0 0 20px color-mix(in srgb, var(--context-primary, #10b981) 25%, transparent);
+  --ctx-glow-lg: 0 0 30px color-mix(in srgb, var(--context-primary, #10b981) 30%, transparent);
+
   /* ============================================================================
      SPACING - 4px Base Scale
      ============================================================================ */

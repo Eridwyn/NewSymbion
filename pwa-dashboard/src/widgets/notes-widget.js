@@ -74,7 +74,7 @@ class NotesWidget extends LitElement {
     .note-card {
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
       border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       padding: 0.8rem;
       transition: all 0.3s ease;
       position: relative;

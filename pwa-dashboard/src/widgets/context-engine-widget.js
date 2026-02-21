@@ -6,11 +6,12 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedAnimations } from '../styles/shared-animations.js'
 import automationsService from '../services/automations-service.js'
 import pollingScheduler from '../services/polling-scheduler.js'
 
 class ContextEngineWidget extends LitElement {
-  static styles = css`
+  static styles = [sharedAnimations, css`
     :host {
       display: block;
     }
@@ -69,11 +70,6 @@ class ContextEngineWidget extends LitElement {
       animation: float 3s ease-in-out infinite;
     }
 
-    @keyframes float {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-4px); }
-    }
-
     .mode-info {
       flex: 1;
     }
@@ -129,7 +125,7 @@ class ContextEngineWidget extends LitElement {
       gap: 0.5rem;
       padding: 0.5rem 0.75rem;
       background: rgba(255, 255, 255, 0.03);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       font-size: 0.75rem;
     }
 
@@ -166,7 +162,7 @@ class ContextEngineWidget extends LitElement {
       padding: 0.5rem 0.75rem;
       background: rgba(239, 68, 68, 0.1);
       border: 1px solid rgba(239, 68, 68, 0.3);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       margin-bottom: 1rem;
       font-size: 0.8rem;
       color: #ef4444;
@@ -217,7 +213,7 @@ class ContextEngineWidget extends LitElement {
       color: var(--color-dark-text-tertiary, #6c757d);
       font-size: 0.8rem;
     }
-  `
+  `]
 
   static properties = {
     contextState: { type: Object },

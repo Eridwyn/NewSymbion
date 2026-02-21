@@ -6,6 +6,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedAnimations } from '../styles/shared-animations.js'
 import '../components/organic-loader.js'
 
 export class SslWidget extends LitElement {
@@ -19,7 +20,7 @@ export class SslWidget extends LitElement {
     formData: { type: Object }
   }
 
-  static styles = css`
+  static styles = [sharedAnimations, css`
     :host {
       display: block;
     }
@@ -78,7 +79,7 @@ export class SslWidget extends LitElement {
       color: #888;
       width: 32px;
       height: 32px;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -96,10 +97,6 @@ export class SslWidget extends LitElement {
       animation: spin 1s linear infinite;
     }
 
-    @keyframes spin {
-      100% { transform: rotate(360deg); }
-    }
-
     .domains-list {
       display: flex;
       flex-direction: column;
@@ -109,7 +106,7 @@ export class SslWidget extends LitElement {
     .domain-card {
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
       border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       padding: 1rem;
       display: flex;
       align-items: center;
@@ -317,7 +314,7 @@ export class SslWidget extends LitElement {
       color: #666;
       cursor: pointer;
       padding: 0.5rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -465,7 +462,7 @@ export class SslWidget extends LitElement {
     .form-card {
       background: rgba(0, 212, 170, 0.05);
       border: 1px solid rgba(0, 212, 170, 0.15);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       padding: 1rem;
     }
 
@@ -496,7 +493,7 @@ export class SslWidget extends LitElement {
       padding: 0.625rem 0.875rem;
       background: rgba(0, 0, 0, 0.4);
       border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       color: #e0e0e0;
       font-size: 0.875rem;
       box-sizing: border-box;
@@ -527,7 +524,7 @@ export class SslWidget extends LitElement {
 
     .btn {
       padding: 0.625rem 1rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       font-size: 0.8rem;
       font-weight: 600;
       cursor: pointer;
@@ -586,7 +583,7 @@ export class SslWidget extends LitElement {
       border: 1px solid rgba(0, 212, 255, 0.25);
       color: #00d4ff;
       padding: 0.75rem 1rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       font-size: 0.85rem;
       font-weight: 500;
       cursor: pointer;
@@ -609,7 +606,7 @@ export class SslWidget extends LitElement {
       color: #666;
       width: 32px;
       height: 32px;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -638,7 +635,7 @@ export class SslWidget extends LitElement {
     .empty-state-text {
       font-size: 0.85rem;
     }
-  `
+  `]
 
   constructor() {
     super()
