@@ -38,8 +38,8 @@ class ContextEnginePage extends LitElement {
       align-items: center;
       justify-content: center;
       background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(var(--blur-base));
+      -webkit-backdrop-filter: blur(var(--blur-base));
       animation: fadeIn 0.2s ease-out;
     }
 
@@ -48,10 +48,10 @@ class ContextEnginePage extends LitElement {
       max-width: 800px;
       max-height: 90vh;
       background: linear-gradient(135deg, rgba(19, 20, 26, 0.98) 0%, rgba(10, 10, 11, 1) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
-      border-radius: 16px;
+      border: 1px solid var(--ctx-bg-emphasis);
+      border-radius: var(--radius-lg);
       box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6),
-                  0 0 80px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
+                  0 0 80px var(--ctx-border-subtle);
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -112,7 +112,7 @@ class ContextEnginePage extends LitElement {
       padding: 0.75rem 1.25rem;
       border-radius: var(--radius-md);
       background: rgba(25, 26, 32, 0.95);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--border-medium);
       backdrop-filter: blur(16px);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
       color: var(--color-dark-text-primary, #f8f9fa);
@@ -160,14 +160,14 @@ class ContextEnginePage extends LitElement {
       align-items: center;
       justify-content: center;
       background: rgba(0, 0, 0, 0.8);
-      backdrop-filter: blur(8px);
+      backdrop-filter: blur(var(--blur-base));
       animation: fadeIn 0.2s ease-out;
     }
 
     .confirm-dialog {
       background: linear-gradient(135deg, rgba(25, 26, 32, 0.98) 0%, rgba(15, 15, 17, 1) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 16px;
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-lg);
       padding: 1.5rem;
       max-width: 380px;
       width: 90%;
@@ -232,7 +232,7 @@ class ContextEnginePage extends LitElement {
     }
 
     .mode-change-name {
-      font-size: 2rem;
+      font-size: var(--text-3xl);
       font-weight: 700;
       color: var(--context-primary, #00d4aa);
       margin-bottom: 0.5rem;
@@ -246,9 +246,9 @@ class ContextEnginePage extends LitElement {
     /* Skeleton Loading */
     .skeleton {
       background: linear-gradient(90deg,
-        rgba(255, 255, 255, 0.03) 25%,
-        rgba(255, 255, 255, 0.08) 50%,
-        rgba(255, 255, 255, 0.03) 75%);
+        var(--surface-glass-subtle) 25%,
+        var(--surface-glass-hover) 50%,
+        var(--surface-glass-subtle) 75%);
       background-size: 200% 100%;
       animation: shimmer 1.5s ease-in-out infinite;
       border-radius: var(--radius-base);
@@ -270,12 +270,12 @@ class ContextEnginePage extends LitElement {
 
     /* Enhanced Validation Cards */
     .validation-card {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
+      background: var(--surface-glass-subtle);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
       padding: 1.25rem;
       margin-bottom: 1rem;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
       position: relative;
       overflow: hidden;
     }
@@ -293,8 +293,8 @@ class ContextEnginePage extends LitElement {
     }
 
     .validation-card:hover {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: rgba(255, 255, 255, 0.15);
+      background: var(--surface-glass);
+      border-color: var(--border-hover);
       transform: translateY(-2px);
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
     }
@@ -307,7 +307,7 @@ class ContextEnginePage extends LitElement {
     }
 
     .validation-icon {
-      font-size: 2rem;
+      font-size: var(--text-3xl);
       padding: 0.5rem;
       background: rgba(245, 158, 11, 0.15);
       border-radius: var(--radius-md);
@@ -334,14 +334,14 @@ class ContextEnginePage extends LitElement {
       align-items: center;
       gap: 0.5rem;
       padding: 0.5rem 0.75rem;
-      background: rgba(255, 255, 255, 0.03);
+      background: var(--surface-glass-subtle);
       border-radius: var(--radius-base);
     }
 
     .validation-trust-bar {
       width: 60px;
       height: 6px;
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass-strong);
       border-radius: 3px;
       overflow: hidden;
     }
@@ -357,7 +357,7 @@ class ContextEnginePage extends LitElement {
     .validation-trust-fill.low { background: linear-gradient(90deg, #ef4444, #f87171); }
 
     .validation-reasons {
-      background: rgba(255, 255, 255, 0.02);
+      background: var(--surface-glass-faint);
       border-radius: var(--radius-base);
       padding: 0.75rem;
       margin-bottom: 1rem;
@@ -436,7 +436,7 @@ class ContextEnginePage extends LitElement {
       justify-content: space-between;
       align-items: center;
       padding: 1rem 1.25rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid var(--border-default);
       background: rgba(0, 0, 0, 0.3);
     }
 
@@ -450,7 +450,7 @@ class ContextEnginePage extends LitElement {
     }
 
     .close-btn {
-      background: rgba(255, 255, 255, 0.08);
+      background: var(--surface-glass-hover);
       border: none;
       color: var(--color-dark-text-secondary, #adb5bd);
       width: 36px;
@@ -465,7 +465,7 @@ class ContextEnginePage extends LitElement {
     }
 
     .close-btn:hover {
-      background: rgba(255, 255, 255, 0.15);
+      background: var(--surface-glass-bright);
       color: var(--color-dark-text-primary, #f8f9fa);
     }
 
@@ -474,7 +474,7 @@ class ContextEnginePage extends LitElement {
       display: flex;
       gap: 0.25rem;
       padding: 0.75rem 1rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      border-bottom: 1px solid var(--border-subtle);
       background: rgba(0, 0, 0, 0.2);
       overflow-x: auto;
     }
@@ -493,13 +493,13 @@ class ContextEnginePage extends LitElement {
     }
 
     .tab:hover {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-glass);
       color: var(--color-dark-text-primary, #f8f9fa);
     }
 
     .tab.active {
-      background: color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent);
+      background: var(--ctx-border);
+      border-color: var(--ctx-border-strong);
       color: var(--context-primary, #00d4aa);
     }
 
@@ -534,7 +534,7 @@ class ContextEnginePage extends LitElement {
     }
 
     .content::-webkit-scrollbar-thumb {
-      background: color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+      background: var(--ctx-bg-intense);
       border-radius: 3px;
     }
 
@@ -551,7 +551,7 @@ class ContextEnginePage extends LitElement {
     }
 
     .mode-name {
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
       font-weight: 700;
       color: var(--context-primary, #00d4aa);
       margin-bottom: 0.5rem;
@@ -566,8 +566,8 @@ class ContextEnginePage extends LitElement {
     .confidence-bar {
       width: 200px;
       height: 8px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 4px;
+      background: var(--surface-glass-strong);
+      border-radius: var(--radius-sm);
       margin: 0 auto 0.5rem;
       overflow: hidden;
     }
@@ -575,12 +575,12 @@ class ContextEnginePage extends LitElement {
     .confidence-fill {
       height: 100%;
       background: linear-gradient(90deg, var(--context-primary, #00d4aa), color-mix(in srgb, var(--context-primary, #00d4aa) 70%, white));
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       transition: width 0.5s ease;
     }
 
     .confidence-text {
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       color: var(--color-dark-text-tertiary, #6c757d);
     }
 
@@ -598,11 +598,11 @@ class ContextEnginePage extends LitElement {
     .mode-controls {
       margin-top: 2rem;
       padding-top: 1.5rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      border-top: 1px solid var(--border-default);
     }
 
     .controls-title {
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -620,8 +620,8 @@ class ContextEnginePage extends LitElement {
     .mode-btn {
       padding: 0.75rem 1.25rem;
       border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-hover);
+      background: var(--surface-glass);
       color: var(--color-dark-text-primary, #f8f9fa);
       font-size: 0.85rem;
       cursor: pointer;
@@ -632,13 +632,13 @@ class ContextEnginePage extends LitElement {
     }
 
     .mode-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass-strong);
       border-color: rgba(255, 255, 255, 0.25);
       transform: translateY(-2px);
     }
 
     .mode-btn.cravate:hover { border-color: #3b82f6; }
-    .mode-btn.intime:hover { border-color: #00d4aa; }
+    .mode-btn.intime:hover { border-color: var(--context-primary, #00d4aa); }
     .mode-btn.neutre:hover { border-color: #6b7280; }
 
     .duration-buttons {
@@ -650,18 +650,18 @@ class ContextEnginePage extends LitElement {
 
     .duration-btn {
       padding: 0.4rem 0.8rem;
-      border-radius: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-medium);
       background: transparent;
       color: var(--color-dark-text-secondary, #adb5bd);
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       cursor: pointer;
       transition: all 0.2s;
     }
 
     .duration-btn:hover, .duration-btn.active {
-      background: color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent);
+      background: var(--ctx-border);
+      border-color: var(--ctx-border-strong);
       color: var(--context-primary, #00d4aa);
     }
 
@@ -682,8 +682,8 @@ class ContextEnginePage extends LitElement {
 
     /* Cards */
     .card {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--surface-glass-subtle);
+      border: 1px solid var(--border-default);
       border-radius: var(--radius-md);
       padding: 1rem;
       margin-bottom: 0.75rem;
@@ -691,8 +691,8 @@ class ContextEnginePage extends LitElement {
     }
 
     .card:hover {
-      border-color: rgba(255, 255, 255, 0.15);
-      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--border-hover);
+      background: var(--surface-glass);
     }
 
     .card-header {
@@ -709,7 +709,7 @@ class ContextEnginePage extends LitElement {
     }
 
     .card-meta {
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       color: var(--color-dark-text-tertiary, #6c757d);
     }
 
@@ -730,13 +730,13 @@ class ContextEnginePage extends LitElement {
     }
 
     .btn-primary {
-      background: linear-gradient(135deg, color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent) 0%, color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent) 100%);
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent);
+      background: linear-gradient(135deg, var(--ctx-border-medium) 0%, var(--ctx-border-subtle) 100%);
+      border-color: var(--ctx-border-strong);
       color: var(--context-primary, #00d4aa);
     }
 
     .btn-primary:hover {
-      background: linear-gradient(135deg, color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent) 0%, color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent) 100%);
+      background: linear-gradient(135deg, var(--ctx-bg-intense) 0%, var(--ctx-border-medium) 100%);
       transform: translateY(-1px);
     }
 
@@ -778,7 +778,7 @@ class ContextEnginePage extends LitElement {
       position: relative;
       width: 40px;
       height: 22px;
-      background: rgba(255, 255, 255, 0.15);
+      background: var(--surface-glass-bright);
       border-radius: 11px;
       cursor: pointer;
       transition: background 0.2s;
@@ -810,7 +810,7 @@ class ContextEnginePage extends LitElement {
       align-items: center;
       gap: 0.25rem;
       padding: 0.2rem 0.5rem;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       font-size: 0.7rem;
       font-weight: 600;
     }
@@ -832,9 +832,9 @@ class ContextEnginePage extends LitElement {
 
     /* ===== Enhanced Automation Cards ===== */
     .automation-card {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
+      background: linear-gradient(135deg, var(--surface-glass-subtle) 0%, rgba(255, 255, 255, 0.01) 100%);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
       padding: 0;
       margin-bottom: 0.75rem;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -850,7 +850,7 @@ class ContextEnginePage extends LitElement {
       width: 4px;
       height: 100%;
       background: var(--card-status-color, rgba(255, 255, 255, 0.2));
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
     }
 
     .automation-card.enabled::before {
@@ -862,8 +862,8 @@ class ContextEnginePage extends LitElement {
     }
 
     .automation-card:hover {
-      border-color: rgba(255, 255, 255, 0.15);
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+      border-color: var(--border-hover);
+      background: linear-gradient(135deg, var(--surface-glass) 0%, var(--surface-glass-faint) 100%);
       transform: translateY(-2px);
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
     }
@@ -871,12 +871,12 @@ class ContextEnginePage extends LitElement {
     .automation-card.highlighted {
       border-color: var(--context-primary, #00d4aa);
       box-shadow: 0 0 0 1px var(--context-primary, #00d4aa),
-                  0 8px 32px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+                  0 8px 32px var(--ctx-border-medium);
     }
 
     .automation-card.add-new {
       border-style: dashed;
-      border-color: rgba(255, 255, 255, 0.15);
+      border-color: var(--border-hover);
       background: transparent;
     }
 
@@ -886,7 +886,7 @@ class ContextEnginePage extends LitElement {
 
     .automation-card.add-new:hover {
       border-color: var(--context-primary, #00d4aa);
-      background: color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent);
+      background: var(--ctx-bg-subtle);
     }
 
     .automation-card.add-new:hover div {
@@ -908,7 +908,7 @@ class ContextEnginePage extends LitElement {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.2);
+      background: var(--surface-glass-bright);
       flex-shrink: 0;
     }
 
@@ -945,11 +945,11 @@ class ContextEnginePage extends LitElement {
       align-items: center;
       gap: 0.2rem;
       padding: 0.1rem 0.4rem;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       font-size: 0.6rem;
       font-weight: 500;
       white-space: nowrap;
-      background: rgba(255, 255, 255, 0.06);
+      background: var(--border-subtle);
       color: var(--color-dark-text-tertiary, #6c757d);
     }
 
@@ -963,15 +963,15 @@ class ContextEnginePage extends LitElement {
       display: inline-flex;
       align-items: center;
       padding: 0.1rem 0.3rem;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       font-size: 0.7rem;
-      background: rgba(0, 212, 170, 0.15);
-      color: #00d4aa;
+      background: var(--ctx-border);
+      color: var(--context-primary, #00d4aa);
       animation: glow-pulse 2s ease-in-out infinite;
     }
 
     .automation-subtitle {
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       color: var(--color-dark-text-tertiary, #6c757d);
       display: flex;
       align-items: center;
@@ -1015,19 +1015,19 @@ class ContextEnginePage extends LitElement {
       width: 28px;
       height: 28px;
       border-radius: var(--radius-base);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-medium);
+      background: var(--surface-glass);
       color: var(--color-dark-text-secondary, #adb5bd);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       transition: all 0.2s ease;
     }
 
     .quick-action-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass-strong);
       border-color: rgba(255, 255, 255, 0.2);
       color: var(--color-dark-text-primary, #f8f9fa);
     }
@@ -1045,9 +1045,9 @@ class ContextEnginePage extends LitElement {
       margin-bottom: 1rem;
       flex-wrap: wrap;
       padding: 0.5rem;
-      background: rgba(255, 255, 255, 0.02);
+      background: var(--surface-glass-faint);
       border-radius: var(--radius-md);
-      border: 1px solid rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
     }
 
     .category-pill {
@@ -1055,9 +1055,9 @@ class ContextEnginePage extends LitElement {
       align-items: center;
       gap: 0.4rem;
       padding: 0.5rem 0.85rem;
-      border-radius: 20px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background: rgba(255, 255, 255, 0.03);
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--border-default);
+      background: var(--surface-glass-subtle);
       color: var(--color-dark-text-secondary, #adb5bd);
       font-size: 0.8rem;
       font-weight: 500;
@@ -1067,15 +1067,15 @@ class ContextEnginePage extends LitElement {
     }
 
     .category-pill:hover {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.15);
+      background: var(--surface-glass-hover);
+      border-color: var(--border-hover);
     }
 
     .category-pill.active {
       background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 100%);
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 50%, transparent);
+        var(--ctx-bg-emphasis) 0%,
+        var(--ctx-border) 100%);
+      border-color: var(--ctx-border-intense);
       color: var(--context-primary, #00d4aa);
       font-weight: 600;
     }
@@ -1092,13 +1092,13 @@ class ContextEnginePage extends LitElement {
       height: 20px;
       padding: 0 0.35rem;
       border-radius: 10px;
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass-strong);
       font-size: 0.7rem;
       font-weight: 600;
     }
 
     .category-pill.active .category-pill-count {
-      background: color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+      background: var(--ctx-bg-intense);
     }
 
     /* ===== Automations Header Stats ===== */
@@ -1108,9 +1108,9 @@ class ContextEnginePage extends LitElement {
       align-items: center;
       margin-bottom: 1rem;
       padding: 0.75rem 1rem;
-      background: rgba(255, 255, 255, 0.02);
+      background: var(--surface-glass-faint);
       border-radius: var(--radius-md);
-      border: 1px solid rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
     }
 
     .automations-stats {
@@ -1125,13 +1125,13 @@ class ContextEnginePage extends LitElement {
     }
 
     .automation-stat-value {
-      font-size: 1.25rem;
+      font-size: var(--text-xl);
       font-weight: 700;
       color: var(--context-primary, #00d4aa);
     }
 
     .automation-stat-label {
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       color: var(--color-dark-text-tertiary, #6c757d);
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -1140,14 +1140,14 @@ class ContextEnginePage extends LitElement {
     .automation-stat-divider {
       width: 1px;
       height: 24px;
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass-strong);
     }
 
     /* ===== Enhanced History Section ===== */
     .history-section {
       margin-top: 1.5rem;
       padding-top: 1rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      border-top: 1px solid var(--border-default);
     }
 
     .history-header {
@@ -1183,8 +1183,8 @@ class ContextEnginePage extends LitElement {
       bottom: 0;
       width: 2px;
       background: linear-gradient(180deg,
-        rgba(255, 255, 255, 0.1) 0%,
-        rgba(255, 255, 255, 0.02) 100%);
+        var(--surface-glass-strong) 0%,
+        var(--surface-glass-faint) 100%);
       border-radius: 1px;
     }
 
@@ -1192,8 +1192,8 @@ class ContextEnginePage extends LitElement {
       position: relative;
       padding: 0.75rem 1rem;
       margin-bottom: 0.5rem;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.05);
+      background: var(--surface-glass-faint);
+      border: 1px solid var(--border-subtle);
       border-radius: 10px;
       transition: all 0.2s ease;
     }
@@ -1224,7 +1224,7 @@ class ContextEnginePage extends LitElement {
 
     .history-item:hover {
       background: rgba(255, 255, 255, 0.04);
-      border-color: rgba(255, 255, 255, 0.1);
+      border-color: var(--border-medium);
     }
 
     .history-item-header {
@@ -1255,7 +1255,7 @@ class ContextEnginePage extends LitElement {
     .history-item-details {
       display: flex;
       gap: 1rem;
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       color: var(--color-dark-text-secondary, #adb5bd);
     }
 
@@ -1267,19 +1267,19 @@ class ContextEnginePage extends LitElement {
       justify-content: center;
       padding: 3rem 2rem;
       text-align: center;
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
-      border: 2px dashed rgba(255, 255, 255, 0.1);
-      border-radius: 16px;
+      background: linear-gradient(135deg, var(--surface-glass-faint) 0%, transparent 100%);
+      border: 2px dashed var(--border-medium);
+      border-radius: var(--radius-lg);
     }
 
     .empty-state-icon-container {
       width: 80px;
       height: 80px;
-      border-radius: 20px;
+      border-radius: var(--radius-xl);
       background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+        var(--ctx-border) 0%,
+        var(--ctx-bg-subtle) 100%);
+      border: 1px solid var(--ctx-border-medium);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1316,17 +1316,17 @@ class ContextEnginePage extends LitElement {
       gap: 0.35rem;
       padding: 0.4rem 0.75rem;
       border-radius: var(--radius-base);
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      font-size: 0.75rem;
+      background: var(--surface-glass);
+      border: 1px solid var(--border-default);
+      font-size: var(--text-xs);
       color: var(--color-dark-text-secondary, #adb5bd);
       cursor: pointer;
       transition: all 0.2s ease;
     }
 
     .suggestion-chip:hover {
-      background: rgba(255, 255, 255, 0.1);
-      border-color: rgba(255, 255, 255, 0.15);
+      background: var(--surface-glass-strong);
+      border-color: var(--border-hover);
       color: var(--color-dark-text-primary, #f8f9fa);
     }
 
@@ -1357,19 +1357,19 @@ class ContextEnginePage extends LitElement {
 
     .stat-track {
       height: 8px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 4px;
+      background: var(--surface-glass-strong);
+      border-radius: var(--radius-sm);
       overflow: hidden;
     }
 
     .stat-fill {
       height: 100%;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       transition: width 0.5s ease;
     }
 
     .stat-fill.cravate { background: linear-gradient(90deg, #2563eb, #3b82f6); }
-    .stat-fill.intime { background: linear-gradient(90deg, #059669, #00d4aa); }
+    .stat-fill.intime { background: linear-gradient(90deg, #059669, var(--context-primary, #00d4aa)); }
     .stat-fill.neutre { background: linear-gradient(90deg, #4b5563, #6b7280); }
 
     /* Config */
@@ -1378,7 +1378,7 @@ class ContextEnginePage extends LitElement {
     }
 
     .config-title {
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -1391,7 +1391,7 @@ class ContextEnginePage extends LitElement {
       align-items: center;
       justify-content: space-between;
       padding: 0.75rem 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      border-bottom: 1px solid var(--border-subtle);
     }
 
     .config-label {
@@ -1402,9 +1402,9 @@ class ContextEnginePage extends LitElement {
     .config-input {
       width: 80px;
       padding: 0.4rem 0.6rem;
-      border-radius: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      background: rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-hover);
+      background: var(--surface-glass);
       color: var(--color-dark-text-primary, #f8f9fa);
       font-size: 0.8rem;
       text-align: center;
@@ -1449,8 +1449,8 @@ class ContextEnginePage extends LitElement {
     .form-input {
       width: 100%;
       padding: 0.6rem 0.8rem;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: var(--surface-glass);
+      border: 1px solid var(--border-hover);
       border-radius: var(--radius-base);
       color: var(--color-dark-text-primary, #f8f9fa);
       font-size: 0.9rem;
@@ -1460,7 +1460,7 @@ class ContextEnginePage extends LitElement {
     .form-input:focus {
       outline: none;
       border-color: var(--context-primary, #00d4aa);
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      box-shadow: 0 0 0 2px var(--ctx-border-medium);
     }
 
     select.form-input {
@@ -1500,8 +1500,8 @@ class ContextEnginePage extends LitElement {
 
     /* Current Mode Section */
     .current-mode-section {
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: var(--surface-glass-faint);
+      border: 1px solid var(--border-subtle);
       border-radius: var(--radius-md);
       padding: 1rem;
     }
@@ -1530,7 +1530,7 @@ class ContextEnginePage extends LitElement {
     }
 
     .current-mode-name {
-      font-size: 1.25rem;
+      font-size: var(--text-xl);
       font-weight: 700;
       color: var(--color-dark-text-primary, #f8f9fa);
     }
@@ -1549,7 +1549,7 @@ class ContextEnginePage extends LitElement {
     .confidence-bar-mini {
       width: 60px;
       height: 6px;
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass-strong);
       border-radius: 3px;
       overflow: hidden;
     }
@@ -1562,7 +1562,7 @@ class ContextEnginePage extends LitElement {
     }
 
     .confidence-value {
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       color: var(--color-dark-text-secondary, #adb5bd);
       font-weight: 600;
     }
@@ -1596,8 +1596,8 @@ class ContextEnginePage extends LitElement {
       align-items: center;
       gap: 0.35rem;
       padding: 0.5rem 0.75rem;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass);
+      border: 1px solid var(--border-medium);
       border-radius: var(--radius-base);
       color: var(--color-dark-text-primary, #f8f9fa);
       font-size: 0.85rem;
@@ -1631,8 +1631,8 @@ class ContextEnginePage extends LitElement {
 
     /* Modes Management Section */
     .modes-management-section {
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: var(--surface-glass-faint);
+      border: 1px solid var(--border-subtle);
       border-radius: var(--radius-md);
       padding: 1rem;
     }
@@ -1651,15 +1651,15 @@ class ContextEnginePage extends LitElement {
     }
 
     .mode-card {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--surface-glass-subtle);
+      border: 1px solid var(--border-default);
       border-radius: var(--radius-md);
       padding: 1rem;
       transition: all 0.2s;
     }
 
     .mode-card:hover {
-      background: rgba(255, 255, 255, 0.06);
+      background: var(--border-subtle);
       border-color: var(--mode-primary, #6b7280);
     }
 
@@ -1671,7 +1671,7 @@ class ContextEnginePage extends LitElement {
     }
 
     .mode-card-icon {
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
     }
 
     .mode-card-name {
@@ -1685,7 +1685,7 @@ class ContextEnginePage extends LitElement {
       padding: 0.15rem 0.4rem;
       background: rgba(99, 102, 241, 0.2);
       color: #818cf8;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       text-transform: uppercase;
       font-weight: 600;
     }
@@ -1699,11 +1699,11 @@ class ContextEnginePage extends LitElement {
     .color-preview {
       width: 24px;
       height: 24px;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
     }
 
     .mode-card-slug {
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       color: var(--color-dark-text-tertiary, #6c757d);
       font-family: monospace;
       margin-bottom: 0.75rem;
@@ -1742,8 +1742,8 @@ class ContextEnginePage extends LitElement {
 
     .mode-form {
       background: linear-gradient(135deg, rgba(25, 26, 32, 0.98) 0%, rgba(15, 15, 17, 1) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 16px;
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-lg);
       width: 90%;
       max-width: 420px;
       max-height: 90vh;
@@ -1755,7 +1755,7 @@ class ContextEnginePage extends LitElement {
       justify-content: space-between;
       align-items: center;
       padding: 1rem 1.25rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid var(--border-default);
       color: var(--color-dark-text-primary, #f8f9fa);
     }
 
@@ -1768,7 +1768,7 @@ class ContextEnginePage extends LitElement {
       justify-content: flex-end;
       gap: 0.75rem;
       padding: 1rem 1.25rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      border-top: 1px solid var(--border-default);
     }
 
     .emoji-picker {
@@ -1781,7 +1781,7 @@ class ContextEnginePage extends LitElement {
       width: 40px;
       height: 40px;
       font-size: 1.3rem;
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-glass);
       border: 2px solid transparent;
       border-radius: var(--radius-base);
       cursor: pointer;
@@ -1789,12 +1789,12 @@ class ContextEnginePage extends LitElement {
     }
 
     .emoji-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass-strong);
     }
 
     .emoji-btn.selected {
       border-color: var(--context-primary, #00d4aa);
-      background: rgba(0, 212, 170, 0.1);
+      background: var(--ctx-border-subtle);
     }
 
     .color-pickers {
@@ -1827,8 +1827,8 @@ class ContextEnginePage extends LitElement {
     }
 
     .color-picker-group input[type="color"]::-webkit-color-swatch {
-      border-radius: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-hover);
     }
 
     .mode-preview {
@@ -1842,7 +1842,7 @@ class ContextEnginePage extends LitElement {
     }
 
     .preview-icon {
-      font-size: 2rem;
+      font-size: var(--text-3xl);
     }
 
     .preview-name {
@@ -1867,7 +1867,7 @@ class ContextEnginePage extends LitElement {
       display: flex;
       align-items: center;
       padding: 0.75rem;
-      background: rgba(255, 255, 255, 0.03);
+      background: var(--surface-glass-subtle);
       border-radius: var(--radius-base);
       margin-bottom: 1rem;
       font-size: 0.85rem;
@@ -1913,9 +1913,9 @@ class ContextEnginePage extends LitElement {
 
     .grid-cell {
       height: 32px;
-      background: rgba(255, 255, 255, 0.03);
+      background: var(--surface-glass-subtle);
       border: 1px solid transparent;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       transition: all 0.2s;
       display: flex;
@@ -1924,7 +1924,7 @@ class ContextEnginePage extends LitElement {
     }
 
     .grid-cell:hover {
-      background: rgba(255, 255, 255, 0.08);
+      background: var(--surface-glass-hover);
     }
 
     .grid-cell.has-rule {
@@ -1941,8 +1941,8 @@ class ContextEnginePage extends LitElement {
     }
 
     .rule-card {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--surface-glass-subtle);
+      border: 1px solid var(--border-default);
       border-radius: var(--radius-base);
       padding: 0.75rem;
       margin-bottom: 0.5rem;
@@ -1954,7 +1954,7 @@ class ContextEnginePage extends LitElement {
     }
 
     .rule-card:hover {
-      background: rgba(255, 255, 255, 0.06);
+      background: var(--border-subtle);
     }
 
     .rule-card-header {
@@ -1982,14 +1982,14 @@ class ContextEnginePage extends LitElement {
       display: flex;
       gap: 1rem;
       margin-top: 0.5rem;
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       color: var(--color-dark-text-tertiary);
     }
 
     .rule-form {
       background: linear-gradient(135deg, rgba(25, 26, 32, 0.98) 0%, rgba(15, 15, 17, 1) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 16px;
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-lg);
       width: 90%;
       max-width: 420px;
       max-height: 90vh;
@@ -2004,22 +2004,22 @@ class ContextEnginePage extends LitElement {
     .day-btn {
       flex: 1;
       padding: 0.5rem;
-      font-size: 0.75rem;
-      background: rgba(255, 255, 255, 0.05);
+      font-size: var(--text-xs);
+      background: var(--surface-glass);
       border: 2px solid transparent;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       color: var(--color-dark-text-secondary);
       cursor: pointer;
       transition: all 0.2s;
     }
 
     .day-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass-strong);
     }
 
     .day-btn.selected {
       border-color: var(--context-primary, #00d4aa);
-      background: rgba(0, 212, 170, 0.1);
+      background: var(--ctx-border-subtle);
       color: var(--context-primary, #00d4aa);
     }
 
@@ -2029,7 +2029,7 @@ class ContextEnginePage extends LitElement {
     }
 
     /* Mobile */
-    @media (max-width: 600px) {
+    @media (max-width: 480px) {
       .page {
         width: 100%;
         height: 100%;
@@ -2043,7 +2043,7 @@ class ContextEnginePage extends LitElement {
 
       .tab {
         padding: 0.4rem 0.75rem;
-        font-size: 0.75rem;
+        font-size: var(--text-xs);
       }
 
       .mode-buttons {
@@ -3048,7 +3048,7 @@ class ContextEnginePage extends LitElement {
           <div class="automation-card add-new" @click="${this.openCreateForm}">
             <div class="automation-card-inner" style="display: flex; align-items: center; justify-content: center; min-height: 80px; cursor: pointer;">
               <div style="text-align: center;">
-                <div style="font-size: 1.5rem; margin-bottom: 0.25rem; opacity: 0.6;">+</div>
+                <div style="font-size: var(--text-2xl); margin-bottom: 0.25rem; opacity: 0.6;">+</div>
                 <div style="font-size: 0.85rem; color: var(--color-dark-text-secondary);">Nouvelle automation</div>
               </div>
             </div>
@@ -3138,7 +3138,7 @@ class ContextEnginePage extends LitElement {
             <span class="history-title-icon">📜</span>
             Historique récent
           </div>
-          <span style="font-size: 0.75rem; color: var(--color-dark-text-tertiary);">
+          <span style="font-size: var(--text-xs); color: var(--color-dark-text-tertiary);">
             ${this.automationHistory.length} exécution${this.automationHistory.length !== 1 ? 's' : ''}
           </span>
         </div>
@@ -3270,7 +3270,7 @@ class ContextEnginePage extends LitElement {
             <option value="${mode.value}" ?selected="${auto.goal_mode === mode.value}">${mode.label}</option>
           `)}
         </select>
-        <small style="color: var(--color-dark-text-tertiary); font-size: 0.75rem; margin-top: 0.25rem; display: block;">
+        <small style="color: var(--color-dark-text-tertiary); font-size: var(--text-xs); margin-top: 0.25rem; display: block;">
           Le mode que cette automation vise à atteindre. Permet à l'Intelligence d'apprendre.
         </small>
       </div>
@@ -3293,8 +3293,8 @@ class ContextEnginePage extends LitElement {
       </div>
 
       <!-- Trust Settings -->
-      <div class="form-group" style="background: rgba(0, 212, 170, 0.05); padding: 0.75rem; border-radius: var(--radius-base); border: 1px solid rgba(0, 212, 170, 0.2);">
-        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: #00d4aa;">🛡️ Niveau de confiance</label>
+      <div class="form-group" style="background: var(--ctx-bg-subtle); padding: 0.75rem; border-radius: var(--radius-base); border: 1px solid var(--ctx-border-medium);">
+        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: var(--context-primary, #00d4aa);">🛡️ Niveau de confiance</label>
 
         <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
           <input type="checkbox" ?checked="${auto.trusted === true}"
@@ -3310,7 +3310,7 @@ class ContextEnginePage extends LitElement {
           <span style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">— Ne pas exécuter si déjà dans ce mode</span>
         </label>
 
-        <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.1); font-size: 0.75rem; color: var(--color-dark-text-tertiary);">
+        <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.1); font-size: var(--text-xs); color: var(--color-dark-text-tertiary);">
           ${auto.trusted ? html`
             <span style="color: #22c55e;">✓ Cette automation sera exécutée automatiquement sans demander de validation.</span>
           ` : html`
@@ -3335,7 +3335,7 @@ class ContextEnginePage extends LitElement {
         <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: var(--radius-base); border: 1px dashed rgba(255,255,255,0.1);">
           <div style="display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap;">
             <div style="flex: 1; min-width: 150px;">
-              <label style="font-size: 0.75rem; color: var(--color-dark-text-tertiary);">Type d'action</label>
+              <label style="font-size: var(--text-xs); color: var(--color-dark-text-tertiary);">Type d'action</label>
               <select class="form-input" id="new-action-type" style="margin-top: 0.25rem;">
                 ${(this.schema?.actions || []).map(a => html`
                   <option value="${a.type}">${a.icon || ''} ${a.label}</option>
@@ -3437,7 +3437,7 @@ class ContextEnginePage extends LitElement {
     return html`
       ${actionSchema.fields.map((field, idx) => html`
         <div class="form-group" style="margin-bottom: ${idx < actionSchema.fields.length - 1 ? '0.5rem' : '0'};">
-          <label style="font-size: 0.75rem;">${field.label}${field.required ? ' *' : ''}</label>
+          <label style="font-size: var(--text-xs);">${field.label}${field.required ? ' *' : ''}</label>
           ${this.renderSchemaField(field, this.pendingAction?.[field.name], (val) => {
             this.pendingAction = { ...this.pendingAction, [field.name]: val }
             this.requestUpdate()
@@ -3544,7 +3544,7 @@ class ContextEnginePage extends LitElement {
           <button
             type="button"
             @click="${() => this.showHelp('rules')}"
-            style="cursor: pointer; font-size: 0.75rem; font-weight: bold; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #3b82f6; border: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 2px 4px rgba(59,130,246,0.4);"
+            style="cursor: pointer; font-size: var(--text-xs); font-weight: bold; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #3b82f6; border: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 2px 4px rgba(59,130,246,0.4);"
           >?</button>
         </div>
 
@@ -3577,7 +3577,7 @@ class ContextEnginePage extends LitElement {
     const indent = depth * 12
 
     return html`
-      <div class="rules-group" style="margin-left: ${indent}px; ${depth > 0 ? 'margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.02); border-radius: 6px; border: 1px dashed rgba(255,255,255,0.1);' : ''}">
+      <div class="rules-group" style="margin-left: ${indent}px; ${depth > 0 ? 'margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.02); border-radius: var(--radius-sm); border: 1px dashed rgba(255,255,255,0.1);' : ''}">
         <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
           <button
             class="btn btn-small"
@@ -3616,7 +3616,7 @@ class ContextEnginePage extends LitElement {
         </div>
 
         ${this.showingRuleConfig && JSON.stringify(this.pendingRulePath) === JSON.stringify(path) ? html`
-          <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);">
+          <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1);">
             ${this.renderRuleConfig()}
             <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
               <button class="btn btn-small" @click="${() => this.showingRuleConfig = false}">Annuler</button>
@@ -3635,7 +3635,7 @@ class ContextEnginePage extends LitElement {
     const label = this.getRuleLabel(rule)
 
     return html`
-      <div class="rule-item" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); border-left: 3px solid ${categoryColor};">
+      <div class="rule-item" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08); border-left: 3px solid ${categoryColor};">
         <span style="font-size: 0.65rem; color: ${categoryColor};" title="${isEvent ? 'Événement (déclencheur)' : 'État (condition)'}">${categoryIcon}</span>
         <span style="flex: 1; font-size: 0.8rem;">${label}</span>
         <button class="btn btn-small btn-icon btn-danger" style="font-size: 0.6rem; padding: 0.15rem 0.4rem;" @click="${() => this.removeRule(path)}" title="Supprimer">✕</button>
@@ -3733,7 +3733,7 @@ class ContextEnginePage extends LitElement {
     return html`
       <div style="display: flex; flex-direction: column; gap: 0.5rem;">
         <div class="form-group" style="margin-bottom: 0;">
-          <label style="font-size: 0.75rem;">Type de règle</label>
+          <label style="font-size: var(--text-xs);">Type de règle</label>
           <select class="form-input" style="font-size: 0.8rem;"
             @change="${e => {
               this.pendingRuleType = e.target.value
@@ -3759,7 +3759,7 @@ class ContextEnginePage extends LitElement {
 
         ${ruleSchema?.fields?.map(field => html`
           <div class="form-group" style="margin-bottom: 0;">
-            <label style="font-size: 0.75rem;">${field.label}${field.required ? ' *' : ''}</label>
+            <label style="font-size: var(--text-xs);">${field.label}${field.required ? ' *' : ''}</label>
             ${this.renderSchemaField(field, this.pendingRule?.[field.name], (val) => {
               this.pendingRule = { ...this.pendingRule, [field.name]: val }
               this.requestUpdate()
@@ -3937,7 +3937,7 @@ class ContextEnginePage extends LitElement {
           <button
             type="button"
             @click="${() => this.showHelp('triggers')}"
-            style="cursor: pointer; font-size: 0.75rem; font-weight: bold; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #3b82f6; border: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 2px 4px rgba(59,130,246,0.4);"
+            style="cursor: pointer; font-size: var(--text-xs); font-weight: bold; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #3b82f6; border: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 2px 4px rgba(59,130,246,0.4);"
           >?</button>
         </div>
 
@@ -3957,7 +3957,7 @@ class ContextEnginePage extends LitElement {
     const indent = depth * 12
 
     return html`
-      <div class="trigger-group" style="margin-left: ${indent}px; ${depth > 0 ? 'margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.02); border-radius: 6px; border: 1px dashed rgba(255,255,255,0.1);' : ''}">
+      <div class="trigger-group" style="margin-left: ${indent}px; ${depth > 0 ? 'margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.02); border-radius: var(--radius-sm); border: 1px dashed rgba(255,255,255,0.1);' : ''}">
         <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
           <button
             class="btn btn-small"
@@ -3996,7 +3996,7 @@ class ContextEnginePage extends LitElement {
         </div>
 
         ${this.showingTriggerConfig && JSON.stringify(this.pendingTriggerPath) === JSON.stringify(path) ? html`
-          <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);">
+          <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1);">
             ${this.renderTriggerConfig()}
             <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
               <button class="btn btn-small" @click="${() => this.showingTriggerConfig = false}">Annuler</button>
@@ -4013,7 +4013,7 @@ class ContextEnginePage extends LitElement {
     const label = this.getTriggerLabel(trigger, triggerSchema)
 
     return html`
-      <div class="trigger-item" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);">
+      <div class="trigger-item" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08);">
         <span style="flex: 1; font-size: 0.8rem;">${label}</span>
         <button class="btn btn-small btn-icon btn-danger" style="font-size: 0.6rem; padding: 0.15rem 0.4rem;" @click="${() => this.removeTrigger(path)}" title="Supprimer">✕</button>
       </div>
@@ -4079,7 +4079,7 @@ class ContextEnginePage extends LitElement {
     return html`
       <div style="display: flex; flex-direction: column; gap: 0.5rem;">
         <div class="form-group" style="margin-bottom: 0;">
-          <label style="font-size: 0.75rem;">Type de déclencheur</label>
+          <label style="font-size: var(--text-xs);">Type de déclencheur</label>
           <select class="form-input" style="font-size: 0.8rem;"
             @change="${e => {
               this.pendingTriggerType = e.target.value
@@ -4098,7 +4098,7 @@ class ContextEnginePage extends LitElement {
 
         ${triggerSchema?.fields?.map(field => html`
           <div class="form-group" style="margin-bottom: 0;">
-            <label style="font-size: 0.75rem;">${field.label}${field.required ? ' *' : ''}</label>
+            <label style="font-size: var(--text-xs);">${field.label}${field.required ? ' *' : ''}</label>
             ${this.renderSchemaField(field, this.pendingTrigger?.[field.name], (val) => {
               this.pendingTrigger = { ...this.pendingTrigger, [field.name]: val }
               this.requestUpdate()
@@ -4197,7 +4197,7 @@ class ContextEnginePage extends LitElement {
             <button
               type="button"
               @click="${() => this.showHelp('conditions')}"
-              style="cursor: pointer; font-size: 0.75rem; font-weight: bold; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #3b82f6; border: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 2px 4px rgba(59,130,246,0.4);"
+              style="cursor: pointer; font-size: var(--text-xs); font-weight: bold; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #3b82f6; border: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 2px 4px rgba(59,130,246,0.4);"
             >?</button>
           </div>
           ${hasConditions ? html`
@@ -4205,7 +4205,7 @@ class ContextEnginePage extends LitElement {
               Supprimer
             </button>
           ` : html`
-            <button type="button" class="btn btn-small" @click="${() => this.initConditions()}" style="font-size: 0.75rem;">
+            <button type="button" class="btn btn-small" @click="${() => this.initConditions()}" style="font-size: var(--text-xs);">
               + Ajouter
             </button>
           `}
@@ -4298,7 +4298,7 @@ Exemple :
     const indent = depth * 12
 
     return html`
-      <div class="condition-group" style="margin-left: ${indent}px; ${depth > 0 ? 'margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.02); border-radius: 6px; border: 1px dashed rgba(255,255,255,0.1);' : ''}">
+      <div class="condition-group" style="margin-left: ${indent}px; ${depth > 0 ? 'margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.02); border-radius: var(--radius-sm); border: 1px dashed rgba(255,255,255,0.1);' : ''}">
         <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
           <button
             class="btn btn-small"
@@ -4335,7 +4335,7 @@ Exemple :
         </div>
 
         ${this.showingConditionConfig && JSON.stringify(this.pendingConditionPath) === JSON.stringify(path) ? html`
-          <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);">
+          <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1);">
             ${this.renderConditionConfig()}
             <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
               <button class="btn btn-small" @click="${() => this.showingConditionConfig = false}">Annuler</button>
@@ -4352,7 +4352,7 @@ Exemple :
     const label = this.getConditionLabel(cond, condSchema)
 
     return html`
-      <div class="condition-item" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);">
+      <div class="condition-item" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08);">
         <span style="flex: 1; font-size: 0.8rem;">${label}</span>
         <button class="btn btn-small btn-icon btn-danger" style="font-size: 0.6rem; padding: 0.15rem 0.4rem;" @click="${() => this.removeCondition(path)}" title="Supprimer">✕</button>
       </div>
@@ -4405,7 +4405,7 @@ Exemple :
     return html`
       <div style="display: flex; flex-direction: column; gap: 0.5rem;">
         <div class="form-group" style="margin-bottom: 0;">
-          <label style="font-size: 0.75rem;">Type de condition</label>
+          <label style="font-size: var(--text-xs);">Type de condition</label>
           <select class="form-input" style="font-size: 0.8rem;"
             @change="${e => {
               this.pendingConditionType = e.target.value
@@ -4421,7 +4421,7 @@ Exemple :
 
         ${condSchema?.fields?.map(field => html`
           <div class="form-group" style="margin-bottom: 0;">
-            <label style="font-size: 0.75rem;">${field.label}${field.required ? ' *' : ''}</label>
+            <label style="font-size: var(--text-xs);">${field.label}${field.required ? ' *' : ''}</label>
             ${this.renderSchemaField(field, this.pendingCondition?.[field.name], (val) => {
               this.pendingCondition = { ...this.pendingCondition, [field.name]: val }
               this.requestUpdate()
@@ -4649,9 +4649,9 @@ Exemple :
 
     return html`
       <div class="controls-title" style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
-        <span style="font-size: 1.25rem; animation: float-icon 3s ease-in-out infinite;">⚖️</span>
+        <span style="font-size: var(--text-xl); animation: float-icon 3s ease-in-out infinite;">⚖️</span>
         <span>Demandes en attente</span>
-        <span style="padding: 0.25rem 0.75rem; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 20px; font-size: 0.8rem; color: #f59e0b; font-weight: 600;">
+        <span style="padding: 0.25rem 0.75rem; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: var(--radius-xl); font-size: 0.8rem; color: #f59e0b; font-weight: 600;">
           ${this.validations.length}
         </span>
       </div>
@@ -4671,7 +4671,7 @@ Exemple :
       <div class="validation-card" style="
         --validation-color: ${color};
         animation: card-enter 0.4s ease-out ${index * 0.1}s backwards;
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.02) 100%);
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, var(--surface-glass-faint) 100%);
         border: 1px solid ${trustClass === 'high' ? 'rgba(34, 197, 94, 0.2)' : trustClass === 'medium' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(239, 68, 68, 0.2)'};
       ">
         <div class="validation-header" style="display: flex; align-items: flex-start; gap: 1rem;">
@@ -4682,14 +4682,14 @@ Exemple :
 
           <div class="validation-info" style="flex: 1; min-width: 0;">
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-              <span style="font-size: 1.25rem;">⚡</span>
+              <span style="font-size: var(--text-xl);">⚡</span>
               <div class="validation-title" style="font-size: 1.1rem; font-weight: 600; color: var(--color-dark-text-primary);">${actionType}</div>
             </div>
             <div class="validation-subtitle" style="font-size: 0.85rem; color: var(--color-dark-text-secondary); display: flex; align-items: center; gap: 0.5rem;">
-              <span style="padding: 0.2rem 0.5rem; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.75rem;">
+              <span style="padding: 0.2rem 0.5rem; background: rgba(255,255,255,0.05); border-radius: var(--radius-sm); font-size: var(--text-xs);">
                 🤖 ${v.action?.agent_id || 'Système'}
               </span>
-              <span style="padding: 0.2rem 0.5rem; background: ${glowColor}; border-radius: 6px; font-size: 0.75rem; color: ${color}; font-weight: 600;">
+              <span style="padding: 0.2rem 0.5rem; background: ${glowColor}; border-radius: var(--radius-sm); font-size: var(--text-xs); color: ${color}; font-weight: 600;">
                 Seuil: ${Math.round((v.threshold || 0.7) * 100)}%
               </span>
             </div>
@@ -4723,7 +4723,7 @@ Exemple :
                 margin-top: 0.35rem;
                 flex-shrink: 0;
               "></div>
-              <span style="font-size: 0.875rem; color: var(--color-dark-text-secondary); line-height: 1.4;">${r}</span>
+              <span style="font-size: var(--text-sm); color: var(--color-dark-text-secondary); line-height: 1.4;">${r}</span>
             </div>
           `)}
         </div>
@@ -4871,30 +4871,30 @@ Exemple :
           @click="${() => this.showNotifHelp = !this.showNotifHelp}">
           <span style="background: rgba(147, 51, 234, 0.3); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem;">?</span>
           Variables disponibles
-          <span style="margin-left: auto; font-size: 0.75rem; opacity: 0.6;">${this.showNotifHelp ? '▼' : '▶'}</span>
+          <span style="margin-left: auto; font-size: var(--text-xs); opacity: 0.6;">${this.showNotifHelp ? '▼' : '▶'}</span>
         </div>
         ${this.showNotifHelp ? html`
         <div style="font-size: 0.8rem; color: var(--color-dark-text-secondary); line-height: 1.6; margin-top: 0.75rem;">
-          <p style="margin: 0 0 0.75rem;">Utilisez <code style="background: rgba(0,0,0,0.3); padding: 0.1rem 0.3rem; border-radius: 4px;">{variable}</code> dans les templates pour insérer des valeurs dynamiques.</p>
+          <p style="margin: 0 0 0.75rem;">Utilisez <code style="background: rgba(0,0,0,0.3); padding: 0.1rem 0.3rem; border-radius: var(--radius-sm);">{variable}</code> dans les templates pour insérer des valeurs dynamiques.</p>
 
-          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px; margin: 0 0 0.75rem;">
+          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: var(--radius-sm); margin: 0 0 0.75rem;">
             <p style="margin: 0 0 0.5rem; font-weight: 600;">Variables communes :</p>
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: 0.75rem;">
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: var(--text-xs);">
               <code style="color: #a78bfa;">{timestamp}</code><span>Date/heure de l'événement</span>
             </div>
           </div>
 
-          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px; margin: 0 0 0.75rem;">
+          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: var(--radius-sm); margin: 0 0 0.75rem;">
             <p style="margin: 0 0 0.5rem; font-weight: 600;">🔌 Plugins :</p>
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: 0.75rem;">
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: var(--text-xs);">
               <code style="color: #a78bfa;">{plugin_name}</code><span>Nom du plugin</span>
               <code style="color: #a78bfa;">{status}</code><span>État (online/offline/error)</span>
             </div>
           </div>
 
-          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px; margin: 0 0 0.75rem;">
+          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: var(--radius-sm); margin: 0 0 0.75rem;">
             <p style="margin: 0 0 0.5rem; font-weight: 600;">🌡️ Environnement :</p>
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: 0.75rem;">
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: var(--text-xs);">
               <code style="color: #a78bfa;">{room}</code><span>Nom de la pièce</span>
               <code style="color: #a78bfa;">{temperature}</code><span>Température actuelle</span>
               <code style="color: #a78bfa;">{humidity}</code><span>Humidité actuelle</span>
@@ -4902,9 +4902,9 @@ Exemple :
             </div>
           </div>
 
-          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px; margin: 0 0 0.75rem;">
+          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: var(--radius-sm); margin: 0 0 0.75rem;">
             <p style="margin: 0 0 0.5rem; font-weight: 600;">⚙️ Automations :</p>
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: 0.75rem;">
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: var(--text-xs);">
               <code style="color: #a78bfa;">{automation_name}</code><span>Nom de l'automation</span>
               <code style="color: #a78bfa;">{trigger}</code><span>Type de déclencheur</span>
               <code style="color: #a78bfa;">{action}</code><span>Action exécutée</span>
@@ -4912,17 +4912,17 @@ Exemple :
             </div>
           </div>
 
-          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px; margin: 0 0 0.75rem;">
+          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: var(--radius-sm); margin: 0 0 0.75rem;">
             <p style="margin: 0 0 0.5rem; font-weight: 600;">🔒 Sécurité :</p>
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: 0.75rem;">
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: var(--text-xs);">
               <code style="color: #a78bfa;">{ip}</code><span>Adresse IP source</span>
               <code style="color: #a78bfa;">{attempts}</code><span>Nombre de tentatives</span>
               <code style="color: #a78bfa;">{username}</code><span>Nom d'utilisateur</span>
             </div>
           </div>
 
-          <div style="background: rgba(16, 185, 129, 0.15); padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.3);">
-            <p style="margin: 0; font-size: 0.75rem;">
+          <div style="background: rgba(16, 185, 129, 0.15); padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid rgba(16, 185, 129, 0.3);">
+            <p style="margin: 0; font-size: var(--text-xs);">
               <strong>💡 Exemple :</strong><br>
               Titre: <code>⚠️ {room} - Humidité élevée</code><br>
               Corps: <code>Humidité à {humidity}% (seuil: {threshold}%)</code>
@@ -4973,7 +4973,7 @@ Exemple :
                   <!-- Priority badge -->
                   <span style="
                     padding: 0.15rem 0.4rem;
-                    border-radius: 4px;
+                    border-radius: var(--radius-sm);
                     font-size: 0.65rem;
                     font-weight: 600;
                     background: ${priorityColors[config.priority]}20;
@@ -4989,9 +4989,9 @@ Exemple :
                       border: none;
                       color: var(--color-dark-text-secondary);
                       padding: 0.35rem 0.5rem;
-                      border-radius: 4px;
+                      border-radius: var(--radius-sm);
                       cursor: pointer;
-                      font-size: 0.75rem;
+                      font-size: var(--text-xs);
                     "
                   >✏️</button>
                 </div>
@@ -5051,7 +5051,7 @@ Exemple :
 
               <!-- Priority -->
               <div>
-                <label style="font-size: 0.75rem; color: var(--color-dark-text-secondary); display: block; margin-bottom: 0.3rem;">Priorité</label>
+                <label style="font-size: var(--text-xs); color: var(--color-dark-text-secondary); display: block; margin-bottom: 0.3rem;">Priorité</label>
                 <select
                   .value="${this.editingNotifConfig.priority}"
                   @change="${e => this.editingNotifConfig = {...this.editingNotifConfig, priority: e.target.value}}"
@@ -5060,7 +5060,7 @@ Exemple :
                     padding: 0.5rem;
                     background: rgba(0,0,0,0.3);
                     border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: 6px;
+                    border-radius: var(--radius-sm);
                     color: var(--color-dark-text-primary);
                     font-size: 0.85rem;
                   "
@@ -5073,7 +5073,7 @@ Exemple :
 
               <!-- Title template -->
               <div>
-                <label style="font-size: 0.75rem; color: var(--color-dark-text-secondary); display: block; margin-bottom: 0.3rem;">Template titre</label>
+                <label style="font-size: var(--text-xs); color: var(--color-dark-text-secondary); display: block; margin-bottom: 0.3rem;">Template titre</label>
                 <input type="text"
                   .value="${this.editingNotifConfig.title_template}"
                   @input="${e => this.editingNotifConfig = {...this.editingNotifConfig, title_template: e.target.value}}"
@@ -5082,7 +5082,7 @@ Exemple :
                     padding: 0.5rem;
                     background: rgba(0,0,0,0.3);
                     border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: 6px;
+                    border-radius: var(--radius-sm);
                     color: var(--color-dark-text-primary);
                     font-size: 0.85rem;
                     box-sizing: border-box;
@@ -5093,7 +5093,7 @@ Exemple :
 
               <!-- Body template -->
               <div>
-                <label style="font-size: 0.75rem; color: var(--color-dark-text-secondary); display: block; margin-bottom: 0.3rem;">Template corps</label>
+                <label style="font-size: var(--text-xs); color: var(--color-dark-text-secondary); display: block; margin-bottom: 0.3rem;">Template corps</label>
                 <textarea
                   .value="${this.editingNotifConfig.body_template}"
                   @input="${e => this.editingNotifConfig = {...this.editingNotifConfig, body_template: e.target.value}}"
@@ -5103,7 +5103,7 @@ Exemple :
                     padding: 0.5rem;
                     background: rgba(0,0,0,0.3);
                     border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: 6px;
+                    border-radius: var(--radius-sm);
                     color: var(--color-dark-text-primary);
                     font-size: 0.85rem;
                     resize: vertical;
@@ -5115,7 +5115,7 @@ Exemple :
 
               <!-- Available variables -->
               ${this.editingNotifConfig.available_variables?.length > 0 ? html`
-                <div style="background: rgba(147, 51, 234, 0.1); padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(147, 51, 234, 0.2);">
+                <div style="background: rgba(147, 51, 234, 0.1); padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid rgba(147, 51, 234, 0.2);">
                   <div style="font-size: 0.7rem; color: var(--color-dark-text-secondary); margin-bottom: 0.3rem;">Variables disponibles:</div>
                   <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
                     ${this.editingNotifConfig.available_variables.map(v => html`
@@ -5141,7 +5141,7 @@ Exemple :
                   padding: 0.5rem 1rem;
                   background: rgba(255,255,255,0.08);
                   border: 1px solid rgba(255,255,255,0.15);
-                  border-radius: 6px;
+                  border-radius: var(--radius-sm);
                   color: var(--color-dark-text-secondary);
                   cursor: pointer;
                   font-size: 0.85rem;
@@ -5153,7 +5153,7 @@ Exemple :
                   padding: 0.5rem 1rem;
                   background: var(--context-primary, #00d4aa);
                   border: none;
-                  border-radius: 6px;
+                  border-radius: var(--radius-sm);
                   color: #000;
                   cursor: pointer;
                   font-size: 0.85rem;
@@ -5253,16 +5253,16 @@ Exemple :
         <div class="section-card" style="
           background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(109, 40, 217, 0.06) 100%);
           border: 1px solid rgba(139, 92, 246, 0.25);
-          border-radius: 16px;
+          border-radius: var(--radius-lg);
           padding: 1.5rem;
           margin-bottom: 1.25rem;
           box-shadow: 0 4px 24px rgba(139, 92, 246, 0.1);
         ">
           <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem;">
-            <span style="font-size: 1.5rem; animation: float-icon 3s ease-in-out infinite;">🧠</span>
+            <span style="font-size: var(--text-2xl); animation: float-icon 3s ease-in-out infinite;">🧠</span>
             <h3 style="margin: 0; font-size: 1.1rem; font-weight: 600; color: var(--color-dark-text-primary);">Intelligence v2</h3>
             ${stats ? html`
-              <span style="margin-left: auto; padding: 0.35rem 0.875rem; border-radius: 20px; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #a78bfa; font-size: 0.75rem; font-weight: 600;">
+              <span style="margin-left: auto; padding: 0.35rem 0.875rem; border-radius: var(--radius-xl); background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #a78bfa; font-size: var(--text-xs); font-weight: 600;">
                 ${stats.total_samples} samples
               </span>
             ` : ''}
@@ -5280,15 +5280,15 @@ Exemple :
                 <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
                   <span style="font-size: 3rem; animation: float-icon 4s ease-in-out infinite;">${this.getModeIcon(prediction.mode)}</span>
                   <div>
-                    <div style="font-size: 1.5rem; font-weight: 700; color: #a78bfa; margin-bottom: 0.25rem;">${this.getModeName(prediction.mode)}</div>
+                    <div style="font-size: var(--text-2xl); font-weight: 700; color: #a78bfa; margin-bottom: 0.25rem;">${this.getModeName(prediction.mode)}</div>
                     <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                      <span style="display: inline-block; padding: 0.3rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+                      <span style="display: inline-block; padding: 0.3rem 0.75rem; border-radius: var(--radius-xl); font-size: var(--text-xs); font-weight: 600;
                         background: ${prediction.is_confident ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1))' : 'linear-gradient(135deg, rgba(251, 146, 60, 0.2), rgba(251, 146, 60, 0.1))'};
                         border: 1px solid ${prediction.is_confident ? 'rgba(34, 197, 94, 0.4)' : 'rgba(251, 146, 60, 0.4)'};
                         color: ${prediction.is_confident ? '#22c55e' : '#fb923c'};">
                         ${prediction.is_confident ? '✓ Confiant' : '⚠ Incertain'}
                       </span>
-                      <span style="padding: 0.3rem 0.75rem; border-radius: 20px; font-size: 0.75rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--color-dark-text-secondary);">
+                      <span style="padding: 0.3rem 0.75rem; border-radius: var(--radius-xl); font-size: var(--text-xs); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--color-dark-text-secondary);">
                         ${prediction.samples_used} samples utilises
                       </span>
                     </div>
@@ -5299,7 +5299,7 @@ Exemple :
                 ${prediction.alternatives?.length > 0 ? html`
                   <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
                     ${prediction.alternatives.map(alt => html`
-                      <span style="padding: 0.35rem 0.75rem; background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 20px; font-size: 0.8rem; color: var(--color-dark-text-secondary);">
+                      <span style="padding: 0.35rem 0.75rem; background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: var(--radius-xl); font-size: 0.8rem; color: var(--color-dark-text-secondary);">
                         ${this.getModeIcon(alt.mode)} ${this.getModeName(alt.mode)}: ${Math.round(alt.score * 100)}%
                       </span>
                     `)}
@@ -5324,7 +5324,7 @@ Exemple :
                     ✓ Correction enregistree (v1+v2)
                   </div>
                 ` : html`
-                  <div style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-dark-text-tertiary); margin-bottom: 0.75rem;">
+                  <div style="font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-dark-text-tertiary); margin-bottom: 0.75rem;">
                     Quel est le bon mode ?
                   </div>
                   <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
@@ -5332,8 +5332,8 @@ Exemple :
                       <button @click=${() => this.sendPredictionCorrection(m.slug)}
                         ?disabled=${m.slug === prediction.mode}
                         style="flex: 1; min-width: 80px; display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 0.75rem 0.5rem; background: ${m.slug === prediction.mode ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)'}; border: 1px solid ${m.slug === prediction.mode ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.12)'}; border-radius: 10px; color: ${m.slug === prediction.mode ? 'var(--color-dark-text-tertiary)' : 'var(--color-dark-text-primary)'}; cursor: ${m.slug === prediction.mode ? 'not-allowed' : 'pointer'}; opacity: ${m.slug === prediction.mode ? '0.35' : '1'}; transition: all 0.2s ease;">
-                        <span style="font-size: 1.5rem;">${m.icon}</span>
-                        <span style="font-size: 0.75rem;">${m.name}</span>
+                        <span style="font-size: var(--text-2xl);">${m.icon}</span>
+                        <span style="font-size: var(--text-xs);">${m.name}</span>
                       </button>
                     `)}
                   </div>
@@ -5344,10 +5344,10 @@ Exemple :
             <!-- Why Chain - Samples Contributing -->
             ${prediction.why?.length > 0 ? html`
               <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid rgba(139, 92, 246, 0.15);">
-                <div style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-dark-text-tertiary); margin-bottom: 0.75rem;">Samples Contributifs</div>
+                <div style="font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-dark-text-tertiary); margin-bottom: 0.75rem;">Samples Contributifs</div>
                 <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
                   ${prediction.why.slice(0, 5).map(w => html`
-                    <div style="padding: 0.5rem 0.75rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-base); font-size: 0.75rem;">
+                    <div style="padding: 0.5rem 0.75rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-base); font-size: var(--text-xs);">
                       <span style="color: #a78bfa;">${this.getModeIcon(w.mode)}</span>
                       <span style="color: var(--color-dark-text-secondary);">${w.mode}</span>
                       <span style="color: ${w.similarity >= 0.8 ? '#22c55e' : w.similarity >= 0.5 ? '#fb923c' : '#9ca3af'}; margin-left: 0.5rem;">
@@ -5369,9 +5369,9 @@ Exemple :
 
         <!-- Context Vector Section -->
         ${vector ? html`
-          <div class="section-card" style="background: rgba(30, 35, 45, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 1.25rem; margin-bottom: 1.25rem;">
+          <div class="section-card" style="background: rgba(30, 35, 45, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.25rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-              <span style="font-size: 1.25rem; animation: float-icon 3s ease-in-out infinite;">📊</span>
+              <span style="font-size: var(--text-xl); animation: float-icon 3s ease-in-out infinite;">📊</span>
               <h3 style="margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-dark-text-primary);">Context Vector</h3>
               <span style="margin-left: auto; font-size: 0.7rem; color: var(--color-dark-text-tertiary);">
                 ${vector.feature_count || 0} features
@@ -5387,11 +5387,11 @@ Exemple :
 
         <!-- Features Section -->
         ${features.length > 0 ? html`
-          <div class="section-card" style="background: rgba(30, 35, 45, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 1.25rem; margin-bottom: 1.25rem;">
+          <div class="section-card" style="background: rgba(30, 35, 45, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.25rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-              <span style="font-size: 1.25rem; animation: float-icon 3s ease-in-out infinite;">📡</span>
+              <span style="font-size: var(--text-xl); animation: float-icon 3s ease-in-out infinite;">📡</span>
               <h3 style="margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-dark-text-primary);">Features Registry</h3>
-              <span style="margin-left: auto; padding: 0.25rem 0.75rem; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: 20px; font-size: 0.75rem; color: #22c55e; font-weight: 600;">
+              <span style="margin-left: auto; padding: 0.25rem 0.75rem; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: var(--radius-xl); font-size: var(--text-xs); color: #22c55e; font-weight: 600;">
                 ${summary?.active_count || features.length} actives
               </span>
             </div>
@@ -5418,19 +5418,19 @@ Exemple :
             </div>
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem;">
               <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-base); text-align: center;">
-                <div style="font-size: 1.5rem; font-weight: 700; color: #a78bfa;">${stats.total_samples}</div>
+                <div style="font-size: var(--text-2xl); font-weight: 700; color: #a78bfa;">${stats.total_samples}</div>
                 <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">Total Samples</div>
               </div>
               <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-base); text-align: center;">
-                <div style="font-size: 1.5rem; font-weight: 700; color: #22c55e;">${stats.by_source?.UserCorrection || 0}</div>
+                <div style="font-size: var(--text-2xl); font-weight: 700; color: #22c55e;">${stats.by_source?.UserCorrection || 0}</div>
                 <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">Corrections</div>
               </div>
               <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-base); text-align: center;">
-                <div style="font-size: 1.5rem; font-weight: 700; color: #fb923c;">${stats.by_source?.Bootstrap || 0}</div>
+                <div style="font-size: var(--text-2xl); font-weight: 700; color: #fb923c;">${stats.by_source?.Bootstrap || 0}</div>
                 <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">Bootstrap</div>
               </div>
               <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-base); text-align: center;">
-                <div style="font-size: 1.5rem; font-weight: 700; color: var(--color-dark-text-primary);">${(stats.average_weight || 0).toFixed(2)}</div>
+                <div style="font-size: var(--text-2xl); font-weight: 700; color: var(--color-dark-text-primary);">${(stats.average_weight || 0).toFixed(2)}</div>
                 <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">Poids Moyen</div>
               </div>
             </div>
@@ -5473,8 +5473,8 @@ Exemple :
         <span style="font-size: 1rem; width: 1.5rem; text-align: center;">${c.icon}</span>
         <div style="flex: 1;">
           <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-            <span style="font-size: 0.75rem; color: var(--color-dark-text-secondary); text-transform: capitalize;">${label}</span>
-            <span style="font-size: 0.75rem; font-weight: 600; color: ${c.start};">${percentage}%</span>
+            <span style="font-size: var(--text-xs); color: var(--color-dark-text-secondary); text-transform: capitalize;">${label}</span>
+            <span style="font-size: var(--text-xs); font-weight: 600; color: ${c.start};">${percentage}%</span>
           </div>
           <div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
             <div style="height: 100%; width: ${percentage}%; background: linear-gradient(90deg, ${c.start}, ${c.end}); border-radius: 3px; transition: width 0.5s ease-out;"></div>
@@ -5482,7 +5482,7 @@ Exemple :
           ${why?.length > 0 ? html`
             <div style="margin-top: 0.25rem; display: flex; flex-wrap: wrap; gap: 0.25rem;">
               ${why.slice(0, 3).map(w => html`
-                <span style="font-size: 0.65rem; padding: 0.1rem 0.4rem; background: rgba(255,255,255,0.05); border-radius: 4px; color: var(--color-dark-text-tertiary);">
+                <span style="font-size: 0.65rem; padding: 0.1rem 0.4rem; background: rgba(255,255,255,0.05); border-radius: var(--radius-sm); color: var(--color-dark-text-tertiary);">
                   ${w.feature_id}: ${w.contribution > 0 ? '+' : ''}${Math.round(w.contribution * 100)}%
                 </span>
               `)}
@@ -5590,13 +5590,13 @@ Exemple :
           @click="${() => this.showConfigHelp = !this.showConfigHelp}">
           <span style="background: rgba(99, 102, 241, 0.3); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem;">?</span>
           Comment ça marche ?
-          <span style="margin-left: auto; font-size: 0.75rem; opacity: 0.6;">${this.showConfigHelp ? '▼' : '▶'}</span>
+          <span style="margin-left: auto; font-size: var(--text-xs); opacity: 0.6;">${this.showConfigHelp ? '▼' : '▶'}</span>
         </div>
         ${this.showConfigHelp ? html`
         <div style="font-size: 0.8rem; color: var(--color-dark-text-secondary); line-height: 1.6; margin-top: 0.75rem;">
 
           <p style="margin: 0.5rem 0 0.75rem;"><strong>1. Calcul du Trust Score</strong> (0.0 à 1.0) :</p>
-          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px; margin: 0 0 0.75rem; font-size: 0.75rem;">
+          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: var(--radius-sm); margin: 0 0 0.75rem; font-size: var(--text-xs);">
             <p style="margin: 0 0 0.5rem;">Le système évalue 5 critères et fait la moyenne pondérée :</p>
             <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 0.25rem 0.5rem;">
               <span>• Mode & SSID correspondent ?</span><span style="color: #818cf8;">25%</span><span style="color: #6b7280;">→ 0 ou 1</span>
@@ -5609,7 +5609,7 @@ Exemple :
           </div>
 
           <p style="margin: 0.5rem 0 0.5rem;"><strong>2. Comment choisir les seuils ?</strong></p>
-          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px; margin: 0 0 0.75rem; font-size: 0.75rem;">
+          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: var(--radius-sm); margin: 0 0 0.75rem; font-size: var(--text-xs);">
             <p style="margin: 0 0 0.5rem;">Chaque type d'action utilise un seuil selon son niveau d'impact :</p>
             <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.5rem;">
               <span style="color: #10b981;">Low</span><span>→ Notifications (ex: "Tu as reçu un email")</span>
@@ -5620,15 +5620,15 @@ Exemple :
           </div>
 
           <p style="margin: 0.5rem 0;"><strong>3. Règle simple pour configurer :</strong></p>
-          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px; margin: 0 0 0.75rem; font-size: 0.75rem;">
+          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: var(--radius-sm); margin: 0 0 0.75rem; font-size: var(--text-xs);">
             <p style="margin: 0 0 0.5rem;"><strong>Seuil bas (0.3-0.4)</strong> = Peu exigeant, s'exécute souvent seul</p>
             <p style="margin: 0 0 0.5rem;"><strong>Seuil moyen (0.5-0.6)</strong> = Équilibré, vérifie le contexte</p>
             <p style="margin: 0 0 0.5rem;"><strong>Seuil haut (0.7-0.8)</strong> = Strict, demande validation si doute</p>
             <p style="margin: 0;"><strong>Seuil très haut (0.9+)</strong> = Quasi toujours validation manuelle</p>
           </div>
 
-          <div style="background: rgba(16, 185, 129, 0.15); padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.3);">
-            <p style="margin: 0; font-size: 0.75rem;">
+          <div style="background: rgba(16, 185, 129, 0.15); padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid rgba(16, 185, 129, 0.3);">
+            <p style="margin: 0; font-size: var(--text-xs);">
               <strong>💡 Exemple concret :</strong><br>
               Tu as High = 0.7. Une automation "Allumer PC" calcule un score de 0.66<br>
               → <span style="color: #f59e0b;">0.66 < 0.7</span> = demande ta validation<br>
@@ -5684,7 +5684,7 @@ Exemple :
             @change="${e => this.config = {...this.config, initial_trust_score: parseFloat(e.target.value)}}"
           >
         </div>
-        <div style="font-size: 0.75rem; color: var(--color-dark-text-secondary); margin-top: 0.5rem;">
+        <div style="font-size: var(--text-xs); color: var(--color-dark-text-secondary); margin-top: 0.5rem;">
           Score attribué aux nouvelles automations sans historique
         </div>
       </div>

@@ -29,12 +29,12 @@ class FreeboxWidget extends LitElement {
 
     .status-badge {
       padding: 0.5rem 1rem;
-      border-radius: 20px;
+      border-radius: var(--radius-xl);
       font-size: 0.75em;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.8px;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
@@ -75,7 +75,7 @@ class FreeboxWidget extends LitElement {
     }
 
     .section-card {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+      background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: var(--radius-md);
       padding: 1rem;
@@ -102,7 +102,7 @@ class FreeboxWidget extends LitElement {
       align-items: center;
       justify-content: space-between;
       padding: 0.5rem 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      border-bottom: 1px solid var(--border-subtle);
     }
 
     .presence-item:last-child {
@@ -221,7 +221,7 @@ class FreeboxWidget extends LitElement {
       padding: 2rem;
     }
 
-    @media (max-width: 600px) {
+    @media (max-width: 768px) {
       .content-grid {
         grid-template-columns: 1fr;
       }

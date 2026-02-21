@@ -6,9 +6,10 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedAnimations } from '../styles/shared-animations.js'
 
 class SystemHealthWidget extends LitElement {
-  static styles = css`
+  static styles = [sharedAnimations, css`
     :host {
       display: block;
     }
@@ -28,20 +29,20 @@ class SystemHealthWidget extends LitElement {
     
     .status-badge {
       padding: 0.5rem 1rem;
-      border-radius: 20px;
+      border-radius: var(--radius-xl);
       font-size: 0.75em;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.8px;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
     .status-healthy {
-      background: linear-gradient(135deg, rgba(0, 212, 170, 0.25) 0%, rgba(34, 197, 94, 0.2) 100%);
-      color: #00d4aa;
-      border: 1px solid rgba(0, 212, 170, 0.4);
-      box-shadow: 0 2px 12px rgba(0, 212, 170, 0.3);
+      background: linear-gradient(135deg, var(--ctx-bg-emphasis) 0%, rgba(34, 197, 94, 0.2) 100%);
+      color: var(--context-primary, #00d4aa);
+      border: 1px solid var(--ctx-border-strong);
+      box-shadow: 0 2px 12px var(--ctx-border-strong);
       animation: pulse-healthy 3s ease-in-out infinite;
     }
 
@@ -63,10 +64,10 @@ class SystemHealthWidget extends LitElement {
 
     @keyframes pulse-healthy {
       0%, 100% {
-        box-shadow: 0 2px 12px rgba(0, 212, 170, 0.3);
+        box-shadow: 0 2px 12px var(--ctx-border-strong);
       }
       50% {
-        box-shadow: 0 2px 16px rgba(0, 212, 170, 0.5);
+        box-shadow: 0 2px 16px var(--ctx-border-intense);
       }
     }
 
@@ -95,7 +96,7 @@ class SystemHealthWidget extends LitElement {
     }
     
     .metric-card {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+      background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: var(--radius-md);
       padding: 1.2rem;
@@ -113,16 +114,16 @@ class SystemHealthWidget extends LitElement {
       left: 0;
       right: 0;
       height: 3px;
-      background: linear-gradient(90deg, #007acc, #00d4aa);
+      background: linear-gradient(90deg, #007acc, var(--context-primary, #00d4aa));
       opacity: 0;
       transition: opacity 0.3s ease;
     }
 
     .metric-card:hover {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
-      border-color: rgba(0, 212, 170, 0.3);
+      background: linear-gradient(135deg, var(--surface-glass-bright) 0%, var(--surface-glass) 100%);
+      border-color: var(--ctx-border-strong);
       transform: translateY(-4px);
-      box-shadow: 0 8px 24px rgba(0, 212, 170, 0.15);
+      box-shadow: 0 8px 24px var(--ctx-border);
     }
 
     .metric-card:hover::before {
@@ -133,13 +134,13 @@ class SystemHealthWidget extends LitElement {
       font-size: 2em;
       font-weight: 700;
       margin-bottom: 0.5rem;
-      background: linear-gradient(135deg, #007acc 0%, #00d4aa 50%, #22c55e 100%);
+      background: linear-gradient(135deg, #007acc 0%, var(--context-primary, #00d4aa) 50%, #22c55e 100%);
       background-size: 200% 200%;
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
       animation: gradient-shift 3s ease infinite;
-      filter: drop-shadow(0 2px 4px rgba(0, 212, 170, 0.3));
+      filter: drop-shadow(0 2px 4px var(--ctx-border-strong));
     }
 
     /* Status Indicator Styles */
@@ -154,9 +155,9 @@ class SystemHealthWidget extends LitElement {
     }
 
     .status-indicator.connected {
-      color: #00d4aa;
+      color: var(--context-primary, #00d4aa);
       text-shadow: 0 0 20px rgba(0, 212, 170, 0.8),
-                   0 0 40px rgba(0, 212, 170, 0.4);
+                   0 0 40px var(--ctx-border-strong);
       animation: statusPulse 2s ease-in-out infinite !important;
     }
 
@@ -203,14 +204,7 @@ class SystemHealthWidget extends LitElement {
       }
     }
 
-    @keyframes gradient-shift {
-      0%, 100% {
-        background-position: 0% 50%;
-      }
-      50% {
-        background-position: 100% 50%;
-      }
-    }
+    /* gradient-shift — see shared-animations.js */
 
     .metric-label {
       font-size: 0.8em;
@@ -238,7 +232,7 @@ class SystemHealthWidget extends LitElement {
       color: #ff6b6b;
       background: rgba(255, 107, 107, 0.1);
       border: 1px solid rgba(255, 107, 107, 0.3);
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
     }
     
     .last-updated {
@@ -287,8 +281,8 @@ class SystemHealthWidget extends LitElement {
         grid-template-columns: 1fr;
       }
     }
-  `
-  
+  `]
+
   static properties = {
     health: { type: Object },
     connected: { type: Boolean },

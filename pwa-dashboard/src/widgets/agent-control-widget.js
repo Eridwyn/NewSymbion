@@ -55,8 +55,8 @@ class AgentControlWidget extends LitElement {
 
     .modal {
       background: linear-gradient(135deg, rgba(30, 30, 30, 0.98) 0%, rgba(20, 20, 20, 0.98) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
-      border-radius: 20px;
+      border: 1px solid var(--ctx-border);
+      border-radius: var(--radius-xl);
       width: 90%;
       max-width: 900px;
       height: 80%;
@@ -64,7 +64,7 @@ class AgentControlWidget extends LitElement {
       display: flex;
       flex-direction: column;
       box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6),
-                  0 0 40px color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
+                  0 0 40px var(--ctx-bg);
       color: var(--widget-color, #e5e5e5);
       overflow: hidden;
       animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -75,22 +75,13 @@ class AgentControlWidget extends LitElement {
       justify-content: space-between;
       align-items: center;
       padding: 24px 28px;
-      border-bottom: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+      border-bottom: 1px solid var(--ctx-border);
+      background: linear-gradient(135deg, var(--surface-glass) 0%, var(--surface-glass-faint) 100%);
       position: relative;
       animation: modalHeaderSlideIn 0.5s ease-out 0.1s backwards;
     }
 
-    @keyframes modalHeaderSlideIn {
-      from {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
+    /* modalHeaderSlideIn — see shared-animations.js */
 
     .modal-header::after {
       content: '';
@@ -141,7 +132,7 @@ class AgentControlWidget extends LitElement {
       align-items: center;
       gap: 8px;
       padding: 8px 16px;
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       font-size: 11px;
       font-weight: 600;
       text-transform: uppercase;
@@ -150,10 +141,10 @@ class AgentControlWidget extends LitElement {
     }
 
     .status-badge.online {
-      background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, rgba(0, 212, 170, 0.2) 100%);
-      color: #00d4aa;
-      border: 1px solid rgba(0, 212, 170, 0.4);
-      box-shadow: 0 2px 12px rgba(0, 212, 170, 0.3);
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, var(--ctx-border-medium) 100%);
+      color: var(--context-primary, #00d4aa);
+      border: 1px solid var(--ctx-border-strong);
+      box-shadow: 0 2px 12px var(--ctx-border-strong);
       animation: pulse-online 3s ease-in-out infinite;
     }
 
@@ -166,10 +157,10 @@ class AgentControlWidget extends LitElement {
 
     @keyframes pulse-online {
       0%, 100% {
-        box-shadow: 0 2px 12px rgba(0, 212, 170, 0.3);
+        box-shadow: 0 2px 12px var(--ctx-border-strong);
       }
       50% {
-        box-shadow: 0 2px 16px rgba(0, 212, 170, 0.5);
+        box-shadow: 0 2px 16px var(--ctx-border-intense);
       }
     }
 
@@ -199,10 +190,10 @@ class AgentControlWidget extends LitElement {
 
     .modal-tabs {
       display: flex;
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+      background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
       padding: 0 24px;
       overflow-x: auto;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid var(--border-default);
     }
 
     .tab-btn {
@@ -226,14 +217,14 @@ class AgentControlWidget extends LitElement {
       left: 0;
       right: 0;
       height: 3px;
-      background: linear-gradient(90deg, #007acc, #00d4aa);
+      background: linear-gradient(90deg, #007acc, var(--context-primary, #00d4aa));
       transform: scaleX(0);
       transition: transform 0.3s ease;
     }
 
     .tab-btn.active {
-      color: #00d4aa;
-      background: linear-gradient(135deg, rgba(0, 212, 170, 0.08) 0%, rgba(0, 122, 204, 0.05) 100%);
+      color: var(--context-primary, #00d4aa);
+      background: linear-gradient(135deg, var(--ctx-bg) 0%, rgba(0, 122, 204, 0.05) 100%);
     }
 
     .tab-btn.active::before {
@@ -242,7 +233,7 @@ class AgentControlWidget extends LitElement {
 
     .tab-btn:hover {
       color: #ccc;
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-glass);
     }
 
     .modal-content {
@@ -335,7 +326,7 @@ class AgentControlWidget extends LitElement {
     }
 
     .info-card {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+      background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: var(--radius-md);
       padding: 18px;
@@ -344,10 +335,10 @@ class AgentControlWidget extends LitElement {
     }
 
     .info-card:hover {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
-      border-color: rgba(0, 212, 170, 0.3);
+      background: linear-gradient(135deg, var(--surface-glass-bright) 0%, var(--surface-glass) 100%);
+      border-color: var(--ctx-border-strong);
       transform: translateY(-2px);
-      box-shadow: 0 4px 16px rgba(0, 212, 170, 0.15);
+      box-shadow: 0 4px 16px var(--ctx-border);
     }
 
     .info-label {
@@ -365,7 +356,7 @@ class AgentControlWidget extends LitElement {
     }
 
     .processes-table {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-glass);
       border-radius: var(--radius-base);
       overflow: hidden;
     }
@@ -375,7 +366,7 @@ class AgentControlWidget extends LitElement {
       grid-template-columns: 80px 1fr 100px 100px 80px;
       gap: 16px;
       padding: 12px 16px;
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass-strong);
       font-size: 12px;
       font-weight: 600;
       color: #888;
@@ -388,14 +379,14 @@ class AgentControlWidget extends LitElement {
       grid-template-columns: 80px 1fr 100px 100px 80px;
       gap: 16px;
       padding: 12px 16px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      border-bottom: 1px solid var(--surface-glass);
       font-size: 14px;
       align-items: center;
       transition: background 0.2s ease;
     }
 
     .process-row:hover {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-glass);
     }
 
     .process-name {
@@ -408,7 +399,7 @@ class AgentControlWidget extends LitElement {
       background: rgba(239, 68, 68, 0.2);
       color: #ef4444;
       border: 1px solid rgba(239, 68, 68, 0.3);
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       font-size: 11px;
       cursor: pointer;
       transition: all 0.2s ease;
@@ -425,7 +416,7 @@ class AgentControlWidget extends LitElement {
     }
 
     .metric-card {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+      background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: var(--radius-md);
       padding: 24px;
@@ -443,16 +434,16 @@ class AgentControlWidget extends LitElement {
       left: 0;
       right: 0;
       height: 3px;
-      background: linear-gradient(90deg, #007acc, #00d4aa);
+      background: linear-gradient(90deg, #007acc, var(--context-primary, #00d4aa));
       opacity: 0;
       transition: opacity 0.3s ease;
     }
 
     .metric-card:hover {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
-      border-color: rgba(0, 212, 170, 0.3);
+      background: linear-gradient(135deg, var(--surface-glass-bright) 0%, var(--surface-glass) 100%);
+      border-color: var(--ctx-border-strong);
       transform: translateY(-4px);
-      box-shadow: 0 8px 24px rgba(0, 212, 170, 0.15);
+      box-shadow: 0 8px 24px var(--ctx-border);
     }
 
     .metric-card:hover::before {
@@ -463,23 +454,16 @@ class AgentControlWidget extends LitElement {
       font-size: 36px;
       font-weight: 700;
       margin: 10px 0;
-      background: linear-gradient(135deg, #007acc 0%, #00d4aa 50%, #22c55e 100%);
+      background: linear-gradient(135deg, #007acc 0%, var(--context-primary, #00d4aa) 50%, #22c55e 100%);
       background-size: 200% 200%;
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
       animation: gradient-shift 3s ease infinite;
-      filter: drop-shadow(0 2px 4px rgba(0, 212, 170, 0.3));
+      filter: drop-shadow(0 2px 4px var(--ctx-border-strong));
     }
 
-    @keyframes gradient-shift {
-      0%, 100% {
-        background-position: 0% 50%;
-      }
-      50% {
-        background-position: 100% 50%;
-      }
-    }
+    /* gradient-shift — see shared-animations.js */
 
     .metric-label {
       font-size: 14px;
@@ -491,8 +475,8 @@ class AgentControlWidget extends LitElement {
     .progress-bar {
       width: 100%;
       height: 8px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 6px;
+      background: var(--surface-glass-strong);
+      border-radius: var(--radius-sm);
       margin-top: 14px;
       overflow: hidden;
       box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -500,7 +484,7 @@ class AgentControlWidget extends LitElement {
 
     .progress-fill {
       height: 100%;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
       box-shadow: 0 0 12px currentColor;
       position: relative;
@@ -517,8 +501,8 @@ class AgentControlWidget extends LitElement {
       animation: shimmer 2s infinite;
     }
 
-    .progress-fill.cpu { background: linear-gradient(90deg, #22c55e, #00d4aa, #007acc); }
-    .progress-fill.memory { background: linear-gradient(90deg, #3b82f6, #00d4aa, #8b5cf6); }
+    .progress-fill.cpu { background: linear-gradient(90deg, #22c55e, var(--context-primary, #00d4aa), #007acc); }
+    .progress-fill.memory { background: linear-gradient(90deg, #3b82f6, var(--context-primary, #00d4aa), #8b5cf6); }
     .progress-fill.disk { background: linear-gradient(90deg, #f59e0b, #fbbf24, #ef4444); }
 
     .command-section {
@@ -535,7 +519,7 @@ class AgentControlWidget extends LitElement {
     .command-field {
       flex: 1;
       padding: 12px 16px;
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-glass);
       border: 1px solid rgba(255, 255, 255, 0.2);
       border-radius: var(--radius-base);
       color: #ffffff;
@@ -577,7 +561,7 @@ class AgentControlWidget extends LitElement {
 
     .command-output {
       background: #0d1117;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--border-medium);
       border-radius: var(--radius-base);
       padding: 16px;
       font-family: 'Monaco', 'Consolas', monospace;

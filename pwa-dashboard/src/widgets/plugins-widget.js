@@ -42,16 +42,16 @@ class PluginsWidget extends LitElement {
     }
     
     .plugin-card {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--surface-glass-subtle);
+      border: 1px solid var(--border-default);
       border-radius: var(--radius-base);
       padding: 1rem;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
     }
     
     .plugin-card:hover {
       border-color: rgba(0, 122, 204, 0.3);
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-glass);
     }
     
     .plugin-header {
@@ -130,7 +130,7 @@ class PluginsWidget extends LitElement {
     .readonly-notice {
       background: rgba(76, 175, 80, 0.1);
       border: 1px solid rgba(76, 175, 80, 0.2);
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       padding: 0.8rem;
       margin-bottom: 1rem;
       font-size: 0.85em;
@@ -220,9 +220,9 @@ class PluginsWidget extends LitElement {
     }
     
     .contract-tag {
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass-strong);
       padding: 0.2rem 0.4rem;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       font-size: 0.75em;
     }
     
@@ -238,7 +238,7 @@ class PluginsWidget extends LitElement {
       color: #ff6b6b;
       background: rgba(255, 107, 107, 0.1);
       border: 1px solid rgba(255, 107, 107, 0.3);
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
     }
 
     .success {
@@ -247,7 +247,7 @@ class PluginsWidget extends LitElement {
       color: #4caf50;
       background: rgba(76, 175, 80, 0.1);
       border: 1px solid rgba(76, 175, 80, 0.3);
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       margin-bottom: 1rem;
     }
   `

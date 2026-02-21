@@ -67,7 +67,7 @@ class TimeRangePicker extends LitElement {
       padding: 0.5rem;
       background: var(--bg-primary, #1a1f2e);
       border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       color: var(--text-primary, #fff);
       font-size: 1rem;
       text-align: center;
@@ -82,7 +82,7 @@ class TimeRangePicker extends LitElement {
       flex: 1;
       height: 8px;
       background: var(--bg-tertiary, rgba(50, 55, 65, 0.8));
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       position: relative;
       margin: 0 0.5rem;
     }
@@ -91,7 +91,7 @@ class TimeRangePicker extends LitElement {
       position: absolute;
       height: 100%;
       background: linear-gradient(90deg, var(--primary-color, #00d4aa), rgba(0, 212, 170, 0.6));
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       transition: all 0.2s ease;
     }
 
@@ -156,7 +156,7 @@ class TimeRangePicker extends LitElement {
       padding: 0.25rem 0.75rem;
       background: var(--bg-tertiary, rgba(50, 55, 65, 0.5));
       border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       color: var(--text-secondary, rgba(255, 255, 255, 0.6));
       cursor: pointer;
       font-size: 0.7rem;
@@ -198,10 +198,10 @@ class TimeRangePicker extends LitElement {
       justify-content: center;
       background: var(--bg-tertiary, rgba(50, 55, 65, 0.5));
       border: 1px solid transparent;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       color: var(--text-secondary, rgba(255, 255, 255, 0.7));
       cursor: pointer;
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       transition: all 0.15s ease;
     }
 
@@ -242,7 +242,7 @@ class TimeRangePicker extends LitElement {
       .day-btn {
         min-width: 40px;
         padding: 0.4rem 0.5rem;
-        font-size: 0.75rem;
+        font-size: var(--text-xs);
       }
     }
   `

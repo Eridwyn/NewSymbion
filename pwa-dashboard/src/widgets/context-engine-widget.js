@@ -20,16 +20,16 @@ class ContextEngineWidget extends LitElement {
       background: linear-gradient(135deg,
         rgba(19, 20, 26, 0.95) 0%,
         rgba(10, 10, 11, 0.98) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
-      border-radius: 16px;
+      border: 1px solid var(--ctx-border-medium);
+      border-radius: var(--radius-lg);
       overflow: hidden;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
     }
 
     .widget:hover {
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 35%, transparent);
+      border-color: var(--ctx-bg-intense);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
-                  0 0 40px color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
+                  0 0 40px var(--ctx-bg);
     }
 
     .header {
@@ -37,12 +37,12 @@ class ContextEngineWidget extends LitElement {
       align-items: center;
       gap: 0.75rem;
       padding: 1rem 1.25rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      border-bottom: 1px solid var(--border-subtle);
       background: rgba(0, 0, 0, 0.2);
     }
 
     .header-icon {
-      font-size: 1.25rem;
+      font-size: var(--text-xl);
     }
 
     .header-title {
@@ -62,7 +62,7 @@ class ContextEngineWidget extends LitElement {
       gap: 1rem;
       margin-bottom: 1rem;
       padding-bottom: 1rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      border-bottom: 1px solid var(--border-subtle);
     }
 
     .mode-icon {
@@ -87,7 +87,7 @@ class ContextEngineWidget extends LitElement {
     }
 
     .mode-reason {
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       color: var(--color-dark-text-secondary, #adb5bd);
       margin-bottom: 0.5rem;
     }
@@ -107,7 +107,7 @@ class ContextEngineWidget extends LitElement {
     }
 
     .automations-label {
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -129,9 +129,9 @@ class ContextEngineWidget extends LitElement {
       align-items: center;
       gap: 0.5rem;
       padding: 0.5rem 0.75rem;
-      background: rgba(255, 255, 255, 0.03);
+      background: var(--surface-glass-subtle);
       border-radius: var(--radius-base);
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
     }
 
     .last-execution-name {
@@ -178,10 +178,10 @@ class ContextEngineWidget extends LitElement {
       width: 100%;
       padding: 0.75rem;
       border-radius: 10px;
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent);
+      border: 1px solid var(--ctx-border-strong);
       background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent) 100%);
+        var(--ctx-border) 0%,
+        var(--ctx-bg) 100%);
       color: var(--context-primary, #00d4aa);
       font-size: 0.85rem;
       font-weight: 600;
@@ -195,10 +195,10 @@ class ContextEngineWidget extends LitElement {
 
     .manage-btn:hover {
       background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 100%);
+        var(--ctx-bg-emphasis) 0%,
+        var(--ctx-border) 100%);
       transform: translateY(-2px);
-      box-shadow: 0 4px 16px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      box-shadow: 0 4px 16px var(--ctx-border-medium);
     }
 
     /* Loading */

@@ -25,9 +25,9 @@ class NotificationCenter extends LitElement {
     .bell-button {
       position: relative;
       background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+        var(--ctx-border) 0%,
+        var(--ctx-bg) 100%);
+      border: 1px solid var(--ctx-bg-intense);
       border-radius: var(--radius-md, 8px);
       padding: 0.5rem 0.75rem;
       cursor: pointer;
@@ -41,8 +41,8 @@ class NotificationCenter extends LitElement {
 
     .bell-button:hover {
       background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent) 100%);
+        var(--ctx-bg-emphasis) 0%,
+        var(--ctx-border) 100%);
       transform: translateY(-2px);
     }
 
@@ -97,10 +97,10 @@ class NotificationCenter extends LitElement {
       background: linear-gradient(135deg,
         rgba(19, 20, 26, 0.99) 0%,
         rgba(10, 10, 11, 1) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
+      border: 1px solid var(--ctx-bg-emphasis);
       border-radius: var(--radius-lg, 12px);
       box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6),
-                  0 0 60px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+                  0 0 60px var(--ctx-border);
       z-index: 9999;
       overflow: hidden;
       animation: scaleIn 0.2s ease-out;
@@ -112,7 +112,7 @@ class NotificationCenter extends LitElement {
 
     .panel-header {
       padding: 1rem;
-      border-bottom: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+      border-bottom: 1px solid var(--ctx-border);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -127,7 +127,7 @@ class NotificationCenter extends LitElement {
     }
 
     .close-button {
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass-strong);
       border: none;
       color: var(--color-dark-text-secondary, #adb5bd);
       width: 32px;
@@ -159,7 +159,7 @@ class NotificationCenter extends LitElement {
     }
 
     .mark-all-read:hover {
-      background: color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+      background: var(--ctx-border);
     }
 
     .panel-content {
@@ -176,7 +176,7 @@ class NotificationCenter extends LitElement {
     }
 
     .panel-content::-webkit-scrollbar-thumb {
-      background: color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
+      background: var(--ctx-bg-intense);
       border-radius: 3px;
     }
 
@@ -188,11 +188,11 @@ class NotificationCenter extends LitElement {
     }
 
     .notification:hover {
-      background: rgba(255, 255, 255, 0.02);
+      background: var(--surface-glass-faint);
     }
 
     .notification.unread {
-      background: color-mix(in srgb, var(--context-primary, #00d4aa) 5%, transparent);
+      background: var(--ctx-bg-subtle);
       border-left: 3px solid var(--context-primary, #00d4aa);
     }
 
@@ -242,7 +242,7 @@ class NotificationCenter extends LitElement {
     }
 
     .notification-body {
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       color: var(--color-dark-text-secondary, #adb5bd);
       line-height: 1.4;
       margin-bottom: 0.75rem;
@@ -294,16 +294,16 @@ class NotificationCenter extends LitElement {
 
     .action-btn.ack {
       background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent) 100%);
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent);
+        var(--ctx-border-medium) 0%,
+        var(--ctx-border-subtle) 100%);
+      border-color: var(--ctx-border-strong);
       color: var(--context-primary, #00d4aa);
     }
 
     .action-btn.ack:hover {
       background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent) 100%);
+        var(--ctx-bg-intense) 0%,
+        var(--ctx-border-medium) 100%);
       transform: translateY(-1px);
     }
 
@@ -315,7 +315,7 @@ class NotificationCenter extends LitElement {
     }
 
     .empty-icon {
-      font-size: 2rem;
+      font-size: var(--text-3xl);
       margin-bottom: 0.5rem;
       opacity: 0.5;
     }
@@ -344,7 +344,7 @@ class NotificationCenter extends LitElement {
         right: -3px;
         min-width: 14px;
         height: 14px;
-        font-size: 0.55rem;
+        font-size: 0.65rem;
       }
 
       .panel {
@@ -447,17 +447,17 @@ class NotificationCenter extends LitElement {
           align-items: center;
         }
         .notif-header-btn {
-          background: rgba(255,255,255,0.08);
-          border: 1px solid rgba(255,255,255,0.15);
+          background: var(--surface-glass-hover);
+          border: 1px solid var(--border-hover);
           color: #adb5bd;
           padding: 0.35rem 0.6rem;
-          border-radius: 6px;
+          border-radius: var(--radius-sm);
           cursor: pointer;
           font-size: 0.7rem;
           transition: all 0.2s;
         }
         .notif-header-btn:hover {
-          background: rgba(255,255,255,0.15);
+          background: var(--surface-glass-bright);
           color: #fff;
         }
         .notif-header-btn.danger {
@@ -468,7 +468,7 @@ class NotificationCenter extends LitElement {
           color: #ef4444;
         }
         .notif-close {
-          background: rgba(255,255,255,0.1);
+          background: var(--surface-glass-strong);
           border: none;
           color: #adb5bd;
           width: 32px;
@@ -507,14 +507,14 @@ class NotificationCenter extends LitElement {
         .notif-priority {
           font-size: 0.6rem;
           padding: 0.15rem 0.4rem;
-          border-radius: 4px;
+          border-radius: var(--radius-sm);
           font-weight: 600;
         }
         .notif-priority.P0 { background: rgba(239,68,68,0.2); color: #ff6b6b; }
         .notif-priority.P1 { background: rgba(251,146,60,0.2); color: #fb923c; }
         .notif-priority.P2 { background: rgba(0,212,170,0.2); color: #00d4aa; }
         .notif-body {
-          font-size: 0.75rem;
+          font-size: var(--text-xs);
           color: #adb5bd;
           margin-bottom: 0.5rem;
         }
@@ -530,8 +530,8 @@ class NotificationCenter extends LitElement {
         .notif-btn {
           flex: 1;
           padding: 0.5rem;
-          border-radius: 6px;
-          font-size: 0.75rem;
+          border-radius: var(--radius-sm);
+          font-size: var(--text-xs);
           font-weight: 600;
           cursor: pointer;
           border: 1px solid transparent;

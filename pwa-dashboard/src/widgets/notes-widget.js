@@ -47,11 +47,11 @@ class NotesWidget extends LitElement {
       border: 1px solid rgba(0, 212, 170, 0.3);
       color: #00d4aa;
       padding: 0.4rem 0.8rem;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       font-size: 0.8em;
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
     }
 
     .create-btn {
@@ -72,11 +72,11 @@ class NotesWidget extends LitElement {
     }
 
     .note-card {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
+      border: 1px solid var(--border-medium);
       border-radius: var(--radius-base);
       padding: 0.8rem;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
       position: relative;
       cursor: pointer;
     }
@@ -134,7 +134,7 @@ class NotesWidget extends LitElement {
       background: rgba(255, 193, 7, 0.2);
       color: #ffc107;
       padding: 0.1rem 0.4rem;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       font-size: 0.65em;
       font-weight: 600;
     }
@@ -143,7 +143,7 @@ class NotesWidget extends LitElement {
       background: linear-gradient(135deg, rgba(0, 122, 204, 0.2) 0%, rgba(0, 212, 170, 0.15) 100%);
       color: #00d4aa;
       padding: 0.1rem 0.4rem;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       font-size: 0.65em;
       font-weight: 500;
       text-transform: uppercase;

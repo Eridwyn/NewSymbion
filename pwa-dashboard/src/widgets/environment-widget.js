@@ -57,7 +57,7 @@ class EnvironmentWidget extends LitElement {
       align-items: center;
       margin-bottom: 16px;
       padding-bottom: 12px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      border-bottom: 1px solid var(--border-medium);
     }
 
     .widget-title {
@@ -72,7 +72,7 @@ class EnvironmentWidget extends LitElement {
     .sensor-count {
       font-size: 12px;
       color: #888;
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass-strong);
       padding: 4px 8px;
       border-radius: 12px;
     }
@@ -153,7 +153,7 @@ class EnvironmentWidget extends LitElement {
     }
 
     .room-card {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+      background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
       border: 1px solid rgba(0, 212, 170, 0.2);
       border-radius: 12px;
       padding: 18px;
@@ -171,7 +171,7 @@ class EnvironmentWidget extends LitElement {
       left: 0;
       width: 4px;
       height: 100%;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
     }
 
     .room-card.normal::before {
@@ -219,12 +219,12 @@ class EnvironmentWidget extends LitElement {
       align-items: center;
       gap: 6px;
       padding: 6px 12px;
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       font-size: 11px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.8px;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
@@ -299,7 +299,7 @@ class EnvironmentWidget extends LitElement {
       align-items: center;
       justify-content: space-between;
       padding-top: 12px;
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      border-top: 1px solid var(--border-medium);
       font-size: 12px;
       color: #888;
     }
@@ -365,7 +365,7 @@ class EnvironmentWidget extends LitElement {
       width: 100%;
       height: 100%;
       background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(8px);
+      backdrop-filter: blur(var(--blur-base));
       z-index: 1000;
       display: flex;
       align-items: center;
@@ -382,7 +382,7 @@ class EnvironmentWidget extends LitElement {
     .modal-content {
       background: linear-gradient(135deg, #1a1a1a 0%, #252525 100%);
       border: 1px solid rgba(0, 212, 170, 0.3);
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       max-width: 900px;
       width: 100%;
       max-height: 90vh;
@@ -407,7 +407,7 @@ class EnvironmentWidget extends LitElement {
       justify-content: space-between;
       align-items: center;
       padding: 24px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      border-bottom: 1px solid var(--border-medium);
     }
 
     .modal-title {
@@ -418,7 +418,7 @@ class EnvironmentWidget extends LitElement {
     }
 
     .modal-close {
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass-strong);
       border: 1px solid rgba(255, 255, 255, 0.2);
       color: #ffffff;
       width: 36px;

@@ -37,11 +37,11 @@ class PatternsModal extends LitElement {
 
     .modal-content {
       background: linear-gradient(135deg, rgba(30, 30, 30, 0.98) 0%, rgba(20, 20, 20, 0.98) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
-      border-radius: 16px;
+      border: 1px solid var(--ctx-border);
+      border-radius: var(--radius-lg);
       padding: 2rem;
       box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6),
-                  0 0 40px color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
+                  0 0 40px var(--ctx-bg);
     }
 
     .modal-header {
@@ -49,20 +49,11 @@ class PatternsModal extends LitElement {
       margin-bottom: 1.5rem;
       padding-bottom: 1rem;
       padding-right: 100px;
-      border-bottom: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+      border-bottom: 1px solid var(--ctx-border);
       animation: modalHeaderSlideIn 0.5s ease-out 0.1s backwards;
     }
 
-    @keyframes modalHeaderSlideIn {
-      from {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
+    /* modalHeaderSlideIn — see shared-animations.js */
 
     .modal-header::after {
       content: '';
@@ -79,7 +70,7 @@ class PatternsModal extends LitElement {
     }
 
     .modal-title {
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
       font-weight: 700;
       background: linear-gradient(135deg,
         var(--context-primary, #00d4aa) 0%,
@@ -87,7 +78,7 @@ class PatternsModal extends LitElement {
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
-      filter: drop-shadow(0 0 15px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent));
+      filter: drop-shadow(0 0 15px var(--ctx-border));
       animation: titlePulse 4s ease-in-out infinite;
     }
 
@@ -103,7 +94,7 @@ class PatternsModal extends LitElement {
         rgba(255, 107, 107, 0.08) 100%);
       color: #ff6b6b;
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
       font-size: 1rem;
     }
 
@@ -127,8 +118,8 @@ class PatternsModal extends LitElement {
       border-radius: var(--radius-md);
       background: linear-gradient(135deg,
         rgba(255, 255, 255, 0.06) 0%,
-        rgba(255, 255, 255, 0.03) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+        var(--surface-glass-subtle) 100%);
+      border: 1px solid var(--border-medium);
       display: flex;
       align-items: center;
       gap: 0.75rem;
@@ -158,16 +149,16 @@ class PatternsModal extends LitElement {
 
     .pattern-item:hover {
       background: linear-gradient(135deg,
-        rgba(255, 255, 255, 0.1) 0%,
-        rgba(255, 255, 255, 0.05) 100%);
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent);
+        var(--surface-glass-strong) 0%,
+        var(--surface-glass) 100%);
+      border-color: var(--ctx-border-strong);
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent),
-                  0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
+      box-shadow: 0 4px 12px var(--ctx-border),
+                  0 0 20px var(--ctx-bg);
     }
 
     .pattern-icon {
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
       transition: transform var(--duration-base) var(--ease-out);
     }
 
@@ -181,7 +172,7 @@ class PatternsModal extends LitElement {
     }
 
     .pattern-description {
-      font-size: 0.875rem;
+      font-size: var(--text-sm);
       color: #e0e0e0;
       font-weight: 500;
       overflow: hidden;
@@ -190,7 +181,7 @@ class PatternsModal extends LitElement {
     }
 
     .pattern-meta {
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       color: #808080;
       margin-top: 0.25rem;
       overflow: hidden;
@@ -201,7 +192,7 @@ class PatternsModal extends LitElement {
     .pattern-confidence {
       padding: 0.3rem 0.7rem;
       border-radius: var(--radius-md);
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       font-weight: 600;
       background: linear-gradient(135deg,
         rgba(16, 185, 129, 0.2) 0%,
@@ -262,12 +253,12 @@ class PatternsModal extends LitElement {
       }
 
       .modal-title {
-        font-size: 1.25rem;
+        font-size: var(--text-xl);
       }
 
       .close-btn {
         padding: 0.4rem 0.75rem;
-        font-size: 0.875rem;
+        font-size: var(--text-sm);
         border-radius: var(--radius-base);
       }
 
@@ -282,7 +273,7 @@ class PatternsModal extends LitElement {
       }
 
       .pattern-description {
-        font-size: 0.75rem;
+        font-size: var(--text-xs);
       }
 
       .pattern-meta {

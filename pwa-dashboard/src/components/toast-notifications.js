@@ -30,11 +30,11 @@ class ToastNotifications extends LitElement {
       -webkit-backdrop-filter: blur(20px);
       border-radius: var(--radius-lg, 12px);
       padding: var(--space-4, 1rem);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--border-medium);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
-                  0 0 0 1px rgba(255, 255, 255, 0.05);
+                  0 0 0 1px var(--surface-glass);
       animation: slideIn 0.3s ease-out;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
     }
 
     .toast.exiting {
@@ -160,13 +160,13 @@ class ToastNotifications extends LitElement {
     }
 
     .toast-btn-dismiss {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass);
+      border-color: var(--border-medium);
       color: var(--color-dark-text-secondary, #adb5bd);
     }
 
     .toast-btn-dismiss:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-glass-strong);
     }
 
     .toast-source {

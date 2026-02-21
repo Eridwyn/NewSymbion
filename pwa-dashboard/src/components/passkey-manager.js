@@ -10,18 +10,19 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedAnimations } from '../styles/shared-animations.js'
 import authService from '../services/auth-service.js'
 
 class PasskeyManager extends LitElement {
-  static styles = css`
+  static styles = [sharedAnimations, css`
     :host {
       display: block;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     }
 
     .passkey-container {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
+      border: 1px solid var(--border-medium);
       border-radius: 12px;
       padding: 1.5rem;
     }
@@ -51,7 +52,7 @@ class PasskeyManager extends LitElement {
       font-size: 0.9em;
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
       display: flex;
       align-items: center;
       gap: 0.5rem;
@@ -76,19 +77,19 @@ class PasskeyManager extends LitElement {
     }
 
     .passkey-item {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: linear-gradient(135deg, var(--surface-glass) 0%, var(--surface-glass-faint) 100%);
+      border: 1px solid var(--border-medium);
       border-radius: 8px;
       padding: 1rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
     }
 
     .passkey-item:hover {
       border-color: rgba(0, 212, 170, 0.3);
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%);
+      background: linear-gradient(135deg, var(--surface-glass-hover) 0%, rgba(255, 255, 255, 0.04) 100%);
     }
 
     .passkey-info {
@@ -122,10 +123,10 @@ class PasskeyManager extends LitElement {
       border: 1px solid rgba(255, 107, 107, 0.3);
       color: #ff6b6b;
       padding: 0.5rem 1rem;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       font-size: 0.85em;
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base) var(--ease-out);
     }
 
     .delete-btn:hover {
@@ -168,10 +169,8 @@ class PasskeyManager extends LitElement {
       animation: spin 1s linear infinite;
     }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-  `
+    /* spin — see shared-animations.js */
+  `]
 
   static properties = {
     passkeys: { type: Array },

@@ -92,12 +92,12 @@ class BootTerminal extends LitElement {
       background: linear-gradient(135deg,
         rgba(30, 30, 30, 0.95) 0%,
         rgba(20, 20, 20, 0.98) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      border: 1px solid var(--ctx-border-medium);
       border-radius: 24px;
       padding: 3rem 2.5rem;
       box-shadow: 0 24px 48px rgba(0, 0, 0, 0.7),
-                  0 0 60px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
-                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
+                  0 0 60px var(--ctx-border-subtle),
+                  inset 0 1px 0 var(--ctx-border-subtle);
       backdrop-filter: blur(var(--blur-xl, 20px));
       -webkit-backdrop-filter: blur(var(--blur-xl, 20px));
       position: relative;
@@ -109,13 +109,13 @@ class BootTerminal extends LitElement {
     @keyframes cardBreathing {
       0%, 100% {
         box-shadow: 0 24px 48px rgba(0, 0, 0, 0.7),
-                    0 0 60px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
-                    inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
+                    0 0 60px var(--ctx-border-subtle),
+                    inset 0 1px 0 var(--ctx-border-subtle);
       }
       50% {
         box-shadow: 0 28px 56px rgba(0, 0, 0, 0.75),
-                    0 0 80px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent),
-                    inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+                    0 0 80px var(--ctx-border),
+                    inset 0 1px 0 var(--ctx-border);
       }
     }
 
@@ -219,7 +219,7 @@ class BootTerminal extends LitElement {
     }
 
     .logo-subtitle {
-      font-size: 0.875rem;
+      font-size: var(--text-sm);
       color: #9ca3af;
       font-weight: 400;
       animation: subtitleFade 3s ease-in-out infinite;
@@ -262,7 +262,7 @@ class BootTerminal extends LitElement {
 
     .form-label {
       display: block;
-      font-size: 0.875rem;
+      font-size: var(--text-sm);
       font-weight: 500;
       color: #e5e7eb;
       margin-bottom: 0.5rem;
@@ -278,7 +278,7 @@ class BootTerminal extends LitElement {
       background: linear-gradient(135deg,
         rgba(0, 0, 0, 0.5) 0%,
         rgba(0, 0, 0, 0.3) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--border-medium);
       border-radius: var(--radius-md);
       color: #f3f4f6;
       font-size: 0.9375rem;
@@ -296,8 +296,8 @@ class BootTerminal extends LitElement {
         rgba(0, 0, 0, 0.6) 0%,
         rgba(0, 0, 0, 0.4) 100%);
       border-color: var(--context-primary, #00d4aa);
-      box-shadow: 0 0 0 4px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent),
-                  0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
+      box-shadow: 0 0 0 4px var(--ctx-border),
+                  0 0 20px var(--ctx-border-medium);
       animation: inputGlow 0.6s ease-out;
     }
 
@@ -314,8 +314,8 @@ class BootTerminal extends LitElement {
       font-weight: 600;
       cursor: pointer;
       transition: all var(--duration-base, 0.3s) ease;
-      box-shadow: 0 4px 12px color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent),
-                  0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
+      box-shadow: 0 4px 12px var(--ctx-bg-intense),
+                  0 0 20px var(--ctx-border);
       margin-top: 0.75rem;
       animation: btnFadeIn 0.6s ease-out 0.6s backwards;
     }
@@ -336,19 +336,19 @@ class BootTerminal extends LitElement {
         color-mix(in srgb, var(--context-primary, #00d4aa) 110%, white) 0%,
         var(--context-primary, #00d4aa) 100%);
       transform: translateY(-2px) scale(1.02);
-      box-shadow: 0 8px 20px color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent),
-                  0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
+      box-shadow: 0 8px 20px var(--ctx-border-strong),
+                  0 0 30px var(--ctx-bg-emphasis);
       animation: btnPulse 1.5s ease-in-out infinite;
     }
 
     @keyframes btnPulse {
       0%, 100% {
-        box-shadow: 0 8px 20px color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent),
-                    0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
+        box-shadow: 0 8px 20px var(--ctx-border-strong),
+                    0 0 30px var(--ctx-bg-emphasis);
       }
       50% {
-        box-shadow: 0 8px 24px color-mix(in srgb, var(--context-primary, #00d4aa) 50%, transparent),
-                    0 0 40px color-mix(in srgb, var(--context-primary, #00d4aa) 35%, transparent);
+        box-shadow: 0 8px 24px var(--ctx-border-intense),
+                    0 0 40px var(--ctx-bg-intense);
       }
     }
 
@@ -388,7 +388,7 @@ class BootTerminal extends LitElement {
       height: 1px;
       background: linear-gradient(90deg,
         transparent,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent),
+        var(--ctx-bg-intense),
         transparent);
     }
 
@@ -404,7 +404,7 @@ class BootTerminal extends LitElement {
       background: linear-gradient(135deg,
         rgba(0, 212, 170, 0.12) 0%,
         rgba(0, 212, 170, 0.08) 100%);
-      border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
+      border: 1px solid var(--ctx-bg-emphasis);
       border-radius: var(--radius-md);
       color: var(--context-primary, #00d4aa);
       font-size: 0.9375rem;
@@ -433,20 +433,20 @@ class BootTerminal extends LitElement {
       background: linear-gradient(135deg,
         rgba(0, 212, 170, 0.18) 0%,
         rgba(0, 212, 170, 0.12) 100%);
-      border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 40%, transparent);
+      border-color: var(--ctx-border-strong);
       transform: translateY(-2px) scale(1.01);
-      box-shadow: 0 6px 16px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent),
-                  0 0 24px color-mix(in srgb, var(--context-primary, #00d4aa) 12%, transparent);
+      box-shadow: 0 6px 16px var(--ctx-border-medium),
+                  0 0 24px var(--ctx-bg-medium);
       animation: biometricGlow 2s ease-in-out infinite;
     }
 
     @keyframes biometricGlow {
       0%, 100% {
-        box-shadow: 0 6px 16px color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent),
-                    0 0 24px color-mix(in srgb, var(--context-primary, #00d4aa) 12%, transparent);
+        box-shadow: 0 6px 16px var(--ctx-border-medium),
+                    0 0 24px var(--ctx-bg-medium);
       }
       50% {
-        box-shadow: 0 6px 20px color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent),
+        box-shadow: 0 6px 20px var(--ctx-bg-intense),
                     0 0 32px color-mix(in srgb, var(--context-primary, #00d4aa) 18%, transparent);
       }
     }
@@ -470,7 +470,7 @@ class BootTerminal extends LitElement {
       border: 1px solid rgba(255, 107, 107, 0.3);
       border-radius: var(--radius-md);
       color: #ff6b6b;
-      font-size: 0.875rem;
+      font-size: var(--text-sm);
       margin-bottom: 1.25rem;
       animation: errorShake 0.4s ease-out;
     }
@@ -490,7 +490,7 @@ class BootTerminal extends LitElement {
     .spinner {
       width: 48px;
       height: 48px;
-      border: 4px solid rgba(255, 255, 255, 0.1);
+      border: 4px solid var(--border-medium);
       border-top-color: var(--context-primary, #00d4aa);
       border-radius: 50%;
       animation: spin 1s linear infinite;
@@ -543,14 +543,14 @@ class BootTerminal extends LitElement {
 
     .success-text {
       color: var(--context-primary, #00d4aa);
-      font-size: 1.125rem;
+      font-size: var(--text-lg);
       font-weight: 600;
       margin-bottom: 0.5rem;
     }
 
     .success-subtext {
       color: #9ca3af;
-      font-size: 0.875rem;
+      font-size: var(--text-sm);
     }
 
     /* Checkbox */
@@ -569,7 +569,7 @@ class BootTerminal extends LitElement {
     }
 
     .checkbox-label {
-      font-size: 0.875rem;
+      font-size: var(--text-sm);
       color: #9ca3af;
       cursor: pointer;
       user-select: none;
@@ -611,8 +611,8 @@ class BootTerminal extends LitElement {
       }
     }
 
-    /* Mobile Large (480px to 640px) */
-    @media (max-width: 640px) {
+    /* Mobile Large (up to 768px) */
+    @media (max-width: 768px) {
       .login-container {
         padding: 1.5rem 1rem;
         justify-content: flex-start;
@@ -622,9 +622,9 @@ class BootTerminal extends LitElement {
       .login-card {
         max-width: 95%;
         padding: 2rem 1.5rem;
-        border-radius: 20px;
+        border-radius: var(--radius-xl);
         box-shadow: 0 16px 32px rgba(0, 0, 0, 0.6),
-                    0 0 40px color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
+                    0 0 40px var(--ctx-bg);
       }
 
       .logo-image {
@@ -667,7 +667,7 @@ class BootTerminal extends LitElement {
 
       .or-divider {
         margin: 1.25rem 0;
-        font-size: 0.75rem;
+        font-size: var(--text-xs);
       }
 
       /* Réduire particules sur mobile */
@@ -717,7 +717,7 @@ class BootTerminal extends LitElement {
       }
 
       .logo-subtitle {
-        font-size: 0.75rem;
+        font-size: var(--text-xs);
         margin-bottom: 1.25rem;
       }
 
@@ -726,13 +726,13 @@ class BootTerminal extends LitElement {
       }
 
       .form-label {
-        font-size: 0.75rem;
+        font-size: var(--text-xs);
         margin-bottom: 0.35rem;
       }
 
       .form-input {
         padding: 0.8rem 0.875rem;
-        font-size: 0.875rem;
+        font-size: var(--text-sm);
         border-radius: 10px;
       }
 
@@ -743,7 +743,7 @@ class BootTerminal extends LitElement {
       .submit-btn,
       .biometric-btn {
         padding: 0.8rem 0.875rem;
-        font-size: 0.875rem;
+        font-size: var(--text-sm);
         border-radius: 10px;
       }
 
@@ -777,7 +777,7 @@ class BootTerminal extends LitElement {
       }
 
       .success-title {
-        font-size: 1.5rem;
+        font-size: var(--text-2xl);
       }
 
       .success-message {
@@ -794,7 +794,7 @@ class BootTerminal extends LitElement {
 
       .login-card {
         padding: 1.5rem 1rem;
-        border-radius: 16px;
+        border-radius: var(--radius-lg);
       }
 
       .logo-image {
@@ -835,7 +835,7 @@ class BootTerminal extends LitElement {
       }
 
       .checkbox-label {
-        font-size: 0.75rem;
+        font-size: var(--text-xs);
       }
 
       .success-icon {

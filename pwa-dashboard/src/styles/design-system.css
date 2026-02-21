@@ -90,9 +90,12 @@
   --color-dark-text-tertiary: #94a3b8;
 
   /* Glass Surfaces */
+  --surface-glass-faint: rgba(255, 255, 255, 0.02);
+  --surface-glass-subtle: rgba(255, 255, 255, 0.03);
   --surface-glass: rgba(255, 255, 255, 0.05);
   --surface-glass-hover: rgba(255, 255, 255, 0.08);
   --surface-glass-strong: rgba(255, 255, 255, 0.1);
+  --surface-glass-bright: rgba(255, 255, 255, 0.15);
   --surface-overlay: rgba(0, 0, 0, 0.85);
 
   /* Borders */
@@ -128,10 +131,13 @@
   --ctx-border: color-mix(in srgb, var(--context-primary, #10b981) 15%, transparent);
   --ctx-border-medium: color-mix(in srgb, var(--context-primary, #10b981) 20%, transparent);
   --ctx-border-strong: color-mix(in srgb, var(--context-primary, #10b981) 40%, transparent);
+  --ctx-border-intense: color-mix(in srgb, var(--context-primary, #10b981) 50%, transparent);
   --ctx-bg-subtle: color-mix(in srgb, var(--context-primary, #10b981) 5%, transparent);
   --ctx-bg: color-mix(in srgb, var(--context-primary, #10b981) 8%, transparent);
   --ctx-bg-medium: color-mix(in srgb, var(--context-primary, #10b981) 12%, transparent);
   --ctx-bg-strong: color-mix(in srgb, var(--context-primary, #10b981) 20%, transparent);
+  --ctx-bg-emphasis: color-mix(in srgb, var(--context-primary, #10b981) 25%, transparent);
+  --ctx-bg-intense: color-mix(in srgb, var(--context-primary, #10b981) 30%, transparent);
   --ctx-glow-sm: 0 0 10px color-mix(in srgb, var(--context-primary, #10b981) 15%, transparent);
   --ctx-glow-md: 0 0 20px color-mix(in srgb, var(--context-primary, #10b981) 25%, transparent);
   --ctx-glow-lg: 0 0 30px color-mix(in srgb, var(--context-primary, #10b981) 30%, transparent);
