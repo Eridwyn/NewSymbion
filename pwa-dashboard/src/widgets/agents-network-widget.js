@@ -9,6 +9,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedAnimations } from '../styles/shared-animations.js'
 import '../services/agents-service.js'
 import '../components/organic-loader.js'
 import pollingScheduler from '../services/polling-scheduler.js'
@@ -22,7 +23,7 @@ class AgentsNetworkWidget extends LitElement {
     selectedAgent: { type: Object }
   }
   
-  static styles = css`
+  static styles = [sharedAnimations, css`
     :host {
       display: block;
       background: var(--widget-background, #1a1a1a);
@@ -49,6 +50,7 @@ class AgentsNetworkWidget extends LitElement {
       display: flex;
       align-items: center;
       gap: 8px;
+      animation: textGlow var(--bio-breathe-fast, 8s) ease-in-out infinite;
     }
 
     .view-toggle {
@@ -144,7 +146,8 @@ class AgentsNetworkWidget extends LitElement {
       background: linear-gradient(135deg, var(--surface-glass-bright) 0%, var(--surface-glass) 100%);
       border-color: var(--ctx-border-strong);
       transform: translateY(-4px) scale(1.02);
-      box-shadow: 0 12px 32px var(--ctx-border-medium);
+      box-shadow: 0 8px 32px var(--ctx-border-medium, rgba(0,212,170,0.2)),
+                  0 0 40px var(--ctx-bg-subtle, rgba(0,212,170,0.05));
     }
 
     .agent-card:hover::before {
@@ -449,7 +452,7 @@ class AgentsNetworkWidget extends LitElement {
         font-size: 14px;
       }
     }
-  `
+  `]
 
   constructor() {
     super()

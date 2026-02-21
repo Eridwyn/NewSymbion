@@ -213,6 +213,11 @@
   --duration-slow: 350ms;
   --duration-slower: 500ms;
 
+  /* Bioluminescent durations */
+  --bio-breathe-slow: 12s;
+  --bio-breathe-fast: 8s;
+  --bio-entrance: 0.6s;
+
   /* Easing Functions - Natural motion */
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);

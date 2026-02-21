@@ -8,10 +8,11 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedAnimations } from '../styles/shared-animations.js'
 import pollingScheduler from '../services/polling-scheduler.js'
 
 class HostsWidget extends LitElement {
-  static styles = css`
+  static styles = [sharedAnimations, css`
     :host {
       display: block;
     }
@@ -27,6 +28,7 @@ class HostsWidget extends LitElement {
       font-size: 1.2em;
       font-weight: 600;
       color: #e0e0e0;
+      animation: textGlow var(--bio-breathe-fast, 8s) ease-in-out infinite;
     }
     
     .hosts-count {
@@ -51,6 +53,8 @@ class HostsWidget extends LitElement {
     .host-card:hover {
       border-color: rgba(0, 122, 204, 0.3);
       background: var(--surface-glass);
+      box-shadow: 0 8px 32px var(--ctx-border-medium, rgba(0,212,170,0.2)),
+                  0 0 40px var(--ctx-bg-subtle, rgba(0,212,170,0.05));
     }
     
     .host-card.online {
@@ -169,8 +173,8 @@ class HostsWidget extends LitElement {
       font-size: 3em;
       margin-bottom: 1rem;
     }
-  `
-  
+  `]
+
   static properties = {
     hosts: { type: Array },
     connected: { type: Boolean },

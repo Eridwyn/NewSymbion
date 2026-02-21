@@ -49,6 +49,7 @@ class ContextEngineWidget extends LitElement {
       font-size: 0.9rem;
       font-weight: 600;
       color: var(--color-dark-text-primary, #f8f9fa);
+      animation: textGlow var(--bio-breathe-fast, 8s) ease-in-out infinite;
     }
 
     .content {

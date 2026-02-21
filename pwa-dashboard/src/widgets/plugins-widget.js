@@ -10,9 +10,10 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedAnimations } from '../styles/shared-animations.js'
 
 class PluginsWidget extends LitElement {
-  static styles = css`
+  static styles = [sharedAnimations, css`
     :host {
       display: block;
     }
@@ -28,6 +29,7 @@ class PluginsWidget extends LitElement {
       font-size: 1.2em;
       font-weight: 600;
       color: #e0e0e0;
+      animation: textGlow var(--bio-breathe-fast, 8s) ease-in-out infinite;
     }
     
     .plugins-count {
@@ -52,6 +54,8 @@ class PluginsWidget extends LitElement {
     .plugin-card:hover {
       border-color: rgba(0, 122, 204, 0.3);
       background: var(--surface-glass);
+      box-shadow: 0 8px 32px var(--ctx-border-medium, rgba(0,212,170,0.2)),
+                  0 0 40px var(--ctx-bg-subtle, rgba(0,212,170,0.05));
     }
     
     .plugin-header {
@@ -250,8 +254,8 @@ class PluginsWidget extends LitElement {
       border-radius: var(--radius-sm);
       margin-bottom: 1rem;
     }
-  `
-  
+  `]
+
   static properties = {
     plugins: { type: Array },
     apiService: { type: Object },

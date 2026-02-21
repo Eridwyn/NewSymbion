@@ -6,10 +6,11 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedAnimations } from '../styles/shared-animations.js'
 import '../components/organic-loader.js'
 
 class FreeboxWidget extends LitElement {
-  static styles = css`
+  static styles = [sharedAnimations, css`
     :host {
       display: block;
     }
@@ -25,6 +26,7 @@ class FreeboxWidget extends LitElement {
       font-size: 1.2em;
       font-weight: 600;
       color: #e0e0e0;
+      animation: textGlow var(--bio-breathe-fast, 8s) ease-in-out infinite;
     }
 
     .status-badge {
@@ -226,7 +228,7 @@ class FreeboxWidget extends LitElement {
         grid-template-columns: 1fr;
       }
     }
-  `
+  `]
 
   static properties = {
     presenceDevices: { type: Array },
