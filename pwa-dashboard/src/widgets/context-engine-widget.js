@@ -67,7 +67,12 @@ class ContextEngineWidget extends LitElement {
 
     .mode-icon {
       font-size: 2.5rem;
-      animation: float 3s ease-in-out infinite;
+      animation: icon-float 3s ease-in-out infinite;
+    }
+
+    @keyframes icon-float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
     }
 
     .mode-info {
