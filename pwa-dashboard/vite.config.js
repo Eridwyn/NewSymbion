@@ -86,6 +86,10 @@ export default defineConfig(({ mode }) => {
       }
     }
   },
+  test: {
+    environment: 'happy-dom',
+    include: ['src/**/*.test.js'],
+  },
   build: {
     outDir: 'dist',
     sourcemap: true,    // Debug en production si nécessaire

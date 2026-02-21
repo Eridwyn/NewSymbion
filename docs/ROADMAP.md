@@ -14,17 +14,17 @@
 | Composant | Langage | LOC | Fichiers | Score | Tests |
 |-----------|---------|----:|----------|-------|------:|
 | **symbion-kernel** | Rust | ~38,100 | 86 | 4.8/5 | 324 |
-| **pwa-dashboard** | JS (Lit) | ~29,000 | 43 | 3.5/5 | 0 |
+| **pwa-dashboard** | JS (Lit) | ~29,000 | 43 | 4.0/5 | 89 |
 | **symbion-agent-host** | Rust | ~2,100 | 13 | 4/5 | 14 |
 | **Plugins** (5) | Rust | ~4,900 | 14 | 4.8/5 | 2 |
 | **Infra** (scripts/CI) | Bash/YAML | ~2,400 | 20 | 3.5/5 | - |
-| **Total** | | **~84,170** | **176** | **4.3/5** | **324** |
+| **Total** | | **~84,170** | **176** | **4.4/5** | **429** |
 
 ### Chiffres Clés
 
 | Métrique | Valeur |
 |----------|--------|
-| Unit Tests | 324+ (324 kernel + 14 agent + 2 plugins) |
+| Unit Tests | 429+ (324 kernel + 89 PWA + 14 agent + 2 plugins) |
 | API Routes (http/) | 107 .route() across 7 modules |
 | MQTT Topics | 10 subscriptions |
 | Automations actives | 16 (+ intelligence-managed) |
@@ -225,10 +225,10 @@
 
 ## Phase Active
 
-### PR6 — Production Readiness 🟡 ~86%
+### PR6 — Production Readiness 🟡 ~93%
 **En cours** — Démarré Novembre 2025
 
-**Complété** (12/14) :
+**Complété** (13/14) :
 - [x] CSP headers (strict default-deny)
 - [x] HSTS headers
 - [x] Security documentation
@@ -241,9 +241,9 @@
 - [x] Log rotation journald (500M max, 30j rétention)
 - [x] Database backups automatiques (timer quotidien 3h, rotation 30j)
 - [x] Monitoring externe healthcheck.io
+- [x] TLS/SSL certificats (géré via Cloudflare)
 
-**Restant** (2/14) :
-- [ ] Let's Encrypt ACME integration (auto-renouvellement certificats)
+**Restant** (1/14) :
 - [ ] SQLite migration (remplacer 12 fichiers JSON)
 
 ---

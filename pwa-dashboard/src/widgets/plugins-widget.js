@@ -44,7 +44,7 @@ class PluginsWidget extends LitElement {
     .plugin-card {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       padding: 1rem;
       transition: all 0.3s ease;
     }
@@ -74,7 +74,7 @@ class PluginsWidget extends LitElement {
     
     .plugin-status {
       padding: 0.2rem 0.6rem;
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       font-size: 0.75em;
       font-weight: 500;
       text-transform: uppercase;

@@ -8,12 +8,13 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedAnimations } from '../styles/shared-animations.js'
 import authService from '../services/auth-service.js'
 import decisionService from '../services/decision-service.js'
 import './passkey-manager.js'
 
 class UserSettingsPage extends LitElement {
-  static styles = css`
+  static styles = [sharedAnimations, css`
     /* Overlay bio-organique avec glassmorphism */
     :host {
       display: block;
@@ -32,28 +33,12 @@ class UserSettingsPage extends LitElement {
       animation: fadeIn var(--duration-slow) var(--ease-out);
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-
     .settings-container {
       max-width: 800px;
       margin: var(--space-6) auto;
       padding: var(--space-6);
       overflow-x: hidden; /* Empêche scrollbar horizontal */
       animation: slideUp var(--duration-slow) var(--ease-out);
-    }
-
-    @keyframes slideUp {
-      from {
-        opacity: 0;
-        transform: translateY(40px) scale(0.97);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
     }
 
     /* Header bio-organique */
@@ -89,15 +74,6 @@ class UserSettingsPage extends LitElement {
       background-clip: text;
       filter: drop-shadow(0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent));
       animation: titlePulse 4s ease-in-out infinite, titleSlideIn 0.6s var(--ease-out);
-    }
-
-    @keyframes titlePulse {
-      0%, 100% {
-        filter: drop-shadow(0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent));
-      }
-      50% {
-        filter: drop-shadow(0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent));
-      }
     }
 
     @keyframes titleSlideIn {
@@ -310,7 +286,7 @@ class UserSettingsPage extends LitElement {
       width: 44px;
       height: 24px;
       background: rgba(255,255,255,0.1);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       cursor: pointer;
       transition: background 0.3s;
       border: none;
@@ -376,7 +352,7 @@ class UserSettingsPage extends LitElement {
       border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
       color: var(--context-primary, #00d4aa);
       padding: 0.8rem 1.5rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       font-size: 0.9em;
       font-weight: 500;
       cursor: pointer;
@@ -479,14 +455,14 @@ class UserSettingsPage extends LitElement {
     .qr-code {
       padding: 1rem;
       background: white;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
     }
 
     .secret-display {
       background: rgba(0, 0, 0, 0.3);
       border: 1px solid rgba(255, 255, 255, 0.2);
       padding: 1rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       font-family: 'Courier New', monospace;
       font-size: 1.1em;
       letter-spacing: 2px;
@@ -549,21 +525,6 @@ class UserSettingsPage extends LitElement {
       animation: inputGlow 0.6s ease-out; /* Pulse au focus */
     }
 
-    @keyframes inputGlow {
-      0% {
-        box-shadow: 0 0 0 0 color-mix(in srgb, var(--context-primary, #00d4aa) 20%, transparent);
-      }
-      50% {
-        box-shadow: 0 0 0 6px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
-                    0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
-      }
-      100% {
-        box-shadow: 0 0 0 3px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent),
-                    0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent),
-                    inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
-      }
-    }
-
     .input:hover:not(:focus) {
       border-color: rgba(255, 255, 255, 0.2);
       transform: translateY(-1px); /* Légère élévation */
@@ -574,7 +535,7 @@ class UserSettingsPage extends LitElement {
       padding: 1rem;
       background: rgba(255, 193, 7, 0.05);
       border: 1px solid rgba(255, 193, 7, 0.3);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
     }
 
     .backup-codes-title {
@@ -604,7 +565,7 @@ class UserSettingsPage extends LitElement {
 
     .alert {
       padding: 1rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       margin-bottom: 1rem;
       display: flex;
       align-items: flex-start;
@@ -643,10 +604,6 @@ class UserSettingsPage extends LitElement {
       border-top-color: var(--context-primary, #00d4aa);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
     }
 
     /* Mobile responsive - Compact */
@@ -708,7 +665,7 @@ class UserSettingsPage extends LitElement {
         margin: var(--space-3) 0;
       }
     }
-  `
+  `]
 
   static properties = {
     activeTab: { type: String },
@@ -1624,7 +1581,7 @@ class UserSettingsPage extends LitElement {
 
         ${this.stats ? html`
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
-            <div style="background: rgba(0, 212, 170, 0.05); border: 1px solid rgba(0, 212, 170, 0.2); border-radius: 8px; padding: 1rem; text-align: center;">
+            <div style="background: rgba(0, 212, 170, 0.05); border: 1px solid rgba(0, 212, 170, 0.2); border-radius: var(--radius-base); padding: 1rem; text-align: center;">
               <div style="font-size: 2em; color: var(--context-primary, #00d4aa);">
                 ${this.stats.total_evaluations || 0}
               </div>
@@ -1632,7 +1589,7 @@ class UserSettingsPage extends LitElement {
                 Évaluations totales
               </div>
             </div>
-            <div style="background: rgba(76, 175, 80, 0.05); border: 1px solid rgba(76, 175, 80, 0.2); border-radius: 8px; padding: 1rem; text-align: center;">
+            <div style="background: rgba(76, 175, 80, 0.05); border: 1px solid rgba(76, 175, 80, 0.2); border-radius: var(--radius-base); padding: 1rem; text-align: center;">
               <div style="font-size: 2em; color: #4caf50;">
                 ${this.stats.approved || 0}
               </div>
@@ -1640,7 +1597,7 @@ class UserSettingsPage extends LitElement {
                 Approuvées
               </div>
             </div>
-            <div style="background: rgba(255, 107, 107, 0.05); border: 1px solid rgba(255, 107, 107, 0.2); border-radius: 8px; padding: 1rem; text-align: center;">
+            <div style="background: rgba(255, 107, 107, 0.05); border: 1px solid rgba(255, 107, 107, 0.2); border-radius: var(--radius-base); padding: 1rem; text-align: center;">
               <div style="font-size: 2em; color: #ff6b6b;">
                 ${this.stats.rejected || 0}
               </div>
@@ -1648,7 +1605,7 @@ class UserSettingsPage extends LitElement {
                 Rejetées
               </div>
             </div>
-            <div style="background: rgba(255, 193, 7, 0.05); border: 1px solid rgba(255, 193, 7, 0.2); border-radius: 8px; padding: 1rem; text-align: center;">
+            <div style="background: rgba(255, 193, 7, 0.05); border: 1px solid rgba(255, 193, 7, 0.2); border-radius: var(--radius-base); padding: 1rem; text-align: center;">
               <div style="font-size: 2em; color: #ffc107;">
                 ${this.stats.pending || 0}
               </div>

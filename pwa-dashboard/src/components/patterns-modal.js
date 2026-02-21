@@ -6,9 +6,10 @@
 
 import { LitElement, html, css } from 'lit'
 import { getDayNameShort, utcHourToLocal } from '../utils/time-utils.js'
+import { sharedAnimations } from '../styles/shared-animations.js'
 
 class PatternsModal extends LitElement {
-  static styles = css`
+  static styles = [sharedAnimations, css`
     :host {
       display: block;
       position: fixed;
@@ -26,28 +27,12 @@ class PatternsModal extends LitElement {
       animation: fadeIn 0.3s ease-out;
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-
     .modal-container {
       max-width: 900px;
       margin: 2rem auto;
       padding: 2rem;
       overflow-x: hidden;
       animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    @keyframes modalSlideIn {
-      from {
-        opacity: 0;
-        transform: translateY(-30px) scale(0.95);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
     }
 
     .modal-content {
@@ -106,22 +91,13 @@ class PatternsModal extends LitElement {
       animation: titlePulse 4s ease-in-out infinite;
     }
 
-    @keyframes titlePulse {
-      0%, 100% {
-        filter: drop-shadow(0 0 15px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent));
-      }
-      50% {
-        filter: drop-shadow(0 0 25px color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent));
-      }
-    }
-
     .close-btn {
       position: absolute;
       top: 0;
       right: 0;
       padding: 0.5rem 1rem;
       border: 1px solid rgba(255, 107, 107, 0.3);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       background: linear-gradient(135deg,
         rgba(255, 107, 107, 0.15) 0%,
         rgba(255, 107, 107, 0.08) 100%);
@@ -148,7 +124,7 @@ class PatternsModal extends LitElement {
 
     .pattern-item {
       padding: 0.75rem;
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       background: linear-gradient(135deg,
         rgba(255, 255, 255, 0.06) 0%,
         rgba(255, 255, 255, 0.03) 100%);
@@ -224,7 +200,7 @@ class PatternsModal extends LitElement {
 
     .pattern-confidence {
       padding: 0.3rem 0.7rem;
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       font-size: 0.75rem;
       font-weight: 600;
       background: linear-gradient(135deg,
@@ -292,7 +268,7 @@ class PatternsModal extends LitElement {
       .close-btn {
         padding: 0.4rem 0.75rem;
         font-size: 0.875rem;
-        border-radius: 8px;
+        border-radius: var(--radius-base);
       }
 
       .pattern-item {
@@ -362,7 +338,7 @@ class PatternsModal extends LitElement {
         font-size: 0.6rem;
       }
     }
-  `
+  `]
 
   static properties = {
     patterns: { type: Array }

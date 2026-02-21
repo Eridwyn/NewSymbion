@@ -1,5 +1,6 @@
 import { LitElement, html, css } from 'lit'
 import './organic-loader.js'
+import { sharedAnimations } from '../styles/shared-animations.js'
 
 export class SslConfigPage extends LitElement {
   static properties = {
@@ -11,7 +12,7 @@ export class SslConfigPage extends LitElement {
     showAddForm: { type: Boolean }
   }
 
-  static styles = css`
+  static styles = [sharedAnimations, css`
     :host {
       display: block;
       position: fixed;
@@ -153,7 +154,7 @@ export class SslConfigPage extends LitElement {
     .domain-card {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       padding: 1.25rem;
       transition: all 0.2s ease;
     }
@@ -220,7 +221,7 @@ export class SslConfigPage extends LitElement {
       margin-bottom: 1rem;
       padding: 0.75rem;
       background: rgba(0, 0, 0, 0.2);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
     }
 
     .detail-item {
@@ -287,7 +288,7 @@ export class SslConfigPage extends LitElement {
     .domain-actions button {
       flex: 1;
       padding: 0.5rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       font-size: 0.8rem;
       font-weight: 500;
       cursor: pointer;
@@ -471,10 +472,6 @@ export class SslConfigPage extends LitElement {
       color: #666;
     }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
     .spinner {
       width: 24px;
       height: 24px;
@@ -491,7 +488,7 @@ export class SslConfigPage extends LitElement {
       padding: 1rem;
       background: color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent);
       border: 2px dashed color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       color: var(--context-primary, #00d4aa);
       font-size: 0.9rem;
       font-weight: 600;
@@ -549,7 +546,7 @@ export class SslConfigPage extends LitElement {
         flex-direction: column;
       }
     }
-  `
+  `]
 
   constructor() {
     super()

@@ -6,6 +6,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedAnimations } from '../styles/shared-animations.js'
 import csrfService from '../services/csrf-service.js'
 import automationsService from '../services/automations-service.js'
 import { getDayNameShort, getDayNameFull, getAllDayNamesShort, utcHourToLocal } from '../utils/time-utils.js'
@@ -28,7 +29,7 @@ function isStateType(type) {
 }
 
 class ContextEnginePage extends LitElement {
-  static styles = css`
+  static styles = [sharedAnimations, css`
     :host {
       position: fixed;
       inset: 0;
@@ -40,11 +41,6 @@ class ContextEnginePage extends LitElement {
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       animation: fadeIn 0.2s ease-out;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
     }
 
     .page {
@@ -62,30 +58,10 @@ class ContextEnginePage extends LitElement {
       animation: scaleIn 0.25s ease-out;
     }
 
-    @keyframes scaleIn {
-      from { opacity: 0; transform: scale(0.95); }
-      to { opacity: 1; transform: scale(1); }
-    }
-
-    @keyframes slideUp {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    @keyframes slideDown {
-      from { opacity: 1; transform: translateY(0); }
-      to { opacity: 0; transform: translateY(20px); }
-    }
-
     @keyframes pulse-ring {
       0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(var(--pulse-color), 0.7); }
       70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(var(--pulse-color), 0); }
       100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(var(--pulse-color), 0); }
-    }
-
-    @keyframes shimmer {
-      0% { background-position: -200% 0; }
-      100% { background-position: 200% 0; }
     }
 
     /* Intelligence Tab Animations */
@@ -134,7 +110,7 @@ class ContextEnginePage extends LitElement {
 
     .toast {
       padding: 0.75rem 1.25rem;
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       background: rgba(25, 26, 32, 0.95);
       border: 1px solid rgba(255, 255, 255, 0.1);
       backdrop-filter: blur(16px);
@@ -275,7 +251,7 @@ class ContextEnginePage extends LitElement {
         rgba(255, 255, 255, 0.03) 75%);
       background-size: 200% 100%;
       animation: shimmer 1.5s ease-in-out infinite;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
     }
 
     .skeleton-text {
@@ -334,7 +310,7 @@ class ContextEnginePage extends LitElement {
       font-size: 2rem;
       padding: 0.5rem;
       background: rgba(245, 158, 11, 0.15);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
     }
 
     .validation-info {
@@ -359,7 +335,7 @@ class ContextEnginePage extends LitElement {
       gap: 0.5rem;
       padding: 0.5rem 0.75rem;
       background: rgba(255, 255, 255, 0.03);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
     }
 
     .validation-trust-bar {
@@ -382,7 +358,7 @@ class ContextEnginePage extends LitElement {
 
     .validation-reasons {
       background: rgba(255, 255, 255, 0.02);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       padding: 0.75rem;
       margin-bottom: 1rem;
     }
@@ -505,7 +481,7 @@ class ContextEnginePage extends LitElement {
 
     .tab {
       padding: 0.5rem 1rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       background: transparent;
       border: 1px solid transparent;
       color: var(--color-dark-text-secondary, #adb5bd);
@@ -574,11 +550,6 @@ class ContextEnginePage extends LitElement {
       animation: float 3s ease-in-out infinite;
     }
 
-    @keyframes float {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-8px); }
-    }
-
     .mode-name {
       font-size: 1.5rem;
       font-weight: 700;
@@ -618,7 +589,7 @@ class ContextEnginePage extends LitElement {
       padding: 0.75rem 1rem;
       background: rgba(251, 146, 60, 0.1);
       border: 1px solid rgba(251, 146, 60, 0.3);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       color: #fb923c;
       font-size: 0.8rem;
     }
@@ -696,7 +667,7 @@ class ContextEnginePage extends LitElement {
 
     .clear-override-btn {
       padding: 0.5rem 1rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       border: 1px solid rgba(239, 68, 68, 0.3);
       background: rgba(239, 68, 68, 0.1);
       color: #ef4444;
@@ -713,7 +684,7 @@ class ContextEnginePage extends LitElement {
     .card {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       padding: 1rem;
       margin-bottom: 0.75rem;
       transition: all 0.2s;
@@ -750,7 +721,7 @@ class ContextEnginePage extends LitElement {
     /* Buttons */
     .btn {
       padding: 0.5rem 1rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       border: 1px solid transparent;
       font-size: 0.8rem;
       font-weight: 500;
@@ -1043,7 +1014,7 @@ class ContextEnginePage extends LitElement {
     .quick-action-btn {
       width: 28px;
       height: 28px;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       border: 1px solid rgba(255, 255, 255, 0.1);
       background: rgba(255, 255, 255, 0.05);
       color: var(--color-dark-text-secondary, #adb5bd);
@@ -1075,7 +1046,7 @@ class ContextEnginePage extends LitElement {
       flex-wrap: wrap;
       padding: 0.5rem;
       background: rgba(255, 255, 255, 0.02);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       border: 1px solid rgba(255, 255, 255, 0.05);
     }
 
@@ -1138,7 +1109,7 @@ class ContextEnginePage extends LitElement {
       margin-bottom: 1rem;
       padding: 0.75rem 1rem;
       background: rgba(255, 255, 255, 0.02);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       border: 1px solid rgba(255, 255, 255, 0.05);
     }
 
@@ -1344,7 +1315,7 @@ class ContextEnginePage extends LitElement {
       align-items: center;
       gap: 0.35rem;
       padding: 0.4rem 0.75rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.08);
       font-size: 0.75rem;
@@ -1480,7 +1451,7 @@ class ContextEnginePage extends LitElement {
       padding: 0.6rem 0.8rem;
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       color: var(--color-dark-text-primary, #f8f9fa);
       font-size: 0.9rem;
       transition: all 0.2s;
@@ -1531,7 +1502,7 @@ class ContextEnginePage extends LitElement {
     .current-mode-section {
       background: rgba(255, 255, 255, 0.02);
       border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       padding: 1rem;
     }
 
@@ -1602,7 +1573,7 @@ class ContextEnginePage extends LitElement {
       justify-content: space-between;
       background: rgba(245, 158, 11, 0.15);
       border: 1px solid rgba(245, 158, 11, 0.3);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       padding: 0.5rem 0.75rem;
       font-size: 0.85rem;
       color: #fbbf24;
@@ -1627,7 +1598,7 @@ class ContextEnginePage extends LitElement {
       padding: 0.5rem 0.75rem;
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       color: var(--color-dark-text-primary, #f8f9fa);
       font-size: 0.85rem;
       cursor: pointer;
@@ -1662,7 +1633,7 @@ class ContextEnginePage extends LitElement {
     .modes-management-section {
       background: rgba(255, 255, 255, 0.02);
       border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       padding: 1rem;
     }
 
@@ -1682,7 +1653,7 @@ class ContextEnginePage extends LitElement {
     .mode-card {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       padding: 1rem;
       transition: all 0.2s;
     }
@@ -1812,7 +1783,7 @@ class ContextEnginePage extends LitElement {
       font-size: 1.3rem;
       background: rgba(255, 255, 255, 0.05);
       border: 2px solid transparent;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       cursor: pointer;
       transition: all 0.2s;
     }
@@ -1846,7 +1817,7 @@ class ContextEnginePage extends LitElement {
       width: 100%;
       height: 40px;
       border: none;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       cursor: pointer;
       background: transparent;
     }
@@ -1897,7 +1868,7 @@ class ContextEnginePage extends LitElement {
       align-items: center;
       padding: 0.75rem;
       background: rgba(255, 255, 255, 0.03);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       margin-bottom: 1rem;
       font-size: 0.85rem;
       color: var(--color-dark-text-secondary);
@@ -1905,7 +1876,7 @@ class ContextEnginePage extends LitElement {
 
     .planning-grid {
       background: rgba(0, 0, 0, 0.2);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       padding: 0.5rem;
       margin-bottom: 1rem;
       overflow-x: auto;
@@ -1972,7 +1943,7 @@ class ContextEnginePage extends LitElement {
     .rule-card {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       padding: 0.75rem;
       margin-bottom: 0.5rem;
       transition: all 0.2s;
@@ -2088,7 +2059,7 @@ class ContextEnginePage extends LitElement {
         gap: 0.75rem;
       }
     }
-  `
+  `]
 
   static properties = {
     activeTab: { type: String },
@@ -3322,7 +3293,7 @@ class ContextEnginePage extends LitElement {
       </div>
 
       <!-- Trust Settings -->
-      <div class="form-group" style="background: rgba(0, 212, 170, 0.05); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(0, 212, 170, 0.2);">
+      <div class="form-group" style="background: rgba(0, 212, 170, 0.05); padding: 0.75rem; border-radius: var(--radius-base); border: 1px solid rgba(0, 212, 170, 0.2);">
         <label style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: #00d4aa;">🛡️ Niveau de confiance</label>
 
         <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
@@ -3353,7 +3324,7 @@ class ContextEnginePage extends LitElement {
         <label>Actions (${auto.actions?.length || 0})</label>
         <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
           ${(auto.actions || []).map((action, idx) => html`
-            <div class="action-item" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+            <div class="action-item" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: var(--radius-base); border: 1px solid rgba(255,255,255,0.08);">
               <span style="flex: 1; font-size: 0.85rem;">${this.getActionLabel(action)}</span>
               <button class="btn btn-small btn-icon btn-danger" @click="${() => this.removeAction(idx)}" title="Supprimer">✕</button>
             </div>
@@ -3361,7 +3332,7 @@ class ContextEnginePage extends LitElement {
         </div>
 
         <!-- Add Action -->
-        <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px dashed rgba(255,255,255,0.1);">
+        <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: var(--radius-base); border: 1px dashed rgba(255,255,255,0.1);">
           <div style="display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap;">
             <div style="flex: 1; min-width: 150px;">
               <label style="font-size: 0.75rem; color: var(--color-dark-text-tertiary);">Type d'action</label>
@@ -3577,7 +3548,7 @@ class ContextEnginePage extends LitElement {
           >?</button>
         </div>
 
-        <div class="rules-editor" style="padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+        <div class="rules-editor" style="padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: var(--radius-base); border: 1px solid rgba(255,255,255,0.08);">
           ${this.renderRulesGroup(rules, [], 0)}
         </div>
       </div>
@@ -3970,7 +3941,7 @@ class ContextEnginePage extends LitElement {
           >?</button>
         </div>
 
-        <div class="triggers-editor" style="padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+        <div class="triggers-editor" style="padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: var(--radius-base); border: 1px solid rgba(255,255,255,0.08);">
           ${this.renderTriggerGroup(triggersGroup, [], 0)}
         </div>
       </div>
@@ -4241,7 +4212,7 @@ class ContextEnginePage extends LitElement {
         </div>
 
         ${hasConditions ? html`
-          <div class="conditions-editor" style="padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+          <div class="conditions-editor" style="padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: var(--radius-base); border: 1px solid rgba(255,255,255,0.08);">
             ${this.renderConditionGroup(conditions, [], 0)}
           </div>
         ` : ''}
@@ -4728,7 +4699,7 @@ Exemple :
         <div class="validation-reasons" style="
           background: rgba(0, 0, 0, 0.2);
           border: 1px solid rgba(255,255,255,0.05);
-          border-radius: 12px;
+          border-radius: var(--radius-md);
           padding: 1rem;
           margin: 1rem 0;
         ">
@@ -4763,7 +4734,7 @@ Exemple :
             padding: 0.875rem 1.25rem;
             background: rgba(239, 68, 68, 0.1);
             border: 1px solid rgba(239, 68, 68, 0.3);
-            border-radius: 12px;
+            border-radius: var(--radius-md);
             color: #ef4444;
             font-size: 0.9rem;
             font-weight: 600;
@@ -4781,7 +4752,7 @@ Exemple :
             padding: 0.875rem 1.25rem;
             background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%);
             border: 1px solid rgba(34, 197, 94, 0.4);
-            border-radius: 12px;
+            border-radius: var(--radius-md);
             color: #22c55e;
             font-size: 0.9rem;
             font-weight: 600;
@@ -4975,7 +4946,7 @@ Exemple :
               <div class="notif-config-card" style="
                 background: rgba(255,255,255,0.03);
                 border: 1px solid rgba(255,255,255,0.08);
-                border-radius: 8px;
+                border-radius: var(--radius-base);
                 padding: 0.75rem;
                 ${!config.enabled ? 'opacity: 0.5;' : ''}
               ">
@@ -5056,7 +5027,7 @@ Exemple :
           <div style="
             background: linear-gradient(135deg, rgba(30, 32, 40, 0.98) 0%, rgba(20, 22, 28, 1) 100%);
             border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 12px;
+            border-radius: var(--radius-md);
             padding: 1.25rem;
             width: 90%;
             max-width: 450px;
@@ -5347,7 +5318,7 @@ Exemple :
 
             <!-- Correction Panel -->
             ${this.showPredictionCorrection ? html`
-              <div style="margin-top: 1rem; padding: 1rem; background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 12px; animation: card-enter 0.2s ease-out;">
+              <div style="margin-top: 1rem; padding: 1rem; background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: var(--radius-md); animation: card-enter 0.2s ease-out;">
                 ${this.predictionCorrectionSent ? html`
                   <div style="text-align: center; padding: 0.75rem; color: #22c55e; font-weight: 600; font-size: 0.95rem;">
                     ✓ Correction enregistree (v1+v2)
@@ -5376,7 +5347,7 @@ Exemple :
                 <div style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-dark-text-tertiary); margin-bottom: 0.75rem;">Samples Contributifs</div>
                 <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
                   ${prediction.why.slice(0, 5).map(w => html`
-                    <div style="padding: 0.5rem 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px; font-size: 0.75rem;">
+                    <div style="padding: 0.5rem 0.75rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-base); font-size: 0.75rem;">
                       <span style="color: #a78bfa;">${this.getModeIcon(w.mode)}</span>
                       <span style="color: var(--color-dark-text-secondary);">${w.mode}</span>
                       <span style="color: ${w.similarity >= 0.8 ? '#22c55e' : w.similarity >= 0.5 ? '#fb923c' : '#9ca3af'}; margin-left: 0.5rem;">
@@ -5440,25 +5411,25 @@ Exemple :
 
         <!-- Stats Section -->
         ${stats ? html`
-          <div class="section-card" style="background: rgba(30, 35, 45, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1rem;">
+          <div class="section-card" style="background: rgba(30, 35, 45, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); padding: 1rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
               <span style="font-size: 1rem;">📈</span>
               <h3 style="margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--color-dark-text-primary);">Statistiques Apprentissage</h3>
             </div>
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem;">
-              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px; text-align: center;">
+              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-base); text-align: center;">
                 <div style="font-size: 1.5rem; font-weight: 700; color: #a78bfa;">${stats.total_samples}</div>
                 <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">Total Samples</div>
               </div>
-              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px; text-align: center;">
+              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-base); text-align: center;">
                 <div style="font-size: 1.5rem; font-weight: 700; color: #22c55e;">${stats.by_source?.UserCorrection || 0}</div>
                 <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">Corrections</div>
               </div>
-              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px; text-align: center;">
+              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-base); text-align: center;">
                 <div style="font-size: 1.5rem; font-weight: 700; color: #fb923c;">${stats.by_source?.Bootstrap || 0}</div>
                 <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">Bootstrap</div>
               </div>
-              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px; text-align: center;">
+              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-base); text-align: center;">
                 <div style="font-size: 1.5rem; font-weight: 700; color: var(--color-dark-text-primary);">${(stats.average_weight || 0).toFixed(2)}</div>
                 <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">Poids Moyen</div>
               </div>
@@ -5552,7 +5523,7 @@ Exemple :
     const s = statusColors[status]
 
     return html`
-      <div style="padding: 0.5rem 0.75rem; background: ${s.bg}; border: 1px solid ${s.border}; border-radius: 8px;">
+      <div style="padding: 0.5rem 0.75rem; background: ${s.bg}; border: 1px solid ${s.border}; border-radius: var(--radius-base);">
         <div style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
           ${feature.feature_id}
         </div>

@@ -10,10 +10,11 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedAnimations } from '../styles/shared-animations.js'
 import authService from '../services/auth-service.js'
 
 class BootTerminal extends LitElement {
-  static styles = css`
+  static styles = [sharedAnimations, css`
     :host {
       display: block;
       position: fixed;
@@ -83,21 +84,6 @@ class BootTerminal extends LitElement {
       background: radial-gradient(circle, var(--context-primary, #00d4aa), transparent);
       bottom: 15%;
       right: 15%;
-    }
-
-    @keyframes float {
-      0%, 100% {
-        transform: translate(0, 0) scale(1);
-        opacity: 0.15;
-      }
-      33% {
-        transform: translate(30px, -30px) scale(1.1);
-        opacity: 0.2;
-      }
-      66% {
-        transform: translate(-20px, 20px) scale(0.9);
-        opacity: 0.12;
-      }
     }
 
     .login-card {
@@ -293,7 +279,7 @@ class BootTerminal extends LitElement {
         rgba(0, 0, 0, 0.5) 0%,
         rgba(0, 0, 0, 0.3) 100%);
       border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       color: #f3f4f6;
       font-size: 0.9375rem;
       font-family: inherit;
@@ -315,18 +301,6 @@ class BootTerminal extends LitElement {
       animation: inputGlow 0.6s ease-out;
     }
 
-    @keyframes inputGlow {
-      0% {
-        box-shadow: 0 0 0 0 color-mix(in srgb, var(--context-primary, #00d4aa) 30%, transparent);
-      }
-      50% {
-        box-shadow: 0 0 0 8px color-mix(in srgb, var(--context-primary, #00d4aa) 10%, transparent);
-      }
-      100% {
-        box-shadow: 0 0 0 4px color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent);
-      }
-    }
-
     .submit-btn {
       width: 100%;
       padding: 1rem 1.5rem;
@@ -334,7 +308,7 @@ class BootTerminal extends LitElement {
         var(--context-primary, #00d4aa) 0%,
         color-mix(in srgb, var(--context-primary, #00d4aa) 80%, #0066cc) 100%);
       border: none;
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       color: #0a0a0b;
       font-size: 1rem;
       font-weight: 600;
@@ -431,7 +405,7 @@ class BootTerminal extends LitElement {
         rgba(0, 212, 170, 0.12) 0%,
         rgba(0, 212, 170, 0.08) 100%);
       border: 1px solid color-mix(in srgb, var(--context-primary, #00d4aa) 25%, transparent);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       color: var(--context-primary, #00d4aa);
       font-size: 0.9375rem;
       font-weight: 600;
@@ -494,7 +468,7 @@ class BootTerminal extends LitElement {
         rgba(255, 107, 107, 0.15) 0%,
         rgba(255, 107, 107, 0.08) 100%);
       border: 1px solid rgba(255, 107, 107, 0.3);
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       color: #ff6b6b;
       font-size: 0.875rem;
       margin-bottom: 1.25rem;
@@ -523,19 +497,10 @@ class BootTerminal extends LitElement {
       margin: 0 auto 1.5rem;
     }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
     .loading-text {
       color: #9ca3af;
       font-size: 0.9375rem;
       animation: pulse 2s ease-in-out infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
     }
 
     /* Success State */
@@ -861,7 +826,7 @@ class BootTerminal extends LitElement {
       .biometric-btn {
         padding: 0.75rem 0.75rem;
         font-size: 0.85rem;
-        border-radius: 8px;
+        border-radius: var(--radius-base);
       }
 
       .or-divider {
@@ -885,7 +850,7 @@ class BootTerminal extends LitElement {
         font-size: 0.8rem;
       }
     }
-  `
+  `]
 
   static properties = {
     phase: { type: String }, // 'login', 'authenticating', 'success'

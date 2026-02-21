@@ -9,11 +9,12 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedAnimations } from '../styles/shared-animations.js'
 import csrfService from '../services/csrf-service.js'
 import { escapeHtml } from '../utils/sanitization.js'
 
 class NotificationCenter extends LitElement {
-  static styles = css`
+  static styles = [sharedAnimations, css`
     :host {
       position: relative;
       display: inline-flex;
@@ -56,7 +57,7 @@ class NotificationCenter extends LitElement {
       font-weight: 700;
       min-width: 16px;
       height: 16px;
-      border-radius: 8px;
+      border-radius: var(--radius-base);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -67,11 +68,6 @@ class NotificationCenter extends LitElement {
 
     .badge.hidden {
       display: none;
-    }
-
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.1); }
     }
 
     /* Modal overlay */
@@ -87,11 +83,6 @@ class NotificationCenter extends LitElement {
 
     .modal-overlay.hidden {
       display: none;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
     }
 
     /* Panel notifications - Modal centrée viewport */
@@ -117,17 +108,6 @@ class NotificationCenter extends LitElement {
 
     .panel.hidden {
       display: none;
-    }
-
-    @keyframes scaleIn {
-      from {
-        opacity: 0;
-        transform: scale(0.9);
-      }
-      to {
-        opacity: 1;
-        transform: scale(1);
-      }
     }
 
     .panel-header {
@@ -376,7 +356,7 @@ class NotificationCenter extends LitElement {
         max-height: calc(85vh - 60px);
       }
     }
-  `
+  `]
 
   static properties = {
     notifications: { type: Array },
@@ -439,7 +419,7 @@ class NotificationCenter extends LitElement {
           max-height: 80vh;
           background: linear-gradient(135deg, rgba(19, 20, 26, 0.99) 0%, rgba(10, 10, 11, 1) 100%);
           border: 1px solid rgba(0, 212, 170, 0.25);
-          border-radius: 12px;
+          border-radius: var(--radius-md);
           box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
           z-index: 9999;
           display: none;
