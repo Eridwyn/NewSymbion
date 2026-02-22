@@ -371,11 +371,18 @@ class DashboardApp extends LitElement {
       box-shadow: 0 4px 16px var(--ctx-border-subtle);
     }
 
-    /* User Dropdown */
+    /* Dropdown overlay (fermer en cliquant en dehors) */
+    .dropdown-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 999;
+    }
+
+    /* User Dropdown — maintenant hors du header, position fixed */
     .user-dropdown {
-      position: absolute;
-      top: calc(100% + var(--space-2));
-      right: 0;
+      position: fixed;
+      top: 70px;
+      right: var(--space-8);
       background: rgba(14, 14, 19, 0.97);
       backdrop-filter: blur(var(--blur-xl));
       -webkit-backdrop-filter: blur(var(--blur-xl));
@@ -827,9 +834,8 @@ class DashboardApp extends LitElement {
         display: none;
       }
 
-      /* Dropdown prend toute la largeur sur mobile */
+      /* Dropdown bottom sheet sur mobile */
       .user-dropdown {
-        position: fixed;
         top: auto;
         bottom: 0;
         left: 0;
@@ -839,6 +845,10 @@ class DashboardApp extends LitElement {
         padding: var(--space-5);
         border-bottom: none;
         animation: dropdownSlideUp var(--duration-slow) var(--ease-out);
+      }
+
+      .dropdown-overlay {
+        background: rgba(0, 0, 0, 0.4);
       }
 
       @keyframes dropdownSlideUp {
@@ -1221,32 +1231,33 @@ class DashboardApp extends LitElement {
               <span aria-hidden="true">👤</span>
               <span>${this.currentUser.username}</span>
             </button>
-
-            ${this.showUserMenu ? html`
-              <div class="user-dropdown" role="menu" aria-label="Actions utilisateur">
-                <div class="user-info">
-                  <div class="user-name">${this.currentUser.username}</div>
-                  <div class="user-role">${this.currentUser.role}</div>
-                  <div class="user-session">${this.getSessionDuration()}</div>
-                </div>
-                <button class="context-engine-button" @click="${this.handleOpenContextEngine}" aria-label="Decision Engine">
-                  <span aria-hidden="true">🧠</span>
-                  <span>Decision Engine</span>
-                </button>
-                <button class="settings-button" @click="${this.handleOpenSettings}" aria-label="Paramètres">
-                  <span aria-hidden="true">⚙️</span>
-                  <span>Paramètres</span>
-                </button>
-                <button class="logout-button" @click="${this.handleLogout}" aria-label="Déconnexion">
-                  <span aria-hidden="true">🚪</span>
-                  <span>Déconnexion</span>
-                </button>
-              </div>
-            ` : ''}
           </div>
         ` : ''}
       </div>
-      
+
+      ${this.showUserMenu ? html`
+        <div class="dropdown-overlay" @click="${this.toggleUserMenu}"></div>
+        <div class="user-dropdown" role="menu" aria-label="Actions utilisateur">
+          <div class="user-info">
+            <div class="user-name">${this.currentUser?.username}</div>
+            <div class="user-role">${this.currentUser?.role}</div>
+            <div class="user-session">${this.getSessionDuration()}</div>
+          </div>
+          <button class="context-engine-button" @click="${this.handleOpenContextEngine}" aria-label="Decision Engine">
+            <span aria-hidden="true">🧠</span>
+            <span>Decision Engine</span>
+          </button>
+          <button class="settings-button" @click="${this.handleOpenSettings}" aria-label="Paramètres">
+            <span aria-hidden="true">⚙️</span>
+            <span>Paramètres</span>
+          </button>
+          <button class="logout-button" @click="${this.handleLogout}" aria-label="Déconnexion">
+            <span aria-hidden="true">🚪</span>
+            <span>Déconnexion</span>
+          </button>
+        </div>
+      ` : ''}
+
       <div class="main-content">
         ${this.error ? html`
           <div class="error-message">
