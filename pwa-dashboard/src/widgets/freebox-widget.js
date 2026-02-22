@@ -17,34 +17,14 @@ class FreeboxWidget extends LitElement {
       display: block;
     }
 
-    .status-home {
-      background: linear-gradient(135deg, rgba(0, 212, 170, 0.25) 0%, rgba(34, 197, 94, 0.2) 100%);
-      color: #00d4aa;
-      border: 1px solid rgba(0, 212, 170, 0.4);
-      box-shadow: 0 2px 12px rgba(0, 212, 170, 0.3);
+    /* status-badge variants (.home, .away, .unknown) from shared statusBadgeStyles */
+    .status-badge.home {
       animation: pulse-home 3s ease-in-out infinite;
     }
 
-    .status-away {
-      background: linear-gradient(135deg, rgba(255, 107, 107, 0.25) 0%, rgba(239, 68, 68, 0.2) 100%);
-      color: #ff6b6b;
-      border: 1px solid rgba(255, 107, 107, 0.4);
-      box-shadow: 0 2px 12px rgba(255, 107, 107, 0.3);
-    }
-
-    .status-unknown {
-      background: linear-gradient(135deg, rgba(128, 128, 128, 0.25) 0%, rgba(100, 100, 100, 0.2) 100%);
-      color: #888;
-      border: 1px solid rgba(128, 128, 128, 0.4);
-    }
-
     @keyframes pulse-home {
-      0%, 100% {
-        box-shadow: 0 2px 12px rgba(0, 212, 170, 0.3);
-      }
-      50% {
-        box-shadow: 0 2px 16px rgba(0, 212, 170, 0.5);
-      }
+      0%, 100% { box-shadow: 0 2px 8px rgba(0, 212, 170, 0.25); }
+      50% { box-shadow: 0 2px 16px rgba(0, 212, 170, 0.5); }
     }
 
     .content-grid {
@@ -374,7 +354,7 @@ class FreeboxWidget extends LitElement {
     return html`
       <div class="widget-header">
         <span class="widget-title">Freebox</span>
-        <span class="status-badge status-${status}">${this._getStatusLabel()}</span>
+        <span class="status-badge ${status}">${this._getStatusLabel()}</span>
       </div>
 
       <div class="content-grid">

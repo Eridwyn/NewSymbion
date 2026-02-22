@@ -61,26 +61,7 @@ class PluginsWidget extends LitElement {
       margin-left: 0.5rem;
     }
     
-    /* status-badge base provided by statusBadgeStyles */
-    .status-badge.running {
-      background: rgba(0, 212, 170, 0.2);
-      color: #00d4aa;
-      border: 1px solid rgba(0, 212, 170, 0.3);
-    }
-
-    .status-badge.stopped,
-    .status-badge.failed {
-      background: rgba(255, 107, 107, 0.2);
-      color: #ff6b6b;
-      border: 1px solid rgba(255, 107, 107, 0.3);
-    }
-
-    .status-badge.starting,
-    .status-badge.stopping {
-      background: rgba(251, 191, 36, 0.2);
-      color: #fbbf24;
-      border: 1px solid rgba(251, 191, 36, 0.3);
-    }
+    /* status-badge variants (.running, .stopped, .starting, etc.) from shared statusBadgeStyles */
     
     .plugin-description {
       font-size: 0.9em;

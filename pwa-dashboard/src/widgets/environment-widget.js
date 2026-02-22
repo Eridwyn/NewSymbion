@@ -209,27 +209,9 @@ class EnvironmentWidget extends LitElement {
       text-transform: capitalize;
     }
 
-    .status-badge.ok,
-    .status-badge.normal {
-      background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, rgba(0, 212, 170, 0.2) 100%);
-      color: #00d4aa;
-      border: 1px solid rgba(0, 212, 170, 0.3);
-      box-shadow: 0 2px 12px rgba(0, 212, 170, 0.3);
-    }
-
+    /* status-badge variants (.ok, .normal, .mold_risk, .temp_low) from shared statusBadgeStyles */
     .status-badge.mold_risk {
-      background: linear-gradient(135deg, rgba(249, 115, 22, 0.25) 0%, rgba(234, 88, 12, 0.2) 100%);
-      color: #fdba74;
-      border: 1px solid rgba(249, 115, 22, 0.3);
-      box-shadow: 0 2px 12px rgba(249, 115, 22, 0.3);
       animation: pulse-warning 2s ease-in-out infinite;
-    }
-
-    .status-badge.temp_low {
-      background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(37, 99, 235, 0.2) 100%);
-      color: #93c5fd;
-      border: 1px solid rgba(59, 130, 246, 0.3);
-      box-shadow: 0 2px 12px rgba(59, 130, 246, 0.25);
     }
 
     @keyframes pulse-warning {
