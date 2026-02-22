@@ -149,7 +149,7 @@ class EnvironmentWidget extends LitElement {
 
     .room-card {
       background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
-      border: 1px solid rgba(0, 212, 170, 0.2);
+      border: 1px solid var(--ctx-border-medium);
       border-radius: 12px;
       padding: 18px;
       transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -186,9 +186,9 @@ class EnvironmentWidget extends LitElement {
 
     .room-card:hover {
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
-      border-color: rgba(0, 212, 170, 0.4);
+      border-color: var(--ctx-border-strong);
       transform: translateY(-4px) scale(1.02);
-      box-shadow: 0 12px 32px rgba(0, 212, 170, 0.2);
+      box-shadow: 0 12px 32px var(--ctx-bg-strong);
     }
 
     .room-card:hover::before {
@@ -344,7 +344,7 @@ class EnvironmentWidget extends LitElement {
 
     .modal-content {
       background: linear-gradient(135deg, #1a1a1a 0%, #252525 100%);
-      border: 1px solid rgba(0, 212, 170, 0.3);
+      border: 1px solid var(--ctx-border-medium);
       border-radius: var(--radius-lg);
       max-width: 900px;
       width: 100%;

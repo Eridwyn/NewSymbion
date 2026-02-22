@@ -23,8 +23,8 @@ class FreeboxWidget extends LitElement {
     }
 
     @keyframes pulse-home {
-      0%, 100% { box-shadow: 0 2px 8px rgba(0, 212, 170, 0.25); }
-      50% { box-shadow: 0 2px 16px rgba(0, 212, 170, 0.5); }
+      0%, 100% { box-shadow: 0 2px 8px var(--ctx-bg-emphasis); }
+      50% { box-shadow: 0 2px 16px var(--ctx-border-intense); }
     }
 
     .content-grid {
@@ -81,8 +81,8 @@ class FreeboxWidget extends LitElement {
     }
 
     .status-dot.home {
-      background: #00d4aa;
-      box-shadow: 0 0 8px rgba(0, 212, 170, 0.5);
+      background: var(--context-primary);
+      box-shadow: var(--ctx-glow-sm);
     }
 
     .status-dot.away {
@@ -95,7 +95,7 @@ class FreeboxWidget extends LitElement {
     }
 
     .presence-label.home {
-      color: #00d4aa;
+      color: var(--context-primary);
     }
 
     .presence-label.away {
@@ -118,7 +118,7 @@ class FreeboxWidget extends LitElement {
     .stat-value {
       font-size: 1.4em;
       font-weight: 700;
-      color: #00d4aa;
+      color: var(--context-primary);
     }
 
     .stat-unit {
@@ -149,7 +149,7 @@ class FreeboxWidget extends LitElement {
     .connection-type svg {
       width: 14px;
       height: 14px;
-      fill: #00d4aa;
+      fill: var(--context-primary);
     }
 
     .loader-container {

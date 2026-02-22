@@ -23,8 +23,8 @@ class SystemHealthWidget extends LitElement {
     .status-badge.error { animation: pulse-error 1.5s ease-in-out infinite; }
 
     @keyframes pulse-healthy {
-      0%, 100% { box-shadow: 0 2px 8px rgba(0, 212, 170, 0.25); }
-      50% { box-shadow: 0 2px 16px rgba(0, 212, 170, 0.5); }
+      0%, 100% { box-shadow: 0 2px 8px var(--ctx-bg-emphasis); }
+      50% { box-shadow: 0 2px 16px var(--ctx-border-intense); }
     }
 
     @keyframes pulse-warning {
@@ -105,15 +105,15 @@ class SystemHealthWidget extends LitElement {
 
     .status-indicator.connected {
       color: var(--context-primary, #00d4aa);
-      text-shadow: 0 0 20px rgba(0, 212, 170, 0.8),
+      text-shadow: 0 0 20px color-mix(in srgb, var(--context-primary) 80%, transparent),
                    0 0 40px var(--ctx-border-strong);
       animation: statusPulse 2s ease-in-out infinite !important;
     }
 
     .status-indicator.connecting {
-      color: #ffd93d;
-      text-shadow: 0 0 20px rgba(255, 217, 61, 0.6),
-                   0 0 40px rgba(255, 217, 61, 0.3);
+      color: #fbbf24;
+      text-shadow: 0 0 20px rgba(251, 191, 36, 0.6),
+                   0 0 40px rgba(251, 191, 36, 0.3);
       animation: statusSpin 2s linear infinite !important;
     }
 

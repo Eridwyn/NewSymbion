@@ -217,10 +217,10 @@ export const statusBadgeStyles = css`
   .status-badge.running,
   .status-badge.home,
   .status-badge.normal {
-    background: linear-gradient(135deg, rgba(0, 212, 170, 0.25) 0%, rgba(34, 197, 94, 0.2) 100%);
-    color: #00d4aa;
-    border: 1px solid rgba(0, 212, 170, 0.35);
-    box-shadow: 0 2px 8px rgba(0, 212, 170, 0.25);
+    background: linear-gradient(135deg, var(--ctx-bg-emphasis) 0%, var(--ctx-bg-strong) 100%);
+    color: var(--context-primary, #00d4aa);
+    border: 1px solid var(--ctx-border-strong);
+    box-shadow: 0 2px 8px var(--ctx-border-medium);
   }
 
   .status-badge.warning,
