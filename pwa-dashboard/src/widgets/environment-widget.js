@@ -10,6 +10,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { statusBadgeStyles } from '../styles/shared-patterns.js'
 import DOMPurify from 'dompurify'
 import '../components/organic-loader.js'
 import { Chart, registerables } from 'chart.js'
@@ -40,7 +41,7 @@ class EnvironmentWidget extends LitElement {
     loadingChart: { type: Boolean }
   }
 
-  static styles = css`
+  static styles = [statusBadgeStyles, css`
     :host {
       display: block;
       background: var(--widget-background, #1a1a1a);
@@ -212,20 +213,6 @@ class EnvironmentWidget extends LitElement {
       font-weight: 600;
       color: #ffffff;
       text-transform: capitalize;
-    }
-
-    .status-badge {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      border-radius: var(--radius-lg);
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      transition: all var(--duration-base) var(--ease-out);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
     .status-badge.ok,
@@ -510,7 +497,7 @@ class EnvironmentWidget extends LitElement {
         font-size: 14px;
       }
     }
-  `
+  `]
 
   constructor() {
     super()

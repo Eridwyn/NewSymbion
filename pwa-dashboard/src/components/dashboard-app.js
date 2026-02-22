@@ -7,6 +7,7 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
+import { statusDotStyles } from '../styles/shared-patterns.js'
 import { manageFocusTrap } from '../utils/focus-trap.js'
 import authService from '../services/auth-service.js'
 import csrfService from '../services/csrf-service.js'
@@ -38,7 +39,7 @@ import './notification-center.js'
 import automationsService from '../services/automations-service.js'
 
 class DashboardApp extends LitElement {
-  static styles = [sharedAnimations, css`
+  static styles = [sharedAnimations, statusDotStyles, css`
     :host {
       display: block;
       min-height: 100vh;
@@ -255,13 +256,6 @@ class DashboardApp extends LitElement {
     }
 
     /* Status Dots - Bioluminescent pulse */
-    .status-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: var(--radius-full);
-      transition: all var(--duration-base) var(--ease-out);
-    }
-
     .status-dot.online,
     .status-dot.connected {
       background: var(--context-primary, #00d4aa);

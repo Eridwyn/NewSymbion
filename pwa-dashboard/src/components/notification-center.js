@@ -47,7 +47,7 @@ class NotificationCenter extends LitElement {
     }
 
     /* Badge compteur */
-    .badge {
+    .counter-badge {
       position: absolute;
       top: -4px;
       right: -4px;
@@ -66,7 +66,7 @@ class NotificationCenter extends LitElement {
       animation: pulse 2s infinite;
     }
 
-    .badge.hidden {
+    .counter-badge.hidden {
       display: none;
     }
 
@@ -339,7 +339,7 @@ class NotificationCenter extends LitElement {
         font-size: 0.85rem;
       }
 
-      .badge {
+      .counter-badge {
         top: -3px;
         right: -3px;
         min-width: 14px;
@@ -818,7 +818,7 @@ class NotificationCenter extends LitElement {
     return html`
       <button class="bell-button" @click="${this.togglePanel}" aria-label="Notifications" title="Notifications">
         🔔
-        <span class="badge ${this.unreadCount === 0 ? 'hidden' : ''}" aria-label="${this.unreadCount} notifications non lues">
+        <span class="counter-badge ${this.unreadCount === 0 ? 'hidden' : ''}" aria-label="${this.unreadCount} notifications non lues">
           ${this.unreadCount > 9 ? '9+' : this.unreadCount}
         </span>
       </button>

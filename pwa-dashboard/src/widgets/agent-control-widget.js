@@ -11,7 +11,7 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
-import { overlayStyles } from '../styles/shared-patterns.js'
+import { overlayStyles, statusBadgeStyles } from '../styles/shared-patterns.js'
 import '../services/agents-service.js'
 import pollingScheduler from '../services/polling-scheduler.js'
 
@@ -30,7 +30,7 @@ class AgentControlWidget extends LitElement {
     currentCommandId: { type: String }
   }
 
-  static styles = [sharedAnimations, overlayStyles, css`
+  static styles = [sharedAnimations, overlayStyles, statusBadgeStyles, css`
     :host {
       background: radial-gradient(ellipse at center,
         color-mix(in srgb, var(--context-primary, #00d4aa) 3%, rgba(0, 0, 0, 0.85)) 0%,
@@ -119,32 +119,9 @@ class AgentControlWidget extends LitElement {
       color: #888;
     }
 
-    .status-badge {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 16px;
-      border-radius: var(--radius-lg);
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    }
-
+    /* Local override — animation only (base from statusBadgeStyles) */
     .status-badge.online {
-      background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, var(--ctx-border-medium) 100%);
-      color: var(--context-primary, #00d4aa);
-      border: 1px solid var(--ctx-border-strong);
-      box-shadow: 0 2px 12px var(--ctx-border-strong);
       animation: pulse-online 3s ease-in-out infinite;
-    }
-
-    .status-badge.offline {
-      background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.2) 100%);
-      color: #fca5a5;
-      border: 1px solid rgba(239, 68, 68, 0.4);
-      box-shadow: 0 2px 12px rgba(239, 68, 68, 0.3);
     }
 
     @keyframes pulse-online {

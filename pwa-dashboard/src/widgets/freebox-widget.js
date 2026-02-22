@@ -8,23 +8,13 @@
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles } from '../styles/shared-widget.js'
+import { statusBadgeStyles, statusDotStyles } from '../styles/shared-patterns.js'
 import '../components/organic-loader.js'
 
 class FreeboxWidget extends LitElement {
-  static styles = [sharedAnimations, widgetHeaderStyles, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, statusBadgeStyles, statusDotStyles, css`
     :host {
       display: block;
-    }
-
-    .status-badge {
-      padding: 0.5rem 1rem;
-      border-radius: var(--radius-xl);
-      font-size: 0.75em;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      transition: all var(--duration-base) var(--ease-out);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
     .status-home {
@@ -122,12 +112,6 @@ class FreeboxWidget extends LitElement {
       display: flex;
       align-items: center;
       gap: 0.4rem;
-    }
-
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
     }
 
     .status-dot.home {
