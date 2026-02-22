@@ -245,10 +245,20 @@ impl WebAuthnManager {
             .start_passkey_authentication(&all_passkeys)?;
 
         // Stocker l'état temporaire avec clé spéciale "discoverable" + expiration (5 minutes)
+        // Nettoyer les anciens états discoverable pour éviter les race conditions
+        // (un seul challenge discoverable actif à la fois)
         let expires_at = time::OffsetDateTime::now_utc().unix_timestamp() + 300;
         let state_key = format!("discoverable_{}", expires_at);
 
         let mut states = self.authentication_states.write();
+        let stale_keys: Vec<String> = states
+            .keys()
+            .filter(|k| k.starts_with("discoverable_"))
+            .cloned()
+            .collect();
+        for key in stale_keys {
+            states.remove(&key);
+        }
         states.insert(
             state_key.clone(),
             AuthenticationState {
