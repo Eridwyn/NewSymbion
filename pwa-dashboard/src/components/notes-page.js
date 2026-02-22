@@ -20,107 +20,74 @@ class NotesPage extends LitElement {
     :host {
       display: block;
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(var(--blur-md));
-      -webkit-backdrop-filter: blur(var(--blur-md));
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(var(--blur-xl));
+      -webkit-backdrop-filter: blur(var(--blur-xl));
       z-index: 9999;
       overflow-y: auto;
-      animation: fadeIn 0.3s ease;
+      animation: fadeIn var(--duration-slow) var(--ease-out);
     }
 
     .notes-container {
       max-width: 1200px;
-      margin: 2rem auto;
-      padding: 2rem;
-      overflow-x: hidden; /* Empêche débordement horizontal */
-      animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      margin: var(--space-6) auto;
+      padding: var(--space-6);
+      overflow-x: hidden;
+      animation: slideUp var(--duration-slow) var(--ease-out);
     }
 
     .notes-header {
       position: relative;
-      margin-bottom: 2rem;
-      padding-bottom: 1rem;
-      padding-right: 120px; /* Espace pour bouton fermer */
-      border-bottom: 2px solid var(--context-primary, #00d4aa);
-      animation: headerSlideIn 0.6s var(--ease-out);
-    }
-
-    @keyframes headerSlideIn {
-      from {
-        opacity: 0;
-        transform: translateY(-20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-6);
+      padding-bottom: var(--space-4);
+      border-bottom: 1px solid var(--border-default);
     }
 
     .notes-title {
-      font-size: 2em;
-      font-weight: 600;
-      background: linear-gradient(135deg, var(--context-primary, #00d4aa) 0%, #007acc 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      filter: drop-shadow(0 0 20px var(--ctx-border));
-      animation: titlePulse 4s ease-in-out infinite;
+      font-size: var(--text-2xl);
+      font-weight: var(--font-bold);
+      color: var(--color-dark-text-primary, #f8f9fa);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
     }
 
     .close-button {
-      position: absolute;
-      top: 0;
-      right: 0;
-      background: rgba(255, 107, 107, 0.15);
-      border: 1px solid rgba(255, 107, 107, 0.3);
-      color: #ff6b6b;
-      padding: 0.6rem 1.2rem;
-      border-radius: var(--radius-base);
-      font-size: 0.9em;
-      font-weight: 500;
+      background: var(--surface-glass-hover, rgba(255,255,255,0.08));
+      border: none;
+      color: var(--color-dark-text-secondary, #adb5bd);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
       cursor: pointer;
+      font-size: 1.2rem;
       transition: all var(--duration-base) var(--ease-out);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: static;
     }
 
     .close-button:hover {
-      background: rgba(255, 107, 107, 0.25);
-      border-color: rgba(255, 107, 107, 0.5);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
     }
 
     .toolbar {
       display: flex;
-      gap: 1rem;
+      gap: var(--space-3);
       flex-wrap: wrap;
       align-items: center;
-      margin-bottom: 2rem;
-      padding: 1.5rem;
-      background: linear-gradient(135deg, rgba(26, 26, 26, 0.9) 0%, rgba(15, 15, 15, 0.85) 100%);
-      border: 1px solid var(--border-medium);
-      border-radius: var(--radius-md);
-      transition: all var(--duration-base) ease-out;
-      animation: toolbarSlideIn 0.5s ease-out 0.2s backwards; /* Delay 0.2s pour stagger */
-    }
-
-    @keyframes toolbarSlideIn {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .toolbar:hover {
-      border-color: var(--border-hover);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+      margin-bottom: var(--space-6);
+      padding: var(--space-4);
+      background: var(--surface-glass-subtle, rgba(255,255,255,0.03));
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      transition: all var(--duration-base) var(--ease-out);
     }
 
     .search-box {
@@ -165,56 +132,31 @@ class NotesPage extends LitElement {
     }
 
     .filter-btn {
-      background: var(--surface-glass);
-      border: 1px solid var(--border-hover);
-      color: #ccc;
-      padding: 0.5rem 1rem;
-      border-radius: var(--radius-base);
-      font-size: 0.85em;
-      font-weight: 500;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--color-dark-text-secondary, #adb5bd);
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-md);
+      font-size: var(--text-sm);
+      font-weight: var(--font-medium);
       cursor: pointer;
       transition: all var(--duration-base) var(--ease-out);
       white-space: nowrap;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .filter-btn::before {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      width: 0;
-      height: 2px;
-      background: var(--context-primary, #00d4aa);
-      transform: translateX(-50%);
-      transition: width 0.3s ease;
-      box-shadow: 0 0 8px var(--context-primary, #00d4aa);
     }
 
     .filter-btn:hover {
-      background: var(--surface-glass-hover);
-      border-color: var(--context-primary, #00d4aa);
-      transform: translateY(-1px);
-    }
-
-    .filter-btn:hover::before {
-      width: 80%;
+      background: var(--surface-glass, rgba(255,255,255,0.06));
+      color: var(--color-dark-text-primary, #f8f9fa);
     }
 
     .filter-btn.active {
-      background: linear-gradient(135deg, rgba(0, 122, 204, 0.3) 0%, var(--ctx-bg-emphasis) 100%);
-      border-color: var(--context-primary, #00d4aa);
+      background: var(--ctx-bg, rgba(0,212,170,0.05));
+      border-color: var(--ctx-border, rgba(0,212,170,0.15));
       color: var(--context-primary, #00d4aa);
-      box-shadow: 0 2px 10px var(--ctx-border-strong);
-    }
-
-    .filter-btn.active::before {
-      width: 100%;
     }
 
     .filter-btn:active {
-      transform: translateY(0) scale(0.98);
+      transform: scale(0.98);
     }
 
     .context-filter-toggle {
@@ -850,20 +792,8 @@ class NotesPage extends LitElement {
         padding: 1rem;
       }
 
-      .notes-header {
-        padding-right: 0; /* Reset padding-right sur mobile */
-        padding-bottom: var(--space-6); /* Plus d'espace pour le bouton */
-      }
-
       .notes-title {
         font-size: 1.5em;
-        max-width: calc(100% - 70px); /* Espace pour le bouton */
-      }
-
-      .close-button {
-        /* Reste en absolute top-right */
-        padding: 0.5rem 1rem;
-        font-size: 0.8em;
       }
 
       .toolbar {
@@ -1202,7 +1132,7 @@ class NotesPage extends LitElement {
       <div class="notes-container">
         <div class="notes-header">
           <h1 class="notes-title">📝 Gestion des Notes</h1>
-          <button class="close-button" @click="${this.close}">✕ Fermer</button>
+          <button class="close-button" @click="${this.close}">✕</button>
         </div>
 
         <div class="toolbar">

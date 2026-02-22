@@ -17,9 +17,9 @@ export class SslConfigPage extends LitElement {
       display: block;
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.92);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
+      background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(var(--blur-xl));
+      -webkit-backdrop-filter: blur(var(--blur-xl));
       z-index: 1000;
       overflow-y: auto;
       overflow-x: hidden;
@@ -30,8 +30,7 @@ export class SslConfigPage extends LitElement {
     .page-container {
       max-width: 800px;
       margin: 0 auto;
-      padding: 1.5rem;
-      padding-top: 1.5rem;
+      padding: var(--space-5);
       padding-bottom: 120px;
       min-height: 100%;
       box-sizing: border-box;
@@ -51,8 +50,8 @@ export class SslConfigPage extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 2rem;
-      padding-bottom: 1rem;
+      margin-bottom: var(--space-6);
+      padding-bottom: var(--space-4);
       border-bottom: 1px solid var(--border-default);
     }
 
@@ -63,22 +62,23 @@ export class SslConfigPage extends LitElement {
     }
 
     .back-btn {
-      background: transparent;
-      border: 1px solid var(--border-medium);
-      color: #888;
-      width: 40px;
-      height: 40px;
-      border-radius: 10px;
+      background: var(--surface-glass-hover, rgba(255,255,255,0.08));
+      border: none;
+      color: var(--color-dark-text-secondary, #adb5bd);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.2s ease;
+      transition: all var(--duration-base) var(--ease-out);
+      font-size: 1.1rem;
     }
 
     .back-btn:hover {
-      background: var(--surface-glass);
-      color: #e0e0e0;
+      background: var(--ctx-bg, rgba(0,212,170,0.05));
+      color: var(--context-primary, #00d4aa);
     }
 
     .page-title-group {
@@ -90,10 +90,10 @@ export class SslConfigPage extends LitElement {
     .page-title {
       font-size: var(--text-2xl);
       font-weight: 600;
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: var(--space-3);
     }
 
     .page-title-icon {
@@ -101,8 +101,8 @@ export class SslConfigPage extends LitElement {
     }
 
     .page-subtitle {
-      font-size: 0.85rem;
-      color: #666;
+      font-size: var(--text-sm);
+      color: var(--color-dark-text-tertiary, #6c757d);
     }
 
     .header-actions {
@@ -127,12 +127,12 @@ export class SslConfigPage extends LitElement {
     }
 
     .section-title {
-      font-size: 0.9rem;
+      font-size: var(--text-sm);
       font-weight: 600;
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: var(--space-2);
     }
 
     .section-badge {
@@ -232,7 +232,7 @@ export class SslConfigPage extends LitElement {
 
     .detail-label {
       font-size: 0.65rem;
-      color: #555;
+      color: var(--color-dark-text-tertiary, #6c757d);
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
@@ -342,16 +342,16 @@ export class SslConfigPage extends LitElement {
     }
 
     .form-label {
-      font-size: 0.8rem;
+      font-size: var(--text-sm);
       font-weight: 500;
-      color: #888;
+      color: var(--color-dark-text-secondary, #adb5bd);
     }
 
     .form-input {
       padding: 0.75rem 1rem;
       background: rgba(0, 0, 0, 0.4);
       border: 1px solid var(--border-medium);
-      border-radius: 10px;
+      border-radius: var(--radius-md);
       color: #e0e0e0;
       font-size: 0.9rem;
       transition: all 0.2s ease;
@@ -368,8 +368,8 @@ export class SslConfigPage extends LitElement {
     }
 
     .form-help {
-      font-size: 0.7rem;
-      color: #555;
+      font-size: var(--text-xs);
+      color: var(--color-dark-text-tertiary, #6c757d);
     }
 
     .form-actions {
@@ -383,7 +383,7 @@ export class SslConfigPage extends LitElement {
     /* Buttons */
     .btn {
       padding: 0.75rem 1.25rem;
-      border-radius: 10px;
+      border-radius: var(--radius-md);
       font-size: 0.85rem;
       font-weight: 600;
       cursor: pointer;
