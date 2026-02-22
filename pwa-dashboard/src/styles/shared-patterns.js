@@ -69,7 +69,7 @@ export const scrollbarStyles = css`
 
   ::-webkit-scrollbar-thumb {
     background: var(--ctx-border-strong, rgba(0, 212, 170, 0.3));
-    border-radius: 3px;
+    border-radius: var(--radius-sm, 0.375rem);
   }
 
   ::-webkit-scrollbar-thumb:hover {
@@ -87,7 +87,7 @@ export const badgeStyles = css`
     align-items: center;
     gap: 6px;
     padding: 4px 12px;
-    border-radius: 16px;
+    border-radius: var(--radius-lg, 1rem);
     font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;

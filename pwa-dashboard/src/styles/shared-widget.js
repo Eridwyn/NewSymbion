@@ -22,7 +22,7 @@ export const widgetHeaderStyles = css`
   .widget-title {
     font-size: 1.2em;
     font-weight: 600;
-    color: #e0e0e0;
+    color: var(--color-dark-text-primary, #f8f9fa);
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -36,6 +36,31 @@ export const widgetHeaderStyles = css`
     padding: 0.2rem 0.6rem;
     border-radius: var(--radius-xl, 999px);
     font-weight: 500;
+  }
+`
+
+/**
+ * Empty/placeholder state for widgets without data.
+ * Classes: .empty-state, .empty-state-icon, .empty-state-text, .empty-state-hint
+ */
+export const emptyStateStyles = css`
+  .empty-state {
+    text-align: center;
+    padding: var(--space-8, 2rem);
+    color: var(--color-dark-text-tertiary, #94a3b8);
+  }
+  .empty-state-icon {
+    font-size: 3em;
+    margin-bottom: var(--space-4, 1rem);
+    opacity: 0.5;
+  }
+  .empty-state-text {
+    font-size: var(--text-sm, 0.875rem);
+  }
+  .empty-state-hint {
+    font-size: var(--text-xs, 0.75rem);
+    margin-top: var(--space-2, 0.5rem);
+    opacity: 0.7;
   }
 `
 

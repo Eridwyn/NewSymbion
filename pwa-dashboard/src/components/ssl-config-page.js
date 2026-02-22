@@ -149,13 +149,13 @@ export class SslConfigPage extends LitElement {
     .domain-name {
       font-size: 1rem;
       font-weight: 600;
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       margin-bottom: 0.25rem;
     }
 
     .domain-host {
       font-size: 0.8rem;
-      color: #666;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       font-family: 'JetBrains Mono', monospace;
     }
 
@@ -185,7 +185,7 @@ export class SslConfigPage extends LitElement {
 
     .detail-value {
       font-size: 0.85rem;
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       font-weight: 500;
     }
 
@@ -324,13 +324,13 @@ export class SslConfigPage extends LitElement {
     .empty-title {
       font-size: 1.1rem;
       font-weight: 600;
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       margin-bottom: 0.5rem;
     }
 
     .empty-text {
       font-size: 0.85rem;
-      color: #555;
+      color: var(--color-dark-text-tertiary, #94a3b8);
     }
 
     /* Loading */
@@ -339,7 +339,7 @@ export class SslConfigPage extends LitElement {
       align-items: center;
       justify-content: center;
       padding: 3rem;
-      color: #666;
+      color: var(--color-dark-text-tertiary, #94a3b8);
     }
 
     .spinner {

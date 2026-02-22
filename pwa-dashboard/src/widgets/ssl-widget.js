@@ -62,7 +62,7 @@ export class SslWidget extends LitElement {
     .refresh-btn {
       background: transparent;
       border: 1px solid var(--border-hover);
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       min-width: 44px;
       min-height: 44px;
       border-radius: var(--radius-base);
@@ -154,13 +154,13 @@ export class SslWidget extends LitElement {
     }
 
     .domain-name {
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       font-size: 0.95em;
       font-weight: 500;
     }
 
     .domain-issuer {
-      color: #666;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       font-size: 0.75em;
     }
 
@@ -180,17 +180,17 @@ export class SslWidget extends LitElement {
     .days-remaining.ok { color: var(--context-primary, #00d4aa); }
     .days-remaining.warning { color: #fbbf24; }
     .days-remaining.critical { color: #ff6b6b; }
-    .days-remaining.error { color: #666; }
+    .days-remaining.error { color: var(--color-dark-text-tertiary, #94a3b8); }
 
     .expiry-date {
       font-size: 0.7em;
-      color: #666;
+      color: var(--color-dark-text-tertiary, #94a3b8);
     }
 
     .empty-state {
       text-align: center;
       padding: 2rem;
-      color: #666;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       font-size: 0.9em;
     }
 
@@ -199,7 +199,7 @@ export class SslWidget extends LitElement {
       padding-top: 0.75rem;
       border-top: 1px solid var(--border-subtle);
       font-size: 0.7em;
-      color: #555;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       text-align: right;
     }
 
@@ -271,7 +271,7 @@ export class SslWidget extends LitElement {
       width: 36px;
       height: 36px;
       background: linear-gradient(135deg, var(--ctx-border-medium) 0%, rgba(0, 180, 140, 0.1) 100%);
-      border-radius: 10px;
+      border-radius: var(--radius-md, 0.75rem);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -281,13 +281,13 @@ export class SslWidget extends LitElement {
     .config-title {
       font-size: 1rem;
       font-weight: 600;
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
     }
 
     .close-btn {
       background: transparent;
       border: none;
-      color: #666;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       cursor: pointer;
       padding: 0.5rem;
       border-radius: var(--radius-base);
@@ -335,7 +335,7 @@ export class SslWidget extends LitElement {
       align-items: stretch;
       background: var(--surface-glass-subtle);
       border: 1px solid var(--border-subtle);
-      border-radius: 10px;
+      border-radius: var(--radius-md, 0.75rem);
       overflow: hidden;
       transition: all 0.2s ease;
     }
@@ -356,12 +356,12 @@ export class SslWidget extends LitElement {
     .domain-card-name {
       font-size: 0.9rem;
       font-weight: 500;
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
     }
 
     .domain-card-host {
       font-size: var(--text-xs);
-      color: #666;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       font-family: monospace;
     }
 
@@ -400,7 +400,7 @@ export class SslWidget extends LitElement {
       border: none;
       padding: 0 0.75rem;
       cursor: pointer;
-      color: #666;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       transition: all 0.2s ease;
     }
 
@@ -446,7 +446,7 @@ export class SslWidget extends LitElement {
       display: block;
       font-size: var(--text-xs);
       font-weight: 500;
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       margin-bottom: 0.375rem;
     }
 
@@ -456,7 +456,7 @@ export class SslWidget extends LitElement {
       background: rgba(0, 0, 0, 0.4);
       border: 1px solid var(--border-medium);
       border-radius: var(--radius-base);
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       font-size: var(--text-sm);
       box-sizing: border-box;
       transition: all 0.2s ease;
@@ -469,7 +469,7 @@ export class SslWidget extends LitElement {
     }
 
     .form-input::placeholder {
-      color: #555;
+      color: var(--color-dark-text-tertiary, #94a3b8);
     }
 
     .form-row {
@@ -524,12 +524,12 @@ export class SslWidget extends LitElement {
     .btn-secondary {
       background: transparent;
       border: 1px solid var(--border-hover);
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
     }
 
     .btn-secondary:hover {
       background: var(--surface-glass);
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
     }
 
     /* Check Now Button */
@@ -565,7 +565,7 @@ export class SslWidget extends LitElement {
     .config-btn {
       background: transparent;
       border: 1px solid var(--border-medium);
-      color: #666;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       min-width: 44px;
       min-height: 44px;
       border-radius: var(--radius-base);
@@ -586,7 +586,7 @@ export class SslWidget extends LitElement {
     .empty-state {
       text-align: center;
       padding: 2rem 1rem;
-      color: #666;
+      color: var(--color-dark-text-tertiary, #94a3b8);
     }
 
     .empty-state-icon {

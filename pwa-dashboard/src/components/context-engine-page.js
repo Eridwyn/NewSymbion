@@ -338,13 +338,13 @@ class ContextEnginePage extends LitElement {
       width: 60px;
       height: 6px;
       background: var(--surface-glass-strong);
-      border-radius: 3px;
+      border-radius: var(--radius-sm, 0.375rem);
       overflow: hidden;
     }
 
     .validation-trust-fill {
       height: 100%;
-      border-radius: 3px;
+      border-radius: var(--radius-sm, 0.375rem);
       transition: width 0.5s ease;
     }
 
@@ -392,7 +392,7 @@ class ContextEnginePage extends LitElement {
     .validation-btn {
       flex: 1;
       padding: 0.75rem 1rem;
-      border-radius: 10px;
+      border-radius: var(--radius-md, 0.75rem);
       border: 1px solid transparent;
       font-size: 0.85rem;
       font-weight: 600;
@@ -498,7 +498,7 @@ class ContextEnginePage extends LitElement {
       height: 18px;
       padding: 0 5px;
       margin-left: 6px;
-      border-radius: 9px;
+      border-radius: var(--radius-full, 9999px);
       background: rgba(239, 68, 68, 0.8);
       color: white;
       font-size: 0.65rem;
@@ -593,7 +593,7 @@ class ContextEnginePage extends LitElement {
 
     .mode-btn {
       padding: 0.75rem 1.25rem;
-      border-radius: 10px;
+      border-radius: var(--radius-md, 0.75rem);
       border: 1px solid var(--border-hover);
       background: var(--surface-glass);
       color: var(--color-dark-text-primary, #f8f9fa);
@@ -683,7 +683,7 @@ class ContextEnginePage extends LitElement {
       width: 40px;
       height: 22px;
       background: var(--surface-glass-bright);
-      border-radius: 11px;
+      border-radius: var(--radius-full, 9999px);
       cursor: pointer;
       transition: background 0.2s;
     }
@@ -995,7 +995,7 @@ class ContextEnginePage extends LitElement {
       min-width: 20px;
       height: 20px;
       padding: 0 0.35rem;
-      border-radius: 10px;
+      border-radius: var(--radius-full, 9999px);
       background: var(--surface-glass-strong);
       font-size: 0.7rem;
       font-weight: 600;
@@ -1098,7 +1098,7 @@ class ContextEnginePage extends LitElement {
       margin-bottom: 0.5rem;
       background: var(--surface-glass-faint);
       border: 1px solid var(--border-subtle);
-      border-radius: 10px;
+      border-radius: var(--radius-md, 0.75rem);
       transition: all 0.2s ease;
     }
 
@@ -1437,14 +1437,14 @@ class ContextEnginePage extends LitElement {
       width: 60px;
       height: 6px;
       background: var(--surface-glass-strong);
-      border-radius: 3px;
+      border-radius: var(--radius-sm, 0.375rem);
       overflow: hidden;
     }
 
     .confidence-bar-mini .confidence-fill {
       height: 100%;
       background: linear-gradient(90deg, #22c55e, #16a34a);
-      border-radius: 3px;
+      border-radius: var(--radius-sm, 0.375rem);
       transition: width 0.3s ease;
     }
 
@@ -1724,7 +1724,7 @@ class ContextEnginePage extends LitElement {
       gap: 0.75rem;
       padding: 1rem;
       background: var(--preview-bg, #f8fafc);
-      border-radius: 10px;
+      border-radius: var(--radius-md, 0.75rem);
       border: 2px solid var(--preview-primary, #2563eb);
     }
 

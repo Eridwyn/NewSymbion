@@ -10,6 +10,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { emptyStateStyles } from '../styles/shared-widget.js'
 import { statusBadgeStyles } from '../styles/shared-patterns.js'
 import DOMPurify from 'dompurify'
 import '../components/organic-loader.js'
@@ -41,11 +42,11 @@ class EnvironmentWidget extends LitElement {
     loadingChart: { type: Boolean }
   }
 
-  static styles = [statusBadgeStyles, css`
+  static styles = [emptyStateStyles, statusBadgeStyles, css`
     :host {
       display: block;
       background: var(--widget-background, #1a1a1a);
-      border-radius: 12px;
+      border-radius: var(--radius-md, 0.75rem);
       padding: 20px;
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
       color: var(--widget-color, #e5e5e5);
@@ -62,7 +63,7 @@ class EnvironmentWidget extends LitElement {
     }
 
     .widget-title {
-      font-size: 18px;
+      font-size: var(--text-lg, 1.125rem);
       font-weight: 600;
       color: #ffffff;
       display: flex;
@@ -77,15 +78,15 @@ class EnvironmentWidget extends LitElement {
       align-items: center;
       justify-content: center;
       padding: 40px;
-      color: #888;
-      font-size: 14px;
+      color: var(--color-dark-text-tertiary, #94a3b8);
+      font-size: var(--text-sm, 0.875rem);
     }
 
     .error-state {
       padding: 20px;
       background: rgba(239, 68, 68, 0.1);
       border: 1px solid rgba(239, 68, 68, 0.3);
-      border-radius: 8px;
+      border-radius: var(--radius-base, 0.5rem);
       color: #fca5a5;
       text-align: center;
     }
@@ -106,15 +107,15 @@ class EnvironmentWidget extends LitElement {
     }
 
     .auth-title {
-      font-size: 18px;
+      font-size: var(--text-lg, 1.125rem);
       font-weight: 600;
       color: #ffffff;
       margin-bottom: 8px;
     }
 
     .auth-message {
-      font-size: 14px;
-      color: #888;
+      font-size: var(--text-sm, 0.875rem);
+      color: var(--color-dark-text-tertiary, #94a3b8);
       margin-bottom: 20px;
       max-width: 280px;
     }
@@ -124,8 +125,8 @@ class EnvironmentWidget extends LitElement {
       color: white;
       border: none;
       padding: 12px 24px;
-      border-radius: 8px;
-      font-size: 14px;
+      border-radius: var(--radius-base, 0.5rem);
+      font-size: var(--text-sm, 0.875rem);
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s ease;
@@ -150,7 +151,7 @@ class EnvironmentWidget extends LitElement {
     .room-card {
       background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
       border: 1px solid var(--ctx-border-medium);
-      border-radius: 12px;
+      border-radius: var(--radius-md, 0.75rem);
       padding: 18px;
       transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       cursor: pointer;
@@ -203,7 +204,7 @@ class EnvironmentWidget extends LitElement {
     }
 
     .room-name {
-      font-size: 16px;
+      font-size: var(--text-base, 1rem);
       font-weight: 600;
       color: #ffffff;
       text-transform: capitalize;
@@ -229,7 +230,7 @@ class EnvironmentWidget extends LitElement {
     .reading-item {
       background: rgba(0, 0, 0, 0.2);
       padding: 12px;
-      border-radius: 8px;
+      border-radius: var(--radius-base, 0.5rem);
       display: flex;
       flex-direction: column;
       gap: 4px;
@@ -237,13 +238,13 @@ class EnvironmentWidget extends LitElement {
 
     .reading-label {
       font-size: 11px;
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
 
     .reading-value {
-      font-size: 24px;
+      font-size: var(--text-2xl, 1.5rem);
       font-weight: 700;
       color: #ffffff;
       display: flex;
@@ -252,8 +253,8 @@ class EnvironmentWidget extends LitElement {
     }
 
     .reading-unit {
-      font-size: 14px;
-      color: #888;
+      font-size: var(--text-sm, 0.875rem);
+      color: var(--color-dark-text-tertiary, #94a3b8);
       font-weight: 400;
     }
 
@@ -263,8 +264,8 @@ class EnvironmentWidget extends LitElement {
       justify-content: space-between;
       padding-top: 12px;
       border-top: 1px solid var(--border-medium);
-      font-size: 12px;
-      color: #888;
+      font-size: var(--text-xs, 0.75rem);
+      color: var(--color-dark-text-tertiary, #94a3b8);
     }
 
     .sensor-type {
@@ -286,11 +287,11 @@ class EnvironmentWidget extends LitElement {
     .sensor-delete-btn {
       background: rgba(156, 163, 175, 0.15);
       border: 1px solid rgba(156, 163, 175, 0.25);
-      color: #9ca3af;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       padding: 4px 8px;
-      border-radius: 6px;
+      border-radius: var(--radius-sm, 0.375rem);
       cursor: pointer;
-      font-size: 12px;
+      font-size: var(--text-xs, 0.75rem);
       transition: all 0.2s ease;
       display: flex;
       align-items: center;
@@ -303,22 +304,7 @@ class EnvironmentWidget extends LitElement {
       color: #fca5a5;
     }
 
-    .empty-state {
-      text-align: center;
-      padding: 40px 20px;
-      color: #888;
-    }
-
-    .empty-icon {
-      font-size: 48px;
-      margin-bottom: 16px;
-      opacity: 0.5;
-    }
-
-    .empty-text {
-      font-size: 14px;
-      line-height: 1.6;
-    }
+    /* empty-state provided by emptyStateStyles */
 
     /* Modal Styles */
     .modal-overlay {
@@ -374,7 +360,7 @@ class EnvironmentWidget extends LitElement {
     }
 
     .modal-title {
-      font-size: 24px;
+      font-size: var(--text-2xl, 1.5rem);
       font-weight: 600;
       color: #ffffff;
       text-transform: capitalize;
@@ -386,9 +372,9 @@ class EnvironmentWidget extends LitElement {
       color: #ffffff;
       width: 36px;
       height: 36px;
-      border-radius: 8px;
+      border-radius: var(--radius-base, 0.5rem);
       cursor: pointer;
-      font-size: 20px;
+      font-size: var(--text-xl, 1.25rem);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -415,7 +401,7 @@ class EnvironmentWidget extends LitElement {
       align-items: center;
       justify-content: center;
       height: 400px;
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
     }
 
     .room-card {
@@ -453,7 +439,7 @@ class EnvironmentWidget extends LitElement {
       }
 
       .modal-title {
-        font-size: 18px;
+        font-size: var(--text-lg, 1.125rem);
       }
 
       .modal-body {
@@ -470,7 +456,7 @@ class EnvironmentWidget extends LitElement {
 
       .chart-loading {
         height: 300px;
-        font-size: 14px;
+        font-size: var(--text-sm, 0.875rem);
       }
     }
   `]
@@ -1028,8 +1014,8 @@ class EnvironmentWidget extends LitElement {
           <span class="widget-count">0 capteur</span>
         </div>
         <div class="empty-state">
-          <div class="empty-icon">🌡️</div>
-          <div class="empty-text">
+          <div class="empty-state-icon">🌡️</div>
+          <div class="empty-state-text">
             Aucun capteur environnemental détecté.<br>
             Connectez un ESP32 avec BME280 pour commencer.
           </div>

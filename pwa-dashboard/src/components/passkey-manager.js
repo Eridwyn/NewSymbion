@@ -23,7 +23,7 @@ class PasskeyManager extends LitElement {
     .passkey-container {
       background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
       border: 1px solid var(--border-medium);
-      border-radius: 12px;
+      border-radius: var(--radius-md, 0.75rem);
       padding: 1.5rem;
     }
 
@@ -37,7 +37,7 @@ class PasskeyManager extends LitElement {
     .title {
       font-size: 1.3em;
       font-weight: 600;
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       display: flex;
       align-items: center;
       gap: 0.5rem;
@@ -48,7 +48,7 @@ class PasskeyManager extends LitElement {
       border: 1px solid var(--ctx-border-medium);
       color: var(--context-primary, #00d4aa);
       padding: 0.6rem 1.2rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base, 0.5rem);
       font-size: 0.9em;
       font-weight: 500;
       cursor: pointer;
@@ -79,7 +79,7 @@ class PasskeyManager extends LitElement {
     .passkey-item {
       background: linear-gradient(135deg, var(--surface-glass) 0%, var(--surface-glass-faint) 100%);
       border: 1px solid var(--border-medium);
-      border-radius: 8px;
+      border-radius: var(--radius-base, 0.5rem);
       padding: 1rem;
       display: flex;
       align-items: center;
@@ -110,7 +110,7 @@ class PasskeyManager extends LitElement {
 
     .passkey-name {
       font-weight: 600;
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
     }
 
     .passkey-meta {
@@ -146,7 +146,7 @@ class PasskeyManager extends LitElement {
       border: 1px solid rgba(255, 107, 107, 0.3);
       color: #ff6b6b;
       padding: 1rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base, 0.5rem);
       margin-bottom: 1rem;
     }
 
@@ -155,7 +155,7 @@ class PasskeyManager extends LitElement {
       border: 1px solid var(--ctx-border-medium);
       color: var(--context-primary, #00d4aa);
       padding: 1rem;
-      border-radius: 8px;
+      border-radius: var(--radius-base, 0.5rem);
       margin-bottom: 1rem;
     }
 
@@ -170,6 +170,52 @@ class PasskeyManager extends LitElement {
     }
 
     /* spin — see shared-animations.js */
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .passkey-container {
+        padding: 1rem;
+      }
+
+      .header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+      }
+
+      .title {
+        font-size: 1.1em;
+      }
+
+      .register-btn {
+        width: 100%;
+        justify-content: center;
+        padding: 0.6rem 1rem;
+        font-size: 0.85em;
+      }
+
+      .passkey-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+        padding: 0.75rem;
+      }
+
+      .passkey-info {
+        gap: 0.75rem;
+      }
+
+      .passkey-icon {
+        font-size: 1.5em;
+      }
+
+      .delete-btn {
+        width: 100%;
+        text-align: center;
+        padding: 0.5rem;
+      }
+    }
   `]
 
   static properties = {

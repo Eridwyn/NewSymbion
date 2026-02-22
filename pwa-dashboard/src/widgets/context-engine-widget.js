@@ -178,7 +178,7 @@ class ContextEngineWidget extends LitElement {
     .manage-btn {
       width: 100%;
       padding: 0.75rem;
-      border-radius: 10px;
+      border-radius: var(--radius-md, 0.75rem);
       border: 1px solid var(--ctx-border-strong);
       background: linear-gradient(135deg,
         var(--ctx-border) 0%,
@@ -218,6 +218,37 @@ class ContextEngineWidget extends LitElement {
       padding: 1rem;
       color: var(--color-dark-text-tertiary, #6c757d);
       font-size: 0.8rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .header {
+        padding: 0.75rem 1rem;
+        gap: 0.5rem;
+      }
+
+      .content {
+        padding: 1rem;
+      }
+
+      .mode-section {
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.75rem;
+      }
+
+      .mode-icon {
+        font-size: 2rem;
+      }
+
+      .mode-name {
+        font-size: 1rem;
+      }
+
+      .manage-btn {
+        padding: 0.6rem;
+        font-size: 0.8rem;
+      }
     }
   `]
 

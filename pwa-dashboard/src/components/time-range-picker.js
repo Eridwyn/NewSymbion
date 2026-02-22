@@ -47,7 +47,7 @@ class TimeRangePicker extends LitElement {
       gap: 1rem;
       padding: 0.75rem;
       background: var(--bg-secondary, rgba(40, 45, 55, 0.5));
-      border-radius: 8px;
+      border-radius: var(--radius-base, 0.5rem);
     }
 
     .time-input {
@@ -119,7 +119,7 @@ class TimeRangePicker extends LitElement {
       padding: 0.5rem 0.75rem;
       background: var(--bg-secondary, rgba(40, 45, 55, 0.5));
       border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
-      border-radius: 8px;
+      border-radius: var(--radius-base, 0.5rem);
       color: var(--text-secondary, rgba(255, 255, 255, 0.7));
       cursor: pointer;
       transition: all 0.2s ease;
@@ -188,7 +188,7 @@ class TimeRangePicker extends LitElement {
       gap: 4px;
       padding: 0.75rem;
       background: var(--bg-secondary, rgba(40, 45, 55, 0.5));
-      border-radius: 8px;
+      border-radius: var(--radius-base, 0.5rem);
     }
 
     .month-day-btn {
@@ -224,7 +224,7 @@ class TimeRangePicker extends LitElement {
     .summary {
       padding: 0.75rem;
       background: var(--bg-secondary, rgba(40, 45, 55, 0.3));
-      border-radius: 8px;
+      border-radius: var(--radius-base, 0.5rem);
       font-size: 0.8rem;
       color: var(--text-secondary, rgba(255, 255, 255, 0.7));
       border-left: 3px solid var(--primary-color, #00d4aa);

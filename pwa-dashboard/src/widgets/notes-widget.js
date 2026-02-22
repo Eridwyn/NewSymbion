@@ -14,7 +14,7 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
-import { widgetHeaderStyles } from '../styles/shared-widget.js'
+import { widgetHeaderStyles, emptyStateStyles } from '../styles/shared-widget.js'
 import { btnStyles, btnSizeStyles } from '../styles/shared-forms.js'
 import { getTopPriorityNotes, isHighPriority } from '../utils/notes-scoring.js'
 import { applyAllFilters } from '../utils/notes-filters.js'
@@ -22,7 +22,7 @@ import notesStreamService from '../services/notes-stream-service.js'
 import '../components/organic-loader.js'
 
 class NotesWidget extends LitElement {
-  static styles = [sharedAnimations, widgetHeaderStyles, btnStyles, btnSizeStyles, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, btnStyles, btnSizeStyles, emptyStateStyles, css`
     :host {
       display: block;
     }
@@ -140,7 +140,7 @@ class NotesWidget extends LitElement {
     }
 
     .note-preview {
-      color: #ccc;
+      color: var(--color-dark-text-secondary, #cbd5e1);
       font-size: 0.85em;
       line-height: 1.4;
       overflow: hidden;
@@ -161,12 +161,7 @@ class NotesWidget extends LitElement {
       color: var(--context-primary, #00d4aa);
     }
 
-    .placeholder {
-      text-align: center;
-      padding: 2rem 1rem;
-      opacity: 0.5;
-      font-size: 0.9em;
-    }
+    /* empty-state provided by emptyStateStyles */
 
     /* Animation d'apparition progressive des notes */
     @keyframes note-fade-in {
@@ -493,18 +488,19 @@ class NotesWidget extends LitElement {
       </div>
 
       ${this.error ? html`
-        <div class="placeholder" style="color: #ff6b6b;">
-          ⚠️ ${this.error}
+        <div class="empty-state" style="color: #ff6b6b;">
+          <div class="empty-state-icon">⚠️</div>
+          <div class="empty-state-text">${this.error}</div>
         </div>
       ` : this.loading ? html`
         <organic-loader text="🧬 Organisme en synapse..."></organic-loader>
       ` : topNotes.length === 0 ? html`
-        <div class="placeholder">
-          📝 Aucune note pour <strong>${this.currentContext}</strong>
-          <br>
-          <small style="opacity: 0.7; font-size: 0.8em;">
+        <div class="empty-state">
+          <div class="empty-state-icon">📝</div>
+          <div class="empty-state-text">Aucune note pour <strong>${this.currentContext}</strong></div>
+          <div class="empty-state-hint">
             ${this.notes.length} note(s) au total
-          </small>
+          </div>
         </div>
       ` : html`
         <div class="notes-list">

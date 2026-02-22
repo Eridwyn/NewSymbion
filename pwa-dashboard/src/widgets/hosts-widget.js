@@ -9,12 +9,12 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
-import { widgetHeaderStyles } from '../styles/shared-widget.js'
+import { widgetHeaderStyles, emptyStateStyles } from '../styles/shared-widget.js'
 import { statusBadgeStyles } from '../styles/shared-patterns.js'
 import pollingScheduler from '../services/polling-scheduler.js'
 
 class HostsWidget extends LitElement {
-  static styles = [sharedAnimations, widgetHeaderStyles, statusBadgeStyles, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, statusBadgeStyles, emptyStateStyles, css`
     :host {
       display: block;
     }
@@ -60,7 +60,7 @@ class HostsWidget extends LitElement {
     
     .host-name {
       font-weight: 600;
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       display: flex;
       align-items: center;
       gap: 0.5rem;
@@ -127,18 +127,38 @@ class HostsWidget extends LitElement {
     }
     
     .last-seen {
-      color: #ffd93d;
+      color: #fbbf24;
     }
     
-    .placeholder {
-      text-align: center;
-      padding: 2rem;
-      opacity: 0.6;
-    }
-    
-    .placeholder-icon {
-      font-size: 3em;
-      margin-bottom: 1rem;
+    /* empty-state provided by emptyStateStyles */
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .host-card {
+        padding: 0.75rem;
+      }
+
+      .host-metrics {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+      }
+
+      .metric-value {
+        font-size: 1em;
+      }
+
+      .host-header {
+        margin-bottom: 0.6rem;
+      }
+
+      .host-actions {
+        gap: 0.4rem;
+      }
+
+      .action-btn {
+        padding: 0.35rem 0.6rem;
+      }
     }
   `]
 
@@ -388,9 +408,9 @@ class HostsWidget extends LitElement {
         <div class="widget-header">
           <h3 class="widget-title">💻 Hosts</h3>
         </div>
-        <div class="placeholder">
-          <div class="placeholder-icon">🔌</div>
-          Connexion requise pour surveiller les hosts
+        <div class="empty-state">
+          <div class="empty-state-icon">🔌</div>
+          <div class="empty-state-text">Connexion requise pour surveiller les hosts</div>
         </div>
       `
     }
@@ -400,10 +420,10 @@ class HostsWidget extends LitElement {
         <div class="widget-header">
           <h3 class="widget-title">💻 Hosts</h3>
         </div>
-        <div class="placeholder">
-          <div class="placeholder-icon">🔍</div>
-          <div>Aucun host détecté</div>
-          <div style="font-size: 0.8em; margin-top: 0.5rem; opacity: 0.6;">
+        <div class="empty-state">
+          <div class="empty-state-icon">🔍</div>
+          <div class="empty-state-text">Aucun host détecté</div>
+          <div class="empty-state-hint">
             Les hosts apparaîtront automatiquement lorsqu'ils enverront des heartbeats
           </div>
         </div>

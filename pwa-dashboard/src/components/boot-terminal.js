@@ -93,7 +93,7 @@ class BootTerminal extends LitElement {
         rgba(30, 30, 30, 0.95) 0%,
         rgba(20, 20, 20, 0.98) 100%);
       border: 1px solid var(--ctx-border-medium);
-      border-radius: 24px;
+      border-radius: var(--radius-xl, 1.5rem);
       padding: 3rem 2.5rem;
       box-shadow: 0 24px 48px rgba(0, 0, 0, 0.7),
                   0 0 60px var(--ctx-border-subtle),
@@ -220,7 +220,7 @@ class BootTerminal extends LitElement {
 
     .logo-subtitle {
       font-size: var(--text-sm);
-      color: #9ca3af;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       font-weight: 400;
       animation: subtitleFade 3s ease-in-out infinite;
     }
@@ -394,7 +394,7 @@ class BootTerminal extends LitElement {
 
     .divider-text {
       font-size: 0.8125rem;
-      color: #9ca3af;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       font-weight: 500;
     }
 
@@ -498,7 +498,7 @@ class BootTerminal extends LitElement {
     }
 
     .loading-text {
-      color: #9ca3af;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       font-size: 0.9375rem;
       animation: pulse 2s ease-in-out infinite;
     }
@@ -549,7 +549,7 @@ class BootTerminal extends LitElement {
     }
 
     .success-subtext {
-      color: #9ca3af;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       font-size: var(--text-sm);
     }
 
@@ -570,7 +570,7 @@ class BootTerminal extends LitElement {
 
     .checkbox-label {
       font-size: var(--text-sm);
-      color: #9ca3af;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       cursor: pointer;
       user-select: none;
     }
@@ -584,7 +584,7 @@ class BootTerminal extends LitElement {
       .login-card {
         max-width: 90%;
         padding: 2.5rem 2rem;
-        border-radius: 22px;
+        border-radius: var(--radius-xl, 1.5rem);
       }
 
       .logo-title {
@@ -655,14 +655,14 @@ class BootTerminal extends LitElement {
       .form-input {
         padding: 0.875rem 1rem;
         font-size: 0.9rem;
-        border-radius: 10px;
+        border-radius: var(--radius-md, 0.75rem);
       }
 
       .submit-btn,
       .biometric-btn {
         padding: 0.875rem 1rem;
         font-size: 0.9rem;
-        border-radius: 10px;
+        border-radius: var(--radius-md, 0.75rem);
       }
 
       .or-divider {
@@ -700,7 +700,7 @@ class BootTerminal extends LitElement {
       .login-card {
         max-width: 100%;
         padding: 1.75rem 1.25rem;
-        border-radius: 18px;
+        border-radius: var(--radius-lg, 1rem);
         box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5),
                     0 0 30px color-mix(in srgb, var(--context-primary, #00d4aa) 6%, transparent);
       }
@@ -733,7 +733,7 @@ class BootTerminal extends LitElement {
       .form-input {
         padding: 0.8rem 0.875rem;
         font-size: var(--text-sm);
-        border-radius: 10px;
+        border-radius: var(--radius-md, 0.75rem);
       }
 
       .form-input::placeholder {
@@ -744,7 +744,7 @@ class BootTerminal extends LitElement {
       .biometric-btn {
         padding: 0.8rem 0.875rem;
         font-size: var(--text-sm);
-        border-radius: 10px;
+        border-radius: var(--radius-md, 0.75rem);
       }
 
       .or-divider {

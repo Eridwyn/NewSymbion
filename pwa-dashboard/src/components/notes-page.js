@@ -71,7 +71,7 @@ class NotesPage extends LitElement {
       border: 1px solid var(--border-hover);
       border-radius: var(--radius-base);
       padding: 0.6rem 1rem;
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       font-size: 0.9em;
       transition: all var(--duration-base) var(--ease-out);
     }
@@ -90,7 +90,7 @@ class NotesPage extends LitElement {
     }
 
     .search-input::placeholder {
-      color: #666;
+      color: var(--color-dark-text-tertiary, #94a3b8);
     }
 
     .filters-group {
@@ -156,7 +156,7 @@ class NotesPage extends LitElement {
       width: 40px;
       height: 20px;
       background: var(--surface-glass-strong);
-      border-radius: 10px;
+      border-radius: var(--radius-md, 0.75rem);
       transition: all var(--duration-base) var(--ease-out);
     }
 
@@ -247,7 +247,7 @@ class NotesPage extends LitElement {
     .tag-filter-btn {
       background: var(--surface-glass-subtle);
       border: 1px solid var(--border-medium);
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       padding: 0.3rem 0.7rem;
       border-radius: var(--radius-md);
       font-size: 0.75em;
@@ -257,7 +257,7 @@ class NotesPage extends LitElement {
 
     .tag-filter-btn:hover {
       border-color: var(--ctx-border-strong);
-      color: #ccc;
+      color: var(--color-dark-text-secondary, #cbd5e1);
     }
 
     .tag-filter-btn.active {
@@ -404,7 +404,7 @@ class NotesPage extends LitElement {
     .note-action {
       background: var(--surface-glass);
       border: 1px solid var(--border-medium);
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       padding: 0.3rem 0.5rem;
       border-radius: var(--radius-sm);
       cursor: pointer;
@@ -414,7 +414,7 @@ class NotesPage extends LitElement {
 
     .note-action:hover {
       background: var(--surface-glass-hover);
-      color: #ccc;
+      color: var(--color-dark-text-secondary, #cbd5e1);
     }
 
     .note-action.delete {
@@ -428,7 +428,7 @@ class NotesPage extends LitElement {
     }
 
     .note-preview {
-      color: #ccc;
+      color: var(--color-dark-text-secondary, #cbd5e1);
       line-height: 1.6;
       margin-bottom: 0.8rem;
       max-height: 4.8em;
@@ -454,7 +454,7 @@ class NotesPage extends LitElement {
     }
 
     .note-timestamp {
-      color: #666;
+      color: var(--color-dark-text-tertiary, #94a3b8);
     }
 
     .placeholder {
@@ -519,8 +519,8 @@ class NotesPage extends LitElement {
       right: 0;
       background: var(--surface-glass);
       border: 1px solid var(--border-medium);
-      color: #888;
-      font-size: 24px;
+      color: var(--color-dark-text-tertiary, #94a3b8);
+      font-size: var(--text-2xl, 1.5rem);
       cursor: pointer;
       padding: 6px 10px;
       border-radius: var(--radius-base);
@@ -545,7 +545,7 @@ class NotesPage extends LitElement {
       display: block;
       margin-bottom: 0.5rem;
       font-size: 0.9em;
-      color: #ccc;
+      color: var(--color-dark-text-secondary, #cbd5e1);
       font-weight: 500;
       animation: labelFadeIn 0.4s ease-out; /* Apparition douce */
     }
@@ -562,7 +562,7 @@ class NotesPage extends LitElement {
       border: 1px solid rgba(255, 255, 255, 0.2);
       border-radius: var(--radius-base);
       padding: 0.7rem 1rem;
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       font-family: inherit;
       font-size: 0.9em;
       transition: all var(--duration-base) var(--ease-out);
@@ -668,7 +668,7 @@ class NotesPage extends LitElement {
     .form-btn.secondary {
       background: var(--surface-glass);
       border: 1px solid var(--border-hover);
-      color: #ccc;
+      color: var(--color-dark-text-secondary, #cbd5e1);
     }
 
     .form-btn.secondary::before {
@@ -686,7 +686,7 @@ class NotesPage extends LitElement {
     }
 
     .note-content {
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       line-height: 1.8;
     }
 
@@ -751,7 +751,7 @@ class NotesPage extends LitElement {
       border-left: 3px solid var(--context-primary, #00d4aa);
       padding-left: 1em;
       margin: 0.8em 0;
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       font-style: italic;
     }
 
