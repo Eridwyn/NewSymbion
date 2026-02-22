@@ -7,6 +7,9 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
+import { overlayStyles, closeButtonStyles, scrollbarStyles } from '../styles/shared-patterns.js'
+import { tabPillStyles } from '../styles/shared-page.js'
+import { formInputStyles } from '../styles/shared-forms.js'
 import csrfService from '../services/csrf-service.js'
 import automationsService from '../services/automations-service.js'
 import { getDayNameShort, getDayNameFull, getAllDayNamesShort, utcHourToLocal } from '../utils/time-utils.js'
@@ -29,18 +32,11 @@ function isStateType(type) {
 }
 
 class ContextEnginePage extends LitElement {
-  static styles = [sharedAnimations, css`
+  static styles = [sharedAnimations, overlayStyles, closeButtonStyles, scrollbarStyles, tabPillStyles, formInputStyles, css`
     :host {
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(0, 0, 0, 0.88);
-      backdrop-filter: blur(var(--blur-xl));
-      -webkit-backdrop-filter: blur(var(--blur-xl));
-      animation: fadeIn 0.2s ease-out;
     }
 
     .page {
@@ -449,58 +445,15 @@ class ContextEnginePage extends LitElement {
       gap: 0.5rem;
     }
 
-    .close-btn {
-      background: var(--surface-glass-hover);
-      border: none;
-      color: var(--color-dark-text-secondary, #adb5bd);
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      cursor: pointer;
-      font-size: 1.2rem;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .close-btn:hover {
-      background: rgba(239, 68, 68, 0.2);
-      color: #f87171;
-    }
-
-    /* Tabs */
+    /* Tabs — base from tabPillStyles, local overrides */
     .tabs {
-      display: flex;
-      gap: var(--space-1);
-      padding: var(--space-2) var(--space-3);
       border-bottom: 1px solid var(--border-subtle);
       background: rgba(0, 0, 0, 0.15);
       overflow-x: auto;
     }
 
     .tab {
-      padding: var(--space-2) var(--space-3);
-      border-radius: var(--radius-md);
-      background: transparent;
-      border: 1px solid transparent;
-      color: var(--color-dark-text-secondary, #adb5bd);
       font-size: 0.8rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all var(--duration-base) var(--ease-out);
-      white-space: nowrap;
-    }
-
-    .tab:hover {
-      background: var(--surface-glass, rgba(255,255,255,0.06));
-      color: var(--color-dark-text-primary, #f8f9fa);
-    }
-
-    .tab.active {
-      background: var(--ctx-bg, rgba(0,212,170,0.05));
-      border-color: var(--ctx-border, rgba(0,212,170,0.15));
-      color: var(--context-primary, #00d4aa);
     }
 
     .tab .badge {
@@ -523,19 +476,6 @@ class ContextEnginePage extends LitElement {
       flex: 1;
       overflow-y: auto;
       padding: 1.25rem;
-    }
-
-    .content::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    .content::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .content::-webkit-scrollbar-thumb {
-      background: var(--ctx-bg-intense);
-      border-radius: 3px;
     }
 
     /* Mode Tab */
@@ -1444,23 +1384,6 @@ class ContextEnginePage extends LitElement {
       font-weight: 500;
       color: var(--color-dark-text-secondary, #adb5bd);
       margin-bottom: 0.4rem;
-    }
-
-    .form-input {
-      width: 100%;
-      padding: 0.6rem 0.8rem;
-      background: var(--surface-glass);
-      border: 1px solid var(--border-hover);
-      border-radius: var(--radius-base);
-      color: var(--color-dark-text-primary, #f8f9fa);
-      font-size: 0.9rem;
-      transition: all 0.2s;
-    }
-
-    .form-input:focus {
-      outline: none;
-      border-color: var(--context-primary, #00d4aa);
-      box-shadow: 0 0 0 2px var(--ctx-border-medium);
     }
 
     select.form-input {
@@ -2787,7 +2710,7 @@ class ContextEnginePage extends LitElement {
       <div class="page" @click="${e => e.stopPropagation()}">
         <div class="header">
           <span class="header-title">🧠 Decision Engine</span>
-          <button class="close-btn" @click="${this.close}">✕</button>
+          <button class="close-button" @click="${this.close}">✕</button>
         </div>
 
         <div class="tabs">
@@ -5813,7 +5736,7 @@ Exemple :
         <div class="mode-form" @click="${e => e.stopPropagation()}">
           <div class="form-header">
             <h3 style="margin: 0;">${isEditing ? 'Modifier le Mode' : 'Nouveau Mode'}</h3>
-            <button class="close-btn" @click="${() => this.closeModeForm()}">✕</button>
+            <button class="close-button" @click="${() => this.closeModeForm()}">✕</button>
           </div>
 
           <div class="form-body">
@@ -6070,7 +5993,7 @@ Exemple :
         <div class="rule-form" @click="${e => e.stopPropagation()}">
           <div class="form-header">
             <h3 style="margin: 0;">${isEditing ? 'Modifier la Règle' : 'Nouvelle Règle'}</h3>
-            <button class="close-btn" @click="${() => this.closeRuleForm()}">✕</button>
+            <button class="close-button" @click="${() => this.closeRuleForm()}">✕</button>
           </div>
 
           <div class="form-body">

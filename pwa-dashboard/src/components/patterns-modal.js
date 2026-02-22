@@ -7,24 +7,14 @@
 import { LitElement, html, css } from 'lit'
 import { getDayNameShort, utcHourToLocal } from '../utils/time-utils.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
+import { overlayStyles, scrollbarStyles } from '../styles/shared-patterns.js'
 
 class PatternsModal extends LitElement {
-  static styles = [sharedAnimations, css`
+  static styles = [sharedAnimations, overlayStyles, scrollbarStyles, css`
     :host {
-      display: block;
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
       background: radial-gradient(ellipse at center,
         color-mix(in srgb, var(--context-primary, #00d4aa) 3%, rgba(0, 0, 0, 0.85)) 0%,
         rgba(0, 0, 0, 0.9) 100%);
-      backdrop-filter: blur(var(--blur-xl));
-      -webkit-backdrop-filter: blur(var(--blur-xl));
-      z-index: 9999;
-      overflow-y: auto;
-      animation: fadeIn 0.3s ease-out;
     }
 
     .modal-container {

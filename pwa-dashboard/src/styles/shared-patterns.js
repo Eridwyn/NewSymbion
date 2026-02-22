@@ -1,62 +1,79 @@
 /**
  * Shared CSS Patterns — Lit CSS Module
  *
- * Centralise les patterns CSS les plus dupliqués.
+ * Centralise les patterns CSS structurels les plus dupliques.
  * Usage : import { overlayStyles, closeButtonStyles } from '../styles/shared-patterns.js'
  *         static styles = [overlayStyles, closeButtonStyles, css`...local...`]
  */
 import { css } from 'lit'
 
 /**
- * Overlay plein écran avec backdrop glass morphism.
- * Appliqué sur :host pour les composants fullscreen (modals, pages overlay).
+ * Overlay plein ecran avec backdrop glassmorphism.
+ * Applique sur :host pour les composants fullscreen (modals, pages overlay).
  */
 export const overlayStyles = css`
   :host {
+    display: block;
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: radial-gradient(ellipse at center,
-      var(--ctx-bg-subtle, rgba(0, 0, 0, 0.85)) 0%,
-      rgba(0, 0, 0, 0.9) 100%);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
+    background: rgba(0, 0, 0, 0.88);
+    backdrop-filter: blur(var(--blur-xl));
+    -webkit-backdrop-filter: blur(var(--blur-xl));
     z-index: 9999;
     overflow-y: auto;
-    animation: fadeIn 0.3s ease-out;
+    animation: fadeIn var(--duration-slow, 0.3s) var(--ease-out, ease-out);
   }
 `
 
 /**
- * Bouton fermer (danger style, position absolute top-right).
- * Requiert un élément avec class="close-btn".
+ * Bouton fermer circulaire 36px avec hover rouge.
+ * Classe : .close-button
  */
 export const closeButtonStyles = css`
-  .close-btn {
-    position: absolute;
-    top: 0;
-    right: 0;
-    padding: 0.5rem 1rem;
-    border: 1px solid var(--color-danger-border, rgba(255, 107, 107, 0.3));
-    border-radius: 8px;
-    background: linear-gradient(135deg,
-      rgba(255, 107, 107, 0.15) 0%,
-      rgba(255, 107, 107, 0.08) 100%);
-    color: var(--color-danger-text, #ff6b6b);
+  .close-button {
+    background: var(--surface-glass-hover, rgba(255, 255, 255, 0.08));
+    border: none;
+    color: var(--color-dark-text-secondary, #adb5bd);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
     cursor: pointer;
-    transition: all 0.3s ease;
-    font-size: 1rem;
+    font-size: 1.2rem;
+    transition: all var(--duration-base, 0.2s) var(--ease-out, ease-out);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
   }
 
-  .close-btn:hover {
-    background: linear-gradient(135deg,
-      rgba(255, 107, 107, 0.25) 0%,
-      rgba(255, 107, 107, 0.15) 100%);
-    border-color: rgba(255, 107, 107, 0.5);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(255, 107, 107, 0.3);
+  .close-button:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+  }
+`
+
+/**
+ * Scrollbar custom context-aware (webkit).
+ */
+export const scrollbarStyles = css`
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--ctx-border-strong, rgba(0, 212, 170, 0.3));
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--ctx-border-strong, rgba(0, 212, 170, 0.5));
   }
 `
 
@@ -103,31 +120,8 @@ export const badgeStyles = css`
 `
 
 /**
- * Scrollbar custom context-aware (webkit).
- * Appliquer sur le conteneur scrollable via class ou directement.
- */
-export const scrollbarStyles = css`
-  ::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: var(--ctx-border-strong, rgba(0, 212, 170, 0.3));
-    border-radius: 3px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: var(--ctx-border-strong, rgba(0, 212, 170, 0.5));
-  }
-`
-
-/**
- * Card/section avec bordure context-aware.
- * Classes: .section-card
+ * Card/section avec bordure et hover.
+ * Classe: .section-card
  */
 export const sectionCardStyles = css`
   .section-card {
@@ -135,48 +129,14 @@ export const sectionCardStyles = css`
       var(--surface-glass, rgba(255, 255, 255, 0.05)) 0%,
       rgba(255, 255, 255, 0.02) 100%);
     border: 1px solid var(--border-default, rgba(255, 255, 255, 0.08));
-    border-radius: 12px;
+    border-radius: var(--radius-lg, 12px);
     padding: 1.25rem;
-    transition: all 0.3s ease;
+    transition: all var(--duration-base, 0.2s) var(--ease-out, ease-out);
   }
 
   .section-card:hover {
     border-color: var(--border-hover, rgba(255, 255, 255, 0.15));
     transform: translateY(-2px);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  }
-`
-
-/**
- * Inputs de formulaire avec focus context-primary.
- * Classes: .form-input, .form-textarea, .form-select
- */
-export const formInputStyles = css`
-  .form-input,
-  .form-textarea,
-  .form-select {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    background: var(--surface-glass, rgba(255, 255, 255, 0.05));
-    border: 1px solid var(--border-default, rgba(255, 255, 255, 0.08));
-    border-radius: 8px;
-    color: #f0f0f0;
-    font-size: 0.9rem;
-    font-family: inherit;
-    transition: all 0.3s ease;
-    box-sizing: border-box;
-  }
-
-  .form-input:focus,
-  .form-textarea:focus,
-  .form-select:focus {
-    outline: none;
-    border-color: var(--context-primary, #00d4aa);
-    box-shadow: 0 0 0 3px var(--ctx-border, rgba(0, 212, 170, 0.15));
-  }
-
-  .form-input::placeholder,
-  .form-textarea::placeholder {
-    color: rgba(255, 255, 255, 0.3);
   }
 `

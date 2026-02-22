@@ -1,6 +1,9 @@
 import { LitElement, html, css } from 'lit'
 import './organic-loader.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
+import { overlayStyles, scrollbarStyles } from '../styles/shared-patterns.js'
+import { pageHeaderStyles } from '../styles/shared-page.js'
+import { formInputStyles, formGroupStyles, btnStyles } from '../styles/shared-forms.js'
 
 export class SslConfigPage extends LitElement {
   static properties = {
@@ -12,16 +15,9 @@ export class SslConfigPage extends LitElement {
     showAddForm: { type: Boolean }
   }
 
-  static styles = [sharedAnimations, css`
+  static styles = [sharedAnimations, overlayStyles, scrollbarStyles, pageHeaderStyles, formInputStyles, formGroupStyles, btnStyles, css`
     :host {
-      display: block;
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.88);
-      backdrop-filter: blur(var(--blur-xl));
-      -webkit-backdrop-filter: blur(var(--blur-xl));
       z-index: 1000;
-      overflow-y: auto;
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
       overscroll-behavior: contain;
@@ -46,15 +42,6 @@ export class SslConfigPage extends LitElement {
     }
 
     /* Header */
-    .page-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: var(--space-6);
-      padding-bottom: var(--space-4);
-      border-bottom: 1px solid var(--border-default);
-    }
-
     .header-left {
       display: flex;
       align-items: center;
@@ -88,12 +75,7 @@ export class SslConfigPage extends LitElement {
     }
 
     .page-title {
-      font-size: var(--text-2xl);
       font-weight: 600;
-      color: var(--color-dark-text-primary, #f8f9fa);
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
     }
 
     .page-title-icon {
@@ -331,45 +313,8 @@ export class SslConfigPage extends LitElement {
       gap: 1rem;
     }
 
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-    }
-
     .form-group.full-width {
       grid-column: 1 / -1;
-    }
-
-    .form-label {
-      font-size: var(--text-sm);
-      font-weight: 500;
-      color: var(--color-dark-text-secondary, #adb5bd);
-    }
-
-    .form-input {
-      padding: 0.75rem 1rem;
-      background: rgba(0, 0, 0, 0.4);
-      border: 1px solid var(--border-medium);
-      border-radius: var(--radius-md);
-      color: #e0e0e0;
-      font-size: 0.9rem;
-      transition: all 0.2s ease;
-    }
-
-    .form-input:focus {
-      outline: none;
-      border-color: var(--ctx-border-intense);
-      box-shadow: 0 0 0 3px var(--ctx-border-subtle);
-    }
-
-    .form-input::placeholder {
-      color: #555;
-    }
-
-    .form-help {
-      font-size: var(--text-xs);
-      color: var(--color-dark-text-tertiary, #6c757d);
     }
 
     .form-actions {
@@ -380,48 +325,9 @@ export class SslConfigPage extends LitElement {
       border-top: 1px solid rgba(0, 212, 170, 0.15);
     }
 
-    /* Buttons */
-    .btn {
-      padding: 0.75rem 1.25rem;
-      border-radius: var(--radius-md);
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      transition: all 0.2s ease;
-    }
-
+    /* Local btn overrides */
     .btn-primary {
-      background: linear-gradient(135deg, var(--context-primary, #00d4aa) 0%, color-mix(in srgb, var(--context-primary, #00d4aa) 80%, #000) 100%);
-      border: none;
-      color: #0a0a0f;
       flex: 1;
-    }
-
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px var(--ctx-bg-intense);
-    }
-
-    .btn-primary:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-      transform: none;
-      box-shadow: none;
-    }
-
-    .btn-secondary {
-      background: transparent;
-      border: 1px solid var(--border-hover);
-      color: #888;
-    }
-
-    .btn-secondary:hover {
-      background: var(--surface-glass);
-      color: #e0e0e0;
     }
 
     .btn-action {

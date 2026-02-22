@@ -14,21 +14,10 @@ import { applyAllFilters, extractAllTags } from '../utils/notes-filters.js'
 import notesStreamService from '../services/notes-stream-service.js'
 import '../components/organic-loader.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
+import { overlayStyles, closeButtonStyles, scrollbarStyles } from '../styles/shared-patterns.js'
 
 class NotesPage extends LitElement {
-  static styles = [sharedAnimations, css`
-    :host {
-      display: block;
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.88);
-      backdrop-filter: blur(var(--blur-xl));
-      -webkit-backdrop-filter: blur(var(--blur-xl));
-      z-index: 9999;
-      overflow-y: auto;
-      animation: fadeIn var(--duration-slow) var(--ease-out);
-    }
-
+  static styles = [sharedAnimations, overlayStyles, closeButtonStyles, scrollbarStyles, css`
     .notes-container {
       max-width: 1200px;
       margin: var(--space-6) auto;
@@ -54,27 +43,6 @@ class NotesPage extends LitElement {
       display: flex;
       align-items: center;
       gap: var(--space-3);
-    }
-
-    .close-button {
-      background: var(--surface-glass-hover, rgba(255,255,255,0.08));
-      border: none;
-      color: var(--color-dark-text-secondary, #adb5bd);
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      cursor: pointer;
-      font-size: 1.2rem;
-      transition: all var(--duration-base) var(--ease-out);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: static;
-    }
-
-    .close-button:hover {
-      background: rgba(239, 68, 68, 0.2);
-      color: #f87171;
     }
 
     .toolbar {

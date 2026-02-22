@@ -7,6 +7,7 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
+import { widgetHeaderStyles } from '../styles/shared-widget.js'
 import '../components/organic-loader.js'
 
 export class SslWidget extends LitElement {
@@ -20,26 +21,9 @@ export class SslWidget extends LitElement {
     formData: { type: Object }
   }
 
-  static styles = [sharedAnimations, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, css`
     :host {
       display: block;
-    }
-
-    .widget-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 1.5rem;
-    }
-
-    .widget-title {
-      font-size: 1.2em;
-      font-weight: 600;
-      color: #e0e0e0;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      animation: textGlow var(--bio-breathe-fast, 8s) ease-in-out infinite;
     }
 
     .header-right {

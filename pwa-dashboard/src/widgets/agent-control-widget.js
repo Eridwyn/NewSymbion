@@ -11,6 +11,7 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
+import { overlayStyles } from '../styles/shared-patterns.js'
 import '../services/agents-service.js'
 import pollingScheduler from '../services/polling-scheduler.js'
 
@@ -29,24 +30,15 @@ class AgentControlWidget extends LitElement {
     currentCommandId: { type: String }
   }
 
-  static styles = [sharedAnimations, css`
+  static styles = [sharedAnimations, overlayStyles, css`
     :host {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
       background: radial-gradient(ellipse at center,
         color-mix(in srgb, var(--context-primary, #00d4aa) 3%, rgba(0, 0, 0, 0.85)) 0%,
         rgba(0, 0, 0, 0.9) 100%);
-      backdrop-filter: blur(var(--blur-xl));
-      -webkit-backdrop-filter: blur(var(--blur-xl));
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 9999;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      animation: fadeIn 0.3s ease-out;
     }
 
     :host(:not([is-open])) {
