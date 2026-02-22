@@ -10,10 +10,11 @@
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles } from '../styles/shared-widget.js'
+import { statusBadgeStyles } from '../styles/shared-patterns.js'
 import pollingScheduler from '../services/polling-scheduler.js'
 
 class HostsWidget extends LitElement {
-  static styles = [sharedAnimations, widgetHeaderStyles, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, statusBadgeStyles, css`
     :host {
       display: block;
     }
@@ -29,9 +30,9 @@ class HostsWidget extends LitElement {
     .host-card {
       background: var(--surface-glass-subtle);
       border: 1px solid var(--border-default);
-      border-radius: 8px;
+      border-radius: var(--radius-md, 8px);
       padding: 1rem;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base, 0.2s) var(--ease-out, ease-out);
     }
     
     .host-card:hover {
@@ -65,26 +66,7 @@ class HostsWidget extends LitElement {
       gap: 0.5rem;
     }
     
-    .host-status {
-      padding: 0.2rem 0.6rem;
-      border-radius: 12px;
-      font-size: 0.75em;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    
-    .status-online {
-      background: rgba(0, 212, 170, 0.2);
-      color: #00d4aa;
-      border: 1px solid rgba(0, 212, 170, 0.3);
-    }
-    
-    .status-offline {
-      background: rgba(255, 107, 107, 0.2);
-      color: #ff6b6b;
-      border: 1px solid rgba(255, 107, 107, 0.3);
-    }
+    /* host-status uses shared statusBadgeStyles (.status-badge.online/.offline) */
     
     .host-metrics {
       display: grid;
@@ -100,12 +82,12 @@ class HostsWidget extends LitElement {
     .metric-value {
       font-size: 1.2em;
       font-weight: 600;
-      color: #007acc;
+      color: var(--context-primary, #00d4aa);
     }
-    
+
     .metric-label {
-      font-size: 0.7em;
-      opacity: 0.6;
+      font-size: var(--text-xs, 0.75rem);
+      color: var(--color-dark-text-tertiary, #6c757d);
       text-transform: uppercase;
     }
     
@@ -115,21 +97,22 @@ class HostsWidget extends LitElement {
     }
     
     .action-btn {
-      background: rgba(0, 122, 204, 0.2);
-      border: 1px solid rgba(0, 122, 204, 0.3);
-      color: #007acc;
+      background: rgba(0, 212, 170, 0.12);
+      border: 1px solid rgba(0, 212, 170, 0.25);
+      color: var(--context-primary, #00d4aa);
       padding: 0.4rem 0.8rem;
-      border-radius: 6px;
-      font-size: 0.8em;
+      border-radius: var(--radius-sm, 4px);
+      font-size: var(--text-xs, 0.75rem);
+      font-weight: 500;
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all var(--duration-base, 0.2s) var(--ease-out, ease-out);
     }
-    
+
     .action-btn:hover {
-      background: rgba(0, 122, 204, 0.3);
-      border-color: rgba(0, 122, 204, 0.5);
+      background: rgba(0, 212, 170, 0.2);
+      border-color: rgba(0, 212, 170, 0.4);
     }
-    
+
     .action-btn:disabled {
       opacity: 0.4;
       cursor: not-allowed;
@@ -445,7 +428,7 @@ class HostsWidget extends LitElement {
                 ${host.status === 'online' ? '🟢' : '🔴'}
                 ${host.host_id}
               </div>
-              <span class="host-status status-${host.status}">
+              <span class="status-badge ${host.status}">
                 ${host.status === 'online' ? 'En ligne' : 'Hors ligne'}
               </span>
             </div>

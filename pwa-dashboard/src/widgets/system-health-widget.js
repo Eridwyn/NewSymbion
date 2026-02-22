@@ -16,55 +16,25 @@ class SystemHealthWidget extends LitElement {
       display: block;
     }
 
-    .status-healthy {
-      background: linear-gradient(135deg, var(--ctx-bg-emphasis) 0%, rgba(34, 197, 94, 0.2) 100%);
-      color: var(--context-primary, #00d4aa);
-      border: 1px solid var(--ctx-border-strong);
-      box-shadow: 0 2px 12px var(--ctx-border-strong);
-      animation: pulse-healthy 3s ease-in-out infinite;
-    }
-
-    .status-warning {
-      background: linear-gradient(135deg, rgba(251, 191, 36, 0.25) 0%, rgba(251, 191, 36, 0.2) 100%);
-      color: #fbbf24;
-      border: 1px solid rgba(251, 191, 36, 0.4);
-      box-shadow: 0 2px 12px rgba(251, 191, 36, 0.3);
-      animation: pulse-warning 2s ease-in-out infinite;
-    }
-
-    .status-error {
-      background: linear-gradient(135deg, rgba(255, 107, 107, 0.25) 0%, rgba(239, 68, 68, 0.2) 100%);
-      color: #ff6b6b;
-      border: 1px solid rgba(255, 107, 107, 0.4);
-      box-shadow: 0 2px 12px rgba(255, 107, 107, 0.3);
-      animation: pulse-error 1.5s ease-in-out infinite;
-    }
+    /* status-badge variants (.healthy, .warning, .error) from shared statusBadgeStyles */
+    /* Local: only animations (unique pulse per state) */
+    .status-badge.healthy { animation: pulse-healthy 3s ease-in-out infinite; }
+    .status-badge.warning { animation: pulse-warning 2s ease-in-out infinite; }
+    .status-badge.error { animation: pulse-error 1.5s ease-in-out infinite; }
 
     @keyframes pulse-healthy {
-      0%, 100% {
-        box-shadow: 0 2px 12px var(--ctx-border-strong);
-      }
-      50% {
-        box-shadow: 0 2px 16px var(--ctx-border-intense);
-      }
+      0%, 100% { box-shadow: 0 2px 8px rgba(0, 212, 170, 0.25); }
+      50% { box-shadow: 0 2px 16px rgba(0, 212, 170, 0.5); }
     }
 
     @keyframes pulse-warning {
-      0%, 100% {
-        box-shadow: 0 2px 12px rgba(251, 191, 36, 0.3);
-      }
-      50% {
-        box-shadow: 0 2px 16px rgba(251, 191, 36, 0.5);
-      }
+      0%, 100% { box-shadow: 0 2px 8px rgba(251, 191, 36, 0.25); }
+      50% { box-shadow: 0 2px 16px rgba(251, 191, 36, 0.5); }
     }
 
     @keyframes pulse-error {
-      0%, 100% {
-        box-shadow: 0 2px 12px rgba(255, 107, 107, 0.3);
-      }
-      50% {
-        box-shadow: 0 2px 16px rgba(255, 107, 107, 0.6);
-      }
+      0%, 100% { box-shadow: 0 2px 8px rgba(255, 107, 107, 0.25); }
+      50% { box-shadow: 0 2px 16px rgba(255, 107, 107, 0.6); }
     }
     
     .metrics-grid {
@@ -329,7 +299,7 @@ class SystemHealthWidget extends LitElement {
       return html`
         <div class="widget-header">
           <h3 class="widget-title">🏥 Santé Système</h3>
-          <span class="status-badge status-error">Déconnecté</span>
+          <span class="status-badge error">Déconnecté</span>
         </div>
         <div class="error">
           ❌ Impossible de se connecter au kernel
@@ -341,7 +311,7 @@ class SystemHealthWidget extends LitElement {
       return html`
         <div class="widget-header">
           <h3 class="widget-title">🏥 Santé Système</h3>
-          <span class="status-badge status-warning">Chargement</span>
+          <span class="status-badge warning">Chargement</span>
         </div>
         <div class="loading">
           ⏳ Chargement des métriques...
@@ -359,7 +329,7 @@ class SystemHealthWidget extends LitElement {
     return html`
       <div class="widget-header">
         <h3 class="widget-title">🏥 Santé Système</h3>
-        <span class="status-badge status-${status}">${statusLabels[status]}</span>
+        <span class="status-badge ${status}">${statusLabels[status]}</span>
       </div>
       
       <div class="metrics-grid">

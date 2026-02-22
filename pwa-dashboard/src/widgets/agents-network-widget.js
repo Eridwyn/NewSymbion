@@ -11,7 +11,7 @@
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles } from '../styles/shared-widget.js'
-import { statusDotStyles } from '../styles/shared-patterns.js'
+import { statusDotStyles, statusBadgeStyles } from '../styles/shared-patterns.js'
 import '../services/agents-service.js'
 import '../components/organic-loader.js'
 import pollingScheduler from '../services/polling-scheduler.js'
@@ -25,7 +25,7 @@ class AgentsNetworkWidget extends LitElement {
     selectedAgent: { type: Object }
   }
   
-  static styles = [sharedAnimations, widgetHeaderStyles, statusDotStyles, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, statusDotStyles, statusBadgeStyles, css`
     :host {
       display: block;
       background: var(--widget-background, #1a1a1a);
@@ -190,33 +190,7 @@ class AgentsNetworkWidget extends LitElement {
       text-transform: capitalize;
     }
 
-    .agent-status {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      padding: 6px 12px;
-      border-radius: var(--radius-lg);
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      transition: all var(--duration-base) var(--ease-out);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    }
-
-    .agent-status.online {
-      background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, var(--ctx-border-medium) 100%);
-      color: var(--context-primary, #00d4aa);
-      border: 1px solid var(--ctx-border-strong);
-      box-shadow: 0 2px 12px var(--ctx-border-strong);
-    }
-
-    .agent-status.offline {
-      background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.2) 100%);
-      color: #fca5a5;
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      box-shadow: 0 2px 12px rgba(239, 68, 68, 0.25);
-    }
+    /* agent-status uses shared statusBadgeStyles (.status-badge.online/.offline) */
 
     .agent-meta {
       display: grid;
@@ -620,7 +594,7 @@ class AgentsNetworkWidget extends LitElement {
               <div class="agent-os">${agent.architecture} • ${agent.os}</div>
             </div>
           </div>
-          <div class="agent-status ${agent.status}">
+          <div class="status-badge ${agent.status}">
             <span class="status-dot ${agent.status}"></span>
             ${agent.status}
           </div>

@@ -159,12 +159,7 @@ export class SslConfigPage extends LitElement {
       font-family: 'JetBrains Mono', monospace;
     }
 
-    .domain-status {
-      padding: 0.35rem 0.7rem;
-      border-radius: var(--radius-sm);
-      font-size: var(--text-xs);
-      font-weight: 600;
-    }
+    /* domain-status uses shared statusBadgeStyles (.status-badge.ok/.warning/.critical/.error) */
 
     .domain-details {
       display: flex;
@@ -780,7 +775,7 @@ export class SslConfigPage extends LitElement {
                       <div class="domain-name">${domain.label || domain.hostname}</div>
                       <div class="domain-host">${domain.hostname}:${domain.port || 443}</div>
                     </div>
-                    <span class="domain-status status-${this.getStatusClass(domain)}">
+                    <span class="status-badge ${this.getStatusClass(domain)}">
                       ${this.getStatusLabel(domain)}
                     </span>
                   </div>

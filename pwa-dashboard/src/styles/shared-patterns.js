@@ -188,7 +188,13 @@ export const statusDotStyles = css`
 
 /**
  * Status badge pill avec etats semantiques.
- * Classes: .status-badge + .healthy/.online/.ok/.enabled, .warning, .error/.offline/.disabled, .info, .unknown
+ * Variantes gradient + glow coherentes pour tout le dashboard.
+ *
+ * Vert (actif)  : .healthy .online .ok .enabled .running .home .normal
+ * Jaune (alerte) : .warning .starting .stopping .mold_risk
+ * Rouge (erreur) : .error .offline .critical .disabled .stopped .failed .away
+ * Bleu (info)    : .info .temp_low
+ * Gris (neutre)  : .unknown .neutral
  */
 export const statusBadgeStyles = css`
   .status-badge {
@@ -207,37 +213,51 @@ export const statusBadgeStyles = css`
   .status-badge.healthy,
   .status-badge.online,
   .status-badge.ok,
-  .status-badge.enabled {
-    background: rgba(34, 197, 94, 0.15);
-    color: #22c55e;
-    border: 1px solid rgba(34, 197, 94, 0.3);
+  .status-badge.enabled,
+  .status-badge.running,
+  .status-badge.home,
+  .status-badge.normal {
+    background: linear-gradient(135deg, rgba(0, 212, 170, 0.25) 0%, rgba(34, 197, 94, 0.2) 100%);
+    color: #00d4aa;
+    border: 1px solid rgba(0, 212, 170, 0.35);
+    box-shadow: 0 2px 8px rgba(0, 212, 170, 0.25);
   }
 
-  .status-badge.warning {
-    background: rgba(251, 191, 36, 0.15);
+  .status-badge.warning,
+  .status-badge.starting,
+  .status-badge.stopping,
+  .status-badge.mold_risk {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.25) 0%, rgba(251, 191, 36, 0.2) 100%);
     color: #fbbf24;
-    border: 1px solid rgba(251, 191, 36, 0.3);
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    box-shadow: 0 2px 8px rgba(251, 191, 36, 0.25);
   }
 
   .status-badge.error,
   .status-badge.offline,
   .status-badge.critical,
-  .status-badge.disabled {
-    background: rgba(255, 107, 107, 0.15);
+  .status-badge.disabled,
+  .status-badge.stopped,
+  .status-badge.failed,
+  .status-badge.away {
+    background: linear-gradient(135deg, rgba(255, 107, 107, 0.25) 0%, rgba(239, 68, 68, 0.2) 100%);
     color: #ff6b6b;
-    border: 1px solid rgba(255, 107, 107, 0.3);
+    border: 1px solid rgba(255, 107, 107, 0.35);
+    box-shadow: 0 2px 8px rgba(255, 107, 107, 0.25);
   }
 
-  .status-badge.info {
-    background: rgba(59, 130, 246, 0.15);
+  .status-badge.info,
+  .status-badge.temp_low {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(37, 99, 235, 0.2) 100%);
     color: #93c5fd;
-    border: 1px solid rgba(59, 130, 246, 0.3);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
   }
 
   .status-badge.unknown,
   .status-badge.neutral {
     background: rgba(128, 128, 128, 0.15);
-    color: #888;
+    color: var(--color-dark-text-tertiary, #6c757d);
     border: 1px solid rgba(128, 128, 128, 0.3);
   }
 `
