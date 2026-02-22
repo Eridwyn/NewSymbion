@@ -994,7 +994,9 @@ class EnvironmentWidget extends LitElement {
 
   render() {
     // Inject styles in light DOM since we disabled shadow DOM
-    const styleTag = html`<style>${EnvironmentWidget.styles.cssText}</style>`
+    const styles = EnvironmentWidget.styles
+    const cssText = Array.isArray(styles) ? styles.map(s => s.cssText).join('\n') : styles.cssText
+    const styleTag = html`<style>${cssText}</style>`
 
     if (this.loading) {
       return html`
