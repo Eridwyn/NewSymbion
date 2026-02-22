@@ -28,6 +28,15 @@ export const widgetHeaderStyles = css`
     gap: 0.5rem;
     animation: textGlow var(--bio-breathe-fast, 8s) ease-in-out infinite;
   }
+
+  .widget-count {
+    font-size: var(--text-xs, 0.75rem);
+    color: var(--color-dark-text-tertiary, #6c757d);
+    background: var(--surface-glass-strong, rgba(255, 255, 255, 0.08));
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--radius-xl, 999px);
+    font-weight: 500;
+  }
 `
 
 /**

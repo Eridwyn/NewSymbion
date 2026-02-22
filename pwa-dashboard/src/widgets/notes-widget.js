@@ -15,13 +15,14 @@
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles } from '../styles/shared-widget.js'
+import { btnStyles, btnSizeStyles } from '../styles/shared-forms.js'
 import { getTopPriorityNotes, isHighPriority } from '../utils/notes-scoring.js'
 import { applyAllFilters } from '../utils/notes-filters.js'
 import notesStreamService from '../services/notes-stream-service.js'
 import '../components/organic-loader.js'
 
 class NotesWidget extends LitElement {
-  static styles = [sharedAnimations, widgetHeaderStyles, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, btnStyles, btnSizeStyles, css`
     :host {
       display: block;
     }
@@ -40,27 +41,16 @@ class NotesWidget extends LitElement {
       gap: 0.5rem;
     }
 
-    .view-all-btn, .create-btn {
-      background: linear-gradient(135deg, rgba(0, 212, 170, 0.2) 0%, rgba(34, 197, 94, 0.15) 100%);
-      border: 1px solid rgba(0, 212, 170, 0.3);
-      color: #00d4aa;
-      padding: 0.4rem 0.8rem;
-      border-radius: var(--radius-sm);
-      font-size: 0.8em;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all var(--duration-base) var(--ease-out);
+    /* btn + btn-small base from shared; context-primary override */
+    .header-actions .btn {
+      background: rgba(0, 212, 170, 0.12);
+      border: 1px solid rgba(0, 212, 170, 0.25);
+      color: var(--context-primary, #00d4aa);
     }
 
-    .create-btn {
-      padding: 0.4rem 0.6rem;
-      font-size: 1em;
-    }
-
-    .view-all-btn:hover, .create-btn:hover {
-      background: linear-gradient(135deg, rgba(0, 212, 170, 0.3) 0%, rgba(34, 197, 94, 0.25) 100%);
-      border-color: rgba(0, 212, 170, 0.5);
-      transform: translateY(-1px);
+    .header-actions .btn:hover {
+      background: rgba(0, 212, 170, 0.2);
+      border-color: rgba(0, 212, 170, 0.4);
     }
 
     .notes-list {
@@ -488,14 +478,14 @@ class NotesWidget extends LitElement {
         </h3>
         <div class="header-actions">
           <button
-            class="create-btn"
+            class="btn btn-small btn-icon"
             @click="${this.openCreateNote}"
             aria-label="Créer une note"
             title="Créer une note rapide">
             ➕
           </button>
           <button
-            class="view-all-btn"
+            class="btn btn-small"
             @click="${this.openNotesPage}">
             Voir toutes
           </button>
