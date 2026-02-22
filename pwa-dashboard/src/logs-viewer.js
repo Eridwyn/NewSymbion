@@ -14,7 +14,7 @@ class LogsViewer extends LitElement {
       display: block;
       min-height: 100vh;
       background: #0a0a0b;
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
 
@@ -39,7 +39,7 @@ class LogsViewer extends LitElement {
     .header h1 {
       font-size: 1.2em;
       font-weight: 600;
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
     }
 
     .header-icon {
@@ -89,7 +89,7 @@ class LogsViewer extends LitElement {
       font-weight: 500;
       background: transparent;
       border: none;
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       cursor: pointer;
       transition: all 0.2s;
     }
@@ -105,7 +105,7 @@ class LogsViewer extends LitElement {
 
     .source-tab:hover:not(.active) {
       background: var(--surface-glass);
-      color: #ccc;
+      color: var(--color-dark-text-secondary, #cbd5e1);
     }
 
     .search-input {
@@ -115,7 +115,7 @@ class LogsViewer extends LitElement {
       background: var(--surface-glass);
       border: 1px solid var(--border-medium);
       border-radius: var(--radius-sm);
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       font-size: 0.85em;
       font-family: inherit;
       outline: none;
@@ -127,7 +127,7 @@ class LogsViewer extends LitElement {
     }
 
     .search-input::placeholder {
-      color: #555;
+      color: var(--color-dark-text-tertiary, #94a3b8);
     }
 
     .filter-select {
@@ -135,7 +135,7 @@ class LogsViewer extends LitElement {
       background: var(--surface-glass);
       border: 1px solid var(--border-medium);
       border-radius: var(--radius-sm);
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       font-size: 0.8em;
       font-family: inherit;
       cursor: pointer;
@@ -144,7 +144,7 @@ class LogsViewer extends LitElement {
 
     .filter-select option {
       background: #1a1a2e;
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
     }
 
     .toolbar-btn {
@@ -152,7 +152,7 @@ class LogsViewer extends LitElement {
       background: var(--surface-glass);
       border: 1px solid var(--border-medium);
       border-radius: var(--radius-sm);
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       font-size: 0.8em;
       cursor: pointer;
       transition: all 0.2s;
@@ -172,7 +172,7 @@ class LogsViewer extends LitElement {
 
     .log-count {
       font-size: 0.75em;
-      color: #666;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       white-space: nowrap;
     }
 
@@ -201,7 +201,7 @@ class LogsViewer extends LitElement {
       padding: 0.6rem 0.8rem;
       text-align: left;
       background: #111;
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       font-weight: 600;
       font-size: 0.85em;
       text-transform: uppercase;
@@ -329,7 +329,7 @@ class LogsViewer extends LitElement {
     .empty-state {
       text-align: center;
       padding: 4rem 2rem;
-      color: #555;
+      color: var(--color-dark-text-tertiary, #94a3b8);
     }
 
     .empty-state .icon {
@@ -430,14 +430,14 @@ class LogsViewer extends LitElement {
       .log-card-time {
         font-family: 'JetBrains Mono', monospace;
         font-size: 0.7em;
-        color: #666;
+        color: var(--color-dark-text-tertiary, #94a3b8);
         margin-left: auto;
       }
 
       .log-card-message {
         font-family: 'JetBrains Mono', monospace;
         font-size: 0.78em;
-        color: #ccc;
+        color: var(--color-dark-text-secondary, #cbd5e1);
         word-break: break-word;
         line-height: 1.4;
       }

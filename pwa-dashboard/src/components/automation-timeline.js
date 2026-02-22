@@ -23,7 +23,7 @@ class AutomationTimeline extends LitElement {
 
     .timeline-container {
       background: var(--card-bg, rgba(30, 35, 45, 0.95));
-      border-radius: 12px;
+      border-radius: var(--radius-md, 0.75rem);
       padding: 1rem;
       border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
     }

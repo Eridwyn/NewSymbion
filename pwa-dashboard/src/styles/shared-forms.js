@@ -21,7 +21,7 @@ export const formInputStyles = css`
     background: rgba(0, 0, 0, 0.4);
     border: 1px solid var(--border-medium, rgba(255, 255, 255, 0.12));
     border-radius: var(--radius-md, 8px);
-    color: #e0e0e0;
+    color: var(--color-dark-text-primary, #f8f9fa);
     font-size: 0.9rem;
     font-family: inherit;
     transition: all var(--duration-base, 0.2s) var(--ease-out, ease-out);
@@ -115,7 +115,7 @@ export const btnStyles = css`
 
   .btn-secondary:hover {
     background: var(--surface-glass, rgba(255, 255, 255, 0.05));
-    color: #e0e0e0;
+    color: var(--color-dark-text-primary, #f8f9fa);
   }
 
   .btn-danger {

@@ -11,11 +11,11 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
-import { widgetHeaderStyles } from '../styles/shared-widget.js'
+import { widgetHeaderStyles, emptyStateStyles } from '../styles/shared-widget.js'
 import { statusBadgeStyles } from '../styles/shared-patterns.js'
 
 class PluginsWidget extends LitElement {
-  static styles = [sharedAnimations, widgetHeaderStyles, statusBadgeStyles, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, statusBadgeStyles, emptyStateStyles, css`
     :host {
       display: block;
     }
@@ -52,7 +52,7 @@ class PluginsWidget extends LitElement {
     
     .plugin-name {
       font-weight: 600;
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
     }
     
     .plugin-version {
@@ -190,11 +190,7 @@ class PluginsWidget extends LitElement {
       font-size: 0.75em;
     }
     
-    .loading {
-      text-align: center;
-      padding: 2rem;
-      opacity: 0.6;
-    }
+    /* empty-state provided by emptyStateStyles */
     
     .error {
       text-align: center;
@@ -213,6 +209,45 @@ class PluginsWidget extends LitElement {
       border: 1px solid var(--ctx-bg-intense);
       border-radius: var(--radius-sm);
       margin-bottom: 1rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .plugin-card {
+        padding: 0.75rem;
+      }
+
+      .plugin-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.4rem;
+        margin-bottom: 0.6rem;
+      }
+
+      .plugin-description {
+        font-size: 0.85em;
+        margin-bottom: 0.75rem;
+      }
+
+      .info-row {
+        flex-direction: column;
+        gap: 0.15rem;
+      }
+
+      .info-value {
+        font-size: 0.75em;
+        word-break: break-all;
+      }
+
+      .readonly-notice {
+        padding: 0.6rem;
+        font-size: 0.8em;
+      }
+
+      .plugin-actions {
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+      }
     }
   `]
 
@@ -338,8 +373,9 @@ class PluginsWidget extends LitElement {
         <div class="widget-header">
           <h3 class="widget-title">🔌 Plugins</h3>
         </div>
-        <div class="loading">
-          ⏳ Aucun plugin chargé
+        <div class="empty-state">
+          <div class="empty-state-icon">⏳</div>
+          <div class="empty-state-text">Aucun plugin chargé</div>
         </div>
       `
     }

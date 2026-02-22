@@ -157,7 +157,7 @@ class SystemHealthWidget extends LitElement {
 
     .metric-label {
       font-size: 0.8em;
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       font-weight: 500;
       text-transform: uppercase;
       letter-spacing: 1px;

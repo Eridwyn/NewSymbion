@@ -602,7 +602,7 @@ class DashboardApp extends LitElement {
     .error-message {
       background: linear-gradient(135deg, rgba(255, 107, 107, 0.15) 0%, rgba(255, 107, 107, 0.05) 100%);
       border: 1px solid rgba(255, 107, 107, 0.4);
-      border-radius: 12px;
+      border-radius: var(--radius-md, 0.75rem);
       padding: 1.2rem;
       margin: 1rem 0;
       color: #ff6b6b;

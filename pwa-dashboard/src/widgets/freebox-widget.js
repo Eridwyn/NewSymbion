@@ -65,12 +65,12 @@ class FreeboxWidget extends LitElement {
     }
 
     .device-name {
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       font-size: 0.9em;
     }
 
     .device-ip {
-      color: #666;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       font-size: 0.75em;
     }
 
@@ -123,13 +123,13 @@ class FreeboxWidget extends LitElement {
 
     .stat-unit {
       font-size: 0.7em;
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       margin-left: 2px;
     }
 
     .stat-label {
       font-size: 0.75em;
-      color: #666;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       margin-top: 0.25rem;
     }
 
@@ -142,7 +142,7 @@ class FreeboxWidget extends LitElement {
       padding: 0.5rem;
       background: rgba(255, 255, 255, 0.04);
       border-radius: var(--radius-base);
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       font-size: 0.8em;
     }
 

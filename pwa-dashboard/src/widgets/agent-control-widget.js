@@ -94,13 +94,13 @@ class AgentControlWidget extends LitElement {
       display: flex;
       align-items: center;
       gap: 12px;
-      font-size: 20px;
+      font-size: var(--text-xl, 1.25rem);
       font-weight: 600;
       color: #ffffff;
     }
 
     .os-icon {
-      font-size: 32px;
+      font-size: var(--text-3xl, 2rem);
     }
 
     .agent-info {
@@ -110,14 +110,14 @@ class AgentControlWidget extends LitElement {
     }
 
     .agent-hostname {
-      font-size: 20px;
+      font-size: var(--text-xl, 1.25rem);
       font-weight: 600;
       color: #ffffff;
     }
 
     .agent-meta {
-      font-size: 14px;
-      color: #888;
+      font-size: var(--text-sm, 0.875rem);
+      color: var(--color-dark-text-tertiary, #94a3b8);
     }
 
     /* Local override — animation only (base from statusBadgeStyles) */
@@ -140,10 +140,10 @@ class AgentControlWidget extends LitElement {
         rgba(255, 107, 107, 0.08) 100%);
       border: 1px solid rgba(255, 107, 107, 0.3);
       color: #ff6b6b;
-      font-size: 28px;
+      font-size: 1.75rem;
       cursor: pointer;
       padding: 8px 12px;
-      border-radius: 10px;
+      border-radius: var(--radius-md, 0.75rem);
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       line-height: 1;
     }
@@ -170,10 +170,10 @@ class AgentControlWidget extends LitElement {
       padding: 14px 24px;
       border: none;
       background: transparent;
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       cursor: pointer;
       border-bottom: 3px solid transparent;
-      font-size: 14px;
+      font-size: var(--text-sm, 0.875rem);
       font-weight: 500;
       white-space: nowrap;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -202,7 +202,7 @@ class AgentControlWidget extends LitElement {
     }
 
     .tab-btn:hover {
-      color: #ccc;
+      color: var(--color-dark-text-secondary, #cbd5e1);
       background: var(--surface-glass);
     }
 
@@ -236,8 +236,8 @@ class AgentControlWidget extends LitElement {
     .power-btn {
       padding: 12px 24px;
       border: none;
-      border-radius: 10px;
-      font-size: 14px;
+      border-radius: var(--radius-md, 0.75rem);
+      font-size: var(--text-sm, 0.875rem);
       font-weight: 500;
       cursor: pointer;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -304,15 +304,15 @@ class AgentControlWidget extends LitElement {
     }
 
     .info-label {
-      font-size: 12px;
-      color: #888;
+      font-size: var(--text-xs, 0.75rem);
+      color: var(--color-dark-text-tertiary, #94a3b8);
       text-transform: uppercase;
       letter-spacing: 0.5px;
       margin-bottom: 6px;
     }
 
     .info-value {
-      font-size: 16px;
+      font-size: var(--text-base, 1rem);
       color: #ffffff;
       font-family: 'Monaco', 'Consolas', monospace;
     }
@@ -329,9 +329,9 @@ class AgentControlWidget extends LitElement {
       gap: 16px;
       padding: 12px 16px;
       background: var(--surface-glass-strong);
-      font-size: 12px;
+      font-size: var(--text-xs, 0.75rem);
       font-weight: 600;
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
@@ -342,7 +342,7 @@ class AgentControlWidget extends LitElement {
       gap: 16px;
       padding: 12px 16px;
       border-bottom: 1px solid var(--surface-glass);
-      font-size: 14px;
+      font-size: var(--text-sm, 0.875rem);
       align-items: center;
       transition: background 0.2s ease;
     }
@@ -413,7 +413,7 @@ class AgentControlWidget extends LitElement {
     }
 
     .metric-value {
-      font-size: 36px;
+      font-size: 2.25rem;
       font-weight: 700;
       margin: 10px 0;
       background: linear-gradient(135deg, #007acc 0%, var(--context-primary, #00d4aa) 50%, #22c55e 100%);
@@ -428,8 +428,8 @@ class AgentControlWidget extends LitElement {
     /* gradient-shift — see shared-animations.js */
 
     .metric-label {
-      font-size: 14px;
-      color: #888;
+      font-size: var(--text-sm, 0.875rem);
+      color: var(--color-dark-text-tertiary, #94a3b8);
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
@@ -486,7 +486,7 @@ class AgentControlWidget extends LitElement {
       border-radius: var(--radius-base);
       color: #ffffff;
       font-family: 'Monaco', 'Consolas', monospace;
-      font-size: 14px;
+      font-size: var(--text-sm, 0.875rem);
     }
 
     .command-field:focus {
@@ -500,8 +500,8 @@ class AgentControlWidget extends LitElement {
       background: linear-gradient(135deg, rgba(59, 130, 246, 0.8) 0%, rgba(37, 99, 235, 0.7) 100%);
       color: white;
       border: 1px solid rgba(59, 130, 246, 0.5);
-      border-radius: 10px;
-      font-size: 14px;
+      border-radius: var(--radius-md, 0.75rem);
+      font-size: var(--text-sm, 0.875rem);
       font-weight: 500;
       cursor: pointer;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -527,7 +527,7 @@ class AgentControlWidget extends LitElement {
       border-radius: var(--radius-base);
       padding: 16px;
       font-family: 'Monaco', 'Consolas', monospace;
-      font-size: 13px;
+      font-size: 0.8125rem;
       color: #e6edf3;
       white-space: pre-wrap;
       overflow-y: auto;
@@ -540,8 +540,8 @@ class AgentControlWidget extends LitElement {
       align-items: center;
       justify-content: center;
       padding: 40px;
-      color: #888;
-      font-size: 14px;
+      color: var(--color-dark-text-tertiary, #94a3b8);
+      font-size: var(--text-sm, 0.875rem);
     }
 
     .error-state {
@@ -575,7 +575,7 @@ class AgentControlWidget extends LitElement {
       .process-header,
       .process-row {
         grid-template-columns: 60px 1fr 60px;
-        font-size: 12px;
+        font-size: var(--text-xs, 0.75rem);
       }
       
       .process-header .cpu-col,

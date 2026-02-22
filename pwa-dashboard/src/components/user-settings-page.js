@@ -183,12 +183,12 @@ class UserSettingsPage extends LitElement {
     }
 
     .info-label {
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       font-size: 0.9em;
     }
 
     .info-value {
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       font-weight: 500;
     }
 
@@ -416,7 +416,7 @@ class UserSettingsPage extends LitElement {
     .loading {
       text-align: center;
       padding: 2rem;
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
     }
 
     .spinner {

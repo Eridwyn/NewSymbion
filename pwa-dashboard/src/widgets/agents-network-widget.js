@@ -10,7 +10,7 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
-import { widgetHeaderStyles } from '../styles/shared-widget.js'
+import { widgetHeaderStyles, emptyStateStyles } from '../styles/shared-widget.js'
 import { statusDotStyles, statusBadgeStyles } from '../styles/shared-patterns.js'
 import '../services/agents-service.js'
 import '../components/organic-loader.js'
@@ -25,7 +25,7 @@ class AgentsNetworkWidget extends LitElement {
     selectedAgent: { type: Object }
   }
   
-  static styles = [sharedAnimations, widgetHeaderStyles, statusDotStyles, statusBadgeStyles, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, statusDotStyles, statusBadgeStyles, emptyStateStyles, css`
     :host {
       display: block;
       background: var(--widget-background, #1a1a1a);
@@ -44,7 +44,7 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .widget-title {
-      font-size: 18px;
+      font-size: var(--text-lg, 1.125rem);
       color: #ffffff;
       gap: 8px;
     }
@@ -60,11 +60,11 @@ class AgentsNetworkWidget extends LitElement {
       padding: 6px 12px;
       border: none;
       background: transparent;
-      color: #ccc;
+      color: var(--color-dark-text-secondary, #cbd5e1);
       cursor: pointer;
       border-radius: var(--radius-sm);
       transition: all 0.2s ease;
-      font-size: 14px;
+      font-size: var(--text-sm, 0.875rem);
     }
 
     .view-btn.active {
@@ -81,8 +81,8 @@ class AgentsNetworkWidget extends LitElement {
       align-items: center;
       justify-content: center;
       padding: 40px;
-      color: #888;
-      font-size: 14px;
+      color: var(--color-dark-text-tertiary, #94a3b8);
+      font-size: var(--text-sm, 0.875rem);
     }
 
     .error-state {
@@ -164,7 +164,7 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .os-icon {
-      font-size: 28px;
+      font-size: 1.75rem;
       filter: grayscale(0) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
       transition: all var(--duration-base) var(--ease-out);
     }
@@ -178,15 +178,15 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .agent-hostname {
-      font-size: 16px;
+      font-size: var(--text-base, 1rem);
       font-weight: 600;
       color: #ffffff;
       margin-bottom: 4px;
     }
 
     .agent-os {
-      font-size: 12px;
-      color: #888;
+      font-size: var(--text-xs, 0.75rem);
+      color: var(--color-dark-text-tertiary, #94a3b8);
       text-transform: capitalize;
     }
 
@@ -197,7 +197,7 @@ class AgentsNetworkWidget extends LitElement {
       grid-template-columns: 1fr 1fr;
       gap: 8px;
       margin-bottom: 12px;
-      font-size: 13px;
+      font-size: 0.8125rem;
     }
 
     .meta-item {
@@ -207,16 +207,16 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .meta-label {
-      color: #888;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
 
     .meta-value {
-      color: #ccc;
+      color: var(--color-dark-text-secondary, #cbd5e1);
       font-family: 'Monaco', 'Consolas', monospace;
-      font-size: 12px;
+      font-size: var(--text-xs, 0.75rem);
     }
 
     .agent-actions {
@@ -229,7 +229,7 @@ class AgentsNetworkWidget extends LitElement {
       padding: 8px 14px;
       border: none;
       border-radius: var(--radius-base);
-      font-size: 12px;
+      font-size: var(--text-xs, 0.75rem);
       font-weight: 500;
       cursor: pointer;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -308,7 +308,7 @@ class AgentsNetworkWidget extends LitElement {
 
     .action-btn.delete {
       background: linear-gradient(135deg, rgba(156, 163, 175, 0.2) 0%, rgba(107, 114, 128, 0.15) 100%);
-      color: #9ca3af;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       border: 1px solid rgba(156, 163, 175, 0.3);
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
@@ -348,23 +348,7 @@ class AgentsNetworkWidget extends LitElement {
       }
     }
 
-    .empty-state {
-      text-align: center;
-      padding: 40px 20px;
-      color: #888;
-    }
-
-    .empty-state h3 {
-      margin: 0 0 8px 0;
-      color: #ccc;
-      font-size: 18px;
-    }
-
-    .empty-state p {
-      margin: 0;
-      font-size: 14px;
-      line-height: 1.5;
-    }
+    /* empty-state provided by emptyStateStyles */
 
     .refresh-btn {
       background: rgba(59, 130, 246, 0.2);
@@ -374,7 +358,7 @@ class AgentsNetworkWidget extends LitElement {
       padding: 8px 16px;
       cursor: pointer;
       transition: all 0.2s ease;
-      font-size: 14px;
+      font-size: var(--text-sm, 0.875rem);
     }
 
     .refresh-btn:hover {
@@ -412,11 +396,11 @@ class AgentsNetworkWidget extends LitElement {
       }
 
       .os-icon {
-        font-size: 24px;
+        font-size: var(--text-2xl, 1.5rem);
       }
 
       .agent-hostname {
-        font-size: 14px;
+        font-size: var(--text-sm, 0.875rem);
       }
     }
   `]

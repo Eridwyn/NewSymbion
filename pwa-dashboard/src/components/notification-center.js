@@ -177,7 +177,7 @@ class NotificationCenter extends LitElement {
 
     .panel-content::-webkit-scrollbar-thumb {
       background: var(--ctx-bg-intense);
-      border-radius: 3px;
+      border-radius: var(--radius-sm, 0.375rem);
     }
 
     /* Notification item */
@@ -439,7 +439,7 @@ class NotificationCenter extends LitElement {
         .notif-title {
           font-size: 1rem;
           font-weight: 600;
-          color: #f8f9fa;
+          color: var(--color-dark-text-primary, #f8f9fa);
         }
         .notif-header-actions {
           display: flex;
@@ -449,7 +449,7 @@ class NotificationCenter extends LitElement {
         .notif-header-btn {
           background: var(--surface-glass-hover);
           border: 1px solid var(--border-hover);
-          color: #adb5bd;
+          color: var(--color-dark-text-secondary, #cbd5e1);
           padding: 0.35rem 0.6rem;
           border-radius: var(--radius-sm);
           cursor: pointer;
@@ -470,7 +470,7 @@ class NotificationCenter extends LitElement {
         .notif-close {
           background: var(--surface-glass-strong);
           border: none;
-          color: #adb5bd;
+          color: var(--color-dark-text-secondary, #cbd5e1);
           width: 32px;
           height: 32px;
           border-radius: 50%;
@@ -502,7 +502,7 @@ class NotificationCenter extends LitElement {
         .notif-item-title {
           font-size: 0.85rem;
           font-weight: 600;
-          color: #f8f9fa;
+          color: var(--color-dark-text-primary, #f8f9fa);
         }
         .notif-priority {
           font-size: 0.6rem;
@@ -515,12 +515,12 @@ class NotificationCenter extends LitElement {
         .notif-priority.P2 { background: var(--ctx-bg-strong, rgba(0,212,170,0.2)); color: var(--context-primary, #00d4aa); }
         .notif-body {
           font-size: var(--text-xs);
-          color: #adb5bd;
+          color: var(--color-dark-text-secondary, #cbd5e1);
           margin-bottom: 0.5rem;
         }
         .notif-meta {
           font-size: 0.65rem;
-          color: #6c757d;
+          color: var(--color-dark-text-tertiary, #94a3b8);
           margin-bottom: 0.5rem;
         }
         .notif-actions {
@@ -555,7 +555,7 @@ class NotificationCenter extends LitElement {
         .notif-empty {
           padding: 2rem;
           text-align: center;
-          color: #6c757d;
+          color: var(--color-dark-text-tertiary, #94a3b8);
         }
       </style>
       <div id="notification-modal-overlay"></div>

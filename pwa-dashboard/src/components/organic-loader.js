@@ -209,6 +209,54 @@ class OrganicLoader extends LitElement {
         opacity: 1;
       }
     }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .organic-loader {
+        margin: 1.5rem auto;
+      }
+
+      .organic-loader__container {
+        width: 100px;
+        height: 100px;
+      }
+
+      .organic-loader__blob {
+        width: 64px;
+        height: 64px;
+        margin: -32px 0 0 -32px;
+      }
+
+      .organic-loader__ripple {
+        width: 64px;
+        height: 64px;
+        margin: -32px 0 0 -32px;
+      }
+
+      .organic-loader__particle--1 {
+        width: 6px;
+        height: 6px;
+      }
+
+      .organic-loader__particle--2 {
+        width: 4px;
+        height: 4px;
+      }
+
+      .organic-loader__particle--3 {
+        width: 5px;
+        height: 5px;
+      }
+
+      .organic-loader__particle--4 {
+        width: 4px;
+        height: 4px;
+      }
+
+      .organic-loader__text {
+        font-size: 0.8em;
+      }
+    }
   `
 
   constructor() {

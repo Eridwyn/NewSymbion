@@ -163,7 +163,7 @@ class PatternsModal extends LitElement {
 
     .pattern-description {
       font-size: var(--text-sm);
-      color: #e0e0e0;
+      color: var(--color-dark-text-primary, #f8f9fa);
       font-weight: 500;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -233,7 +233,7 @@ class PatternsModal extends LitElement {
 
       .modal-content {
         padding: 1.5rem 1rem;
-        border-radius: 16px 16px 0 0;
+        border-radius: var(--radius-lg, 1rem) var(--radius-lg, 1rem) 0 0;
       }
 
       .modal-header {
@@ -288,7 +288,7 @@ class PatternsModal extends LitElement {
 
       .modal-content {
         padding: 1rem 0.75rem;
-        border-radius: 12px 12px 0 0;
+        border-radius: var(--radius-md, 0.75rem) var(--radius-md, 0.75rem) 0 0;
       }
 
       .modal-header {
