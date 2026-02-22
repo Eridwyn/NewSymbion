@@ -1390,7 +1390,7 @@ class UserSettingsPage extends LitElement {
 
         ${this.stats ? html`
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
-            <div style="background: rgba(0, 212, 170, 0.05); border: 1px solid rgba(0, 212, 170, 0.2); border-radius: var(--radius-base); padding: 1rem; text-align: center;">
+            <div style="background: var(--ctx-bg-subtle); border: 1px solid var(--ctx-border-medium); border-radius: var(--radius-base); padding: 1rem; text-align: center;">
               <div style="font-size: 2em; color: var(--context-primary, #00d4aa);">
                 ${this.stats.total_evaluations || 0}
               </div>

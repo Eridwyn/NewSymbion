@@ -237,8 +237,8 @@ class NotificationCenter extends LitElement {
     }
 
     .notification-priority.P2 {
-      background: rgba(0, 212, 170, 0.2);
-      color: #00d4aa;
+      background: var(--ctx-bg-strong);
+      color: var(--context-primary, #00d4aa);
     }
 
     .notification-body {
@@ -418,7 +418,7 @@ class NotificationCenter extends LitElement {
           max-width: 400px;
           max-height: 80vh;
           background: linear-gradient(135deg, rgba(19, 20, 26, 0.99) 0%, rgba(10, 10, 11, 1) 100%);
-          border: 1px solid rgba(0, 212, 170, 0.25);
+          border: 1px solid var(--ctx-bg-emphasis, rgba(0, 212, 170, 0.25));
           border-radius: var(--radius-md);
           box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
           z-index: 9999;
@@ -430,7 +430,7 @@ class NotificationCenter extends LitElement {
         }
         .notif-header {
           padding: 1rem;
-          border-bottom: 1px solid rgba(0, 212, 170, 0.15);
+          border-bottom: 1px solid var(--ctx-border, rgba(0, 212, 170, 0.15));
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -491,8 +491,8 @@ class NotificationCenter extends LitElement {
           border-bottom: 1px solid rgba(255,255,255,0.05);
         }
         .notif-item.unread {
-          background: rgba(0, 212, 170, 0.05);
-          border-left: 3px solid #00d4aa;
+          background: var(--ctx-bg-subtle, rgba(0, 212, 170, 0.05));
+          border-left: 3px solid var(--context-primary, #00d4aa);
         }
         .notif-item-header {
           display: flex;
@@ -512,7 +512,7 @@ class NotificationCenter extends LitElement {
         }
         .notif-priority.P0 { background: rgba(239,68,68,0.2); color: #ff6b6b; }
         .notif-priority.P1 { background: rgba(251,146,60,0.2); color: #fb923c; }
-        .notif-priority.P2 { background: rgba(0,212,170,0.2); color: #00d4aa; }
+        .notif-priority.P2 { background: var(--ctx-bg-strong, rgba(0,212,170,0.2)); color: var(--context-primary, #00d4aa); }
         .notif-body {
           font-size: var(--text-xs);
           color: #adb5bd;
@@ -537,12 +537,12 @@ class NotificationCenter extends LitElement {
           border: 1px solid transparent;
         }
         .notif-btn-ack {
-          background: rgba(0,212,170,0.15);
-          border-color: rgba(0,212,170,0.4);
-          color: #00d4aa;
+          background: var(--ctx-border, rgba(0,212,170,0.15));
+          border-color: var(--ctx-border-strong, rgba(0,212,170,0.4));
+          color: var(--context-primary, #00d4aa);
         }
         .notif-btn-ack:hover {
-          background: rgba(0,212,170,0.25);
+          background: var(--ctx-bg-emphasis, rgba(0,212,170,0.25));
         }
         .notif-btn-delete {
           background: rgba(239,68,68,0.15);

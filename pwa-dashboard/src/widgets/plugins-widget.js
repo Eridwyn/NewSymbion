@@ -92,13 +92,13 @@ class PluginsWidget extends LitElement {
     }
 
     .readonly-notice {
-      background: rgba(34, 197, 94, 0.1);
-      border: 1px solid rgba(34, 197, 94, 0.2);
+      background: var(--ctx-bg-subtle);
+      border: 1px solid var(--ctx-bg-strong);
       border-radius: var(--radius-sm);
       padding: 0.8rem;
       margin-bottom: 1rem;
       font-size: 0.85em;
-      color: #22c55e;
+      color: var(--context-primary, #00d4aa);
       display: flex;
       align-items: center;
       gap: 0.5rem;
@@ -125,16 +125,16 @@ class PluginsWidget extends LitElement {
     }
 
     .action-btn.success {
-      background: rgba(34, 197, 94, 0.15);
-      color: #22c55e;
-      border-color: rgba(34, 197, 94, 0.25);
+      background: var(--ctx-bg-medium);
+      color: var(--context-primary, #00d4aa);
+      border-color: var(--ctx-bg-emphasis);
     }
 
     .action-btn.success:hover:not(:disabled) {
-      background: rgba(34, 197, 94, 0.25);
-      border-color: rgba(34, 197, 94, 0.4);
+      background: var(--ctx-bg-emphasis);
+      border-color: var(--ctx-border-strong);
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+      box-shadow: 0 4px 12px var(--ctx-bg-strong);
     }
 
     .action-btn.danger {
@@ -208,9 +208,9 @@ class PluginsWidget extends LitElement {
     .success {
       text-align: center;
       padding: 1rem;
-      color: #22c55e;
-      background: rgba(34, 197, 94, 0.1);
-      border: 1px solid rgba(34, 197, 94, 0.3);
+      color: var(--context-primary, #00d4aa);
+      background: var(--ctx-bg-subtle);
+      border: 1px solid var(--ctx-bg-intense);
       border-radius: var(--radius-sm);
       margin-bottom: 1rem;
     }

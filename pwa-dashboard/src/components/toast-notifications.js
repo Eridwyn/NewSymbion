@@ -77,7 +77,7 @@ class ToastNotifications extends LitElement {
     }
 
     .toast.P2 {
-      border-color: rgba(0, 212, 170, 0.3);
+      border-color: var(--ctx-border-medium);
     }
 
     .toast-header {
@@ -109,8 +109,8 @@ class ToastNotifications extends LitElement {
     }
 
     .toast-priority.P2 {
-      background: rgba(0, 212, 170, 0.2);
-      color: #00d4aa;
+      background: var(--ctx-bg-strong);
+      color: var(--context-primary, #00d4aa);
     }
 
     .toast-title {
@@ -146,16 +146,16 @@ class ToastNotifications extends LitElement {
 
     .toast-btn-ack {
       background: linear-gradient(135deg,
-        rgba(0, 212, 170, 0.2) 0%,
-        rgba(0, 212, 170, 0.1) 100%);
-      border-color: rgba(0, 212, 170, 0.4);
-      color: #00d4aa;
+        var(--ctx-bg-strong) 0%,
+        var(--ctx-bg) 100%);
+      border-color: var(--ctx-border-strong);
+      color: var(--context-primary, #00d4aa);
     }
 
     .toast-btn-ack:hover {
       background: linear-gradient(135deg,
-        rgba(0, 212, 170, 0.3) 0%,
-        rgba(0, 212, 170, 0.2) 100%);
+        var(--ctx-border-medium) 0%,
+        var(--ctx-bg-strong) 100%);
       transform: translateY(-1px);
     }
 

@@ -43,14 +43,14 @@ class NotesWidget extends LitElement {
 
     /* btn + btn-small base from shared; context-primary override */
     .header-actions .btn {
-      background: rgba(0, 212, 170, 0.12);
-      border: 1px solid rgba(0, 212, 170, 0.25);
+      background: var(--ctx-bg-medium);
+      border: 1px solid var(--ctx-bg-emphasis);
       color: var(--context-primary, #00d4aa);
     }
 
     .header-actions .btn:hover {
-      background: rgba(0, 212, 170, 0.2);
-      border-color: rgba(0, 212, 170, 0.4);
+      background: var(--ctx-bg-strong);
+      border-color: var(--ctx-border-strong);
     }
 
     .notes-list {
@@ -76,13 +76,13 @@ class NotesWidget extends LitElement {
       left: 0;
       width: 3px;
       height: 100%;
-      background: linear-gradient(180deg, rgba(0, 122, 204, 0.5) 0%, rgba(0, 212, 170, 0.3) 100%);
+      background: linear-gradient(180deg, rgba(0, 122, 204, 0.5) 0%, var(--ctx-border-medium) 100%);
       opacity: 0;
       transition: opacity 0.3s ease;
     }
 
     .note-card:hover {
-      border-color: rgba(0, 212, 170, 0.4);
+      border-color: var(--ctx-border-strong);
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
       transform: translateY(-1px);
       box-shadow: 0 8px 32px var(--ctx-border-medium, rgba(0,212,170,0.2)),
@@ -130,8 +130,8 @@ class NotesWidget extends LitElement {
     }
 
     .context-tag {
-      background: linear-gradient(135deg, rgba(0, 122, 204, 0.2) 0%, rgba(0, 212, 170, 0.15) 100%);
-      color: #00d4aa;
+      background: linear-gradient(135deg, rgba(0, 122, 204, 0.2) 0%, var(--ctx-border) 100%);
+      color: var(--context-primary, #00d4aa);
       padding: 0.1rem 0.4rem;
       border-radius: var(--radius-sm);
       font-size: 0.65em;
@@ -158,7 +158,7 @@ class NotesWidget extends LitElement {
     }
 
     .note-tags {
-      color: #00d4aa;
+      color: var(--context-primary, #00d4aa);
     }
 
     .placeholder {
@@ -519,7 +519,7 @@ class NotesWidget extends LitElement {
                   ${note.data.urgent ? html`<span class="urgent-indicator">🚨</span>` : ''}
                   ${isPriority ? html`<span class="priority-badge">⭐</span>` : ''}
                   ${note.data.context ? html`
-                    <span class="context-tag" style="${note.data.context === this.currentContext ? 'border: 2px solid #00d4aa;' : 'border: 1px solid rgba(255,255,255,0.3);'}">
+                    <span class="context-tag" style="${note.data.context === this.currentContext ? 'border: 2px solid var(--context-primary, #00d4aa);' : 'border: 1px solid rgba(255,255,255,0.3);'}">
                       ${this.getContextIcon(note.data.context)} ${note.data.context}
                     </span>
                   ` : html`

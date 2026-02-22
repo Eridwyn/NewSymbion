@@ -267,8 +267,8 @@ export class SslConfigPage extends LitElement {
 
     /* Form Section */
     .form-section {
-      background: linear-gradient(135deg, rgba(0, 212, 170, 0.08) 0%, rgba(0, 180, 140, 0.04) 100%);
-      border: 1px solid rgba(0, 212, 170, 0.2);
+      background: linear-gradient(135deg, var(--ctx-bg) 0%, var(--ctx-bg-subtle) 100%);
+      border: 1px solid var(--ctx-border-medium);
     }
 
     .form-grid {
@@ -286,7 +286,7 @@ export class SslConfigPage extends LitElement {
       gap: 0.75rem;
       margin-top: 1.25rem;
       padding-top: 1.25rem;
-      border-top: 1px solid rgba(0, 212, 170, 0.15);
+      border-top: 1px solid var(--ctx-border);
     }
 
     /* Local btn overrides */
@@ -345,8 +345,8 @@ export class SslConfigPage extends LitElement {
     .spinner {
       width: 24px;
       height: 24px;
-      border: 2px solid rgba(0, 212, 170, 0.2);
-      border-top-color: #00d4aa;
+      border: 2px solid var(--ctx-border-medium);
+      border-top-color: var(--context-primary, #00d4aa);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
       margin-right: 0.75rem;

@@ -43,7 +43,7 @@ class HostsWidget extends LitElement {
     }
     
     .host-card.online {
-      border-color: rgba(0, 212, 170, 0.3);
+      border-color: var(--ctx-border-medium);
     }
     
     .host-card.offline {
@@ -97,8 +97,8 @@ class HostsWidget extends LitElement {
     }
     
     .action-btn {
-      background: rgba(0, 212, 170, 0.12);
-      border: 1px solid rgba(0, 212, 170, 0.25);
+      background: var(--ctx-bg-medium);
+      border: 1px solid var(--ctx-border-medium);
       color: var(--context-primary, #00d4aa);
       padding: 0.4rem 0.8rem;
       border-radius: var(--radius-sm, 4px);
@@ -109,8 +109,8 @@ class HostsWidget extends LitElement {
     }
 
     .action-btn:hover {
-      background: rgba(0, 212, 170, 0.2);
-      border-color: rgba(0, 212, 170, 0.4);
+      background: var(--ctx-bg-strong);
+      border-color: var(--ctx-border-strong);
     }
 
     .action-btn:disabled {

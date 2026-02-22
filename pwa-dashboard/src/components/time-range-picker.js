@@ -90,7 +90,7 @@ class TimeRangePicker extends LitElement {
     .time-visual-fill {
       position: absolute;
       height: 100%;
-      background: linear-gradient(90deg, var(--primary-color, #00d4aa), rgba(0, 212, 170, 0.6));
+      background: linear-gradient(90deg, var(--primary-color, #00d4aa), color-mix(in srgb, var(--context-primary) 60%, transparent));
       border-radius: var(--radius-sm);
       transition: all 0.2s ease;
     }

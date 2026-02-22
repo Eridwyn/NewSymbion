@@ -40,9 +40,9 @@ class OrganicLoader extends LitElement {
       margin: -45px 0 0 -45px;
       background: radial-gradient(
         circle,
-        rgba(0, 255, 213, 0.7) 0%,
-        rgba(0, 212, 170, 0.5) 50%,
-        rgba(0, 168, 138, 0.3) 100%
+        color-mix(in srgb, var(--context-primary) 70%, transparent) 0%,
+        var(--ctx-border-intense) 50%,
+        var(--ctx-bg-intense) 100%
       );
       animation: blob-morph 6s ease-in-out infinite,
                  bio-glow 3s ease-in-out infinite;
@@ -59,9 +59,9 @@ class OrganicLoader extends LitElement {
       margin: -45px 0 0 -45px;
       background: radial-gradient(
         circle,
-        rgba(0, 255, 213, 0.4) 0%,
-        rgba(0, 212, 170, 0.2) 30%,
-        rgba(0, 168, 138, 0.1) 60%,
+        var(--ctx-border-strong) 0%,
+        var(--ctx-border-medium) 30%,
+        var(--ctx-bg) 60%,
         transparent 100%
       );
       border-radius: 50%;
@@ -83,7 +83,7 @@ class OrganicLoader extends LitElement {
 
     .organic-loader__particle {
       position: absolute;
-      background: #00d4aa;
+      background: var(--context-primary, #00d4aa);
       border-radius: 50%;
       animation: float ease-in-out infinite;
       z-index: 3;
@@ -126,7 +126,7 @@ class OrganicLoader extends LitElement {
 
     .organic-loader__text {
       text-align: center;
-      color: #00d4aa;
+      color: var(--context-primary, #00d4aa);
       font-size: 0.85em;
       margin-top: 1rem;
       opacity: 0.8;
@@ -156,14 +156,14 @@ class OrganicLoader extends LitElement {
 
     @keyframes bio-glow {
       0%, 100% {
-        box-shadow: 0 0 20px rgba(0, 212, 170, 0.4),
-                    0 0 40px rgba(0, 212, 170, 0.3),
-                    inset 0 0 30px rgba(0, 255, 213, 0.15);
+        box-shadow: 0 0 20px var(--ctx-border-strong),
+                    0 0 40px var(--ctx-bg-intense),
+                    inset 0 0 30px color-mix(in srgb, var(--context-primary) 15%, transparent);
       }
       50% {
-        box-shadow: 0 0 40px rgba(0, 212, 170, 0.7),
-                    0 0 80px rgba(0, 212, 170, 0.5),
-                    inset 0 0 50px rgba(0, 255, 213, 0.3);
+        box-shadow: 0 0 40px color-mix(in srgb, var(--context-primary) 70%, transparent),
+                    0 0 80px var(--ctx-border-intense),
+                    inset 0 0 50px var(--ctx-bg-intense);
       }
     }
 

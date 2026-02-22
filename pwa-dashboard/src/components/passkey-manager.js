@@ -44,9 +44,9 @@ class PasskeyManager extends LitElement {
     }
 
     .register-btn {
-      background: linear-gradient(135deg, rgba(0, 212, 170, 0.2) 0%, rgba(34, 197, 94, 0.15) 100%);
-      border: 1px solid rgba(0, 212, 170, 0.3);
-      color: #00d4aa;
+      background: linear-gradient(135deg, var(--ctx-bg-strong) 0%, var(--ctx-border) 100%);
+      border: 1px solid var(--ctx-border-medium);
+      color: var(--context-primary, #00d4aa);
       padding: 0.6rem 1.2rem;
       border-radius: 8px;
       font-size: 0.9em;
@@ -59,8 +59,8 @@ class PasskeyManager extends LitElement {
     }
 
     .register-btn:hover {
-      background: linear-gradient(135deg, rgba(0, 212, 170, 0.3) 0%, rgba(34, 197, 94, 0.25) 100%);
-      border-color: rgba(0, 212, 170, 0.5);
+      background: linear-gradient(135deg, var(--ctx-bg-intense) 0%, var(--ctx-bg-emphasis) 100%);
+      border-color: var(--ctx-border-intense);
       transform: translateY(-1px);
     }
 
@@ -88,7 +88,7 @@ class PasskeyManager extends LitElement {
     }
 
     .passkey-item:hover {
-      border-color: rgba(0, 212, 170, 0.3);
+      border-color: var(--ctx-border-medium);
       background: linear-gradient(135deg, var(--surface-glass-hover) 0%, rgba(255, 255, 255, 0.04) 100%);
     }
 
@@ -151,9 +151,9 @@ class PasskeyManager extends LitElement {
     }
 
     .success {
-      background: rgba(0, 212, 170, 0.1);
-      border: 1px solid rgba(0, 212, 170, 0.3);
-      color: #00d4aa;
+      background: var(--ctx-bg-subtle);
+      border: 1px solid var(--ctx-border-medium);
+      color: var(--context-primary, #00d4aa);
       padding: 1rem;
       border-radius: 8px;
       margin-bottom: 1rem;
@@ -164,7 +164,7 @@ class PasskeyManager extends LitElement {
       width: 1em;
       height: 1em;
       border: 2px solid rgba(255, 255, 255, 0.3);
-      border-top-color: #00d4aa;
+      border-top-color: var(--context-primary, #00d4aa);
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }

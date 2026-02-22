@@ -181,7 +181,7 @@ class NotesPage extends LitElement {
     }
 
     .add-note-btn {
-      background: linear-gradient(135deg, var(--ctx-bg-emphasis) 0%, rgba(34, 197, 94, 0.2) 100%);
+      background: linear-gradient(135deg, var(--ctx-bg-emphasis) 0%, var(--ctx-bg-strong) 100%);
       border: 1px solid var(--ctx-border-strong);
       color: var(--context-primary, #00d4aa);
       padding: 0.6rem 1.2rem;
@@ -202,7 +202,7 @@ class NotesPage extends LitElement {
         box-shadow: 0 2px 8px var(--ctx-border-medium);
       }
       50% {
-        box-shadow: 0 2px 12px rgba(0, 212, 170, 0.35),
+        box-shadow: 0 2px 12px var(--ctx-border-strong),
                     0 0 20px var(--ctx-border);
       }
     }
@@ -226,8 +226,8 @@ class NotesPage extends LitElement {
     }
 
     .add-note-btn:hover {
-      background: linear-gradient(135deg, rgba(0, 212, 170, 0.35) 0%, rgba(34, 197, 94, 0.3) 100%);
-      border-color: rgba(0, 212, 170, 0.6);
+      background: linear-gradient(135deg, var(--ctx-border-strong) 0%, var(--ctx-bg-intense) 100%);
+      border-color: color-mix(in srgb, var(--context-primary) 60%, transparent);
       transform: translateY(-2px) scale(1.02);
       box-shadow: 0 4px 16px var(--ctx-border-strong);
       animation: none; /* Stop pulse sur hover */
@@ -649,14 +649,14 @@ class NotesPage extends LitElement {
     }
 
     .form-btn.primary {
-      background: linear-gradient(135deg, var(--ctx-bg-emphasis) 0%, rgba(34, 197, 94, 0.2) 100%);
+      background: linear-gradient(135deg, var(--ctx-bg-emphasis) 0%, var(--ctx-bg-strong) 100%);
       border: 1px solid var(--ctx-border-strong);
       color: var(--context-primary, #00d4aa);
     }
 
     .form-btn.primary:hover {
-      background: linear-gradient(135deg, rgba(0, 212, 170, 0.35) 0%, rgba(34, 197, 94, 0.3) 100%);
-      border-color: rgba(0, 212, 170, 0.6);
+      background: linear-gradient(135deg, var(--ctx-border-strong) 0%, var(--ctx-bg-intense) 100%);
+      border-color: color-mix(in srgb, var(--context-primary) 60%, transparent);
       transform: translateY(-2px);
       box-shadow: 0 4px 12px var(--ctx-border-strong);
     }

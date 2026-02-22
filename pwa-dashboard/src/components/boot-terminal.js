@@ -27,7 +27,7 @@ class BootTerminal extends LitElement {
         color-mix(in srgb, var(--context-primary, #00d4aa) 4%, rgba(10, 10, 11, 0.98)) 0%,
         rgba(10, 10, 11, 1) 100%),
         linear-gradient(135deg,
-          rgba(0, 212, 170, 0.02) 0%,
+          var(--ctx-bg-subtle, rgba(0, 212, 170, 0.02)) 0%,
           transparent 100%);
       z-index: 100000;
       overflow-y: auto;
@@ -162,8 +162,8 @@ class BootTerminal extends LitElement {
       -webkit-transform: translateZ(0);
       -webkit-font-smoothing: antialiased;
       /* Logo déjà en couleur turquoise native - juste ajouter glow */
-      filter: drop-shadow(0 0 20px rgba(0, 212, 170, 0.6))
-              drop-shadow(0 0 40px rgba(0, 212, 170, 0.4))
+      filter: drop-shadow(0 0 20px color-mix(in srgb, var(--context-primary) 60%, transparent))
+              drop-shadow(0 0 40px var(--ctx-border-strong))
               brightness(1.05);
       animation: logoPulse 4s ease-in-out infinite,
                  logoFloat 6s ease-in-out infinite;
@@ -171,13 +171,13 @@ class BootTerminal extends LitElement {
 
     @keyframes logoPulse {
       0%, 100% {
-        filter: drop-shadow(0 0 20px rgba(0, 212, 170, 0.6))
-                drop-shadow(0 0 40px rgba(0, 212, 170, 0.4))
+        filter: drop-shadow(0 0 20px color-mix(in srgb, var(--context-primary) 60%, transparent))
+                drop-shadow(0 0 40px var(--ctx-border-strong))
                 brightness(1.05);
       }
       50% {
-        filter: drop-shadow(0 0 30px rgba(0, 212, 170, 0.8))
-                drop-shadow(0 0 60px rgba(0, 212, 170, 0.6))
+        filter: drop-shadow(0 0 30px color-mix(in srgb, var(--context-primary) 80%, transparent))
+                drop-shadow(0 0 60px color-mix(in srgb, var(--context-primary) 60%, transparent))
                 brightness(1.1);
       }
     }
@@ -402,8 +402,8 @@ class BootTerminal extends LitElement {
       width: 100%;
       padding: 1rem 1.5rem;
       background: linear-gradient(135deg,
-        rgba(0, 212, 170, 0.12) 0%,
-        rgba(0, 212, 170, 0.08) 100%);
+        var(--ctx-bg-medium) 0%,
+        var(--ctx-bg) 100%);
       border: 1px solid var(--ctx-bg-emphasis);
       border-radius: var(--radius-md);
       color: var(--context-primary, #00d4aa);
@@ -431,8 +431,8 @@ class BootTerminal extends LitElement {
 
     .biometric-btn:hover:not(:disabled) {
       background: linear-gradient(135deg,
-        rgba(0, 212, 170, 0.18) 0%,
-        rgba(0, 212, 170, 0.12) 100%);
+        var(--ctx-border) 0%,
+        var(--ctx-bg-medium) 100%);
       border-color: var(--ctx-border-strong);
       transform: translateY(-2px) scale(1.01);
       box-shadow: 0 6px 16px var(--ctx-border-medium),

@@ -129,7 +129,7 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .agent-card.online::before {
-      background: linear-gradient(180deg, var(--context-primary, #00d4aa) 0%, #22c55e 100%);
+      background: linear-gradient(180deg, var(--context-primary, #00d4aa) 0%, color-mix(in srgb, var(--context-primary) 80%, #000) 100%);
       box-shadow: 0 0 20px var(--ctx-border-intense);
     }
 
@@ -293,17 +293,17 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .action-btn.wake {
-      background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, var(--ctx-border-medium) 100%);
+      background: linear-gradient(135deg, var(--ctx-bg-emphasis) 0%, var(--ctx-border-medium) 100%);
       color: #4ade80;
-      border: 1px solid rgba(34, 197, 94, 0.4);
-      box-shadow: 0 2px 8px rgba(34, 197, 94, 0.2);
+      border: 1px solid var(--ctx-border-strong);
+      box-shadow: 0 2px 8px var(--ctx-bg-strong);
     }
 
     .action-btn.wake:hover:not(:disabled) {
-      background: linear-gradient(135deg, rgba(34, 197, 94, 0.35) 0%, var(--ctx-border-strong) 100%);
-      border-color: rgba(0, 212, 170, 0.6);
+      background: linear-gradient(135deg, var(--ctx-border-strong) 0%, var(--ctx-border-strong) 100%);
+      border-color: color-mix(in srgb, var(--context-primary) 60%, transparent);
       transform: translateY(-2px) scale(1.05);
-      box-shadow: 0 4px 16px rgba(0, 212, 170, 0.35);
+      box-shadow: 0 4px 16px var(--ctx-border-strong);
     }
 
     .action-btn.delete {
@@ -327,7 +327,7 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .status-dot.online {
-      box-shadow: 0 0 12px rgba(0, 212, 170, 0.7), 0 0 24px var(--ctx-border-strong);
+      box-shadow: 0 0 12px color-mix(in srgb, var(--context-primary) 70%, transparent), 0 0 24px var(--ctx-border-strong);
       animation: pulse-glow 2s ease-in-out infinite;
     }
 
