@@ -11,6 +11,7 @@
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles } from '../styles/shared-widget.js'
+import { statusDotStyles } from '../styles/shared-patterns.js'
 import '../services/agents-service.js'
 import '../components/organic-loader.js'
 import pollingScheduler from '../services/polling-scheduler.js'
@@ -24,7 +25,7 @@ class AgentsNetworkWidget extends LitElement {
     selectedAgent: { type: Object }
   }
   
-  static styles = [sharedAnimations, widgetHeaderStyles, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, statusDotStyles, css`
     :host {
       display: block;
       background: var(--widget-background, #1a1a1a);
@@ -346,23 +347,20 @@ class AgentsNetworkWidget extends LitElement {
       box-shadow: 0 4px 16px rgba(239, 68, 68, 0.25);
     }
 
-    .status-indicator {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
+    /* Local overrides — base from statusDotStyles (renamed from .status-indicator) */
+    .status-dot {
       display: inline-block;
-      transition: all var(--duration-base) var(--ease-out);
     }
 
-    .status-indicator.online {
-      background: var(--context-primary, #00d4aa);
+    .status-dot.online {
       box-shadow: 0 0 12px rgba(0, 212, 170, 0.7), 0 0 24px var(--ctx-border-strong);
       animation: pulse-glow 2s ease-in-out infinite;
     }
 
-    .status-indicator.offline {
+    .status-dot.offline {
       background: #ef4444;
       box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+      opacity: 1;
     }
 
     @keyframes pulse-glow {
@@ -623,7 +621,7 @@ class AgentsNetworkWidget extends LitElement {
             </div>
           </div>
           <div class="agent-status ${agent.status}">
-            <span class="status-indicator ${agent.status}"></span>
+            <span class="status-dot ${agent.status}"></span>
             ${agent.status}
           </div>
         </div>

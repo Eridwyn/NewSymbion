@@ -140,3 +140,121 @@ export const sectionCardStyles = css`
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   }
 `
+
+/**
+ * Status dot (cercle 10px) avec etats semantiques.
+ * Classes: .status-dot, .status-dot.online, .offline, .warning, .error, .loading
+ */
+export const statusDotStyles = css`
+  .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-full, 50%);
+    flex-shrink: 0;
+    transition: all var(--duration-base, 0.2s) var(--ease-out, ease-out);
+  }
+
+  .status-dot.online,
+  .status-dot.connected,
+  .status-dot.ok {
+    background: var(--context-primary, #00d4aa);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--context-primary, #00d4aa) 70%, transparent);
+  }
+
+  .status-dot.offline {
+    background: #4b5563;
+    box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.3);
+    opacity: 0.6;
+  }
+
+  .status-dot.warning {
+    background: #fbbf24;
+    box-shadow: 0 0 8px rgba(251, 191, 36, 0.5);
+  }
+
+  .status-dot.critical,
+  .status-dot.error {
+    background: #ff6b6b;
+    box-shadow: 0 0 8px rgba(255, 107, 107, 0.5);
+  }
+
+  .status-dot.loading,
+  .status-dot.polling,
+  .status-dot.connecting {
+    background: #3b82f6;
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+  }
+`
+
+/**
+ * Status badge pill avec etats semantiques.
+ * Classes: .status-badge + .healthy/.online/.ok/.enabled, .warning, .error/.offline/.disabled, .info, .unknown
+ */
+export const statusBadgeStyles = css`
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0.3rem 0.8rem;
+    border-radius: var(--radius-xl, 999px);
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all var(--duration-base, 0.2s) var(--ease-out, ease-out);
+  }
+
+  .status-badge.healthy,
+  .status-badge.online,
+  .status-badge.ok,
+  .status-badge.enabled {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+
+  .status-badge.warning {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.3);
+  }
+
+  .status-badge.error,
+  .status-badge.offline,
+  .status-badge.critical,
+  .status-badge.disabled {
+    background: rgba(255, 107, 107, 0.15);
+    color: #ff6b6b;
+    border: 1px solid rgba(255, 107, 107, 0.3);
+  }
+
+  .status-badge.info {
+    background: rgba(59, 130, 246, 0.15);
+    color: #93c5fd;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+  }
+
+  .status-badge.unknown,
+  .status-badge.neutral {
+    background: rgba(128, 128, 128, 0.15);
+    color: #888;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+  }
+`
+
+/**
+ * Badge compact pour titres de section (compteur, label).
+ * Classe: .section-badge
+ */
+export const sectionBadgeStyles = css`
+  .section-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: var(--text-xs, 0.75rem);
+    padding: 0.2rem 0.6rem;
+    background: var(--ctx-border, rgba(0, 212, 170, 0.25));
+    color: var(--context-primary, #00d4aa);
+    border-radius: var(--radius-sm, 4px);
+    font-weight: 500;
+  }
+`

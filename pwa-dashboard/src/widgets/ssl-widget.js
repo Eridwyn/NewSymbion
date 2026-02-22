@@ -8,6 +8,7 @@
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles } from '../styles/shared-widget.js'
+import { statusDotStyles, sectionBadgeStyles } from '../styles/shared-patterns.js'
 import '../components/organic-loader.js'
 
 export class SslWidget extends LitElement {
@@ -21,7 +22,7 @@ export class SslWidget extends LitElement {
     formData: { type: Object }
   }
 
-  static styles = [sharedAnimations, widgetHeaderStyles, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, statusDotStyles, sectionBadgeStyles, css`
     :host {
       display: block;
     }
@@ -118,18 +119,6 @@ export class SslWidget extends LitElement {
       display: flex;
       align-items: center;
       gap: 0.75rem;
-    }
-
-    .status-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    .status-dot.ok {
-      background: var(--context-primary, #00d4aa);
-      box-shadow: 0 0 8px var(--ctx-border-intense);
     }
 
     .status-dot.warning {
@@ -338,14 +327,6 @@ export class SslWidget extends LitElement {
       color: #666;
       text-transform: uppercase;
       letter-spacing: 1px;
-    }
-
-    .section-badge {
-      font-size: 0.7rem;
-      padding: 0.2rem 0.5rem;
-      background: var(--ctx-border);
-      color: var(--context-primary, #00d4aa);
-      border-radius: var(--radius-sm);
     }
 
     /* Domain List */

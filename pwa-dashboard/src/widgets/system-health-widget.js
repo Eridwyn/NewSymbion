@@ -8,22 +8,12 @@
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles } from '../styles/shared-widget.js'
+import { statusBadgeStyles } from '../styles/shared-patterns.js'
 
 class SystemHealthWidget extends LitElement {
-  static styles = [sharedAnimations, widgetHeaderStyles, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, statusBadgeStyles, css`
     :host {
       display: block;
-    }
-
-    .status-badge {
-      padding: 0.5rem 1rem;
-      border-radius: var(--radius-xl);
-      font-size: 0.75em;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      transition: all var(--duration-base) var(--ease-out);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
     .status-healthy {

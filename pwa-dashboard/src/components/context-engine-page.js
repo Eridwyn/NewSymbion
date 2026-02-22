@@ -8,8 +8,8 @@
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { overlayStyles, closeButtonStyles, scrollbarStyles } from '../styles/shared-patterns.js'
-import { tabPillStyles } from '../styles/shared-page.js'
-import { formInputStyles } from '../styles/shared-forms.js'
+import { cardStyles } from '../styles/shared-cards.js'
+import { formInputStyles, btnSuccessStyles, btnSizeStyles } from '../styles/shared-forms.js'
 import csrfService from '../services/csrf-service.js'
 import automationsService from '../services/automations-service.js'
 import { getDayNameShort, getDayNameFull, getAllDayNamesShort, utcHourToLocal } from '../utils/time-utils.js'
@@ -32,7 +32,7 @@ function isStateType(type) {
 }
 
 class ContextEnginePage extends LitElement {
-  static styles = [sharedAnimations, overlayStyles, closeButtonStyles, scrollbarStyles, tabPillStyles, formInputStyles, css`
+  static styles = [sharedAnimations, overlayStyles, closeButtonStyles, scrollbarStyles, formInputStyles, cardStyles, btnSuccessStyles, btnSizeStyles, css`
     :host {
       display: flex;
       align-items: center;
@@ -434,6 +434,7 @@ class ContextEnginePage extends LitElement {
       padding: var(--space-4) var(--space-5);
       border-bottom: 1px solid var(--border-default);
       background: rgba(0, 0, 0, 0.3);
+      flex-shrink: 0;
     }
 
     .header-title {
@@ -445,15 +446,48 @@ class ContextEnginePage extends LitElement {
       gap: 0.5rem;
     }
 
-    /* Tabs — base from tabPillStyles, local overrides */
+    /* Tabs — inline compact style for modal */
     .tabs {
-      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      gap: 0;
+      padding: 0;
+      margin: 0;
       background: rgba(0, 0, 0, 0.15);
+      border-bottom: 1px solid var(--border-subtle);
       overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      flex-shrink: 0;
+    }
+
+    .tabs::-webkit-scrollbar {
+      display: none;
     }
 
     .tab {
+      flex: 1;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--color-dark-text-secondary, #adb5bd);
+      padding: var(--space-3) var(--space-4);
       font-size: 0.8rem;
+      font-weight: var(--font-medium, 500);
+      cursor: pointer;
+      transition: all var(--duration-base, 0.2s) var(--ease-out, ease-out);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .tab:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--color-dark-text-primary, #f8f9fa);
+    }
+
+    .tab.active {
+      color: var(--context-primary, #00d4aa);
+      border-bottom-color: var(--context-primary, #00d4aa);
+      background: rgba(255, 255, 255, 0.03);
     }
 
     .tab .badge {
@@ -620,53 +654,16 @@ class ContextEnginePage extends LitElement {
       background: rgba(239, 68, 68, 0.2);
     }
 
-    /* Cards */
+    /* Cards — local override (margin-bottom for stacking) */
     .card {
-      background: var(--surface-glass-subtle);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-md);
-      padding: 1rem;
       margin-bottom: 0.75rem;
-      transition: all 0.2s;
     }
 
-    .card:hover {
-      border-color: var(--border-hover);
-      background: var(--surface-glass);
-    }
-
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 0.5rem;
-    }
-
-    .card-title {
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: var(--color-dark-text-primary, #f8f9fa);
-    }
-
-    .card-meta {
-      font-size: var(--text-xs);
-      color: var(--color-dark-text-tertiary, #6c757d);
-    }
-
-    .card-actions {
-      display: flex;
-      gap: 0.5rem;
-    }
-
-    /* Buttons */
+    /* Buttons — local overrides (compact modal sizing) */
     .btn {
       padding: 0.5rem 1rem;
-      border-radius: var(--radius-base);
-      border: 1px solid transparent;
       font-size: 0.8rem;
       font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
     }
 
     .btn-primary {
@@ -678,39 +675,6 @@ class ContextEnginePage extends LitElement {
     .btn-primary:hover {
       background: linear-gradient(135deg, var(--ctx-bg-intense) 0%, var(--ctx-border-medium) 100%);
       transform: translateY(-1px);
-    }
-
-    .btn-success {
-      background: rgba(34, 197, 94, 0.15);
-      border-color: rgba(34, 197, 94, 0.4);
-      color: #22c55e;
-    }
-
-    .btn-success:hover {
-      background: rgba(34, 197, 94, 0.25);
-    }
-
-    .btn-danger {
-      background: rgba(239, 68, 68, 0.15);
-      border-color: rgba(239, 68, 68, 0.4);
-      color: #ef4444;
-    }
-
-    .btn-danger:hover {
-      background: rgba(239, 68, 68, 0.25);
-    }
-
-    .btn-small {
-      padding: 0.35rem 0.7rem;
-      font-size: 0.7rem;
-    }
-
-    .btn-icon {
-      padding: 0.4rem;
-      min-width: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
     }
 
     /* Toggle */
@@ -1960,12 +1924,9 @@ class ContextEnginePage extends LitElement {
         border-radius: 0;
       }
 
-      .tabs {
-        padding: 0.5rem;
-      }
-
       .tab {
-        padding: 0.4rem 0.75rem;
+        flex: none;
+        padding: 0.5rem 0.75rem;
         font-size: var(--text-xs);
       }
 

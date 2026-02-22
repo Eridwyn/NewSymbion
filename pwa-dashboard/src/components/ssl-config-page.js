@@ -1,9 +1,10 @@
 import { LitElement, html, css } from 'lit'
 import './organic-loader.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
-import { overlayStyles, scrollbarStyles } from '../styles/shared-patterns.js'
+import { overlayStyles, scrollbarStyles, statusBadgeStyles, sectionBadgeStyles } from '../styles/shared-patterns.js'
 import { pageHeaderStyles } from '../styles/shared-page.js'
 import { formInputStyles, formGroupStyles, btnStyles } from '../styles/shared-forms.js'
+import { sectionStyles } from '../styles/shared-cards.js'
 
 export class SslConfigPage extends LitElement {
   static properties = {
@@ -15,7 +16,7 @@ export class SslConfigPage extends LitElement {
     showAddForm: { type: Boolean }
   }
 
-  static styles = [sharedAnimations, overlayStyles, scrollbarStyles, pageHeaderStyles, formInputStyles, formGroupStyles, btnStyles, css`
+  static styles = [sharedAnimations, overlayStyles, scrollbarStyles, pageHeaderStyles, formInputStyles, formGroupStyles, btnStyles, statusBadgeStyles, sectionBadgeStyles, sectionStyles, css`
     :host {
       z-index: 1000;
       overflow-x: hidden;
@@ -92,13 +93,10 @@ export class SslConfigPage extends LitElement {
       gap: 0.75rem;
     }
 
-    /* Sections */
+    /* Section override — SSL-specific simpler gradient */
     .section {
-      background: linear-gradient(135deg, rgba(26, 26, 26, 0.9) 0%, rgba(15, 15, 15, 0.85) 100%);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-lg);
       padding: 1.5rem;
-      margin-bottom: 1.5rem;
+      background: linear-gradient(135deg, rgba(26, 26, 26, 0.9) 0%, rgba(15, 15, 15, 0.85) 100%);
     }
 
     .section-header {
@@ -115,15 +113,6 @@ export class SslConfigPage extends LitElement {
       display: flex;
       align-items: center;
       gap: var(--space-2);
-    }
-
-    .section-badge {
-      font-size: var(--text-xs);
-      padding: 0.25rem 0.6rem;
-      background: var(--ctx-border);
-      color: var(--context-primary, #00d4aa);
-      border-radius: var(--radius-sm);
-      font-weight: 500;
     }
 
     /* Domain Grid */
@@ -175,26 +164,6 @@ export class SslConfigPage extends LitElement {
       border-radius: var(--radius-sm);
       font-size: var(--text-xs);
       font-weight: 600;
-    }
-
-    .status-ok {
-      background: var(--ctx-border);
-      color: var(--context-primary, #00d4aa);
-    }
-
-    .status-warning {
-      background: rgba(251, 191, 36, 0.15);
-      color: #fbbf24;
-    }
-
-    .status-critical {
-      background: rgba(255, 107, 107, 0.15);
-      color: #ff6b6b;
-    }
-
-    .status-error {
-      background: rgba(255, 107, 107, 0.2);
-      color: #ff6b6b;
     }
 
     .domain-details {

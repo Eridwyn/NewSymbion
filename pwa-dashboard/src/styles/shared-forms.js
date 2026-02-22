@@ -100,7 +100,7 @@ export const btnStyles = css`
     box-shadow: 0 6px 20px var(--ctx-bg-intense, rgba(0, 212, 170, 0.3));
   }
 
-  .btn-primary:disabled {
+  .btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
     transform: none;
@@ -127,5 +127,41 @@ export const btnStyles = css`
   .btn-danger:hover {
     background: rgba(239, 68, 68, 0.25);
     border-color: rgba(239, 68, 68, 0.5);
+  }
+`
+
+/**
+ * Bouton succes (vert).
+ * Classe: .btn-success
+ */
+export const btnSuccessStyles = css`
+  .btn-success {
+    background: rgba(34, 197, 94, 0.15);
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    color: #22c55e;
+  }
+
+  .btn-success:hover {
+    background: rgba(34, 197, 94, 0.25);
+    transform: translateY(-1px);
+  }
+`
+
+/**
+ * Modificateurs de taille pour boutons.
+ * Classes: .btn-small, .btn-icon
+ */
+export const btnSizeStyles = css`
+  .btn-small {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.7rem;
+  }
+
+  .btn-icon {
+    padding: 0.4rem;
+    min-width: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 `

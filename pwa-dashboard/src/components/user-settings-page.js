@@ -9,14 +9,16 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
-import { overlayStyles, closeButtonStyles, scrollbarStyles } from '../styles/shared-patterns.js'
+import { sectionStyles } from '../styles/shared-cards.js'
+import { overlayStyles, closeButtonStyles, scrollbarStyles, statusBadgeStyles } from '../styles/shared-patterns.js'
+import { btnStyles } from '../styles/shared-forms.js'
 import { tabPillStyles } from '../styles/shared-page.js'
 import authService from '../services/auth-service.js'
 import decisionService from '../services/decision-service.js'
 import './passkey-manager.js'
 
 class UserSettingsPage extends LitElement {
-  static styles = [sharedAnimations, overlayStyles, closeButtonStyles, scrollbarStyles, tabPillStyles, css`
+  static styles = [sharedAnimations, sectionStyles, statusBadgeStyles, btnStyles, overlayStyles, closeButtonStyles, scrollbarStyles, tabPillStyles, css`
     .settings-container {
       max-width: 800px;
       margin: var(--space-6) auto;
@@ -96,21 +98,8 @@ class UserSettingsPage extends LitElement {
       }
     }
 
-    /* Section bio-organique comme les widgets */
+    /* Section: base fournie par sectionStyles, animation locale */
     .section {
-      background: linear-gradient(135deg,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 3%, rgba(19, 20, 26, 0.95)) 0%,
-        rgba(15, 15, 15, 0.9) 100%);
-      border: 1px solid var(--ctx-bg-medium);
-      border-radius: var(--radius-lg);
-      padding: var(--space-5);
-      margin-bottom: var(--space-5);
-      backdrop-filter: blur(var(--blur-base));
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3),
-                  0 0 0 1px color-mix(in srgb, var(--context-primary, #00d4aa) 6%, transparent),
-                  inset 0 1px 0 color-mix(in srgb, var(--context-primary, #00d4aa) 4%, transparent);
-      transition: all var(--duration-base) var(--ease-out);
-      overflow: hidden; /* Empêche le débordement */
       animation: sectionPulse 8s ease-in-out infinite; /* Respiration subtile */
     }
 
@@ -203,47 +192,15 @@ class UserSettingsPage extends LitElement {
       font-weight: 500;
     }
 
-    .status-badge {
-      padding: 0.3rem 0.8rem;
-      border-radius: var(--radius-xl);
-      font-size: 0.8em;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
+    /* status-badge: base + .enabled/.disabled fournis par statusBadgeStyles */
 
-    .status-badge.enabled {
-      background: rgba(76, 175, 80, 0.2);
-      color: #4caf50;
-      border: 1px solid rgba(76, 175, 80, 0.4);
-    }
-
-    .status-badge.disabled {
-      background: rgba(255, 107, 107, 0.15);
-      color: #ff6b6b;
-      border: 1px solid rgba(255, 107, 107, 0.3);
-    }
-
-    .button {
-      background: linear-gradient(135deg,
-        var(--ctx-border) 0%,
-        var(--ctx-border-subtle) 100%);
-      border: 1px solid var(--ctx-bg-intense);
-      color: var(--context-primary, #00d4aa);
-      padding: 0.8rem 1.5rem;
-      border-radius: var(--radius-base);
-      font-size: 0.9em;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all var(--duration-base) var(--ease-out);
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
+    /* btn: base fournie par btnStyles — ripple effect local */
+    .btn {
       position: relative;
       overflow: hidden;
     }
 
-    .button::before {
+    .btn::before {
       content: '';
       position: absolute;
       top: 50%;
@@ -256,12 +213,12 @@ class UserSettingsPage extends LitElement {
       transition: width 0.6s ease, height 0.6s ease;
     }
 
-    .button:hover::before {
+    .btn:hover::before {
       width: 300px;
       height: 300px;
     }
 
-    .button:hover {
+    .btn:hover {
       background: linear-gradient(135deg,
         var(--ctx-bg-emphasis) 0%,
         var(--ctx-border-medium) 100%);
@@ -270,27 +227,23 @@ class UserSettingsPage extends LitElement {
       box-shadow: 0 4px 12px var(--ctx-bg-emphasis);
     }
 
-    .button:active {
+    .btn:active {
       transform: translateY(0) scale(0.98); /* Feedback tactile */
     }
 
-    .button:disabled {
+    .btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
       transform: none;
     }
 
-    .button:disabled::before {
+    .btn:disabled::before {
       display: none;
     }
 
-    .button.danger {
-      background: linear-gradient(135deg, rgba(255, 107, 107, 0.15) 0%, rgba(239, 68, 68, 0.1) 100%);
-      border: 1px solid rgba(255, 107, 107, 0.3);
-      color: #ff6b6b;
-    }
+    /* btn-danger: base fournie par btnStyles */
 
-    .button.danger:hover {
+    .btn-danger:hover {
       background: linear-gradient(135deg, rgba(255, 107, 107, 0.25) 0%, rgba(239, 68, 68, 0.2) 100%);
       border-color: rgba(255, 107, 107, 0.5);
       box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
@@ -1033,7 +986,7 @@ class UserSettingsPage extends LitElement {
               </div>
 
               <button
-                class="button"
+                class="btn"
                 @click="${this.handlePasswordChange}"
                 ?disabled="${this.loading}"
               >
@@ -1108,7 +1061,7 @@ class UserSettingsPage extends LitElement {
                 <li>Microsoft Authenticator</li>
                 <li>Authy</li>
               </ul>
-              <button class="button" @click="${this.handleMfaSetup}" ?disabled="${this.loading}">
+              <button class="btn" @click="${this.handleMfaSetup}" ?disabled="${this.loading}">
                 ${this.loading ? '⏳ Chargement...' : '🚀 Commencer l\'activation'}
               </button>
             </div>
@@ -1147,10 +1100,10 @@ class UserSettingsPage extends LitElement {
               </div>
 
               <div style="display: flex; gap: 1rem;">
-                <button class="button" @click="${this.handleMfaVerify}" ?disabled="${this.loading || this.verifyCode.length !== 6}">
+                <button class="btn" @click="${this.handleMfaVerify}" ?disabled="${this.loading || this.verifyCode.length !== 6}">
                   ${this.loading ? '⏳ Vérification...' : '✓ Vérifier et Activer'}
                 </button>
-                <button class="button danger" @click="${() => { this.mfaSetupData = null; this.verifyCode = '' }}">
+                <button class="btn btn-danger" @click="${() => { this.mfaSetupData = null; this.verifyCode = '' }}">
                   ✕ Annuler
                 </button>
               </div>
@@ -1186,7 +1139,7 @@ class UserSettingsPage extends LitElement {
               </div>
             </div>
 
-            <button class="button danger" @click="${this.handleMfaDisable}" ?disabled="${this.loading}">
+            <button class="btn btn-danger" @click="${this.handleMfaDisable}" ?disabled="${this.loading}">
               ${this.loading ? '⏳ Chargement...' : '🗑️ Désactiver l\'authentification 2FA'}
             </button>
           </div>
@@ -1246,7 +1199,7 @@ class UserSettingsPage extends LitElement {
           </div>
 
           <button
-            class="button"
+            class="btn"
             @click="${this.handleCreateUser}"
             ?disabled="${this.loading || !this.newUser.username || !this.newUser.password}"
           >
@@ -1286,7 +1239,7 @@ class UserSettingsPage extends LitElement {
 
                   ${user.username !== currentUser?.username ? html`
                     <button
-                      class="button danger"
+                      class="btn btn-danger"
                       @click="${() => this.handleDeleteUser(user.username)}"
                       ?disabled="${this.loading}"
                     >
@@ -1510,7 +1463,7 @@ class UserSettingsPage extends LitElement {
                   </div>
                   <div style="display: flex; gap: 0.5rem;">
                     <button
-                      class="button"
+                      class="btn"
                       style="padding: 0.5rem 1rem;"
                       @click="${() => this.handleValidationResolve(validation.validation_id, true)}"
                       ?disabled="${this.loading}"
@@ -1518,7 +1471,7 @@ class UserSettingsPage extends LitElement {
                       ✓ Approuver
                     </button>
                     <button
-                      class="button danger"
+                      class="btn btn-danger"
                       style="padding: 0.5rem 1rem;"
                       @click="${() => this.handleValidationResolve(validation.validation_id, false)}"
                       ?disabled="${this.loading}"
@@ -1550,7 +1503,7 @@ class UserSettingsPage extends LitElement {
               </p>
             </div>
             <button
-              class="button danger"
+              class="btn btn-danger"
               style="padding: 0.6rem 1rem; font-size: 0.9em;"
               @click="${() => this.handleDeleteAllExpired()}"
               ?disabled="${this.loading}"
@@ -1581,7 +1534,7 @@ class UserSettingsPage extends LitElement {
                     </div>
                   </div>
                   <button
-                    class="button danger"
+                    class="btn btn-danger"
                     style="padding: 0.5rem 1rem; font-size: 0.85em;"
                     @click="${() => this.handleDeleteExpired(validation.validation_id)}"
                     ?disabled="${this.loading}"
