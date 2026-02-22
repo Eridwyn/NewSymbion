@@ -7,7 +7,7 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
-import { widgetHeaderStyles } from '../styles/shared-widget.js'
+import { widgetHeaderStyles, widgetSectionStyles } from '../styles/shared-widget.js'
 import { statusDotStyles, sectionBadgeStyles } from '../styles/shared-patterns.js'
 import '../components/organic-loader.js'
 
@@ -22,7 +22,7 @@ export class SslWidget extends LitElement {
     formData: { type: Object }
   }
 
-  static styles = [sharedAnimations, widgetHeaderStyles, statusDotStyles, sectionBadgeStyles, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, widgetSectionStyles, statusDotStyles, sectionBadgeStyles, css`
     :host {
       display: block;
     }
@@ -321,13 +321,7 @@ export class SslWidget extends LitElement {
       margin-bottom: 0.75rem;
     }
 
-    .section-title {
-      font-size: var(--text-xs);
-      font-weight: 600;
-      color: #666;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
+    /* section-title provided by widgetSectionStyles */
 
     /* Domain List */
     .domain-list {

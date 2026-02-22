@@ -7,12 +7,12 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
-import { widgetHeaderStyles } from '../styles/shared-widget.js'
+import { widgetHeaderStyles, widgetSectionStyles } from '../styles/shared-widget.js'
 import { statusBadgeStyles, statusDotStyles } from '../styles/shared-patterns.js'
 import '../components/organic-loader.js'
 
 class FreeboxWidget extends LitElement {
-  static styles = [sharedAnimations, widgetHeaderStyles, statusBadgeStyles, statusDotStyles, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, widgetSectionStyles, statusBadgeStyles, statusDotStyles, css`
     :host {
       display: block;
     }
@@ -60,21 +60,7 @@ class FreeboxWidget extends LitElement {
       padding: 1rem;
     }
 
-    .section-title {
-      font-size: 0.85em;
-      font-weight: 600;
-      color: #888;
-      margin-bottom: 0.75rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .section-title svg {
-      width: 16px;
-      height: 16px;
-      fill: currentColor;
-    }
+    /* section-title + svg provided by widgetSectionStyles */
 
     .presence-item {
       display: flex;

@@ -25,10 +25,10 @@ class SystemHealthWidget extends LitElement {
     }
 
     .status-warning {
-      background: linear-gradient(135deg, rgba(255, 217, 61, 0.25) 0%, rgba(251, 191, 36, 0.2) 100%);
-      color: #ffd93d;
-      border: 1px solid rgba(255, 217, 61, 0.4);
-      box-shadow: 0 2px 12px rgba(255, 217, 61, 0.3);
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.25) 0%, rgba(251, 191, 36, 0.2) 100%);
+      color: #fbbf24;
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      box-shadow: 0 2px 12px rgba(251, 191, 36, 0.3);
       animation: pulse-warning 2s ease-in-out infinite;
     }
 
@@ -51,10 +51,10 @@ class SystemHealthWidget extends LitElement {
 
     @keyframes pulse-warning {
       0%, 100% {
-        box-shadow: 0 2px 12px rgba(255, 217, 61, 0.3);
+        box-shadow: 0 2px 12px rgba(251, 191, 36, 0.3);
       }
       50% {
-        box-shadow: 0 2px 16px rgba(255, 217, 61, 0.5);
+        box-shadow: 0 2px 16px rgba(251, 191, 36, 0.5);
       }
     }
 

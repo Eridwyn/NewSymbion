@@ -12,6 +12,7 @@
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { overlayStyles, statusBadgeStyles } from '../styles/shared-patterns.js'
+import { widgetSectionStyles } from '../styles/shared-widget.js'
 import '../services/agents-service.js'
 import pollingScheduler from '../services/polling-scheduler.js'
 
@@ -30,7 +31,7 @@ class AgentControlWidget extends LitElement {
     currentCommandId: { type: String }
   }
 
-  static styles = [sharedAnimations, overlayStyles, statusBadgeStyles, css`
+  static styles = [sharedAnimations, overlayStyles, statusBadgeStyles, widgetSectionStyles, css`
     :host {
       background: radial-gradient(ellipse at center,
         color-mix(in srgb, var(--context-primary, #00d4aa) 3%, rgba(0, 0, 0, 0.85)) 0%,
@@ -224,15 +225,7 @@ class AgentControlWidget extends LitElement {
       margin-bottom: 24px;
     }
 
-    .section-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: #ffffff;
-      margin-bottom: 12px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+    /* section-title provided by widgetSectionStyles */
 
     .power-controls {
       display: flex;

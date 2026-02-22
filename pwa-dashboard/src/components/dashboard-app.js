@@ -279,8 +279,8 @@ class DashboardApp extends LitElement {
     }
 
     .status-dot.loading {
-      background: #ffd93d;
-      box-shadow: 0 0 12px rgba(255, 217, 61, 0.6);
+      background: #fbbf24;
+      box-shadow: 0 0 12px rgba(251, 191, 36, 0.6);
       animation: bio-pulse-loading 1.2s ease-in-out infinite;
     }
 

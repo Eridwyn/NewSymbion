@@ -29,3 +29,25 @@ export const widgetHeaderStyles = css`
     animation: textGlow var(--bio-breathe-fast, 8s) ease-in-out infinite;
   }
 `
+
+/**
+ * Sous-titres de section dans les widgets.
+ * Classes: .section-title
+ */
+export const widgetSectionStyles = css`
+  .section-title {
+    font-size: var(--text-sm, 0.875rem);
+    font-weight: 600;
+    color: var(--color-dark-text-secondary, #adb5bd);
+    margin-bottom: var(--space-3, 0.75rem);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .section-title svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+  }
+`

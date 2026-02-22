@@ -12,9 +12,10 @@
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles } from '../styles/shared-widget.js'
+import { statusBadgeStyles } from '../styles/shared-patterns.js'
 
 class PluginsWidget extends LitElement {
-  static styles = [sharedAnimations, widgetHeaderStyles, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, statusBadgeStyles, css`
     :host {
       display: block;
     }
@@ -63,31 +64,25 @@ class PluginsWidget extends LitElement {
       margin-left: 0.5rem;
     }
     
-    .plugin-status {
-      padding: 0.2rem 0.6rem;
-      border-radius: var(--radius-md);
-      font-size: 0.75em;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    
-    .status-running {
+    /* status-badge base provided by statusBadgeStyles */
+    .status-badge.running {
       background: rgba(0, 212, 170, 0.2);
       color: #00d4aa;
       border: 1px solid rgba(0, 212, 170, 0.3);
     }
-    
-    .status-stopped {
+
+    .status-badge.stopped,
+    .status-badge.failed {
       background: rgba(255, 107, 107, 0.2);
       color: #ff6b6b;
       border: 1px solid rgba(255, 107, 107, 0.3);
     }
-    
-    .status-starting {
-      background: rgba(255, 217, 61, 0.2);
-      color: #ffd93d;
-      border: 1px solid rgba(255, 217, 61, 0.3);
+
+    .status-badge.starting,
+    .status-badge.stopping {
+      background: rgba(251, 191, 36, 0.2);
+      color: #fbbf24;
+      border: 1px solid rgba(251, 191, 36, 0.3);
     }
     
     .plugin-description {
@@ -119,13 +114,13 @@ class PluginsWidget extends LitElement {
     }
 
     .readonly-notice {
-      background: rgba(76, 175, 80, 0.1);
-      border: 1px solid rgba(76, 175, 80, 0.2);
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.2);
       border-radius: var(--radius-sm);
       padding: 0.8rem;
       margin-bottom: 1rem;
       font-size: 0.85em;
-      color: #4caf50;
+      color: #22c55e;
       display: flex;
       align-items: center;
       gap: 0.5rem;
@@ -152,16 +147,16 @@ class PluginsWidget extends LitElement {
     }
 
     .action-btn.success {
-      background: rgba(16, 185, 129, 0.15);
-      color: #10b981;
-      border-color: rgba(16, 185, 129, 0.25);
+      background: rgba(34, 197, 94, 0.15);
+      color: #22c55e;
+      border-color: rgba(34, 197, 94, 0.25);
     }
 
     .action-btn.success:hover:not(:disabled) {
-      background: rgba(16, 185, 129, 0.25);
-      border-color: rgba(16, 185, 129, 0.4);
+      background: rgba(34, 197, 94, 0.25);
+      border-color: rgba(34, 197, 94, 0.4);
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
     }
 
     .action-btn.danger {
@@ -235,9 +230,9 @@ class PluginsWidget extends LitElement {
     .success {
       text-align: center;
       padding: 1rem;
-      color: #4caf50;
-      background: rgba(76, 175, 80, 0.1);
-      border: 1px solid rgba(76, 175, 80, 0.3);
+      color: #22c55e;
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.3);
       border-radius: var(--radius-sm);
       margin-bottom: 1rem;
     }
@@ -404,7 +399,7 @@ class PluginsWidget extends LitElement {
                 <span class="plugin-name">${plugin.name}</span>
                 <span class="plugin-version">v${plugin.version || '0.1.0'}</span>
               </div>
-              <span class="plugin-status status-${this.normalizeStatus(plugin.status).toLowerCase()}">
+              <span class="status-badge ${this.normalizeStatus(plugin.status).toLowerCase()}">
                 ${this.getStatusLabel(plugin.status)}
               </span>
             </div>
