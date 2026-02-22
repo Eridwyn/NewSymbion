@@ -70,13 +70,7 @@ class EnvironmentWidget extends LitElement {
       gap: 8px;
     }
 
-    .sensor-count {
-      font-size: 12px;
-      color: #888;
-      background: var(--surface-glass-strong);
-      padding: 4px 8px;
-      border-radius: 12px;
-    }
+    /* widget-count provided by widgetHeaderStyles */
 
     .loading-state {
       display: flex;
@@ -1049,7 +1043,7 @@ class EnvironmentWidget extends LitElement {
         ${styleTag}
         <div class="widget-header">
           <div class="widget-title">🌡️ Environnement</div>
-          <span class="sensor-count">0 capteur</span>
+          <span class="widget-count">0 capteur</span>
         </div>
         <div class="empty-state">
           <div class="empty-icon">🌡️</div>
@@ -1066,7 +1060,7 @@ class EnvironmentWidget extends LitElement {
       <div class="widget-header">
         <div class="widget-title">
           🌡️ Environnement
-          <span class="sensor-count">${this.sensors.length} capteur${this.sensors.length > 1 ? 's' : ''}</span>
+          <span class="widget-count">${this.sensors.length} capteur${this.sensors.length > 1 ? 's' : ''}</span>
         </div>
       </div>
 

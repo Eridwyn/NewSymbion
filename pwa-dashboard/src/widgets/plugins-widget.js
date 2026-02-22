@@ -20,10 +20,7 @@ class PluginsWidget extends LitElement {
       display: block;
     }
 
-    .plugins-count {
-      font-size: 0.9em;
-      opacity: 0.7;
-    }
+    /* widget-count provided by widgetHeaderStyles */
     
     .plugins-list {
       display: flex;
@@ -374,7 +371,7 @@ class PluginsWidget extends LitElement {
     return html`
       <div class="widget-header">
         <h3 class="widget-title">🔌 Plugins</h3>
-        <span class="plugins-count">
+        <span class="widget-count">
           ${runningCount}/${this.plugins.length} actifs
         </span>
       </div>

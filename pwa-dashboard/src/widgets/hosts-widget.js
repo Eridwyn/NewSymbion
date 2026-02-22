@@ -18,10 +18,7 @@ class HostsWidget extends LitElement {
       display: block;
     }
 
-    .hosts-count {
-      font-size: 0.9em;
-      opacity: 0.7;
-    }
+    /* widget-count provided by widgetHeaderStyles */
     
     .hosts-list {
       display: flex;
@@ -435,7 +432,7 @@ class HostsWidget extends LitElement {
     return html`
       <div class="widget-header">
         <h3 class="widget-title">💻 Hosts</h3>
-        <span class="hosts-count">
+        <span class="widget-count">
           ${onlineCount}/${this.hosts.length} en ligne
         </span>
       </div>
