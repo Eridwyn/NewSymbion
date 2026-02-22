@@ -37,9 +37,9 @@ class ContextEnginePage extends LitElement {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(var(--blur-base));
-      -webkit-backdrop-filter: blur(var(--blur-base));
+      background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(var(--blur-xl));
+      -webkit-backdrop-filter: blur(var(--blur-xl));
       animation: fadeIn 0.2s ease-out;
     }
 
@@ -435,7 +435,7 @@ class ContextEnginePage extends LitElement {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 1rem 1.25rem;
+      padding: var(--space-4) var(--space-5);
       border-bottom: 1px solid var(--border-default);
       background: rgba(0, 0, 0, 0.3);
     }
@@ -465,41 +465,41 @@ class ContextEnginePage extends LitElement {
     }
 
     .close-btn:hover {
-      background: var(--surface-glass-bright);
-      color: var(--color-dark-text-primary, #f8f9fa);
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
     }
 
     /* Tabs */
     .tabs {
       display: flex;
-      gap: 0.25rem;
-      padding: 0.75rem 1rem;
+      gap: var(--space-1);
+      padding: var(--space-2) var(--space-3);
       border-bottom: 1px solid var(--border-subtle);
-      background: rgba(0, 0, 0, 0.2);
+      background: rgba(0, 0, 0, 0.15);
       overflow-x: auto;
     }
 
     .tab {
-      padding: 0.5rem 1rem;
-      border-radius: var(--radius-base);
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-md);
       background: transparent;
       border: 1px solid transparent;
       color: var(--color-dark-text-secondary, #adb5bd);
       font-size: 0.8rem;
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all var(--duration-base) var(--ease-out);
       white-space: nowrap;
     }
 
     .tab:hover {
-      background: var(--surface-glass);
+      background: var(--surface-glass, rgba(255,255,255,0.06));
       color: var(--color-dark-text-primary, #f8f9fa);
     }
 
     .tab.active {
-      background: var(--ctx-border);
-      border-color: var(--ctx-border-strong);
+      background: var(--ctx-bg, rgba(0,212,170,0.05));
+      border-color: var(--ctx-border, rgba(0,212,170,0.15));
       color: var(--context-primary, #00d4aa);
     }
 

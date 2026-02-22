@@ -23,9 +23,7 @@ class UserSettingsPage extends LitElement {
       left: 0;
       right: 0;
       bottom: 0;
-      background: radial-gradient(ellipse at center,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 3%, rgba(0, 0, 0, 0.92)) 0%,
-        rgba(0, 0, 0, 0.95) 100%);
+      background: rgba(0, 0, 0, 0.88);
       backdrop-filter: blur(var(--blur-xl));
       -webkit-backdrop-filter: blur(var(--blur-xl));
       z-index: 9999;
@@ -41,128 +39,80 @@ class UserSettingsPage extends LitElement {
       animation: slideUp var(--duration-slow) var(--ease-out);
     }
 
-    /* Header bio-organique */
     .settings-header {
       position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       margin-bottom: var(--space-6);
       padding-bottom: var(--space-4);
-      padding-right: 120px; /* Espace pour le bouton fermer */
-      border-bottom: 1px solid var(--ctx-bg-emphasis);
-    }
-
-    .settings-header::after {
-      content: '';
-      position: absolute;
-      bottom: -1px;
-      left: 0;
-      width: 30%;
-      height: 2px;
-      background: linear-gradient(90deg,
-        var(--context-primary, #00d4aa) 0%,
-        transparent 100%);
-      opacity: 0.8;
+      border-bottom: 1px solid var(--border-default);
     }
 
     .settings-title {
-      font-size: var(--text-3xl);
+      font-size: var(--text-2xl);
       font-weight: var(--font-bold);
-      background: linear-gradient(135deg,
-        var(--context-primary, #00d4aa) 0%,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 70%, white) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      filter: drop-shadow(0 0 20px var(--ctx-border));
-      animation: titlePulse 4s ease-in-out infinite, titleSlideIn 0.6s var(--ease-out);
-    }
-
-    @keyframes titleSlideIn {
-      from {
-        opacity: 0;
-        transform: translateX(-20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
+      color: var(--color-dark-text-primary, #f8f9fa);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
     }
 
     .close-button {
-      position: absolute;
-      top: 0;
-      right: 0;
-      background: linear-gradient(135deg,
-        rgba(239, 68, 68, 0.15) 0%,
-        rgba(239, 68, 68, 0.08) 100%);
-      border: 1px solid rgba(239, 68, 68, 0.35);
-      color: #ff6b6b;
-      padding: var(--space-3) var(--space-5);
-      border-radius: var(--radius-md);
-      font-size: var(--text-sm);
-      font-weight: var(--font-semibold);
+      background: var(--surface-glass-hover, rgba(255,255,255,0.08));
+      border: none;
+      color: var(--color-dark-text-secondary, #adb5bd);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
       cursor: pointer;
+      font-size: 1.2rem;
       transition: all var(--duration-base) var(--ease-out);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: static;
     }
 
     .close-button:hover {
-      background: linear-gradient(135deg,
-        rgba(239, 68, 68, 0.25) 0%,
-        rgba(239, 68, 68, 0.15) 100%);
-      border-color: rgba(239, 68, 68, 0.55);
-      transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
     }
 
     .tabs {
       display: flex;
-      gap: var(--space-2);
+      gap: var(--space-1);
       margin-bottom: var(--space-6);
-      border-bottom: 1px solid var(--border-default);
+      padding: var(--space-2);
+      background: var(--surface-glass-subtle, rgba(255,255,255,0.03));
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-subtle);
     }
 
     .tab {
+      flex: 1;
       background: transparent;
-      border: none;
-      color: var(--color-dark-text-tertiary);
+      border: 1px solid transparent;
+      color: var(--color-dark-text-secondary, #adb5bd);
       padding: var(--space-3) var(--space-4);
       font-size: var(--text-sm);
       font-weight: var(--font-medium);
       cursor: pointer;
-      border-bottom: 2px solid transparent;
+      border-radius: var(--radius-md);
       transition: all var(--duration-base) var(--ease-out);
-      position: relative;
-    }
-
-    .tab::before {
-      content: '';
-      position: absolute;
-      bottom: -2px;
-      left: 50%;
-      width: 0;
-      height: 2px;
-      background: var(--context-primary, #00d4aa);
-      transform: translateX(-50%);
-      transition: width var(--duration-base) var(--ease-out);
-      box-shadow: 0 0 8px var(--context-primary, #00d4aa);
+      text-align: center;
+      white-space: nowrap;
     }
 
     .tab:hover {
-      color: var(--color-dark-text-secondary);
-      transform: translateY(-1px);
-    }
-
-    .tab:hover::before {
-      width: 60%;
+      background: var(--surface-glass, rgba(255,255,255,0.06));
+      color: var(--color-dark-text-primary, #f8f9fa);
     }
 
     .tab.active {
+      background: var(--ctx-bg, rgba(0,212,170,0.05));
+      border-color: var(--ctx-border, rgba(0,212,170,0.15));
       color: var(--context-primary, #00d4aa);
-      border-bottom-color: transparent;
-    }
-
-    .tab.active::before {
-      width: 100%;
-      box-shadow: 0 0 12px var(--context-primary, #00d4aa);
     }
 
     .tab-content {
@@ -609,20 +559,8 @@ class UserSettingsPage extends LitElement {
         max-width: 100%;
       }
 
-      .settings-header {
-        padding-right: 0; /* Reset padding-right sur mobile */
-        padding-bottom: var(--space-6); /* Plus d'espace pour le bouton */
-      }
-
       .settings-title {
         font-size: var(--text-xl);
-        max-width: calc(100% - 90px); /* Espace pour le bouton */
-      }
-
-      .close-button {
-        padding: var(--space-2) var(--space-3);
-        font-size: var(--text-xs);
-        /* Reste en absolute top-right */
       }
 
       .tabs {
@@ -1057,9 +995,7 @@ class UserSettingsPage extends LitElement {
       <div class="settings-container">
         <div class="settings-header">
           <h1 class="settings-title">⚙️ Paramètres</h1>
-          <button class="close-button" @click="${this.handleClose}">
-            ✕ Fermer
-          </button>
+          <button class="close-button" @click="${this.handleClose}">✕</button>
         </div>
 
         <div class="tabs">
