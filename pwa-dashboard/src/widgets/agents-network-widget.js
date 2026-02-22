@@ -10,6 +10,7 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
+import { widgetHeaderStyles } from '../styles/shared-widget.js'
 import '../services/agents-service.js'
 import '../components/organic-loader.js'
 import pollingScheduler from '../services/polling-scheduler.js'
@@ -23,7 +24,7 @@ class AgentsNetworkWidget extends LitElement {
     selectedAgent: { type: Object }
   }
   
-  static styles = [sharedAnimations, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, css`
     :host {
       display: block;
       background: var(--widget-background, #1a1a1a);
@@ -34,10 +35,8 @@ class AgentsNetworkWidget extends LitElement {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
+    /* Local overrides (differs from shared: px values, extra border-bottom) */
     .widget-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
       margin-bottom: 16px;
       padding-bottom: 12px;
       border-bottom: 1px solid var(--border-medium);
@@ -45,12 +44,8 @@ class AgentsNetworkWidget extends LitElement {
 
     .widget-title {
       font-size: 18px;
-      font-weight: 600;
       color: #ffffff;
-      display: flex;
-      align-items: center;
       gap: 8px;
-      animation: textGlow var(--bio-breathe-fast, 8s) ease-in-out infinite;
     }
 
     .view-toggle {

@@ -9,28 +9,14 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
+import { overlayStyles, closeButtonStyles, scrollbarStyles } from '../styles/shared-patterns.js'
+import { tabPillStyles } from '../styles/shared-page.js'
 import authService from '../services/auth-service.js'
 import decisionService from '../services/decision-service.js'
 import './passkey-manager.js'
 
 class UserSettingsPage extends LitElement {
-  static styles = [sharedAnimations, css`
-    /* Overlay bio-organique avec glassmorphism */
-    :host {
-      display: block;
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.88);
-      backdrop-filter: blur(var(--blur-xl));
-      -webkit-backdrop-filter: blur(var(--blur-xl));
-      z-index: 9999;
-      overflow-y: auto;
-      animation: fadeIn var(--duration-slow) var(--ease-out);
-    }
-
+  static styles = [sharedAnimations, overlayStyles, closeButtonStyles, scrollbarStyles, tabPillStyles, css`
     .settings-container {
       max-width: 800px;
       margin: var(--space-6) auto;
@@ -56,63 +42,6 @@ class UserSettingsPage extends LitElement {
       display: flex;
       align-items: center;
       gap: var(--space-3);
-    }
-
-    .close-button {
-      background: var(--surface-glass-hover, rgba(255,255,255,0.08));
-      border: none;
-      color: var(--color-dark-text-secondary, #adb5bd);
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      cursor: pointer;
-      font-size: 1.2rem;
-      transition: all var(--duration-base) var(--ease-out);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: static;
-    }
-
-    .close-button:hover {
-      background: rgba(239, 68, 68, 0.2);
-      color: #f87171;
-    }
-
-    .tabs {
-      display: flex;
-      gap: var(--space-1);
-      margin-bottom: var(--space-6);
-      padding: var(--space-2);
-      background: var(--surface-glass-subtle, rgba(255,255,255,0.03));
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--border-subtle);
-    }
-
-    .tab {
-      flex: 1;
-      background: transparent;
-      border: 1px solid transparent;
-      color: var(--color-dark-text-secondary, #adb5bd);
-      padding: var(--space-3) var(--space-4);
-      font-size: var(--text-sm);
-      font-weight: var(--font-medium);
-      cursor: pointer;
-      border-radius: var(--radius-md);
-      transition: all var(--duration-base) var(--ease-out);
-      text-align: center;
-      white-space: nowrap;
-    }
-
-    .tab:hover {
-      background: var(--surface-glass, rgba(255,255,255,0.06));
-      color: var(--color-dark-text-primary, #f8f9fa);
-    }
-
-    .tab.active {
-      background: var(--ctx-bg, rgba(0,212,170,0.05));
-      border-color: var(--ctx-border, rgba(0,212,170,0.15));
-      color: var(--context-primary, #00d4aa);
     }
 
     .tab-content {

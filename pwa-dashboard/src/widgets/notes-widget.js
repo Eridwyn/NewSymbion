@@ -14,29 +14,25 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
+import { widgetHeaderStyles } from '../styles/shared-widget.js'
 import { getTopPriorityNotes, isHighPriority } from '../utils/notes-scoring.js'
 import { applyAllFilters } from '../utils/notes-filters.js'
 import notesStreamService from '../services/notes-stream-service.js'
 import '../components/organic-loader.js'
 
 class NotesWidget extends LitElement {
-  static styles = [sharedAnimations, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, css`
     :host {
       display: block;
     }
 
+    /* Local overrides (differs from shared: margin-bottom 1rem, font-size 1.1em) */
     .widget-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
       margin-bottom: 1rem;
     }
 
     .widget-title {
       font-size: 1.1em;
-      font-weight: 600;
-      color: #e0e0e0;
-      animation: textGlow var(--bio-breathe-fast, 8s) ease-in-out infinite;
     }
 
     .header-actions {
