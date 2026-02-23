@@ -5,17 +5,26 @@ export const ModesMixin = (Base) => class extends Base {
 
   // ============ Mode Change Overlay ============
   showModeChangeOverlay(mode, duration) {
+    // Clear any pending dismiss
+    if (this._overlayTimer) clearTimeout(this._overlayTimer)
+
+    const theme = this.getModeTheme(mode)
     this.modeChangeOverlay = {
       mode,
       duration,
       icon: this.getModeIcon(mode),
-      name: this.getModeName(mode)
+      name: this.getModeName(mode),
+      color: theme.primary,
+      closing: false
     }
 
-    // Auto-hide after 1.5 seconds
-    setTimeout(() => {
-      this.modeChangeOverlay = null
-    }, 1500)
+    // Start exit animation after 1.2s, then remove after animation completes
+    this._overlayTimer = setTimeout(() => {
+      this.modeChangeOverlay = { ...this.modeChangeOverlay, closing: true }
+      setTimeout(() => {
+        this.modeChangeOverlay = null
+      }, 400)
+    }, 1200)
   }
 
   // Mode actions

@@ -199,32 +199,73 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(0, 0, 0, 0.9);
-      backdrop-filter: blur(16px);
-      animation: fadeIn 0.3s ease-out;
+      background: var(--surface-overlay, rgba(0, 0, 0, 0.85));
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      animation: overlayFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+
+    .mode-change-overlay.closing {
+      animation: overlayFadeOut 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+
+    @keyframes overlayFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes overlayFadeOut {
+      from { opacity: 1; transform: scale(1); }
+      to { opacity: 0; transform: scale(1.05); }
     }
 
     .mode-change-content {
       text-align: center;
-      animation: scaleIn 0.4s ease-out;
+      animation: modeContentIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    .closing .mode-change-content {
+      animation: modeContentOut 0.35s ease-in forwards;
+    }
+
+    @keyframes modeContentIn {
+      from { opacity: 0; transform: scale(0.6) translateY(20px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    @keyframes modeContentOut {
+      from { opacity: 1; transform: scale(1); }
+      to { opacity: 0; transform: scale(0.8) translateY(-10px); }
     }
 
     .mode-change-icon {
-      font-size: 5rem;
+      font-size: 4.5rem;
       margin-bottom: 1rem;
-      animation: float 2s ease-in-out infinite;
+      animation: iconPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s both;
+    }
+
+    @keyframes iconPop {
+      from { opacity: 0; transform: scale(0) rotate(-15deg); }
+      60% { transform: scale(1.15) rotate(5deg); }
+      to { opacity: 1; transform: scale(1) rotate(0deg); }
     }
 
     .mode-change-name {
       font-size: var(--text-3xl);
       font-weight: 700;
-      color: var(--context-primary, #00d4aa);
       margin-bottom: 0.5rem;
+      animation: nameSlideIn 0.4s ease-out 0.25s both;
+    }
+
+    @keyframes nameSlideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .mode-change-message {
       font-size: 0.9rem;
       color: var(--color-dark-text-secondary, #adb5bd);
+      animation: nameSlideIn 0.4s ease-out 0.35s both;
     }
 
     /* Skeleton Loading */
@@ -2429,10 +2470,10 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
 
       <!-- Mode Change Overlay -->
       ${this.modeChangeOverlay ? html`
-        <div class="mode-change-overlay">
+        <div class="mode-change-overlay ${this.modeChangeOverlay.closing ? 'closing' : ''}">
           <div class="mode-change-content">
             <div class="mode-change-icon">${this.modeChangeOverlay.icon}</div>
-            <div class="mode-change-name">${this.modeChangeOverlay.name}</div>
+            <div class="mode-change-name" style="color: ${this.modeChangeOverlay.color}">${this.modeChangeOverlay.name}</div>
             <div class="mode-change-message">Activé pour ${this.formatDuration(this.modeChangeOverlay.duration)}</div>
           </div>
         </div>
