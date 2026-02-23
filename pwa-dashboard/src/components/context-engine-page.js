@@ -2044,6 +2044,7 @@ class ContextEnginePage extends LitElement {
     .ce-text-base { font-size: 1rem; }
     .ce-text-lg { font-size: 1.1rem; }
     .ce-text-xl { font-size: var(--text-xl); }
+    .ce-text-2xl { font-size: var(--text-2xl); }
     .ce-text-normal { font-weight: normal; }
 
     /* Display */
@@ -2075,6 +2076,140 @@ class ContextEnginePage extends LitElement {
 
     /* Cursor */
     .ce-cursor { cursor: pointer; }
+
+    /* Additional layout */
+    .ce-flex-end-wrap { display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap; }
+    .ce-flex-grow-min150 { flex: 1; min-width: 150px; }
+    .ce-flex-grow-min200 { flex: 1; min-width: 200px; }
+    .ce-whitespace-nowrap { white-space: nowrap; }
+    .ce-text-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ce-justify-end { justify-content: flex-end; }
+    .ce-w-full { width: 100%; }
+    .ce-w-auto { width: auto; }
+    .ce-min-h-80 { min-height: 80px; }
+
+    /* Padding */
+    .ce-p-sm { padding: 0.5rem; }
+    .ce-p-3xl { padding: 3rem; }
+    .ce-px-sm { padding: 0.2rem 0.5rem; }
+    .ce-pl-xl { padding-left: 1.75rem; }
+
+    /* Font sizes extra */
+    .ce-text-2xl-icon { font-size: var(--text-2xl); margin-bottom: 0.25rem; opacity: 0.6; }
+    .ce-text-065 { font-size: 0.65rem; }
+    .ce-text-06 { font-size: 0.6rem; }
+    .ce-text-095 { font-size: 0.95rem; }
+    .ce-text-09 { font-size: 0.9rem; }
+    .ce-text-500 { font-weight: 500; }
+    .ce-lh-14 { line-height: 1.4; }
+    .ce-uppercase-spaced { text-transform: uppercase; letter-spacing: 0.08em; }
+    .ce-capitalize { text-transform: capitalize; }
+    .ce-dim-icon { font-size: 1rem; width: 1.5rem; text-align: center; }
+    .ce-italic { font-style: italic; }
+    .ce-text-context-primary { color: var(--context-primary, #00d4aa); }
+
+    /* Opacity extra */
+    .ce-opacity-4 { opacity: 0.4; }
+
+    /* Borders & separators */
+    .ce-border-top-subtle { padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.1); }
+    .ce-border-top-faint { padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.08); }
+    .ce-border-top-purple { padding-top: 1.25rem; border-top: 1px solid rgba(139, 92, 246, 0.15); }
+    .ce-border-top-muted { padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.05); }
+    .ce-source-header { text-transform: uppercase; letter-spacing: 0.08em; padding-bottom: 0.25rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+    /* Backgrounds - sections */
+    .ce-bg-trust { background: var(--ctx-bg-subtle); padding: 0.75rem; border-radius: var(--radius-base); border: 1px solid var(--ctx-border-medium); }
+    .ce-bg-purple-section { background: rgba(147, 51, 234, 0.1); border: 1px solid rgba(147, 51, 234, 0.3); }
+    .ce-bg-purple-subtle { background: rgba(147, 51, 234, 0.1); padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid rgba(147, 51, 234, 0.2); }
+    .ce-bg-indigo-section { background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); }
+    .ce-bg-stats-section { background: rgba(30, 35, 45, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); padding: 1rem; }
+
+    /* Help icon (circle with ?) */
+    .ce-help-icon-purple { background: rgba(147, 51, 234, 0.3); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
+    .ce-help-icon-indigo { background: rgba(99, 102, 241, 0.3); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
+
+    /* Badge variants */
+    .ce-badge-glass { padding: 0.2rem 0.5rem; background: rgba(255,255,255,0.05); border-radius: var(--radius-sm); }
+    .ce-badge-glass-bg { background: rgba(255,255,255,0.05); border-radius: var(--radius-sm); }
+    .ce-badge-purple-pill { padding: 0.25rem 0.5rem; background: rgba(139, 92, 246, 0.1); border-radius: 10px; }
+    .ce-badge-purple-bg { background: rgba(139, 92, 246, 0.1); }
+
+    /* Code tag */
+    .ce-code-var { background: rgba(0,0,0,0.3); padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.7rem; color: #a78bfa; cursor: help; }
+
+    /* Notification modal */
+    .ce-notif-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 10000; }
+    .ce-notif-modal-content { background: linear-gradient(135deg, rgba(30, 32, 40, 0.98) 0%, rgba(20, 22, 28, 1) 100%); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-md); padding: 1.25rem; width: 90%; max-width: 450px; max-height: 80vh; overflow-y: auto; }
+    .ce-notif-form-input { width: 100%; padding: 0.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; box-sizing: border-box; }
+    .ce-notif-form-select { width: 100%; padding: 0.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; }
+    .ce-notif-form-textarea { width: 100%; padding: 0.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; resize: vertical; box-sizing: border-box; }
+
+    /* Buttons - notification modal */
+    .ce-btn-cancel { padding: 0.5rem 1rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-secondary); cursor: pointer; font-size: 0.85rem; }
+    .ce-btn-save { padding: 0.5rem 1rem; background: var(--context-primary, #00d4aa); border: none; border-radius: var(--radius-sm); color: #000; cursor: pointer; font-size: 0.85rem; font-weight: 500; }
+    .ce-btn-edit-icon { background: rgba(255,255,255,0.08); border: none; color: var(--color-dark-text-secondary); padding: 0.35rem 0.5rem; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--text-xs); }
+    .ce-notif-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-base); padding: 0.75rem; }
+    .ce-rule-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08); }
+    .ce-rule-icon { font-size: 0.65rem; }
+    .ce-operator-btn { font-size: 0.7rem; padding: 0.2rem 0.5rem; color: white; border: none; }
+
+    /* SVG gauge */
+    .ce-gauge-container { position: relative; }
+    .ce-gauge-svg { transform: rotate(-90deg); }
+    .ce-gauge-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+    .ce-gauge-center-col { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+    /* Validation reason items */
+    .ce-reason-item { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.5rem 0; }
+    .ce-reason-bullet { width: 8px; height: 8px; border-radius: 50%; margin-top: 0.35rem; flex-shrink: 0; }
+    .ce-priority-badge { padding: 0.15rem 0.4rem; border-radius: var(--radius-sm); font-size: 0.65rem; font-weight: 600; }
+    .ce-threshold-badge { padding: 0.2rem 0.5rem; border-radius: var(--radius-sm); font-size: var(--text-xs); font-weight: 600; }
+    .ce-confidence-badge { display: inline-block; padding: 0.3rem 0.75rem; border-radius: var(--radius-xl); font-size: var(--text-xs); font-weight: 600; }
+    .ce-btn-correction { padding: 0.5rem 1.25rem; border-radius: 10px; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease; }
+    .ce-mode-choice-btn { flex: 1; min-width: 80px; display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 0.75rem 0.5rem; border-radius: 10px; transition: all 0.2s ease; }
+
+    /* Validation buttons */
+    .ce-btn-reject { flex: 1; padding: 0.875rem 1.25rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-md); color: #ef4444; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+    .ce-btn-approve { flex: 1; padding: 0.875rem 1.25rem; background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: var(--radius-md); color: #22c55e; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 0.5rem; box-shadow: 0 0 20px rgba(34, 197, 94, 0.15); }
+
+    /* Validation details */
+    .ce-validation-reasons-box { background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-md); padding: 1rem; margin: 1rem 0; }
+
+    /* Feature card */
+    .ce-feature-label { font-size: 0.65rem; margin-bottom: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ce-feature-conf { font-size: 0.6rem; }
+    .ce-feature-card { padding: 0.5rem 0.75rem; border-radius: var(--radius-base); }
+    .ce-feature-value { font-size: 0.9rem; font-weight: 600; }
+
+    /* Animation */
+    .ce-anim-card-enter { animation: card-enter 0.4s ease-out; }
+    .ce-anim-slow { animation-duration: 4s; }
+
+    /* Grid 3col */
+    .ce-grid-3col { display: grid; grid-template-columns: 1fr auto auto; gap: 0.25rem 0.5rem; }
+
+    /* Gap variants */
+    .ce-gap-sm { gap: 0.5rem; }
+    .ce-gap-xl { gap: 1.5rem; }
+
+    /* Margins */
+    .ce-mt-1-25 { margin-top: 1.25rem; }
+    .ce-m-heading { margin: 0 0 1rem; }
+    .ce-m-para { margin: 0.5rem 0 0.75rem; }
+    .ce-m-para-sm { margin: 0.5rem 0 0.5rem; }
+    .ce-m-para-top { margin: 0.5rem 0 0; }
+    .ce-m-para-mid { margin: 0.5rem 0; }
+    .ce-m-rule-heading { margin: 1rem 0 0.5rem; }
+
+    /* Inline select */
+    .ce-select-inline { width: auto; margin-left: 0.5rem; }
+
+    /* Intelligence correction panel */
+    .ce-correction-panel { background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: var(--radius-md); animation: card-enter 0.2s ease-out; }
+
+    /* Intelligence prediction section */
+    .ce-intelligence-section { background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(109, 40, 217, 0.06) 100%); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: var(--radius-lg); padding: 1.5rem; margin-bottom: 1.25rem; box-shadow: 0 4px 24px rgba(139, 92, 246, 0.1); }
   `]
 
   static properties = {
@@ -3062,9 +3197,9 @@ class ContextEnginePage extends LitElement {
         <div class="automations-list">
           <!-- Add New Automation Card -->
           <div class="automation-card add-new" @click="${this.openCreateForm}">
-            <div class="automation-card-inner ce-flex-center" style="min-height: 80px; cursor: pointer;">
+            <div class="automation-card-inner ce-flex-center ce-min-h-80 ce-cursor-pointer">
               <div class="ce-text-center">
-                <div style="font-size: var(--text-2xl); margin-bottom: 0.25rem; opacity: 0.6;">+</div>
+                <div class="ce-text-2xl-icon">+</div>
                 <div class="ce-text-md ce-text-secondary">Nouvelle automation</div>
               </div>
             </div>
@@ -3309,8 +3444,8 @@ class ContextEnginePage extends LitElement {
       </div>
 
       <!-- Trust Settings -->
-      <div class="form-group" style="background: var(--ctx-bg-subtle); padding: 0.75rem; border-radius: var(--radius-base); border: 1px solid var(--ctx-border-medium);">
-        <label class="ce-text-bold ce-mb-sm ce-block" style="color: var(--context-primary, #00d4aa);">🛡️ Niveau de confiance</label>
+      <div class="form-group ce-bg-trust">
+        <label class="ce-text-bold ce-mb-sm ce-block ce-text-context-primary">🛡️ Niveau de confiance</label>
 
         <label class="ce-flex ce-mb-sm">
           <input type="checkbox" ?checked="${auto.trusted === true}"
@@ -3326,7 +3461,7 @@ class ContextEnginePage extends LitElement {
           <span class="ce-text-tiny-tertiary">— Ne pas exécuter si déjà dans ce mode</span>
         </label>
 
-        <div class="ce-text-xs-tertiary ce-mt-sm" style="padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.1);">
+        <div class="ce-text-xs-tertiary ce-mt-sm ce-border-top-subtle">
           ${auto.trusted ? html`
             <span class="ce-text-green">✓ Cette automation sera exécutée automatiquement sans demander de validation.</span>
           ` : html`
@@ -3349,8 +3484,8 @@ class ContextEnginePage extends LitElement {
 
         <!-- Add Action -->
         <div class="ce-bg-glass-dashed">
-          <div style="display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap;">
-            <div style="flex: 1; min-width: 150px;">
+          <div class="ce-flex-end-wrap">
+            <div class="ce-flex-grow-min150">
               <label class="ce-text-xs-tertiary">Type d'action</label>
               <select class="form-input ce-mt-xs" id="new-action-type">
                 ${(this.schema?.actions || []).map(a => html`
@@ -3358,11 +3493,11 @@ class ContextEnginePage extends LitElement {
                 `)}
               </select>
             </div>
-            <button class="btn btn-small" @click="${this.showActionConfig}" style="white-space: nowrap;">+ Configurer</button>
+            <button class="btn btn-small ce-whitespace-nowrap" @click="${this.showActionConfig}">+ Configurer</button>
           </div>
 
           ${this.showingActionConfig ? html`
-            <div class="ce-mt-md" style="padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.08);">
+            <div class="ce-mt-md ce-border-top-faint">
               ${this.renderActionConfig()}
               <div class="ce-flex ce-mt-md">
                 <button class="btn btn-small" @click="${() => this.showingActionConfig = false}">Annuler</button>
@@ -3597,7 +3732,8 @@ class ContextEnginePage extends LitElement {
         <div class="ce-flex ce-mb-sm">
           <button
             class="btn btn-small"
-            style="font-size: 0.7rem; padding: 0.2rem 0.5rem; background: ${operatorColor}; color: white; border: none;"
+            class="ce-operator-btn"
+            style="background: ${operatorColor};"
             @click="${() => this.toggleRulesGroupOperator(path)}"
             title="Cliquer pour basculer AND/OR"
           >${operatorLabel}</button>
@@ -3651,8 +3787,8 @@ class ContextEnginePage extends LitElement {
     const label = this.getRuleLabel(rule)
 
     return html`
-      <div class="rule-item" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08); border-left: 3px solid ${categoryColor};">
-        <span style="font-size: 0.65rem; color: ${categoryColor};" title="${isEvent ? 'Événement (déclencheur)' : 'État (condition)'}">${categoryIcon}</span>
+      <div class="rule-item ce-rule-item" style="border-left: 3px solid ${categoryColor};">
+        <span class="ce-rule-icon" style="color: ${categoryColor};" title="${isEvent ? 'Événement (déclencheur)' : 'État (condition)'}">${categoryIcon}</span>
         <span class="ce-flex-grow ce-text-sm">${label}</span>
         <button class="btn btn-small btn-icon btn-danger ce-badge-tiny" @click="${() => this.removeRule(path)}" title="Supprimer">✕</button>
       </div>
@@ -3977,7 +4113,8 @@ class ContextEnginePage extends LitElement {
         <div class="ce-flex ce-mb-sm">
           <button
             class="btn btn-small"
-            style="font-size: 0.7rem; padding: 0.2rem 0.5rem; background: ${operatorColor}; color: white; border: none;"
+            class="ce-operator-btn"
+            style="background: ${operatorColor};"
             @click="${() => this.toggleTriggerGroupOperator(path)}"
             title="Cliquer pour basculer AND/OR"
           >${operatorLabel}</button>
@@ -4217,7 +4354,7 @@ class ContextEnginePage extends LitElement {
             >?</button>
           </div>
           ${hasConditions ? html`
-            <button type="button" class="btn btn-small btn-danger ce-text-tiny" @click="${() => this.clearConditions()}" style="padding: 0.2rem 0.5rem;">
+            <button type="button" class="btn btn-small btn-danger ce-text-tiny ce-px-sm" @click="${() => this.clearConditions()}">
               Supprimer
             </button>
           ` : html`
@@ -4318,7 +4455,8 @@ Exemple :
         <div class="ce-flex ce-mb-sm">
           <button
             class="btn btn-small"
-            style="font-size: 0.7rem; padding: 0.2rem 0.5rem; background: ${operatorColor}; color: white; border: none;"
+            class="ce-operator-btn"
+            style="background: ${operatorColor};"
             @click="${() => this.toggleGroupOperator(path)}"
             title="Cliquer pour basculer AND/OR"
           >${operatorLabel}</button>
@@ -4690,7 +4828,7 @@ Exemple :
         background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, var(--surface-glass-faint) 100%);
         border: 1px solid ${trustClass === 'high' ? 'rgba(34, 197, 94, 0.2)' : trustClass === 'medium' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(239, 68, 68, 0.2)'};
       ">
-        <div class="validation-header" style="display: flex; align-items: flex-start; gap: 1rem;">
+        <div class="validation-header">
           <!-- Mini Gauge -->
           <div class="ce-flex-shrink-0">
             ${this.renderMiniGauge(trustScore, 70)}
@@ -4702,84 +4840,33 @@ Exemple :
               <div class="validation-title ce-text-bold ce-text-primary ce-text-lg">${actionType}</div>
             </div>
             <div class="validation-subtitle ce-flex ce-text-md ce-text-secondary">
-              <span class="ce-text-xs" style="padding: 0.2rem 0.5rem; background: rgba(255,255,255,0.05); border-radius: var(--radius-sm);">
+              <span class="ce-text-xs ce-badge-glass">
                 🤖 ${v.action?.agent_id || 'Système'}
               </span>
-              <span style="padding: 0.2rem 0.5rem; background: ${glowColor}; border-radius: var(--radius-sm); font-size: var(--text-xs); color: ${color}; font-weight: 600;">
+              <span class="ce-threshold-badge" style="background: ${glowColor}; color: ${color};">
                 Seuil: ${Math.round((v.threshold || 0.7) * 100)}%
               </span>
             </div>
           </div>
         </div>
 
-        <div class="validation-reasons" style="
-          background: rgba(0, 0, 0, 0.2);
-          border: 1px solid rgba(255,255,255,0.05);
-          border-radius: var(--radius-md);
-          padding: 1rem;
-          margin: 1rem 0;
-        ">
-          <div class="validation-reasons-title ce-flex ce-text-tiny ce-text-bold ce-text-tertiary ce-mb-md" style="text-transform: uppercase; letter-spacing: 0.08em;">
+        <div class="validation-reasons ce-validation-reasons-box">
+          <div class="validation-reasons-title ce-flex ce-text-tiny ce-text-bold ce-text-tertiary ce-mb-md ce-uppercase-spaced">
             📋 Raisons de la validation
           </div>
           ${reasons.map((r, i) => html`
-            <div class="validation-reason-item" style="
-              display: flex;
-              align-items: flex-start;
-              gap: 0.75rem;
-              padding: 0.5rem 0;
-              animation: card-enter 0.3s ease-out ${(index * 0.1) + (i * 0.05)}s backwards;
-            ">
-              <div style="
-                width: 8px;
-                height: 8px;
-                border-radius: 50%;
-                background: ${color};
-                box-shadow: 0 0 8px ${glowColor};
-                margin-top: 0.35rem;
-                flex-shrink: 0;
-              "></div>
-              <span class="ce-text-sm-secondary" style="line-height: 1.4;">${r}</span>
+            <div class="validation-reason-item ce-reason-item" style="animation: card-enter 0.3s ease-out ${(index * 0.1) + (i * 0.05)}s backwards;">
+              <div class="ce-reason-bullet" style="background: ${color}; box-shadow: 0 0 8px ${glowColor};"></div>
+              <span class="ce-text-sm-secondary ce-lh-14">${r}</span>
             </div>
           `)}
         </div>
 
         <div class="validation-actions ce-flex ce-gap-lg">
-          <button @click="${() => this.handleRejectValidation(v.validation_id)}" style="
-            flex: 1;
-            padding: 0.875rem 1.25rem;
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.3);
-            border-radius: var(--radius-md);
-            color: #ef4444;
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-          ">
+          <button class="ce-btn-reject" @click="${() => this.handleRejectValidation(v.validation_id)}">
             <span class="ce-text-lg">✗</span> Rejeter
           </button>
-          <button @click="${() => this.handleApproveValidation(v.validation_id)}" style="
-            flex: 1;
-            padding: 0.875rem 1.25rem;
-            background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%);
-            border: 1px solid rgba(34, 197, 94, 0.4);
-            border-radius: var(--radius-md);
-            color: #22c55e;
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            box-shadow: 0 0 20px rgba(34, 197, 94, 0.15);
-          ">
+          <button class="ce-btn-approve" @click="${() => this.handleApproveValidation(v.validation_id)}">
             <span class="ce-text-lg">✓</span> Approuver
           </button>
         </div>
@@ -4795,8 +4882,8 @@ Exemple :
     const color = value >= 0.7 ? '#22c55e' : value >= 0.4 ? '#f59e0b' : '#ef4444'
 
     return html`
-      <div style="position: relative; width: ${size}px; height: ${size}px;">
-        <svg width="${size}" height="${size}" viewBox="0 0 50 50" style="transform: rotate(-90deg);">
+      <div class="ce-gauge-container" style="width: ${size}px; height: ${size}px;">
+        <svg class="ce-gauge-svg" width="${size}" height="${size}" viewBox="0 0 50 50">
           <circle cx="25" cy="25" r="${radius}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="5"/>
           <circle cx="25" cy="25" r="${radius}" fill="none" stroke="${color}" stroke-width="5"
             stroke-linecap="round"
@@ -4804,7 +4891,7 @@ Exemple :
             stroke-dashoffset="${offset}"
             style="transition: stroke-dashoffset 0.8s ease-out; filter: drop-shadow(0 0 6px ${color}80);"/>
         </svg>
-        <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;">
+        <div class="ce-gauge-center">
           <span style="font-size: ${size / 4}px; font-weight: 700; color: ${color};">${percentage}%</span>
         </div>
       </div>
@@ -4882,10 +4969,10 @@ Exemple :
 
     return html`
       <!-- Help Section (collapsible) -->
-      <div class="config-section" style="background: rgba(147, 51, 234, 0.1); border: 1px solid rgba(147, 51, 234, 0.3);">
+      <div class="config-section ce-bg-purple-section">
         <div class="config-title ce-flex ce-cursor-pointer"
           @click="${() => this.showNotifHelp = !this.showNotifHelp}">
-          <span style="background: rgba(147, 51, 234, 0.3); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem;">?</span>
+          <span class="ce-help-icon-purple">?</span>
           Variables disponibles
           <span class="ce-ml-auto ce-text-xs ce-opacity-6">${this.showNotifHelp ? '▼' : '▶'}</span>
         </div>
@@ -4959,13 +5046,7 @@ Exemple :
 
           <div class="ce-flex-col-md ce-mt-md">
             ${cat.configs.map(config => html`
-              <div class="notif-config-card" style="
-                background: rgba(255,255,255,0.03);
-                border: 1px solid rgba(255,255,255,0.08);
-                border-radius: var(--radius-base);
-                padding: 0.75rem;
-                ${!config.enabled ? 'opacity: 0.5;' : ''}
-              ">
+              <div class="notif-config-card ce-notif-card" style="${!config.enabled ? 'opacity: 0.5;' : ''}">
                 <div class="ce-flex ce-gap-md ce-mb-sm">
                   <!-- Toggle -->
                   <label class="ce-flex ce-cursor">
@@ -4978,42 +5059,26 @@ Exemple :
 
                   <!-- Name & Description -->
                   <div class="ce-flex-min-0">
-                    <div class="ce-text-md ce-text-primary" style="font-weight: 500;">
+                    <div class="ce-text-md ce-text-primary ce-text-500">
                       ${config.display_name}
                     </div>
-                    <div class="ce-text-tiny ce-text-secondary" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    <div class="ce-text-tiny ce-text-secondary ce-text-truncate">
                       ${config.description}
                     </div>
                   </div>
 
                   <!-- Priority badge -->
-                  <span style="
-                    padding: 0.15rem 0.4rem;
-                    border-radius: var(--radius-sm);
-                    font-size: 0.65rem;
-                    font-weight: 600;
-                    background: ${priorityColors[config.priority]}20;
-                    color: ${priorityColors[config.priority]};
-                    border: 1px solid ${priorityColors[config.priority]}40;
-                  ">${config.priority}</span>
+                  <span class="ce-priority-badge" style="background: ${priorityColors[config.priority]}20; color: ${priorityColors[config.priority]}; border: 1px solid ${priorityColors[config.priority]}40;">${config.priority}</span>
 
                   <!-- Edit button -->
                   <button
+                    class="ce-btn-edit-icon"
                     @click="${() => this.editNotificationConfig(config)}"
-                    style="
-                      background: rgba(255,255,255,0.08);
-                      border: none;
-                      color: var(--color-dark-text-secondary);
-                      padding: 0.35rem 0.5rem;
-                      border-radius: var(--radius-sm);
-                      cursor: pointer;
-                      font-size: var(--text-xs);
-                    "
                   >✏️</button>
                 </div>
 
                 <!-- Templates preview -->
-                <div class="ce-text-tiny ce-text-secondary" style="padding-left: 1.75rem;">
+                <div class="ce-text-tiny ce-text-secondary ce-pl-xl">
                   <div class="ce-mb-xs">
                     <span class="ce-opacity-6">Titre:</span>
                     <code class="ce-bg-dark-xs">${config.title_template}</code>
@@ -5031,26 +5096,9 @@ Exemple :
 
       <!-- Edit modal -->
       ${this.editingNotifConfig ? html`
-        <div class="modal-overlay" style="
-          position: fixed;
-          inset: 0;
-          background: rgba(0,0,0,0.7);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 10000;
-        " @click="${e => { if (e.target === e.currentTarget) this.editingNotifConfig = null }}">
-          <div style="
-            background: linear-gradient(135deg, rgba(30, 32, 40, 0.98) 0%, rgba(20, 22, 28, 1) 100%);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: var(--radius-md);
-            padding: 1.25rem;
-            width: 90%;
-            max-width: 450px;
-            max-height: 80vh;
-            overflow-y: auto;
-          ">
-            <h3 class="ce-text-base ce-text-primary" style="margin: 0 0 1rem;">
+        <div class="modal-overlay ce-notif-modal-overlay" @click="${e => { if (e.target === e.currentTarget) this.editingNotifConfig = null }}">
+          <div class="ce-notif-modal-content">
+            <h3 class="ce-text-base ce-text-primary ce-m-heading">
               ✏️ Modifier "${this.editingNotifConfig.display_name}"
             </h3>
 
@@ -5069,17 +5117,9 @@ Exemple :
               <div>
                 <label class="ce-text-secondary ce-block-mb">Priorité</label>
                 <select
+                  class="ce-notif-form-select"
                   .value="${this.editingNotifConfig.priority}"
                   @change="${e => this.editingNotifConfig = {...this.editingNotifConfig, priority: e.target.value}}"
-                  style="
-                    width: 100%;
-                    padding: 0.5rem;
-                    background: rgba(0,0,0,0.3);
-                    border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: var(--radius-sm);
-                    color: var(--color-dark-text-primary);
-                    font-size: 0.85rem;
-                  "
                 >
                   <option value="P0" class="ce-bg-1a">P0 - Critique (email + push)</option>
                   <option value="P1" class="ce-bg-1a">P1 - Important (push)</option>
@@ -5091,18 +5131,9 @@ Exemple :
               <div>
                 <label class="ce-text-secondary ce-block-mb">Template titre</label>
                 <input type="text"
+                  class="ce-notif-form-input"
                   .value="${this.editingNotifConfig.title_template}"
                   @input="${e => this.editingNotifConfig = {...this.editingNotifConfig, title_template: e.target.value}}"
-                  style="
-                    width: 100%;
-                    padding: 0.5rem;
-                    background: rgba(0,0,0,0.3);
-                    border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: var(--radius-sm);
-                    color: var(--color-dark-text-primary);
-                    font-size: 0.85rem;
-                    box-sizing: border-box;
-                  "
                   placeholder="Ex: ⚠️ {room} - Alerte"
                 >
               </div>
@@ -5111,38 +5142,21 @@ Exemple :
               <div>
                 <label class="ce-text-secondary ce-block-mb">Template corps</label>
                 <textarea
+                  class="ce-notif-form-textarea"
                   .value="${this.editingNotifConfig.body_template}"
                   @input="${e => this.editingNotifConfig = {...this.editingNotifConfig, body_template: e.target.value}}"
                   rows="3"
-                  style="
-                    width: 100%;
-                    padding: 0.5rem;
-                    background: rgba(0,0,0,0.3);
-                    border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: var(--radius-sm);
-                    color: var(--color-dark-text-primary);
-                    font-size: 0.85rem;
-                    resize: vertical;
-                    box-sizing: border-box;
-                  "
                   placeholder="Ex: Valeur actuelle: {value}"
                 ></textarea>
               </div>
 
               <!-- Available variables -->
               ${this.editingNotifConfig.available_variables?.length > 0 ? html`
-                <div style="background: rgba(147, 51, 234, 0.1); padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid rgba(147, 51, 234, 0.2);">
-                  <div class="ce-text-tiny ce-text-secondary" style="margin-bottom: 0.3rem;">Variables disponibles:</div>
+                <div class="ce-bg-purple-subtle">
+                  <div class="ce-text-tiny ce-text-secondary ce-mb-xs">Variables disponibles:</div>
                   <div class="ce-flex-wrap-sm">
                     ${this.editingNotifConfig.available_variables.map(v => html`
-                      <code style="
-                        background: rgba(0,0,0,0.3);
-                        padding: 0.1rem 0.35rem;
-                        border-radius: 3px;
-                        font-size: 0.7rem;
-                        color: #a78bfa;
-                        cursor: help;
-                      " title="${v.description}">{${v.name}}</code>
+                      <code class="ce-code-var" title="${v.description}">{${v.name}}</code>
                     `)}
                   </div>
                 </div>
@@ -5150,31 +5164,14 @@ Exemple :
             </div>
 
             <!-- Actions -->
-            <div class="ce-flex ce-mt-lg" style="justify-content: flex-end;">
+            <div class="ce-flex ce-mt-lg ce-justify-end">
               <button
+                class="ce-btn-cancel"
                 @click="${() => this.editingNotifConfig = null}"
-                style="
-                  padding: 0.5rem 1rem;
-                  background: rgba(255,255,255,0.08);
-                  border: 1px solid rgba(255,255,255,0.15);
-                  border-radius: var(--radius-sm);
-                  color: var(--color-dark-text-secondary);
-                  cursor: pointer;
-                  font-size: 0.85rem;
-                "
               >Annuler</button>
               <button
+                class="ce-btn-save"
                 @click="${() => this.saveNotificationConfig()}"
-                style="
-                  padding: 0.5rem 1rem;
-                  background: var(--context-primary, #00d4aa);
-                  border: none;
-                  border-radius: var(--radius-sm);
-                  color: #000;
-                  cursor: pointer;
-                  font-size: 0.85rem;
-                  font-weight: 500;
-                "
               >Sauvegarder</button>
             </div>
           </div>
@@ -5264,16 +5261,9 @@ Exemple :
     })
 
     return html`
-      <div class="intelligence-tab" style="animation: card-enter 0.4s ease-out;">
+      <div class="intelligence-tab ce-anim-card-enter">
         <!-- Prediction v2 Section -->
-        <div class="section-card" style="
-          background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(109, 40, 217, 0.06) 100%);
-          border: 1px solid rgba(139, 92, 246, 0.25);
-          border-radius: var(--radius-lg);
-          padding: 1.5rem;
-          margin-bottom: 1.25rem;
-          box-shadow: 0 4px 24px rgba(139, 92, 246, 0.1);
-        ">
+        <div class="section-card ce-intelligence-section">
           <div class="ce-flex ce-gap-md ce-mb-xl">
             <span class="ce-float-icon">🧠</span>
             <h3 class="ce-m-0 ce-text-bold ce-text-primary ce-text-lg">Intelligence v2</h3>
@@ -5285,23 +5275,20 @@ Exemple :
           </div>
 
           ${prediction ? html`
-            <div class="ce-flex-wrap" style="gap: 1.5rem;">
+            <div class="ce-flex-wrap ce-gap-xl">
               <!-- Confidence Gauge -->
               <div class="ce-flex-shrink-0">
                 ${this.renderConfidenceGauge(prediction.confidence, 130)}
               </div>
 
               <!-- Mode Info -->
-              <div style="flex: 1; min-width: 200px;">
+              <div class="ce-flex-grow-min200">
                 <div class="ce-flex ce-gap-md ce-mb-lg">
-                  <span class="ce-float-icon-lg" style="animation-duration: 4s;">${this.getModeIcon(prediction.mode)}</span>
+                  <span class="ce-float-icon-lg ce-anim-slow">${this.getModeIcon(prediction.mode)}</span>
                   <div>
                     <div class="ce-text-2xl-bold ce-text-purple ce-mb-xs">${this.getModeName(prediction.mode)}</div>
                     <div class="ce-flex-wrap">
-                      <span style="display: inline-block; padding: 0.3rem 0.75rem; border-radius: var(--radius-xl); font-size: var(--text-xs); font-weight: 600;
-                        background: ${prediction.is_confident ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1))' : 'linear-gradient(135deg, rgba(251, 146, 60, 0.2), rgba(251, 146, 60, 0.1))'};
-                        border: 1px solid ${prediction.is_confident ? 'rgba(34, 197, 94, 0.4)' : 'rgba(251, 146, 60, 0.4)'};
-                        color: ${prediction.is_confident ? '#22c55e' : '#fb923c'};">
+                      <span class="ce-confidence-badge" style="background: ${prediction.is_confident ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1))' : 'linear-gradient(135deg, rgba(251, 146, 60, 0.2), rgba(251, 146, 60, 0.1))'}; border: 1px solid ${prediction.is_confident ? 'rgba(34, 197, 94, 0.4)' : 'rgba(251, 146, 60, 0.4)'}; color: ${prediction.is_confident ? '#22c55e' : '#fb923c'};">
                         ${prediction.is_confident ? '✓ Confiant' : '⚠ Incertain'}
                       </span>
                       <span class="ce-badge-neutral ce-text-xs ce-text-secondary">
@@ -5315,7 +5302,7 @@ Exemple :
                 ${prediction.alternatives?.length > 0 ? html`
                   <div class="ce-flex-wrap">
                     ${prediction.alternatives.map(alt => html`
-                      <span class="ce-badge-purple ce-text-sm ce-text-secondary" style="background: rgba(139, 92, 246, 0.1);">
+                      <span class="ce-badge-purple ce-text-sm ce-text-secondary ce-badge-purple-bg">
                         ${this.getModeIcon(alt.mode)} ${this.getModeName(alt.mode)}: ${Math.round(alt.score * 100)}%
                       </span>
                     `)}
@@ -5325,30 +5312,32 @@ Exemple :
             </div>
 
             <!-- Correction Button -->
-            <div class="ce-flex-center" style="margin-top: 1.25rem;">
+            <div class="ce-flex-center ce-mt-1-25">
               <button @click=${this.togglePredictionCorrection}
-                style="padding: 0.5rem 1.25rem; background: ${this.showPredictionCorrection ? 'rgba(239, 68, 68, 0.15)' : 'rgba(139, 92, 246, 0.1)'}; border: 1px solid ${this.showPredictionCorrection ? 'rgba(239, 68, 68, 0.3)' : 'rgba(139, 92, 246, 0.25)'}; border-radius: 10px; color: ${this.showPredictionCorrection ? '#f87171' : '#a78bfa'}; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
+                class="ce-btn-correction"
+                style="background: ${this.showPredictionCorrection ? 'rgba(239, 68, 68, 0.15)' : 'rgba(139, 92, 246, 0.1)'}; border: 1px solid ${this.showPredictionCorrection ? 'rgba(239, 68, 68, 0.3)' : 'rgba(139, 92, 246, 0.25)'}; color: ${this.showPredictionCorrection ? '#f87171' : '#a78bfa'};">
                 ${this.showPredictionCorrection ? '✕ Annuler' : '✏️ Corriger la prediction'}
               </button>
             </div>
 
             <!-- Correction Panel -->
             ${this.showPredictionCorrection ? html`
-              <div class="ce-mt-lg ce-p-lg" style="background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: var(--radius-md); animation: card-enter 0.2s ease-out;">
+              <div class="ce-mt-lg ce-p-lg ce-correction-panel">
                 ${this.predictionCorrectionSent ? html`
-                  <div class="ce-text-center ce-text-green ce-text-bold ce-p-md" style="font-size: 0.95rem;">
+                  <div class="ce-text-center ce-text-green ce-text-bold ce-p-md ce-text-095">
                     ✓ Correction enregistree (v1+v2)
                   </div>
                 ` : html`
-                  <div class="ce-section-header" style="letter-spacing: 0.05em;">
+                  <div class="ce-section-header">
                     Quel est le bon mode ?
                   </div>
                   <div class="ce-flex-wrap">
                     ${this.modes.map(m => html`
                       <button @click=${() => this.sendPredictionCorrection(m.slug)}
                         ?disabled=${m.slug === prediction.mode}
-                        style="flex: 1; min-width: 80px; display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 0.75rem 0.5rem; background: ${m.slug === prediction.mode ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)'}; border: 1px solid ${m.slug === prediction.mode ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.12)'}; border-radius: 10px; color: ${m.slug === prediction.mode ? 'var(--color-dark-text-tertiary)' : 'var(--color-dark-text-primary)'}; cursor: ${m.slug === prediction.mode ? 'not-allowed' : 'pointer'}; opacity: ${m.slug === prediction.mode ? '0.35' : '1'}; transition: all 0.2s ease;">
-                        <span style="font-size: var(--text-2xl);">${m.icon}</span>
+                        class="ce-mode-choice-btn"
+                        style="background: ${m.slug === prediction.mode ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)'}; border: 1px solid ${m.slug === prediction.mode ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.12)'}; color: ${m.slug === prediction.mode ? 'var(--color-dark-text-tertiary)' : 'var(--color-dark-text-primary)'}; cursor: ${m.slug === prediction.mode ? 'not-allowed' : 'pointer'}; opacity: ${m.slug === prediction.mode ? '0.35' : '1'};">
+                        <span class="ce-text-2xl">${m.icon}</span>
                         <span class="ce-text-xs">${m.name}</span>
                       </button>
                     `)}
@@ -5359,11 +5348,11 @@ Exemple :
 
             <!-- Why Chain - Samples Contributing -->
             ${prediction.why?.length > 0 ? html`
-              <div class="ce-mt-xl" style="padding-top: 1.25rem; border-top: 1px solid rgba(139, 92, 246, 0.15);">
+              <div class="ce-mt-xl ce-border-top-purple">
                 <div class="ce-section-header">Samples Contributifs</div>
                 <div class="ce-flex-wrap">
                   ${prediction.why.slice(0, 5).map(w => html`
-                    <div class="ce-bg-dark ce-text-xs" style="padding: 0.5rem 0.75rem;">
+                    <div class="ce-bg-dark ce-text-xs">
                       <span class="ce-text-purple">${this.getModeIcon(w.mode)}</span>
                       <span class="ce-text-xs-secondary">${w.mode}</span>
                       <span style="color: ${w.similarity >= 0.8 ? '#22c55e' : w.similarity >= 0.5 ? '#fb923c' : '#9ca3af'}; margin-left: 0.5rem;">
@@ -5375,8 +5364,8 @@ Exemple :
               </div>
             ` : ''}
           ` : html`
-            <div class="ce-text-center ce-text-tertiary" style="padding: 3rem;">
-              <div class="ce-float-icon-lg ce-mb-lg" style="opacity: 0.4;">🧠</div>
+            <div class="ce-text-center ce-text-tertiary ce-p-3xl">
+              <div class="ce-float-icon-lg ce-mb-lg ce-opacity-4">🧠</div>
               <div class="ce-text-base">Pas de prediction v2 disponible</div>
               <div class="ce-text-sm ce-mt-sm ce-opacity-7">Le systeme collecte des donnees...</div>
             </div>
@@ -5414,10 +5403,10 @@ Exemple :
 
             ${Object.entries(featuresBySource).map(([source, sourceFeatures]) => html`
               <div class="ce-mb-lg">
-                <div class="ce-text-tiny ce-text-bold ce-text-tertiary ce-mb-sm" style="text-transform: uppercase; letter-spacing: 0.08em; padding-bottom: 0.25rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <div class="ce-text-tiny ce-text-bold ce-text-tertiary ce-mb-sm ce-source-header">
                   ${source === 'agent' ? '🖥️ Agent' : source === 'classifier' ? '🏷️ Classifier' : source === 'sensor' ? '🌡️ Sensors' : source}
                 </div>
-                <div class="ce-grid-auto" style="gap: 0.5rem;">
+                <div class="ce-grid-auto ce-gap-sm">
                   ${sourceFeatures.map(f => this.renderFeatureCard(f))}
                 </div>
               </div>
@@ -5427,10 +5416,10 @@ Exemple :
 
         <!-- Stats Section -->
         ${stats ? html`
-          <div class="section-card" style="background: rgba(30, 35, 45, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); padding: 1rem;">
+          <div class="section-card ce-bg-stats-section">
             <div class="ce-flex ce-mb-md">
               <span class="ce-text-base">📈</span>
-              <h3 class="ce-m-0 ce-text-bold ce-text-primary" style="font-size: 0.9rem;">Statistiques Apprentissage</h3>
+              <h3 class="ce-m-0 ce-text-bold ce-text-primary ce-text-09">Statistiques Apprentissage</h3>
             </div>
             <div class="ce-grid-auto-sm">
               <div class="ce-stat-item">
@@ -5453,11 +5442,11 @@ Exemple :
 
             <!-- Samples by mode -->
             ${stats.by_mode ? html`
-              <div class="ce-mt-lg" style="padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.05);">
+              <div class="ce-mt-lg ce-border-top-muted">
                 <div class="ce-text-tiny-tertiary ce-mb-sm">Samples par mode</div>
                 <div class="ce-flex-wrap">
                   ${Object.entries(stats.by_mode).map(([mode, count]) => html`
-                    <span class="ce-text-tiny ce-text-secondary" style="padding: 0.25rem 0.5rem; background: rgba(139, 92, 246, 0.1); border-radius: 10px;">
+                    <span class="ce-text-tiny ce-text-secondary ce-badge-purple-pill">
                       ${this.getModeIcon(mode)} ${mode}: ${count}
                     </span>
                   `)}
@@ -5486,10 +5475,10 @@ Exemple :
 
     return html`
       <div class="ce-flex ce-gap-md">
-        <span style="font-size: 1rem; width: 1.5rem; text-align: center;">${c.icon}</span>
+        <span class="ce-dim-icon">${c.icon}</span>
         <div class="ce-flex-grow">
           <div class="ce-flex-between-mb">
-            <span class="ce-text-xs-secondary" style="text-transform: capitalize;">${label}</span>
+            <span class="ce-text-xs-secondary ce-capitalize">${label}</span>
             <span style="font-size: var(--text-xs); font-weight: 600; color: ${c.start};">${percentage}%</span>
           </div>
           <div class="ce-progress-track">
@@ -5498,7 +5487,7 @@ Exemple :
           ${why?.length > 0 ? html`
             <div class="ce-flex-wrap-sm ce-mt-xs">
               ${why.slice(0, 3).map(w => html`
-                <span class="ce-badge-tiny ce-text-tertiary" style="background: rgba(255,255,255,0.05); border-radius: var(--radius-sm);">
+                <span class="ce-badge-tiny ce-text-tertiary ce-badge-glass-bg">
                   ${w.feature_id}: ${w.contribution > 0 ? '+' : ''}${Math.round(w.contribution * 100)}%
                 </span>
               `)}
@@ -5539,12 +5528,12 @@ Exemple :
     const s = statusColors[status]
 
     return html`
-      <div style="padding: 0.5rem 0.75rem; background: ${s.bg}; border: 1px solid ${s.border}; border-radius: var(--radius-base);">
-        <div class="ce-text-tertiary" style="font-size: 0.65rem; margin-bottom: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+      <div class="ce-feature-card" style="background: ${s.bg}; border: 1px solid ${s.border};">
+        <div class="ce-text-tertiary ce-feature-label">
           ${feature.feature_id}
         </div>
-        <div style="font-size: 0.9rem; font-weight: 600; color: ${s.text};">${displayValue}</div>
-        <div class="ce-text-tertiary ce-opacity-7" style="font-size: 0.6rem;">
+        <div class="ce-feature-value" style="color: ${s.text};">${displayValue}</div>
+        <div class="ce-text-tertiary ce-opacity-7 ce-text-06">
           conf: ${Math.round(feature.confidence * 100)}%
         </div>
       </div>
@@ -5563,8 +5552,8 @@ Exemple :
     const label = value >= 0.7 ? 'Haute' : value >= 0.4 ? 'Moyenne' : 'Faible'
 
     return html`
-      <div style="position: relative; width: ${size}px; height: ${size}px;">
-        <svg width="${size}" height="${size}" viewBox="0 0 100 100" style="transform: rotate(-90deg); filter: drop-shadow(0 0 12px ${glowColor});">
+      <div class="ce-gauge-container" style="width: ${size}px; height: ${size}px;">
+        <svg class="ce-gauge-svg" width="${size}" height="${size}" viewBox="0 0 100 100" style="filter: drop-shadow(0 0 12px ${glowColor});">
           <!-- Background circle -->
           <circle cx="50" cy="50" r="${radius}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="8"/>
           <!-- Progress circle -->
@@ -5580,9 +5569,9 @@ Exemple :
             </linearGradient>
           </defs>
         </svg>
-        <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <div class="ce-gauge-center-col">
           <span style="font-size: ${size / 4}px; font-weight: 700; color: ${color}; animation: count-up 0.5s ease-out;">${percentage}%</span>
-          <span style="font-size: ${size / 10}px; color: var(--color-dark-text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">${label}</span>
+          <span class="ce-text-tertiary ce-uppercase-spaced" style="font-size: ${size / 10}px;">${label}</span>
         </div>
       </div>
     `
@@ -5601,33 +5590,33 @@ Exemple :
   renderConfigTab() {
     return html`
       <!-- Help Section (collapsible) -->
-      <div class="config-section" style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3);">
+      <div class="config-section ce-bg-indigo-section">
         <div class="config-title ce-flex ce-cursor-pointer"
           @click="${() => this.showConfigHelp = !this.showConfigHelp}">
-          <span style="background: rgba(99, 102, 241, 0.3); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem;">?</span>
+          <span class="ce-help-icon-indigo">?</span>
           Comment ça marche ?
           <span class="ce-ml-auto ce-text-xs ce-opacity-6">${this.showConfigHelp ? '▼' : '▶'}</span>
         </div>
         ${this.showConfigHelp ? html`
         <div class="ce-text-sm-secondary ce-mt-md">
 
-          <p style="margin: 0.5rem 0 0.75rem;"><strong>1. Calcul du Trust Score</strong> (0.0 à 1.0) :</p>
+          <p class="ce-m-para"><strong>1. Calcul du Trust Score</strong> (0.0 à 1.0) :</p>
           <div class="ce-bg-dark ce-text-xs ce-heading-md">
             <p class="ce-heading ce-text-normal">Le système évalue 5 critères et fait la moyenne pondérée :</p>
-            <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 0.25rem 0.5rem;">
+            <div class="ce-grid-3col">
               <span>• Mode & SSID correspondent ?</span><span class="ce-text-indigo">25%</span><span class="ce-text-tertiary">→ 0 ou 1</span>
               <span>• Agent en ligne, CPU/RAM ok ?</span><span class="ce-text-indigo">25%</span><span class="ce-text-tertiary">→ 0 ou 1</span>
               <span>• Action pas expirée ?</span><span class="ce-text-indigo">20%</span><span class="ce-text-tertiary">→ 0 à 1</span>
               <span>• Historique de succès</span><span class="ce-text-indigo">15%</span><span class="ce-text-tertiary">→ 0 à 1</span>
               <span>• Tes approbations passées</span><span class="ce-text-indigo">15%</span><span class="ce-text-tertiary">→ 0 à 1</span>
             </div>
-            <p style="margin: 0.5rem 0 0; font-style: italic;">Score max = 1.0 si tout est parfait.</p>
+            <p class="ce-m-para-top ce-italic">Score max = 1.0 si tout est parfait.</p>
           </div>
 
-          <p style="margin: 0.5rem 0 0.5rem;"><strong>2. Comment choisir les seuils ?</strong></p>
+          <p class="ce-m-para-sm"><strong>2. Comment choisir les seuils ?</strong></p>
           <div class="ce-bg-dark ce-text-xs ce-heading-md">
             <p class="ce-heading ce-text-normal">Chaque type d'action utilise un seuil selon son niveau d'impact :</p>
-            <div class="ce-grid-2col" style="gap: 0.25rem 0.5rem;">
+            <div class="ce-grid-2col">
               <span class="ce-text-emerald">Low</span><span>→ Notifications (ex: "Tu as reçu un email")</span>
               <span class="ce-text-blue">Medium</span><span>→ Changements de mode, ajustements légers</span>
               <span class="ce-text-amber">High</span><span>→ Contrôle d'appareils (allumer/éteindre PC)</span>
@@ -5635,7 +5624,7 @@ Exemple :
             </div>
           </div>
 
-          <p style="margin: 0.5rem 0;"><strong>3. Règle simple pour configurer :</strong></p>
+          <p class="ce-m-para-mid"><strong>3. Règle simple pour configurer :</strong></p>
           <div class="ce-bg-dark ce-text-xs ce-heading-md">
             <p class="ce-heading ce-text-normal"><strong>Seuil bas (0.3-0.4)</strong> = Peu exigeant, s'exécute souvent seul</p>
             <p class="ce-heading ce-text-normal"><strong>Seuil moyen (0.5-0.6)</strong> = Équilibré, vérifie le contexte</p>
@@ -5705,7 +5694,7 @@ Exemple :
         </div>
       </div>
 
-      <button class="btn btn-primary ce-mt-lg" @click="${this.saveConfig}" style="width: 100%;">
+      <button class="btn btn-primary ce-mt-lg ce-w-full" @click="${this.saveConfig}">
         💾 Sauvegarder
       </button>
     `
@@ -5990,7 +5979,7 @@ Exemple :
 
         <div class="planning-default">
           <span>Mode par défaut :</span>
-          <select class="form-input" style="width: auto; margin-left: 0.5rem;"
+          <select class="form-input ce-select-inline"
             .value="${this.schedule?.default_mode_id || 'mode-veille'}"
             @change="${e => this.setDefaultMode(e.target.value)}">
             ${this.modes.map(m => html`
@@ -6023,7 +6012,7 @@ Exemple :
         </div>
 
         <div class="planning-rules-list">
-          <h4 class="ce-text-secondary" style="margin: 1rem 0 0.5rem;">Règles actives (${this.schedule?.rules?.length || 0})</h4>
+          <h4 class="ce-text-secondary ce-m-rule-heading">Règles actives (${this.schedule?.rules?.length || 0})</h4>
           ${this.schedule?.rules?.length === 0 ? html`
             <div class="empty-state ce-p-lg">
               <div class="empty-text">Aucune règle configurée</div>
