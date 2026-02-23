@@ -19,7 +19,7 @@ export const overlayStyles = css`
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.88);
+    background: var(--app-overlay-dim, rgba(0, 0, 0, 0.88));
     backdrop-filter: blur(var(--blur-xl));
     -webkit-backdrop-filter: blur(var(--blur-xl));
     z-index: 9999;
@@ -143,7 +143,7 @@ export const sectionCardStyles = css`
   .section-card {
     background: linear-gradient(135deg,
       var(--surface-glass, rgba(255, 255, 255, 0.05)) 0%,
-      rgba(255, 255, 255, 0.02) 100%);
+      var(--app-card-glass, rgba(255, 255, 255, 0.02)) 100%);
     border: 1px solid var(--border-default, rgba(255, 255, 255, 0.08));
     border-radius: var(--radius-lg, 12px);
     padding: 1.25rem;
@@ -244,7 +244,7 @@ export const statusBadgeStyles = css`
   .status-badge.stopping,
   .status-badge.mold_risk {
     background: linear-gradient(135deg, rgba(251, 191, 36, 0.25) 0%, rgba(251, 191, 36, 0.2) 100%);
-    color: #fbbf24;
+    color: var(--color-warning-text-muted, #fbbf24);
     border: 1px solid rgba(251, 191, 36, 0.35);
     box-shadow: 0 2px 8px rgba(251, 191, 36, 0.25);
   }
@@ -257,7 +257,7 @@ export const statusBadgeStyles = css`
   .status-badge.failed,
   .status-badge.away {
     background: linear-gradient(135deg, rgba(255, 107, 107, 0.25) 0%, rgba(239, 68, 68, 0.2) 100%);
-    color: #ff6b6b;
+    color: var(--color-danger-text-muted, #ff6b6b);
     border: 1px solid rgba(255, 107, 107, 0.35);
     box-shadow: 0 2px 8px rgba(255, 107, 107, 0.25);
   }
@@ -265,7 +265,7 @@ export const statusBadgeStyles = css`
   .status-badge.info,
   .status-badge.temp_low {
     background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(37, 99, 235, 0.2) 100%);
-    color: #93c5fd;
+    color: var(--color-info-text-muted, #93c5fd);
     border: 1px solid rgba(59, 130, 246, 0.35);
     box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
   }

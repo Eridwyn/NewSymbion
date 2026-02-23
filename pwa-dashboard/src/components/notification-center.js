@@ -74,7 +74,7 @@ class NotificationCenter extends LitElement {
     .modal-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.7);
+      background: var(--app-overlay-dim, rgba(0, 0, 0, 0.7));
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
       z-index: 9998;
@@ -228,7 +228,7 @@ class NotificationCenter extends LitElement {
 
     .notification-priority.P0 {
       background: rgba(239, 68, 68, 0.2);
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
     }
 
     .notification-priority.P1 {
@@ -273,7 +273,7 @@ class NotificationCenter extends LitElement {
     .action-btn.approve {
       background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%);
       border-color: rgba(34, 197, 94, 0.4);
-      color: #22c55e;
+      color: var(--color-success-text-muted, #22c55e);
     }
 
     .action-btn.approve:hover {
@@ -401,7 +401,7 @@ class NotificationCenter extends LitElement {
           left: 0;
           width: 100vw;
           height: 100vh;
-          background: rgba(0, 0, 0, 0.7);
+          background: var(--app-overlay-dim, rgba(0, 0, 0, 0.7));
           backdrop-filter: blur(4px);
           z-index: 9998;
           display: none;
@@ -434,7 +434,7 @@ class NotificationCenter extends LitElement {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          background: rgba(0, 0, 0, 0.3);
+          background: var(--surface-glass-strong, rgba(0, 0, 0, 0.3));
         }
         .notif-title {
           font-size: 1rem;
@@ -510,7 +510,7 @@ class NotificationCenter extends LitElement {
           border-radius: var(--radius-sm);
           font-weight: 600;
         }
-        .notif-priority.P0 { background: rgba(239,68,68,0.2); color: #ff6b6b; }
+        .notif-priority.P0 { background: rgba(239,68,68,0.2); color: var(--color-danger-text-muted, #ff6b6b); }
         .notif-priority.P1 { background: rgba(251,146,60,0.2); color: #fb923c; }
         .notif-priority.P2 { background: var(--ctx-bg-strong, rgba(0,212,170,0.2)); color: var(--context-primary, #00d4aa); }
         .notif-body {

@@ -127,7 +127,7 @@ class HostsWidget extends LitElement {
     }
     
     .last-seen {
-      color: #fbbf24;
+      color: var(--color-warning-text-muted, #fbbf24);
     }
     
     /* empty-state provided by emptyStateStyles */

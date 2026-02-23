@@ -291,7 +291,7 @@ class UserSettingsPage extends LitElement {
     }
 
     .secret-display {
-      background: rgba(0, 0, 0, 0.3);
+      background: var(--surface-glass-strong, rgba(0, 0, 0, 0.3));
       border: 1px solid rgba(255, 255, 255, 0.2);
       padding: 1rem;
       border-radius: var(--radius-base);
@@ -327,8 +327,8 @@ class UserSettingsPage extends LitElement {
       min-width: 0; /* Permet rétrécissement si nécessaire */
       box-sizing: border-box; /* Padding inclus dans width */
       background: linear-gradient(135deg,
-        rgba(0, 0, 0, 0.4) 0%,
-        rgba(0, 0, 0, 0.3) 100%);
+        var(--app-input-bg, rgba(0, 0, 0, 0.4)) 0%,
+        var(--surface-glass-strong, rgba(0, 0, 0, 0.3)) 100%);
       border: 1px solid rgba(255, 255, 255, 0.12);
       color: var(--color-dark-text-primary);
       padding: var(--space-3) var(--space-4);
@@ -340,7 +340,7 @@ class UserSettingsPage extends LitElement {
 
     .input:focus {
       outline: none;
-      background: rgba(0, 0, 0, 0.5);
+      background: var(--surface-overlay, rgba(0, 0, 0, 0.5));
       border-color: var(--context-primary, #00d4aa);
       box-shadow: 0 0 0 3px var(--ctx-border),
                   0 0 20px var(--ctx-border-subtle),
@@ -377,7 +377,7 @@ class UserSettingsPage extends LitElement {
     }
 
     .backup-code {
-      background: rgba(0, 0, 0, 0.3);
+      background: var(--surface-glass-strong, rgba(0, 0, 0, 0.3));
       padding: 0.6rem;
       border-radius: var(--radius-sm);
       font-family: 'Courier New', monospace;
@@ -404,7 +404,7 @@ class UserSettingsPage extends LitElement {
     .alert.error {
       background: rgba(255, 107, 107, 0.15);
       border: 1px solid rgba(255, 107, 107, 0.3);
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
     }
 
     .alert.warning {
@@ -509,32 +509,32 @@ class UserSettingsPage extends LitElement {
     /* Colors */
     .us-text-primary { color: var(--context-primary, #00d4aa); }
     .us-text-green { color: #4caf50; }
-    .us-text-red { color: #ff6b6b; }
+    .us-text-red { color: var(--color-danger-text-muted, #ff6b6b); }
     .us-text-yellow { color: #ffc107; }
 
     /* Headings (context-primary + margin-bottom) */
     .us-heading-ctx { color: var(--context-primary, #00d4aa); margin-bottom: 1rem; }
 
     /* Info items */
-    .us-info-detail { color: #888; font-size: 0.9em; margin-bottom: 0.3rem; }
-    .us-info-detail-last { color: #888; font-size: 0.9em; }
-    .us-info-detail-sm { color: #888; font-size: 0.85em; }
-    .us-item-title { font-weight: 600; font-size: 1.1em; color: #e0e0e0; margin-bottom: 0.5rem; }
-    .us-item-title-sm { font-weight: 600; font-size: 1.1em; color: #e0e0e0; margin-bottom: 0.3rem; }
+    .us-info-detail { color: var(--color-dark-text-tertiary, #888); font-size: 0.9em; margin-bottom: 0.3rem; }
+    .us-info-detail-last { color: var(--color-dark-text-tertiary, #888); font-size: 0.9em; }
+    .us-info-detail-sm { color: var(--color-dark-text-tertiary, #888); font-size: 0.85em; }
+    .us-item-title { font-weight: 600; font-size: 1.1em; color: var(--color-dark-text-primary, #e0e0e0); margin-bottom: 0.5rem; }
+    .us-item-title-sm { font-weight: 600; font-size: 1.1em; color: var(--color-dark-text-primary, #e0e0e0); margin-bottom: 0.3rem; }
 
     /* Stat cards */
     .us-stat-card-ctx { background: var(--ctx-bg-subtle); border: 1px solid var(--ctx-border-medium); border-radius: var(--radius-base); padding: 1rem; text-align: center; }
     .us-stat-card-green { background: rgba(76, 175, 80, 0.05); border: 1px solid rgba(76, 175, 80, 0.2); border-radius: var(--radius-base); padding: 1rem; text-align: center; }
     .us-stat-card-red { background: rgba(255, 107, 107, 0.05); border: 1px solid rgba(255, 107, 107, 0.2); border-radius: var(--radius-base); padding: 1rem; text-align: center; }
     .us-stat-card-yellow { background: rgba(255, 193, 7, 0.05); border: 1px solid rgba(255, 193, 7, 0.2); border-radius: var(--radius-base); padding: 1rem; text-align: center; }
-    .us-stat-label { color: #888; font-size: 0.9em; margin-top: 0.5rem; }
+    .us-stat-label { color: var(--color-dark-text-tertiary, #888); font-size: 0.9em; margin-top: 0.5rem; }
 
     /* Reason block (with context border) */
-    .us-reason-block { background: rgba(0, 0, 0, 0.3); border-left: 3px solid var(--context-primary, #00d4aa); padding: 0.8rem; border-radius: var(--radius-sm); }
-    .us-reason-block-yellow { background: rgba(0, 0, 0, 0.3); border-left: 3px solid #ffc107; padding: 0.8rem; border-radius: var(--radius-sm); }
-    .us-reason-block-yellow-mt { background: rgba(0, 0, 0, 0.3); border-left: 3px solid #ffc107; padding: 0.8rem; border-radius: var(--radius-sm); margin-top: 1rem; }
-    .us-reason-label { color: #aaa; font-size: 0.85em; margin-bottom: 0.3rem; }
-    .us-reason-text { color: #e0e0e0; font-size: 0.95em; }
+    .us-reason-block { background: var(--surface-glass-strong, rgba(0, 0, 0, 0.3)); border-left: 3px solid var(--context-primary, #00d4aa); padding: 0.8rem; border-radius: var(--radius-sm); }
+    .us-reason-block-yellow { background: var(--surface-glass-strong, rgba(0, 0, 0, 0.3)); border-left: 3px solid #ffc107; padding: 0.8rem; border-radius: var(--radius-sm); }
+    .us-reason-block-yellow-mt { background: var(--surface-glass-strong, rgba(0, 0, 0, 0.3)); border-left: 3px solid #ffc107; padding: 0.8rem; border-radius: var(--radius-sm); margin-top: 1rem; }
+    .us-reason-label { color: var(--color-dark-text-secondary, #aaa); font-size: 0.85em; margin-bottom: 0.3rem; }
+    .us-reason-text { color: var(--color-dark-text-primary, #e0e0e0); font-size: 0.95em; }
 
     /* Badges */
     .us-badge-current { color: var(--context-primary, #00d4aa); font-size: 0.8em; margin-left: 0.5rem; }
@@ -548,18 +548,18 @@ class UserSettingsPage extends LitElement {
     .us-section-override { padding: 1rem; border: 1px solid rgba(255, 193, 7, 0.3); }
 
     /* Self-delete hint */
-    .us-hint-italic { color: #888; font-size: 0.9em; font-style: italic; }
+    .us-hint-italic { color: var(--color-dark-text-tertiary, #888); font-size: 0.9em; font-style: italic; }
 
     /* QR code area */
     .us-qr-text-center { text-align: center; width: 100%; }
     .us-qr-img { display: block; width: 200px; height: 200px; }
 
     /* MFA info paragraph */
-    .us-mfa-list { color: #aaa; margin-left: 1.5rem; margin-bottom: 1.5rem; }
+    .us-mfa-list { color: var(--color-dark-text-secondary, #aaa); margin-left: 1.5rem; margin-bottom: 1.5rem; }
     .us-mfa-active-note { margin: 0.5rem 0 0 0; font-size: 0.9em; opacity: 0.9; }
-    .us-backup-note { color: #aaa; font-size: 0.85em; margin-bottom: 1rem; }
-    .us-text-aaa-mb { color: #aaa; margin-bottom: 1rem; }
-    .us-text-aaa-mb-sm { color: #aaa; margin-bottom: 0.5rem; }
+    .us-backup-note { color: var(--color-dark-text-secondary, #aaa); font-size: 0.85em; margin-bottom: 1rem; }
+    .us-text-aaa-mb { color: var(--color-dark-text-secondary, #aaa); margin-bottom: 1rem; }
+    .us-text-aaa-mb-sm { color: var(--color-dark-text-secondary, #aaa); margin-bottom: 0.5rem; }
 
     /* Override item title (yellow variant) */
     .us-item-title-yellow { font-weight: 600; font-size: 1.1em; color: #ffc107; margin-bottom: 0.5rem; }

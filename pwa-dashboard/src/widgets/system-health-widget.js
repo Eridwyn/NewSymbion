@@ -111,14 +111,14 @@ class SystemHealthWidget extends LitElement {
     }
 
     .status-indicator.connecting {
-      color: #fbbf24;
+      color: var(--color-warning-text-muted, #fbbf24);
       text-shadow: 0 0 20px rgba(251, 191, 36, 0.6),
                    0 0 40px rgba(251, 191, 36, 0.3);
       animation: statusSpin 2s linear infinite !important;
     }
 
     .status-indicator.disconnected {
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
       text-shadow: 0 0 20px rgba(255, 107, 107, 0.6),
                    0 0 40px rgba(255, 107, 107, 0.3);
       animation: statusBlink 1.5s ease-in-out infinite !important;
@@ -178,7 +178,7 @@ class SystemHealthWidget extends LitElement {
     .error {
       text-align: center;
       padding: 1rem;
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
       background: rgba(255, 107, 107, 0.1);
       border: 1px solid rgba(255, 107, 107, 0.3);
       border-radius: var(--radius-sm);

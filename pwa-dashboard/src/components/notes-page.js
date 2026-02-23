@@ -356,7 +356,7 @@ class NotesPage extends LitElement {
     }
 
     .urgent-indicator {
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
       font-weight: bold;
       font-size: 1.1em;
       filter: drop-shadow(0 2px 6px rgba(255, 107, 107, 0.6));
@@ -418,7 +418,7 @@ class NotesPage extends LitElement {
     }
 
     .note-action.delete {
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
       border-color: rgba(255, 107, 107, 0.2);
     }
 
@@ -471,7 +471,7 @@ class NotesPage extends LitElement {
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(0, 0, 0, 0.9);
+      background: var(--app-overlay-dim, rgba(0, 0, 0, 0.9));
       backdrop-filter: blur(var(--blur-base));
       display: flex;
       align-items: center;
@@ -531,7 +531,7 @@ class NotesPage extends LitElement {
     .modal-close-btn:hover {
       background: rgba(239, 68, 68, 0.25);
       border-color: rgba(239, 68, 68, 0.4);
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
       transform: rotate(90deg);
     }
 
@@ -714,7 +714,7 @@ class NotesPage extends LitElement {
     }
 
     .note-content pre {
-      background: rgba(0, 0, 0, 0.3);
+      background: var(--surface-glass-strong, rgba(0, 0, 0, 0.3));
       border: 1px solid var(--ctx-border-medium);
       border-radius: var(--radius-sm);
       padding: 1em;
@@ -804,7 +804,7 @@ class NotesPage extends LitElement {
     /* === Utility classes (ex-inline styles) === */
     .np-modal-header-content { flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
     .np-flex-wrap { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-    .np-tags-meta { color: #888; font-size: 0.8em; font-weight: 500; }
+    .np-tags-meta { color: var(--color-dark-text-tertiary, #888); font-size: 0.8em; font-weight: 500; }
     .np-note-footer { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-default); display: flex; justify-content: space-between; align-items: center; }
     .np-flex-gap { display: flex; gap: 0.5rem; }
     .np-action-compact { padding: 0.4rem 0.8rem; }

@@ -854,7 +854,7 @@ export const AutomationsMixin = (Base) => class extends Base {
     const indent = depth * 12
 
     return html`
-      <div class="rules-group" style="margin-left: ${indent}px; ${depth > 0 ? 'margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.02); border-radius: var(--radius-sm); border: 1px dashed rgba(255,255,255,0.1);' : ''}">
+      <div class="rules-group" style="margin-left: ${indent}px; ${depth > 0 ? 'margin-top: 0.5rem; padding: 0.5rem; background: var(--surface-glass-faint, rgba(255,255,255,0.02)); border-radius: var(--radius-sm); border: 1px dashed rgba(255,255,255,0.1);' : ''}">
         <div class="ce-flex ce-mb-sm">
           <button
             class="btn btn-small"

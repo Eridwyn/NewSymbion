@@ -139,7 +139,7 @@ class AgentControlWidget extends LitElement {
         rgba(255, 107, 107, 0.15) 0%,
         rgba(255, 107, 107, 0.08) 100%);
       border: 1px solid rgba(255, 107, 107, 0.3);
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
       font-size: 1.75rem;
       cursor: pointer;
       padding: 8px 12px;
@@ -255,7 +255,7 @@ class AgentControlWidget extends LitElement {
 
     .power-btn.danger {
       background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.2) 100%);
-      color: #fca5a5;
+      color: var(--color-error-text-muted, #fca5a5);
       border: 1px solid rgba(239, 68, 68, 0.4);
       box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
     }
@@ -269,7 +269,7 @@ class AgentControlWidget extends LitElement {
 
     .power-btn.warning {
       background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(251, 191, 36, 0.2) 100%);
-      color: #fbbf24;
+      color: var(--color-warning-text-muted, #fbbf24);
       border: 1px solid rgba(245, 158, 11, 0.4);
       box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
     }
@@ -522,13 +522,13 @@ class AgentControlWidget extends LitElement {
     }
 
     .command-output {
-      background: #0d1117;
+      background: var(--app-terminal-bg, #0d1117);
       border: 1px solid var(--border-medium);
       border-radius: var(--radius-base);
       padding: 16px;
       font-family: 'Monaco', 'Consolas', monospace;
       font-size: 0.8125rem;
-      color: #e6edf3;
+      color: var(--app-terminal-text, #e6edf3);
       white-space: pre-wrap;
       overflow-y: auto;
       max-height: 300px;
@@ -549,20 +549,20 @@ class AgentControlWidget extends LitElement {
       background: rgba(239, 68, 68, 0.1);
       border: 1px solid rgba(239, 68, 68, 0.3);
       border-radius: var(--radius-base);
-      color: #fca5a5;
+      color: var(--color-error-text-muted, #fca5a5);
       text-align: center;
     }
 
     /* === Utility classes (ex-inline styles) === */
-    .ac-meta-hint { font-size: 12px; color: #888; margin-top: 8px; }
-    .ac-meta-inline { font-size: 12px; color: #888; font-weight: normal; }
+    .ac-meta-hint { font-size: 12px; color: var(--color-dark-text-tertiary, #888); margin-top: 8px; }
+    .ac-meta-inline { font-size: 12px; color: var(--color-dark-text-tertiary, #888); font-weight: normal; }
     .ac-refresh-indicator { margin-left: 8px; color: #3b82f6; }
-    .ac-text-center-muted { text-align: center; color: #888; }
+    .ac-text-center-muted { text-align: center; color: var(--color-dark-text-tertiary, #888); }
     .ac-power-btn-blue { background: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
-    .ac-power-btn-green { background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); }
+    .ac-power-btn-green { background: rgba(34, 197, 94, 0.2); color: var(--color-success-text-muted, #22c55e); border: 1px solid rgba(34, 197, 94, 0.3); }
     .ac-cmd-actions { margin-top: 12px; }
     .ac-cmd-cancel { padding: 8px 16px; font-size: 12px; }
-    .ac-cmd-id { color: #888; font-size: 12px; margin-left: 12px; }
+    .ac-cmd-id { color: var(--color-dark-text-tertiary, #888); font-size: 12px; margin-left: 12px; }
     .ac-icon-lg { font-size: 1.5em; }
     .ac-title-inline { margin: 0 0 0 0.5rem; }
     .ac-error-body { display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 3rem; }

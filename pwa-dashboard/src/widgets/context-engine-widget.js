@@ -147,7 +147,7 @@ class ContextEngineWidget extends LitElement {
     }
 
     .last-execution-status.success {
-      color: #22c55e;
+      color: var(--color-success-text-muted, #22c55e);
     }
 
     .last-execution-status.failure {

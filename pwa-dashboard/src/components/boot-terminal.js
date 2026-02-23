@@ -24,8 +24,8 @@ class BootTerminal extends LitElement {
       bottom: 0;
       /* Bio-organic gradient background avec contextual tint */
       background: radial-gradient(ellipse at top center,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 4%, rgba(10, 10, 11, 0.98)) 0%,
-        rgba(10, 10, 11, 1) 100%),
+        color-mix(in srgb, var(--context-primary, #00d4aa) 4%, var(--color-dark-bg, #0a0a0b)) 0%,
+        var(--color-dark-bg, #0a0a0b) 100%),
         linear-gradient(135deg,
           var(--ctx-bg-subtle, rgba(0, 212, 170, 0.02)) 0%,
           transparent 100%);
@@ -37,13 +37,13 @@ class BootTerminal extends LitElement {
     @keyframes backgroundBreathing {
       0%, 100% {
         background: radial-gradient(ellipse at top center,
-          color-mix(in srgb, var(--context-primary, #00d4aa) 4%, rgba(10, 10, 11, 0.98)) 0%,
-          rgba(10, 10, 11, 1) 100%);
+          color-mix(in srgb, var(--context-primary, #00d4aa) 4%, var(--color-dark-bg, #0a0a0b)) 0%,
+          var(--color-dark-bg, #0a0a0b) 100%);
       }
       50% {
         background: radial-gradient(ellipse at top center,
-          color-mix(in srgb, var(--context-primary, #00d4aa) 6%, rgba(10, 10, 11, 0.98)) 0%,
-          rgba(10, 10, 11, 1) 100%);
+          color-mix(in srgb, var(--context-primary, #00d4aa) 6%, var(--color-dark-bg, #0a0a0b)) 0%,
+          var(--color-dark-bg, #0a0a0b) 100%);
       }
     }
 
@@ -90,8 +90,8 @@ class BootTerminal extends LitElement {
       width: 100%;
       max-width: 420px;
       background: linear-gradient(135deg,
-        rgba(30, 30, 30, 0.95) 0%,
-        rgba(20, 20, 20, 0.98) 100%);
+        var(--app-widget-bg-a, rgba(30, 30, 30, 0.95)) 0%,
+        var(--app-widget-bg-b, rgba(20, 20, 20, 0.98)) 100%);
       border: 1px solid var(--ctx-border-medium);
       border-radius: var(--radius-xl, 1.5rem);
       padding: 3rem 2.5rem;
@@ -264,7 +264,7 @@ class BootTerminal extends LitElement {
       display: block;
       font-size: var(--text-sm);
       font-weight: 500;
-      color: #e5e7eb;
+      color: var(--color-dark-text-primary, #e5e7eb);
       margin-bottom: 0.5rem;
       letter-spacing: 0.01em;
     }
@@ -275,12 +275,10 @@ class BootTerminal extends LitElement {
       min-width: 0;
       box-sizing: border-box;
       padding: 0.875rem 1.125rem;
-      background: linear-gradient(135deg,
-        rgba(0, 0, 0, 0.5) 0%,
-        rgba(0, 0, 0, 0.3) 100%);
+      background: var(--app-input-bg, rgba(0, 0, 0, 0.4));
       border: 1px solid var(--border-medium);
       border-radius: var(--radius-md);
-      color: #f3f4f6;
+      color: var(--color-dark-text-primary, #f3f4f6);
       font-size: 0.9375rem;
       font-family: inherit;
       transition: all var(--duration-base, 0.3s) ease;
@@ -288,13 +286,11 @@ class BootTerminal extends LitElement {
     }
 
     .form-input::placeholder {
-      color: rgba(156, 163, 175, 0.5);
+      color: var(--app-placeholder, rgba(156, 163, 175, 0.5));
     }
 
     .form-input:focus {
-      background: linear-gradient(135deg,
-        rgba(0, 0, 0, 0.6) 0%,
-        rgba(0, 0, 0, 0.4) 100%);
+      background: var(--surface-glass-strong, rgba(0, 0, 0, 0.1));
       border-color: var(--context-primary, #00d4aa);
       box-shadow: 0 0 0 4px var(--ctx-border),
                   0 0 20px var(--ctx-border-medium);
@@ -309,7 +305,7 @@ class BootTerminal extends LitElement {
         color-mix(in srgb, var(--context-primary, #00d4aa) 80%, #0066cc) 100%);
       border: none;
       border-radius: var(--radius-md);
-      color: #0a0a0b;
+      color: var(--color-dark-bg, #0a0a0b);
       font-size: 1rem;
       font-weight: 600;
       cursor: pointer;
@@ -469,7 +465,7 @@ class BootTerminal extends LitElement {
         rgba(255, 107, 107, 0.08) 100%);
       border: 1px solid rgba(255, 107, 107, 0.3);
       border-radius: var(--radius-md);
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
       font-size: var(--text-sm);
       margin-bottom: 1.25rem;
       animation: errorShake 0.4s ease-out;
