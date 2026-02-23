@@ -800,6 +800,14 @@ class NotesPage extends LitElement {
         max-width: calc(100% - 50px);
       }
     }
+
+    /* === Utility classes (ex-inline styles) === */
+    .np-modal-header-content { flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
+    .np-flex-wrap { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .np-tags-meta { color: #888; font-size: 0.8em; font-weight: 500; }
+    .np-note-footer { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-default); display: flex; justify-content: space-between; align-items: center; }
+    .np-flex-gap { display: flex; gap: 0.5rem; }
+    .np-action-compact { padding: 0.4rem 0.8rem; }
   `]
 
   static properties = {
@@ -1275,8 +1283,8 @@ class NotesPage extends LitElement {
         <div class="modal-overlay" @click="${this.closeNoteDetail}">
           <div class="modal-content" @click="${(e) => e.stopPropagation()}">
             <div class="modal-header">
-              <div style="flex: 1; display: flex; flex-direction: column; gap: 0.5rem;">
-                <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+              <div class="np-modal-header-content">
+                <div class="np-flex-wrap">
                   ${this.selectedNote.data.urgent ? html`<span class="urgent-indicator">🚨 URGENT</span>` : ''}
                   ${this.selectedNote.data.context ? html`
                     <span class="context-tag">
@@ -1285,7 +1293,7 @@ class NotesPage extends LitElement {
                   ` : ''}
                 </div>
                 ${this.selectedNote.data.tags && this.selectedNote.data.tags.length > 0 ? html`
-                  <div style="color: #888; font-size: 0.8em; font-weight: 500;">
+                  <div class="np-tags-meta">
                     ${this.selectedNote.data.tags.map(tag => `#${tag}`).join(' ')}
                   </div>
                 ` : ''}
@@ -1297,19 +1305,19 @@ class NotesPage extends LitElement {
               ${unsafeHTML(this.renderMarkdown(this.selectedNote.data.content))}
             </div>
 
-            <div class="note-meta" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-default); display: flex; justify-content: space-between; align-items: center;">
+            <div class="note-meta np-note-footer">
               <span>📅 ${this.formatTimestamp(this.selectedNote.timestamp)}</span>
-              <div style="display: flex; gap: 0.5rem;">
+              <div class="np-flex-gap">
                 <button
                   class="note-action edit"
                   @click="${(e) => this.openEditNote(this.selectedNote, e)}"
-                  style="padding: 0.4rem 0.8rem;">
+                  class="np-action-compact">
                   ✏️ Modifier
                 </button>
                 <button
                   class="note-action delete"
                   @click="${(e) => this.handleDeleteNote(this.selectedNote.id, e)}"
-                  style="padding: 0.4rem 0.8rem;">
+                  class="np-action-compact">
                   🗑️ Supprimer
                 </button>
               </div>

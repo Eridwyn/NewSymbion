@@ -606,6 +606,8 @@ export class SslWidget extends LitElement {
         width: 100%;
       }
     }
+
+    .ssl-btn-full { width: 100%; }
   `]
 
   constructor() {
@@ -1043,7 +1045,7 @@ export class SslWidget extends LitElement {
                     Enregistrer
                   </button>
                 ` : html`
-                  <button class="btn btn-primary" style="width: 100%;" @click=${() => this.saveDomain()} ?disabled=${!this.formData.hostname}>
+                  <button class="btn btn-primary ssl-btn-full" @click=${() => this.saveDomain()} ?disabled=${!this.formData.hostname}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M12 5v14M5 12h14"/>
                     </svg>

@@ -459,6 +459,10 @@ class EnvironmentWidget extends LitElement {
         font-size: var(--text-sm, 0.875rem);
       }
     }
+
+    /* Utility classes (ex-inline) */
+    .ew-chart-hint { color: #888; margin: 0 0 12px 0; }
+    .ew-sensor-value-row { display: flex; align-items: center; gap: 8px; }
   `]
 
   constructor() {
@@ -719,7 +723,7 @@ class EnvironmentWidget extends LitElement {
               </div>
             ` : `
               <div>
-                <p style="color: #888; margin: 0 0 12px 0;">
+                <p class="ew-chart-hint">
                   Derniers 7 jours (${this.chartData.length} lectures)
                 </p>
                 <div class="chart-container">
@@ -1080,7 +1084,7 @@ class EnvironmentWidget extends LitElement {
         ${sensor ? html`
           <div class="sensor-info">
             <span class="sensor-type">${sensor.sensor_type}</span>
-            <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="ew-sensor-value-row">
               ${status !== 'n_a' ? html`
                 <span class="sensor-signal">${this.formatSignalStrength(sensor.signal_rssi)}</span>
               ` : ''}

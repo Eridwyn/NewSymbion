@@ -192,6 +192,11 @@ class NotesWidget extends LitElement {
         font-size: 0.8em;
       }
     }
+
+    /* Utility classes (ex-inline) */
+    .nw-subtitle { font-size: 0.6em; opacity: 0.7; font-weight: normal; }
+    .nw-error-state { color: #ff6b6b; }
+    .nw-no-context { background: rgba(255,107,107,0.2); color: #ff6b6b; }
   `]
 
   static properties = {
@@ -467,7 +472,7 @@ class NotesWidget extends LitElement {
       <div class="widget-header">
         <h3 class="widget-title">
           📝 Notes
-          <small style="font-size: 0.6em; opacity: 0.7; font-weight: normal;">
+          <small class="nw-subtitle">
             (${this.currentContext})
           </small>
         </h3>
@@ -488,7 +493,7 @@ class NotesWidget extends LitElement {
       </div>
 
       ${this.error ? html`
-        <div class="empty-state" style="color: #ff6b6b;">
+        <div class="empty-state nw-error-state">
           <div class="empty-state-icon">⚠️</div>
           <div class="empty-state-text">${this.error}</div>
         </div>
@@ -519,7 +524,7 @@ class NotesWidget extends LitElement {
                       ${this.getContextIcon(note.data.context)} ${note.data.context}
                     </span>
                   ` : html`
-                    <span class="context-tag" style="background: rgba(255,107,107,0.2); color: #ff6b6b;">
+                    <span class="context-tag nw-no-context">
                       ⚠️ NO CONTEXT
                     </span>
                   `}

@@ -226,6 +226,9 @@ class AutomationTimeline extends LitElement {
         font-size: 0.65rem;
       }
     }
+
+    /* Utility classes (ex-inline) */
+    .at-schedule-hint { font-size: var(--text-xs); color: var(--text-secondary); }
   `
 
   constructor() {
@@ -410,7 +413,7 @@ class AutomationTimeline extends LitElement {
             <span>📅</span>
             <span>Planning Hebdomadaire</span>
           </div>
-          <span style="font-size: var(--text-xs); color: var(--text-secondary);">
+          <span class="at-schedule-hint">
             ${scheduled.length} automation${scheduled.length > 1 ? 's' : ''} planifiee${scheduled.length > 1 ? 's' : ''}
           </span>
         </div>

@@ -216,6 +216,8 @@ class PasskeyManager extends LitElement {
         padding: 0.5rem;
       }
     }
+
+    .pk-hint { opacity: 0.7; }
   `]
 
   static properties = {
@@ -477,7 +479,7 @@ class PasskeyManager extends LitElement {
             <div class="placeholder">
               Aucune passkey enregistrée. Ajoutez-en une pour activer la connexion biométrique rapide !
               <br><br>
-              <small style="opacity: 0.7;">
+              <small class="pk-hint">
                 Compatible : Touch ID, Face ID, Windows Hello, empreintes Android
               </small>
             </div>
