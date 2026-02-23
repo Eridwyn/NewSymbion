@@ -553,6 +553,24 @@ class AgentControlWidget extends LitElement {
       text-align: center;
     }
 
+    /* === Utility classes (ex-inline styles) === */
+    .ac-meta-hint { font-size: 12px; color: #888; margin-top: 8px; }
+    .ac-meta-inline { font-size: 12px; color: #888; font-weight: normal; }
+    .ac-refresh-indicator { margin-left: 8px; color: #3b82f6; }
+    .ac-text-center-muted { text-align: center; color: #888; }
+    .ac-power-btn-blue { background: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .ac-power-btn-green { background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); }
+    .ac-cmd-actions { margin-top: 12px; }
+    .ac-cmd-cancel { padding: 8px 16px; font-size: 12px; }
+    .ac-cmd-id { color: #888; font-size: 12px; margin-left: 12px; }
+    .ac-icon-lg { font-size: 1.5em; }
+    .ac-title-inline { margin: 0 0 0 0.5rem; }
+    .ac-error-body { display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 3rem; }
+    .ac-error-icon { font-size: 3em; margin-bottom: 1rem; opacity: 0.5; }
+    .ac-error-text { font-size: 1.1em; opacity: 0.8; text-align: center; }
+    .ac-error-hint { opacity: 0.6; }
+    .ac-error-close-btn { margin-top: 2rem; padding: 0.8rem 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: var(--radius-base); color: #fff; cursor: pointer; font-size: 0.95em; }
+
     /* Responsive */
     @media (max-width: 768px) {
       .modal {
@@ -986,15 +1004,13 @@ class AgentControlWidget extends LitElement {
         <div class="section-title">🌐 Local Dashboard</div>
         <div class="power-controls">
           <button 
-            class="power-btn" 
-            style="background: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3);"
+            class="power-btn ac-power-btn-blue"
             ?disabled="${!this.agentsService?.hasLocalDashboard(this.agentId)}"
             @click="${this.openLocalDashboard}">
             🖥️ Open Local Dashboard
           </button>
           <button 
-            class="power-btn" 
-            style="background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3);"
+            class="power-btn ac-power-btn-green"
             ?disabled="${!isOnline}"
             @click="${this.reconnectAgent}">
             🔄 Reconnect Agent
@@ -1078,10 +1094,10 @@ class AgentControlWidget extends LitElement {
       <div class="section">
         <div class="section-title">
           📋 Running Processes 
-          <span style="font-size: 12px; color: #888; font-weight: normal;">
+          <span class="ac-meta-inline">
             (top 15 by CPU/memory • ${this.processes.running_count || 0} running, ${this.processes.total_count || 0} total)
           </span>
-          ${this.refreshing && this.currentTab === 'processes' ? html`<span style="margin-left: 8px; color: #3b82f6;">🔄</span>` : ''}
+          ${this.refreshing && this.currentTab === 'processes' ? html`<span class="ac-refresh-indicator">🔄</span>` : ''}
         </div>
         <div class="processes-table">
           <div class="process-header">
@@ -1107,7 +1123,7 @@ class AgentControlWidget extends LitElement {
             </div>
           `) : html`
             <div class="process-row">
-              <span colspan="5" style="text-align: center; color: #888;">No top processes to display</span>
+              <span colspan="5" class="ac-text-center-muted">No top processes to display</span>
             </div>
           `}
         </div>
@@ -1140,7 +1156,7 @@ class AgentControlWidget extends LitElement {
       <div class="section">
         <div class="section-title">
           📊 System Metrics
-          ${this.refreshing && this.currentTab === 'metrics' ? html`<span style="margin-left: 8px; color: #3b82f6;">🔄</span>` : ''}
+          ${this.refreshing && this.currentTab === 'metrics' ? html`<span class="ac-refresh-indicator">🔄</span>` : ''}
         </div>
         <div class="metrics-grid">
           <div class="metric-card">
@@ -1150,7 +1166,7 @@ class AgentControlWidget extends LitElement {
               <div class="progress-fill cpu" style="width: ${cpuPercent}%"></div>
             </div>
             ${this.metrics.cpu?.core_count ? html`
-              <div style="font-size: 12px; color: #888; margin-top: 8px;">
+              <div class="ac-meta-hint">
                 ${this.metrics.cpu.core_count} cores
               </div>
             ` : ''}
@@ -1161,7 +1177,7 @@ class AgentControlWidget extends LitElement {
             <div class="progress-bar">
               <div class="progress-fill memory" style="width: ${memoryPercent}%"></div>
             </div>
-            <div style="font-size: 12px; color: #888; margin-top: 8px;">
+            <div class="ac-meta-hint">
               ${memoryUsedGB} / ${memoryTotalGB} GB
             </div>
           </div>
@@ -1172,7 +1188,7 @@ class AgentControlWidget extends LitElement {
               <div class="progress-fill disk" style="width: ${diskPercent}%"></div>
             </div>
             ${this.metrics.disk?.[0] ? html`
-              <div style="font-size: 12px; color: #888; margin-top: 8px;">
+              <div class="ac-meta-hint">
                 ${this.metrics.disk[0].path}: ${this.metrics.disk[0].used_gb}/${this.metrics.disk[0].total_gb} GB
               </div>
             ` : ''}
@@ -1181,7 +1197,7 @@ class AgentControlWidget extends LitElement {
             <div class="metric-label">Uptime</div>
             <div class="metric-value">${uptimeHours}h</div>
             ${this.metrics.cpu?.load_avg ? html`
-              <div style="font-size: 12px; color: #888; margin-top: 8px;">
+              <div class="ac-meta-hint">
                 Load: ${this.metrics.cpu.load_avg.map(l => l.toFixed(2)).join(', ')}
               </div>
             ` : ''}
@@ -1230,14 +1246,13 @@ class AgentControlWidget extends LitElement {
           </div>
           <div class="command-output">${this.commandOutput}</div>
           ${this.currentCommandId ? html`
-            <div class="command-actions" style="margin-top: 12px;">
+            <div class="command-actions ac-cmd-actions">
               <button 
-                class="power-btn danger"
-                style="padding: 8px 16px; font-size: 12px;"
+                class="power-btn danger ac-cmd-cancel"
                 @click="${this.cancelCurrentCommand}">
                 ⏹️ Cancel Command
               </button>
-              <span style="color: #888; font-size: 12px; margin-left: 12px;">
+              <span class="ac-cmd-id">
                 Command ID: ${this.currentCommandId}
               </span>
             </div>
@@ -1273,23 +1288,23 @@ class AgentControlWidget extends LitElement {
         <div class="modal">
           <div class="modal-header">
             <div class="modal-title">
-              <span style="font-size: 1.5em;">⚠️</span>
-              <h2 style="margin: 0 0 0 0.5rem;">Agent non trouvé</h2>
+              <span class="ac-icon-lg">⚠️</span>
+              <h2 class="ac-title-inline">Agent non trouvé</h2>
             </div>
             <button class="icon-btn close-btn" @click="${this.close}" title="Fermer">
               ✕
             </button>
           </div>
-          <div class="modal-body" style="display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 3rem;">
-            <div style="font-size: 3em; margin-bottom: 1rem; opacity: 0.5;">🤖❌</div>
-            <p style="font-size: 1.1em; opacity: 0.8; text-align: center;">
+          <div class="modal-body ac-error-body">
+            <div class="ac-error-icon">🤖❌</div>
+            <p class="ac-error-text">
               Impossible de charger les données de l'agent.
               <br>
-              <small style="opacity: 0.6;">L'agent est peut-être hors ligne ou l'ID est invalide.</small>
+              <small class="ac-error-hint">L'agent est peut-être hors ligne ou l'ID est invalide.</small>
             </p>
             <button
               @click="${this.close}"
-              style="margin-top: 2rem; padding: 0.8rem 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: var(--radius-base); color: #fff; cursor: pointer; font-size: 0.95em;">
+              class="ac-error-close-btn">
               Fermer
             </button>
           </div>

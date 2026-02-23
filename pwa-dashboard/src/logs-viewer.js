@@ -462,6 +462,10 @@ class LogsViewer extends LitElement {
         padding: 0.6rem;
       }
     }
+
+    /* Utility classes (ex-inline) */
+    .lv-hint { margin-top: 0.5rem; font-size: 0.85em; color: #666; }
+    .lv-search-compact { max-width: 160px; }
   `
 
   static properties = {
@@ -731,7 +735,7 @@ class LogsViewer extends LitElement {
         <div class="empty-state">
           <div class="icon">&#x1F512;</div>
           <p>Ouvrez d'abord le dashboard Symbion et connectez-vous.</p>
-          <p style="margin-top:0.5rem;font-size:0.85em;color:#666;">
+          <p class="lv-hint">
             Le token de session est partage via sessionStorage.
           </p>
         </div>
@@ -791,7 +795,7 @@ class LogsViewer extends LitElement {
           </select>
         ` : ''}
 
-        <input class="search-input" style="max-width:160px"
+        <input class="search-input lv-search-compact"
                type="text"
                placeholder="trace_id..."
                @input="${this._handleTraceIdInput}">

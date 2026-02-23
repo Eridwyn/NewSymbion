@@ -850,6 +850,9 @@ class BootTerminal extends LitElement {
         font-size: 0.8rem;
       }
     }
+
+    /* Utility classes (ex-inline) */
+    .bt-spinner-sm { width: 16px; height: 16px; border-width: 2px; margin: 0; }
   `]
 
   static properties = {
@@ -1196,7 +1199,7 @@ class BootTerminal extends LitElement {
                   @click="${this.authenticateWithBiometric}"
                   ?disabled="${this.authenticatingBiometric}">
                   🔐 Connexion biométrique
-                  ${this.authenticatingBiometric ? html`<div class="spinner" style="width: 16px; height: 16px; border-width: 2px; margin: 0;"></div>` : ''}
+                  ${this.authenticatingBiometric ? html`<div class="spinner bt-spinner-sm"></div>` : ''}
                 </button>
               ` : ''}
             ` : ''}

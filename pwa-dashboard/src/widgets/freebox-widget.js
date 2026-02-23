@@ -165,6 +165,9 @@ class FreeboxWidget extends LitElement {
         grid-template-columns: 1fr;
       }
     }
+
+    /* Utility classes (ex-inline) */
+    .fb-hint-muted { color: #666; font-size: 0.85em; }
   `]
 
   static properties = {
@@ -365,7 +368,7 @@ class FreeboxWidget extends LitElement {
             Presence
           </div>
           ${this.presenceDevices.length === 0 ? html`
-            <div style="color: #666; font-size: 0.85em;">Aucun appareil configure</div>
+            <div class="fb-hint-muted">Aucun appareil configure</div>
           ` : this.presenceDevices.map(device => html`
             <div class="presence-item">
               <div class="device-info">
@@ -392,7 +395,7 @@ class FreeboxWidget extends LitElement {
             Connexion
           </div>
           ${!this.connectionStatus ? html`
-            <div style="color: #666; font-size: 0.85em;">En attente des donnees...</div>
+            <div class="fb-hint-muted">En attente des donnees...</div>
           ` : html`
             <div class="connection-stats">
               <div class="stat-item">
