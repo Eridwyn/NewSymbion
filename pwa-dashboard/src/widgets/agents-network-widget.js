@@ -28,7 +28,7 @@ class AgentsNetworkWidget extends LitElement {
   static styles = [sharedAnimations, widgetHeaderStyles, statusDotStyles, statusBadgeStyles, emptyStateStyles, css`
     :host {
       display: block;
-      background: var(--widget-background, #1a1a1a);
+      background: var(--widget-background, var(--color-dark-surface, #1a1a1a));
       border-radius: var(--radius-md);
       padding: 20px;
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);

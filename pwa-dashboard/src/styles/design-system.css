@@ -98,6 +98,22 @@
   --surface-glass-bright: rgba(255, 255, 255, 0.15);
   --surface-overlay: rgba(0, 0, 0, 0.85);
 
+  /* App Shell Colors */
+  --app-header-bg: rgba(14, 14, 19, 0.88);
+  --app-header-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --app-widget-bg-a: rgba(19, 20, 26, 0.95);
+  --app-widget-bg-b: rgba(28, 29, 36, 0.98);
+  --app-widget-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--ctx-bg), inset 0 1px 0 var(--ctx-bg-subtle);
+  --app-vignette: rgba(0, 0, 0, 0.3);
+  --app-logo-invert: 1;
+  --app-bio-opacity: 1;
+  --app-page-bg-a: rgba(19, 20, 26, 0.98);
+  --app-page-bg-b: rgba(10, 10, 11, 1);
+  --app-section-bg: rgba(25, 26, 32, 0.95);
+  --app-dropdown-bg: rgba(14, 14, 19, 0.97);
+  --app-host-bg-a: #0e0e13;
+  --app-host-bg-b: #0a0a0f;
+
   /* Borders */
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border-default: rgba(255, 255, 255, 0.08);
@@ -651,4 +667,23 @@ textarea:focus-visible,
   --color-info-bg: rgba(37, 99, 235, 0.1);
   --color-info-border: rgba(37, 99, 235, 0.25);
   --color-info-text: #2563eb;
+
+  /* App Shell Colors */
+  --app-header-bg: rgba(255, 255, 255, 0.92);
+  --app-header-shadow: 0 1px 8px rgba(0, 0, 0, 0.08);
+  --app-widget-bg-a: rgba(255, 255, 255, 0.95);
+  --app-widget-bg-b: rgba(248, 249, 251, 0.98);
+  --app-widget-shadow: 0 2px 12px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0,0,0,0.04);
+  --app-vignette: rgba(0, 0, 0, 0);
+  --app-logo-invert: 0;
+  --app-bio-opacity: 0.25;
+  --app-page-bg-a: rgba(245, 245, 247, 0.98);
+  --app-page-bg-b: rgba(240, 241, 245, 1);
+  --app-section-bg: rgba(255, 255, 255, 0.95);
+  --app-dropdown-bg: rgba(255, 255, 255, 0.97);
+  --app-host-bg-a: #f5f5f7;
+  --app-host-bg-b: #eeeef2;
+  --surface-overlay: rgba(0, 0, 0, 0.5);
+  --color-dark-bg-secondary: #eaebef;
+  --color-dark-bg-tertiary: #dcdee3;
 }

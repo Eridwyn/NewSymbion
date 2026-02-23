@@ -44,7 +44,7 @@ class DashboardApp extends LitElement {
     :host {
       display: block;
       min-height: 100vh;
-      background: linear-gradient(180deg, #0e0e13 0%, #0a0a0f 100%);
+      background: linear-gradient(180deg, var(--app-host-bg-a) 0%, var(--app-host-bg-b) 100%);
       color: var(--color-dark-text-primary, #f8f9fa);
       font-family: var(--font-sans);
       position: relative;
@@ -98,8 +98,9 @@ class DashboardApp extends LitElement {
         radial-gradient(800px 600px at 10% 0%, color-mix(in srgb, var(--context-primary, #00d4aa) 15%, transparent), transparent 60%),
         radial-gradient(600px 500px at 90% 15%, color-mix(in srgb, var(--context-primary, #00d4aa) 8%, transparent), transparent 55%),
         radial-gradient(700px 500px at 50% 90%, color-mix(in srgb, var(--context-primary, #00d4aa) 6%, transparent), transparent 50%),
-        radial-gradient(closest-side at 50% 50%, transparent, rgba(0, 0, 0, 0.3));
+        radial-gradient(closest-side at 50% 50%, transparent, var(--app-vignette));
       animation: bgBreathing 10s ease-in-out infinite;
+      opacity: var(--app-bio-opacity, 1);
     }
 
     /* Ambient drifting particles — large blurred orbs */
@@ -142,7 +143,7 @@ class DashboardApp extends LitElement {
 
     /* Header avec glassmorphism contextuel */
     .header {
-      background: rgba(14, 14, 19, 0.88);
+      background: var(--app-header-bg);
       backdrop-filter: blur(var(--blur-xl));
       -webkit-backdrop-filter: blur(var(--blur-xl));
       border-bottom: 1px solid var(--ctx-border);
@@ -151,7 +152,7 @@ class DashboardApp extends LitElement {
       position: sticky;
       top: 0;
       z-index: var(--z-sticky);
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+      box-shadow: var(--app-header-shadow);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -199,7 +200,7 @@ class DashboardApp extends LitElement {
       transition: filter var(--duration-base) var(--ease-out);
       animation: logo-bio-pulse 4s ease-in-out infinite;
       /* Colorisation dynamique depuis context-service (--context-logo-*) */
-      filter: invert(1) sepia(1)
+      filter: invert(var(--app-logo-invert, 1)) sepia(var(--app-logo-invert, 1))
               saturate(var(--context-logo-saturation, 3))
               hue-rotate(var(--context-logo-hue, 100deg))
               brightness(var(--context-logo-brightness, 1.1))
@@ -220,7 +221,7 @@ class DashboardApp extends LitElement {
       animation: none;
       opacity: 1 !important;
       /* Hover intensifie le glow */
-      filter: invert(1) sepia(1)
+      filter: invert(var(--app-logo-invert, 1)) sepia(var(--app-logo-invert, 1))
               saturate(calc(var(--context-logo-saturation, 3) + 1))
               hue-rotate(var(--context-logo-hue, 100deg))
               brightness(calc(var(--context-logo-brightness, 1.1) + 0.15))
@@ -366,22 +367,38 @@ class DashboardApp extends LitElement {
       box-shadow: 0 4px 16px var(--ctx-border-subtle);
     }
 
-    /* Theme Toggle Button */
+    /* Theme Toggle Button - Animated */
     .theme-toggle-btn {
-      background: transparent;
+      background: var(--surface-glass, rgba(255,255,255,0.04));
       border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-      border-radius: var(--radius-md, 8px);
-      padding: 6px 10px;
-      font-size: 1.1rem;
+      border-radius: 50%;
+      width: 42px;
+      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
       cursor: pointer;
-      transition: all 0.2s ease;
-      line-height: 1;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .theme-toggle-btn .theme-icon {
+      display: inline-block;
+      transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                  opacity 0.3s ease;
+    }
+
+    .theme-toggle-btn:active .theme-icon {
+      transform: rotate(180deg) scale(0.7);
     }
 
     .theme-toggle-btn:hover {
-      background: var(--surface-glass-light, rgba(255,255,255,0.06));
+      background: var(--surface-glass-hover, rgba(255,255,255,0.08));
       border-color: var(--border-medium, rgba(255,255,255,0.15));
-      transform: scale(1.05);
+      box-shadow: 0 0 16px var(--ctx-border-subtle);
     }
 
     .theme-toggle-btn:focus-visible {
@@ -401,7 +418,7 @@ class DashboardApp extends LitElement {
       position: fixed;
       top: 70px;
       right: var(--space-8);
-      background: rgba(14, 14, 19, 0.97);
+      background: var(--app-dropdown-bg);
       backdrop-filter: blur(var(--blur-xl));
       -webkit-backdrop-filter: blur(var(--blur-xl));
       border: 1px solid var(--ctx-border);
@@ -524,8 +541,8 @@ class DashboardApp extends LitElement {
       /* Gradient organique comme une membrane cellulaire */
       background: linear-gradient(135deg,
         color-mix(in srgb, var(--context-primary, #00d4aa) 3%, transparent) 0%,
-        rgba(19, 20, 26, 0.95) 20%,
-        rgba(28, 29, 36, 0.98) 100%);
+        var(--app-widget-bg-a) 20%,
+        var(--app-widget-bg-b) 100%);
       border: 1px solid var(--ctx-bg-medium);
       border-radius: var(--radius-xl);
       padding: var(--space-8);
@@ -535,9 +552,7 @@ class DashboardApp extends LitElement {
                   box-shadow var(--duration-slow) var(--ease-out);
       will-change: transform, box-shadow;
       contain: paint;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
-                  0 0 0 1px var(--ctx-bg),
-                  inset 0 1px 0 var(--ctx-bg-subtle);
+      box-shadow: var(--app-widget-shadow);
       position: relative;
       overflow: hidden;
       /* Bioluminescent staggered entrance */
@@ -1293,7 +1308,7 @@ class DashboardApp extends LitElement {
         </div>
 
         <button class="theme-toggle-btn" @click="${this._toggleTheme}" aria-label="Changer le thème" title="Changer le thème">
-          ${this.currentTheme === 'dark' ? '☀️' : '🌙'}
+          <span class="theme-icon">${this.currentTheme === 'dark' ? '☀️' : '🌙'}</span>
         </button>
 
         <!-- Notification Center -->

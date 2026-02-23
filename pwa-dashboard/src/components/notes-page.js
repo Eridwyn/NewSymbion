@@ -275,7 +275,7 @@ class NotesPage extends LitElement {
     }
 
     .note-card {
-      background: linear-gradient(135deg, rgba(26, 26, 26, 0.9) 0%, rgba(15, 15, 15, 0.85) 100%);
+      background: linear-gradient(135deg, var(--app-page-bg-a) 0%, var(--app-page-bg-b) 100%);
       border: 1px solid var(--border-medium);
       border-radius: var(--radius-md);
       padding: 1.2rem;
@@ -481,7 +481,7 @@ class NotesPage extends LitElement {
     }
 
     .modal-content {
-      background: linear-gradient(135deg, rgba(26, 26, 26, 0.98) 0%, rgba(15, 15, 15, 0.95) 100%);
+      background: linear-gradient(135deg, var(--app-page-bg-a) 0%, var(--app-page-bg-b) 100%);
       border: 1px solid var(--ctx-border-medium);
       border-radius: var(--radius-lg);
       width: 90%;

@@ -26,7 +26,7 @@ class PatternsModal extends LitElement {
     }
 
     .modal-content {
-      background: linear-gradient(135deg, rgba(30, 30, 30, 0.98) 0%, rgba(20, 20, 20, 0.98) 100%);
+      background: linear-gradient(135deg, var(--app-page-bg-a) 0%, var(--app-page-bg-b) 100%);
       border: 1px solid var(--ctx-border);
       border-radius: var(--radius-lg);
       padding: 2rem;
