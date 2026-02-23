@@ -603,7 +603,7 @@ export const AutomationsMixin = (Base) => class extends Base {
           ${(auto.actions || []).map((action, idx) => html`
             <div class="action-item ce-flex ce-bg-glass-item">
               <span class="ce-flex-grow ce-text-md">${this.getActionLabel(action)}</span>
-              <button class="btn btn-small btn-icon btn-danger" @click="${() => this.removeAction(idx)}" title="Supprimer">✕</button>
+              <button class="btn btn-small btn-icon btn-danger" @click="${() => this.removeAction(idx)}" title="Supprimer" aria-label="Supprimer l'action">✕</button>
             </div>
           `)}
         </div>
@@ -864,7 +864,7 @@ export const AutomationsMixin = (Base) => class extends Base {
             title="Cliquer pour basculer AND/OR"
           >${operatorLabel}</button>
           ${depth > 0 ? html`
-            <button class="btn btn-small btn-icon btn-danger ce-badge-tiny" @click="${() => this.removeRulesGroup(path)}" title="Supprimer groupe">✕</button>
+            <button class="btn btn-small btn-icon btn-danger ce-badge-tiny" @click="${() => this.removeRulesGroup(path)}" title="Supprimer groupe" aria-label="Supprimer le groupe de règles">✕</button>
           ` : ''}
           <span class="ce-text-tiny-tertiary">
             ${operatorHint}
@@ -916,7 +916,7 @@ export const AutomationsMixin = (Base) => class extends Base {
       <div class="rule-item ce-rule-item" style="border-left: 3px solid ${categoryColor};">
         <span class="ce-rule-icon" style="color: ${categoryColor};" title="${isEvent ? 'Événement (déclencheur)' : 'État (condition)'}">${categoryIcon}</span>
         <span class="ce-flex-grow ce-text-sm">${label}</span>
-        <button class="btn btn-small btn-icon btn-danger ce-badge-tiny" @click="${() => this.removeRule(path)}" title="Supprimer">✕</button>
+        <button class="btn btn-small btn-icon btn-danger ce-badge-tiny" @click="${() => this.removeRule(path)}" title="Supprimer" aria-label="Supprimer la règle">✕</button>
       </div>
     `
   }
@@ -1263,9 +1263,9 @@ export const AutomationsMixin = (Base) => class extends Base {
             </div>
             <div class="automation-actions">
               <div class="automation-quick-actions">
-                <button class="quick-action-btn play" @click="${() => this.runAutomationManually(auto.id)}" title="Executer">▶</button>
-                <button class="quick-action-btn" @click="${() => this.openEditForm(auto)}" title="Modifier">✏️</button>
-                <button class="quick-action-btn" @click="${() => this.deleteAutomation(auto.id)}" title="Supprimer">🗑️</button>
+                <button class="quick-action-btn play" @click="${() => this.runAutomationManually(auto.id)}" title="Executer" aria-label="Exécuter l'automatisation">▶</button>
+                <button class="quick-action-btn" @click="${() => this.openEditForm(auto)}" title="Modifier" aria-label="Modifier l'automatisation">✏️</button>
+                <button class="quick-action-btn" @click="${() => this.deleteAutomation(auto.id)}" title="Supprimer" aria-label="Supprimer l'automatisation">🗑️</button>
               </div>
               <div
                 class="toggle ${auto.enabled ? 'active' : ''}"

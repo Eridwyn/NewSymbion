@@ -78,6 +78,22 @@ export const scrollbarStyles = css`
 `
 
 /**
+ * Focus visible styles pour accessibilite.
+ * Applique un outline context-primary sur les elements focusables.
+ */
+export const focusVisibleStyles = css`
+  :focus-visible {
+    outline: 2px solid var(--context-primary, #00d4aa);
+    outline-offset: 2px;
+  }
+
+  button:focus-visible {
+    outline: 2px solid var(--context-primary, #00d4aa);
+    outline-offset: 2px;
+  }
+`
+
+/**
  * Badges de statut (success, warning, error, info).
  * Classes: .badge, .badge-success, .badge-warning, .badge-error, .badge-info
  */

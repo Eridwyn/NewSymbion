@@ -1291,7 +1291,7 @@ class AgentControlWidget extends LitElement {
               <span class="ac-icon-lg">⚠️</span>
               <h2 class="ac-title-inline">Agent non trouvé</h2>
             </div>
-            <button class="icon-btn close-btn" @click="${this.close}" title="Fermer">
+            <button class="icon-btn close-btn" @click="${this.close}" title="Fermer" aria-label="Fermer">
               ✕
             </button>
           </div>
@@ -1326,7 +1326,7 @@ class AgentControlWidget extends LitElement {
               ${this.agent.status}
             </div>
           </div>
-          <button class="close-btn" @click="${this.close}">×</button>
+          <button class="close-btn" @click="${this.close}" aria-label="Fermer">×</button>
         </div>
 
         <div class="modal-tabs">

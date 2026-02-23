@@ -964,7 +964,7 @@ class UserSettingsPage extends LitElement {
       <div class="settings-container">
         <div class="settings-header">
           <h1 class="settings-title">⚙️ Paramètres</h1>
-          <button class="close-button" @click="${this.handleClose}">✕</button>
+          <button class="close-button" @click="${this.handleClose}" aria-label="Fermer">✕</button>
         </div>
 
         <div class="tabs">

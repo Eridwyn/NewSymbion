@@ -2380,7 +2380,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
       <div class="page" @click="${e => e.stopPropagation()}">
         <div class="header">
           <span class="header-title">🧠 Decision Engine</span>
-          <button class="close-button" @click="${this.close}">✕</button>
+          <button class="close-button" @click="${this.close}" aria-label="Fermer">✕</button>
         </div>
 
         <div class="tabs">

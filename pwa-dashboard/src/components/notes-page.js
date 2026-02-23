@@ -1108,7 +1108,7 @@ class NotesPage extends LitElement {
       <div class="notes-container">
         <div class="notes-header">
           <h1 class="notes-title">📝 Gestion des Notes</h1>
-          <button class="close-button" @click="${this.close}">✕</button>
+          <button class="close-button" @click="${this.close}" aria-label="Fermer">✕</button>
         </div>
 
         <div class="toolbar">
@@ -1231,7 +1231,7 @@ class NotesPage extends LitElement {
           <div class="modal-content" @click="${(e) => e.stopPropagation()}">
             <div class="modal-header">
               <h2 class="modal-title">✍️ Nouvelle Note</h2>
-              <button class="modal-close-btn" @click="${() => this.showNoteForm = false}">×</button>
+              <button class="modal-close-btn" @click="${() => this.showNoteForm = false}" aria-label="Fermer">×</button>
             </div>
 
             <form @submit="${this.handleCreateNote}">
@@ -1298,7 +1298,7 @@ class NotesPage extends LitElement {
                   </div>
                 ` : ''}
               </div>
-              <button class="modal-close-btn" @click="${this.closeNoteDetail}">×</button>
+              <button class="modal-close-btn" @click="${this.closeNoteDetail}" aria-label="Fermer">×</button>
             </div>
 
             <div class="note-content">
@@ -1332,7 +1332,7 @@ class NotesPage extends LitElement {
           <div class="modal-content" @click="${(e) => e.stopPropagation()}">
             <div class="modal-header">
               <h2 class="modal-title">✏️ Modifier la Note</h2>
-              <button class="modal-close-btn" @click="${this.closeEditNote}">×</button>
+              <button class="modal-close-btn" @click="${this.closeEditNote}" aria-label="Fermer">×</button>
             </div>
 
             <form @submit="${this.handleUpdateNote}">

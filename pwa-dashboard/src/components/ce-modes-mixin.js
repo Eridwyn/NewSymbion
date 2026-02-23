@@ -172,11 +172,11 @@ export const ModesMixin = (Base) => class extends Base {
         </div>
         <div class="mode-card-slug">/${mode.slug}</div>
         <div class="mode-card-actions">
-          <button class="btn btn-sm" @click="${() => this.openModeForm(mode)}" title="Modifier">
+          <button class="btn btn-sm" @click="${() => this.openModeForm(mode)}" title="Modifier" aria-label="Modifier le mode">
             ✏️
           </button>
           ${!mode.is_system ? html`
-            <button class="btn btn-sm btn-danger" @click="${() => this.deleteMode(mode.id)}" title="Supprimer">
+            <button class="btn btn-sm btn-danger" @click="${() => this.deleteMode(mode.id)}" title="Supprimer" aria-label="Supprimer le mode">
               🗑️
             </button>
           ` : ''}
@@ -212,6 +212,7 @@ export const ModesMixin = (Base) => class extends Base {
                   <button
                     class="emoji-btn ${this.modeFormData.icon === emoji ? 'selected' : ''}"
                     @click="${() => this.modeFormData = {...this.modeFormData, icon: emoji}}"
+                    aria-label="${emoji}"
                   >${emoji}</button>
                 `)}
               </div>
