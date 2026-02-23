@@ -15,6 +15,7 @@ import '../services/api-service.js'
 import '../services/mqtt-service.js'
 import '../services/agents-service.js'
 import '../services/context-service.js'
+import themeService from '../services/theme-service.js'
 // PWA8: Lazy-load widgets and pages (loaded on first render, not at parse time)
 const lazyWidgets = () => {
   import('../widgets/system-health-widget.js')
@@ -363,6 +364,29 @@ class DashboardApp extends LitElement {
       border-color: var(--ctx-border-strong);
       transform: translateY(-1px);
       box-shadow: 0 4px 16px var(--ctx-border-subtle);
+    }
+
+    /* Theme Toggle Button */
+    .theme-toggle-btn {
+      background: transparent;
+      border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+      border-radius: var(--radius-md, 8px);
+      padding: 6px 10px;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      line-height: 1;
+    }
+
+    .theme-toggle-btn:hover {
+      background: var(--surface-glass-light, rgba(255,255,255,0.06));
+      border-color: var(--border-medium, rgba(255,255,255,0.15));
+      transform: scale(1.05);
+    }
+
+    .theme-toggle-btn:focus-visible {
+      outline: 2px solid var(--context-primary, #00d4aa);
+      outline-offset: 2px;
     }
 
     /* Dropdown overlay (fermer en cliquant en dehors) */
@@ -917,7 +941,8 @@ class DashboardApp extends LitElement {
     activeTab: { type: String },
     currentTime: { type: String },
     showLogsFab: { type: Boolean },
-    isOffline: { type: Boolean }
+    isOffline: { type: Boolean },
+    currentTheme: { type: String }
   }
   
   constructor() {
@@ -935,6 +960,7 @@ class DashboardApp extends LitElement {
     this.showContextEnginePage = false
     this.showSslConfigPage = false
     this.isOffline = !navigator.onLine
+    this.currentTheme = themeService.current
     this.showLogsFab = localStorage.getItem('symbion_show_logs') === 'true'
     this.currentUser = authService.getCurrentUser()
     // Restaurer le dernier onglet actif depuis sessionStorage (persiste aux reloads, reset à la fermeture du navigateur)
@@ -1006,6 +1032,10 @@ class DashboardApp extends LitElement {
     }
     window.addEventListener('context-change', this._boundHandlers.contextChange)
 
+    // Theme toggle
+    this._handleThemeChange = (e) => { this.currentTheme = e.detail.theme }
+    document.body.addEventListener('theme-changed', this._handleThemeChange)
+
     // Offline detection
     this._handleOnline = () => { this.isOffline = false }
     this._handleOffline = () => { this.isOffline = true }
@@ -1068,6 +1098,7 @@ class DashboardApp extends LitElement {
 
     window.removeEventListener('online', this._handleOnline)
     window.removeEventListener('offline', this._handleOffline)
+    document.body.removeEventListener('theme-changed', this._handleThemeChange)
   }
 
   // PWA4: Focus trap management for full-page overlays
@@ -1260,6 +1291,10 @@ class DashboardApp extends LitElement {
           <span class="icon">🕐</span>
           <span>${this.currentTime}</span>
         </div>
+
+        <button class="theme-toggle-btn" @click="${this._toggleTheme}" aria-label="Changer le thème" title="Changer le thème">
+          ${this.currentTheme === 'dark' ? '☀️' : '🌙'}
+        </button>
 
         <!-- Notification Center -->
         <notification-center></notification-center>
@@ -1509,6 +1544,10 @@ class DashboardApp extends LitElement {
         tabButtons[newIndex]?.focus()
       })
     }
+  }
+
+  _toggleTheme() {
+    themeService.toggle()
   }
 
   toggleUserMenu() {
