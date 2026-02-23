@@ -9,6 +9,7 @@ import { LitElement } from 'lit'
 import DOMPurify from 'dompurify'
 import authService from './auth-service.js'
 import csrfService from './csrf-service.js'
+import offlineQueue from './offline-queue.js'
 
 class ApiService extends LitElement {
   static properties = {
@@ -174,6 +175,13 @@ class ApiService extends LitElement {
       if (error.name === 'TypeError' || error.message.includes('Failed to fetch')) {
         console.error(`❌ Network error [${endpoint}]:`, error)
         this.updateStatus('offline')
+
+        // Queue mutation requests (POST/PUT/DELETE) for offline replay
+        const method = (config.method || 'GET').toUpperCase()
+        if (!navigator.onLine && method !== 'GET') {
+          offlineQueue.enqueue(url, config)
+          throw new Error(`Offline: ${method} ${endpoint} queued for later`)
+        }
       }
 
       throw error

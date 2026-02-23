@@ -26,7 +26,31 @@ export default defineConfig(({ mode }) => {
       registerType: 'autoUpdate',
       workbox: {
         // Cache tous les assets statiques pour fonctionnement offline
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        runtimeCaching: [
+          {
+            urlPattern: /\/v1\/.*$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 // 1 hour
+              },
+              networkTimeoutSeconds: 5,
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          {
+            urlPattern: /\/health$/,
+            handler: 'NetworkOnly',
+            options: {
+              cacheName: 'health-check'
+            }
+          }
+        ]
       },
       manifest: {
         name: 'Symbion Dashboard',
