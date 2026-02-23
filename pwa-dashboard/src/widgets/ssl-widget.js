@@ -7,7 +7,7 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
-import { widgetHeaderStyles, widgetSectionStyles } from '../styles/shared-widget.js'
+import { widgetHeaderStyles, widgetSectionStyles, emptyStateStyles } from '../styles/shared-widget.js'
 import { statusDotStyles, sectionBadgeStyles } from '../styles/shared-patterns.js'
 import '../components/organic-loader.js'
 
@@ -22,7 +22,7 @@ export class SslWidget extends LitElement {
     formData: { type: Object }
   }
 
-  static styles = [sharedAnimations, widgetHeaderStyles, widgetSectionStyles, statusDotStyles, sectionBadgeStyles, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, widgetSectionStyles, emptyStateStyles, statusDotStyles, sectionBadgeStyles, css`
     :host {
       display: block;
     }
@@ -185,13 +185,6 @@ export class SslWidget extends LitElement {
     .expiry-date {
       font-size: 0.7em;
       color: var(--color-dark-text-tertiary, #94a3b8);
-    }
-
-    .empty-state {
-      text-align: center;
-      padding: 2rem;
-      color: var(--color-dark-text-tertiary, #94a3b8);
-      font-size: 0.9em;
     }
 
     .last-update {
@@ -580,22 +573,6 @@ export class SslWidget extends LitElement {
       background: var(--ctx-border-subtle);
       border-color: var(--ctx-border-strong);
       color: var(--context-primary, #00d4aa);
-    }
-
-    /* Empty state */
-    .empty-state {
-      text-align: center;
-      padding: 2rem 1rem;
-      color: var(--color-dark-text-tertiary, #94a3b8);
-    }
-
-    .empty-state-icon {
-      font-size: var(--text-3xl);
-      margin-bottom: 0.5rem;
-    }
-
-    .empty-state-text {
-      font-size: 0.85rem;
     }
 
     /* Mobile responsive */
