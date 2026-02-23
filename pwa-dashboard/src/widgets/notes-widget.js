@@ -520,7 +520,7 @@ class NotesWidget extends LitElement {
                   ${note.data.urgent ? html`<span class="urgent-indicator">🚨</span>` : ''}
                   ${isPriority ? html`<span class="priority-badge">⭐</span>` : ''}
                   ${note.data.context ? html`
-                    <span class="context-tag" style="${note.data.context === this.currentContext ? 'border: 2px solid var(--context-primary, #00d4aa);' : 'border: 1px solid rgba(255,255,255,0.3);'}">
+                    <span class="context-tag" style="${note.data.context === this.currentContext ? 'border: 2px solid var(--context-primary, #00d4aa);' : 'border: 1px solid var(--border-strong);'}">
                       ${this.getContextIcon(note.data.context)} ${note.data.context}
                     </span>
                   ` : html`

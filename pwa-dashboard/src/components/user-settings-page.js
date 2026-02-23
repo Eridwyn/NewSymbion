@@ -292,7 +292,7 @@ class UserSettingsPage extends LitElement {
 
     .secret-display {
       background: var(--surface-glass-strong, rgba(0, 0, 0, 0.3));
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      border: 1px solid var(--border-hover);
       padding: 1rem;
       border-radius: var(--radius-base);
       font-family: 'Courier New', monospace;
@@ -329,7 +329,7 @@ class UserSettingsPage extends LitElement {
       background: linear-gradient(135deg,
         var(--app-input-bg, rgba(0, 0, 0, 0.4)) 0%,
         var(--surface-glass-strong, rgba(0, 0, 0, 0.3)) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      border: 1px solid var(--border-medium);
       color: var(--color-dark-text-primary);
       padding: var(--space-3) var(--space-4);
       border-radius: var(--radius-md);
@@ -349,7 +349,7 @@ class UserSettingsPage extends LitElement {
     }
 
     .input:hover:not(:focus) {
-      border-color: rgba(255, 255, 255, 0.2);
+      border-color: var(--border-hover);
       transform: translateY(-1px); /* Légère élévation */
     }
 

@@ -161,7 +161,7 @@ class LogsViewer extends LitElement {
 
     .toolbar-btn:hover {
       background: var(--surface-glass-strong);
-      border-color: rgba(255,255,255,0.2);
+      border-color: var(--border-hover);
     }
 
     .toolbar-btn.active {
@@ -228,7 +228,7 @@ class LogsViewer extends LitElement {
 
     td {
       padding: 0.45rem 0.8rem;
-      border-bottom: 1px solid rgba(255,255,255,0.03);
+      border-bottom: 1px solid var(--border-subtle);
       vertical-align: top;
     }
 

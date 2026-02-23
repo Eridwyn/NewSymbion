@@ -183,7 +183,7 @@ class NotificationCenter extends LitElement {
     /* Notification item */
     .notification {
       padding: 1rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      border-bottom: 1px solid var(--border-subtle);
       transition: background 0.2s;
     }
 
@@ -488,7 +488,7 @@ class NotificationCenter extends LitElement {
         }
         .notif-item {
           padding: 1rem;
-          border-bottom: 1px solid rgba(255,255,255,0.05);
+          border-bottom: 1px solid var(--border-subtle);
         }
         .notif-item.unread {
           background: var(--ctx-bg-subtle, rgba(0, 212, 170, 0.05));

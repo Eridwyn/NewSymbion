@@ -33,9 +33,7 @@ class AgentControlWidget extends LitElement {
 
   static styles = [sharedAnimations, overlayStyles, statusBadgeStyles, widgetSectionStyles, css`
     :host {
-      background: radial-gradient(ellipse at center,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 3%, rgba(0, 0, 0, 0.85)) 0%,
-        rgba(0, 0, 0, 0.9) 100%);
+      background: var(--app-overlay-dim, rgba(0, 0, 0, 0.88));
       display: flex;
       align-items: center;
       justify-content: center;
@@ -58,7 +56,7 @@ class AgentControlWidget extends LitElement {
       flex-direction: column;
       box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6),
                   0 0 40px var(--ctx-bg);
-      color: var(--widget-color, #e5e5e5);
+      color: var(--color-dark-text-primary, #e5e5e5);
       overflow: hidden;
       animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
@@ -289,7 +287,7 @@ class AgentControlWidget extends LitElement {
 
     .info-card {
       background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      border: 1px solid var(--border-medium);
       border-radius: var(--radius-md);
       padding: 18px;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -379,7 +377,7 @@ class AgentControlWidget extends LitElement {
 
     .metric-card {
       background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      border: 1px solid var(--border-medium);
       border-radius: var(--radius-md);
       padding: 24px;
       text-align: center;
@@ -482,7 +480,7 @@ class AgentControlWidget extends LitElement {
       flex: 1;
       padding: 12px 16px;
       background: var(--surface-glass);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      border: 1px solid var(--border-hover);
       border-radius: var(--radius-base);
       color: var(--color-dark-text-primary, #f8f9fa);
       font-family: 'Monaco', 'Consolas', monospace;
@@ -569,7 +567,7 @@ class AgentControlWidget extends LitElement {
     .ac-error-icon { font-size: 3em; margin-bottom: 1rem; opacity: 0.5; }
     .ac-error-text { font-size: 1.1em; opacity: 0.8; text-align: center; }
     .ac-error-hint { opacity: 0.6; }
-    .ac-error-close-btn { margin-top: 2rem; padding: 0.8rem 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: var(--radius-base); color: var(--color-dark-text-primary, #f8f9fa); cursor: pointer; font-size: 0.95em; }
+    .ac-error-close-btn { margin-top: 2rem; padding: 0.8rem 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid var(--border-hover); border-radius: var(--radius-base); color: var(--color-dark-text-primary, #f8f9fa); cursor: pointer; font-size: 0.95em; }
 
     /* Responsive */
     @media (max-width: 768px) {
