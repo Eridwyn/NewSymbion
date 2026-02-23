@@ -163,7 +163,7 @@ class PasskeyManager extends LitElement {
       display: inline-block;
       width: 1em;
       height: 1em;
-      border: 2px solid rgba(255, 255, 255, 0.3);
+      border: 2px solid var(--border-strong);
       border-top-color: var(--context-primary, #00d4aa);
       border-radius: 50%;
       animation: spin 1s linear infinite;

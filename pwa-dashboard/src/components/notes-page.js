@@ -291,7 +291,7 @@ class NotesPage extends LitElement {
         border-color: var(--border-medium);
       }
       50% {
-        border-color: rgba(255, 255, 255, 0.14);
+        border-color: var(--border-hover);
       }
     }
 
@@ -559,7 +559,7 @@ class NotesPage extends LitElement {
       min-width: 0; /* Permet rétrécissement si nécessaire */
       box-sizing: border-box; /* Padding inclus dans width */
       background: var(--surface-glass);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      border: 1px solid var(--border-hover);
       border-radius: var(--radius-base);
       padding: 0.7rem 1rem;
       color: var(--color-dark-text-primary, #f8f9fa);
@@ -586,7 +586,7 @@ class NotesPage extends LitElement {
 
     .form-field input:hover:not(:focus),
     .form-field textarea:hover:not(:focus) {
-      border-color: rgba(255, 255, 255, 0.3);
+      border-color: var(--border-strong);
       transform: translateY(-1px); /* Légère élévation */
     }
 

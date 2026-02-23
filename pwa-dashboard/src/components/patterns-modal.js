@@ -12,9 +12,7 @@ import { overlayStyles, scrollbarStyles } from '../styles/shared-patterns.js'
 class PatternsModal extends LitElement {
   static styles = [sharedAnimations, overlayStyles, scrollbarStyles, css`
     :host {
-      background: radial-gradient(ellipse at center,
-        color-mix(in srgb, var(--context-primary, #00d4aa) 3%, rgba(0, 0, 0, 0.85)) 0%,
-        rgba(0, 0, 0, 0.9) 100%);
+      background: var(--app-overlay-dim, rgba(0, 0, 0, 0.88));
     }
 
     .modal-container {

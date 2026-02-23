@@ -45,7 +45,7 @@ class SystemHealthWidget extends LitElement {
     
     .metric-card {
       background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      border: 1px solid var(--border-medium);
       border-radius: var(--radius-md);
       padding: 1.2rem;
       text-align: center;

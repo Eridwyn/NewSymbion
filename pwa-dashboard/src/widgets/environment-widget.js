@@ -368,7 +368,7 @@ class EnvironmentWidget extends LitElement {
 
     .modal-close {
       background: var(--surface-glass-strong);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      border: 1px solid var(--border-hover);
       color: var(--color-dark-text-primary, #f8f9fa);
       width: 36px;
       height: 36px;
@@ -383,7 +383,7 @@ class EnvironmentWidget extends LitElement {
 
     .modal-close:hover {
       background: rgba(255, 255, 255, 0.2);
-      border-color: rgba(255, 255, 255, 0.3);
+      border-color: var(--border-strong);
     }
 
     .modal-body {

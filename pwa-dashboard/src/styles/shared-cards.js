@@ -56,8 +56,8 @@ export const cardStyles = css`
 export const sectionStyles = css`
   .section {
     background: linear-gradient(135deg,
-      color-mix(in srgb, var(--context-primary, #00d4aa) 3%, rgba(19, 20, 26, 0.95)) 0%,
-      rgba(15, 15, 15, 0.9) 100%);
+      color-mix(in srgb, var(--context-primary, #00d4aa) 3%, var(--app-section-bg, rgba(19, 20, 26, 0.95))) 0%,
+      var(--app-widget-bg-b, rgba(15, 15, 15, 0.9)) 100%);
     border: 1px solid var(--ctx-bg-medium, rgba(0, 212, 170, 0.12));
     border-radius: var(--radius-lg, 12px);
     padding: var(--space-5, 1.25rem);

@@ -636,7 +636,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
 
     .mode-btn:hover {
       background: var(--surface-glass-strong);
-      border-color: rgba(255, 255, 255, 0.25);
+      border-color: var(--border-strong);
       transform: translateY(-2px);
     }
 
@@ -961,7 +961,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
 
     .quick-action-btn:hover {
       background: var(--surface-glass-strong);
-      border-color: rgba(255, 255, 255, 0.2);
+      border-color: var(--border-hover);
       color: var(--color-dark-text-primary, #f8f9fa);
     }
 
@@ -1811,16 +1811,16 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     /* Backgrounds */
     .ce-bg-dark { background: var(--surface-glass-hover, rgba(0, 0, 0, 0.2)); padding: 0.5rem; border-radius: var(--radius-sm); }
     .ce-bg-dark-xs { background: var(--surface-glass-hover, rgba(0, 0, 0, 0.2)); padding: 0.1rem 0.3rem; border-radius: var(--radius-sm); }
-    .ce-bg-glass { background: var(--surface-glass-faint, rgba(255, 255, 255, 0.02)); border-radius: var(--radius-base); border: 1px solid rgba(255, 255, 255, 0.08); }
-    .ce-bg-glass-item { background: var(--surface-glass-subtle, rgba(255, 255, 255, 0.03)); border-radius: var(--radius-sm); border: 1px solid rgba(255, 255, 255, 0.08); padding: 0.4rem 0.6rem; }
-    .ce-bg-glass-dashed { background: var(--surface-glass-faint, rgba(255, 255, 255, 0.02)); border-radius: var(--radius-base); border: 1px dashed rgba(255, 255, 255, 0.1); margin-top: 0.75rem; }
+    .ce-bg-glass { background: var(--surface-glass-faint, rgba(255, 255, 255, 0.02)); border-radius: var(--radius-base); border: 1px solid var(--border-default); }
+    .ce-bg-glass-item { background: var(--surface-glass-subtle, rgba(255, 255, 255, 0.03)); border-radius: var(--radius-sm); border: 1px solid var(--border-default); padding: 0.4rem 0.6rem; }
+    .ce-bg-glass-dashed { background: var(--surface-glass-faint, rgba(255, 255, 255, 0.02)); border-radius: var(--radius-base); border: 1px dashed var(--border-medium); margin-top: 0.75rem; }
     .ce-stat-item { padding: 0.75rem; background: var(--surface-glass-hover, rgba(0, 0, 0, 0.2)); border-radius: var(--radius-base); text-align: center; }
 
     /* Badges */
     .ce-badge-purple { padding: 0.35rem 0.875rem; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #a78bfa; font-size: var(--text-xs); border-radius: var(--radius-xl); }
     .ce-badge-green { padding: 0.25rem 0.75rem; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: var(--radius-xl); font-size: var(--text-xs); color: var(--color-success-text-muted, #22c55e); }
     .ce-badge-orange { padding: 0.25rem 0.75rem; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: var(--radius-xl); font-size: 0.8rem; color: #f59e0b; }
-    .ce-badge-neutral { padding: 0.3rem 0.75rem; border-radius: var(--radius-xl); background: var(--surface-glass, rgba(255, 255, 255, 0.05)); border: 1px solid rgba(255, 255, 255, 0.1); }
+    .ce-badge-neutral { padding: 0.3rem 0.75rem; border-radius: var(--radius-xl); background: var(--surface-glass, rgba(255, 255, 255, 0.05)); border: 1px solid var(--border-medium); }
     .ce-badge-tiny { font-size: 0.6rem; padding: 0.15rem 0.4rem; }
 
     /* Bouton aide */
@@ -1865,7 +1865,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     /* Backgrounds */
     .ce-bg-1a { background: var(--color-dark-surface, #1a1a1a); }
     .ce-bg-emerald { background: rgba(16, 185, 129, 0.15); padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid rgba(16, 185, 129, 0.3); }
-    .ce-bg-section { background: var(--app-section-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.25rem; }
+    .ce-bg-section { background: var(--app-section-bg); border: 1px solid var(--border-medium); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.25rem; }
 
     /* Checkbox */
     .ce-checkbox { width: 16px; height: 16px; accent-color: var(--context-primary, #00d4aa); }
@@ -1922,18 +1922,18 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .ce-opacity-4 { opacity: 0.4; }
 
     /* Borders & separators */
-    .ce-border-top-subtle { padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.1); }
-    .ce-border-top-faint { padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.08); }
+    .ce-border-top-subtle { padding-top: 0.5rem; border-top: 1px solid var(--border-medium); }
+    .ce-border-top-faint { padding-top: 0.75rem; border-top: 1px solid var(--border-default); }
     .ce-border-top-purple { padding-top: 1.25rem; border-top: 1px solid rgba(139, 92, 246, 0.15); }
-    .ce-border-top-muted { padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.05); }
-    .ce-source-header { text-transform: uppercase; letter-spacing: 0.08em; padding-bottom: 0.25rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .ce-border-top-muted { padding-top: 0.75rem; border-top: 1px solid var(--border-subtle); }
+    .ce-source-header { text-transform: uppercase; letter-spacing: 0.08em; padding-bottom: 0.25rem; border-bottom: 1px solid var(--border-subtle); }
 
     /* Backgrounds - sections */
     .ce-bg-trust { background: var(--ctx-bg-subtle); padding: 0.75rem; border-radius: var(--radius-base); border: 1px solid var(--ctx-border-medium); }
     .ce-bg-purple-section { background: rgba(147, 51, 234, 0.1); border: 1px solid rgba(147, 51, 234, 0.3); }
     .ce-bg-purple-subtle { background: rgba(147, 51, 234, 0.1); padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid rgba(147, 51, 234, 0.2); }
     .ce-bg-indigo-section { background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); }
-    .ce-bg-stats-section { background: var(--app-section-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); padding: 1rem; }
+    .ce-bg-stats-section { background: var(--app-section-bg); border: 1px solid var(--border-medium); border-radius: var(--radius-md); padding: 1rem; }
 
     /* Help icon (circle with ?) */
     .ce-help-icon-purple { background: rgba(147, 51, 234, 0.3); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
@@ -1950,17 +1950,17 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
 
     /* Notification modal */
     .ce-notif-modal-overlay { position: fixed; inset: 0; background: var(--app-overlay-dim, rgba(0,0,0,0.7)); display: flex; align-items: center; justify-content: center; z-index: 10000; }
-    .ce-notif-modal-content { background: linear-gradient(135deg, var(--app-page-bg-a) 0%, var(--app-page-bg-b) 100%); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-md); padding: 1.25rem; width: 90%; max-width: 450px; max-height: 80vh; overflow-y: auto; }
-    .ce-notif-form-input { width: 100%; padding: 0.5rem; background: var(--app-input-bg, rgba(0,0,0,0.3)); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; box-sizing: border-box; }
-    .ce-notif-form-select { width: 100%; padding: 0.5rem; background: var(--app-input-bg, rgba(0,0,0,0.3)); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; }
-    .ce-notif-form-textarea { width: 100%; padding: 0.5rem; background: var(--app-input-bg, rgba(0,0,0,0.3)); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; resize: vertical; box-sizing: border-box; }
+    .ce-notif-modal-content { background: linear-gradient(135deg, var(--app-page-bg-a) 0%, var(--app-page-bg-b) 100%); border: 1px solid var(--border-hover); border-radius: var(--radius-md); padding: 1.25rem; width: 90%; max-width: 450px; max-height: 80vh; overflow-y: auto; }
+    .ce-notif-form-input { width: 100%; padding: 0.5rem; background: var(--app-input-bg, rgba(0,0,0,0.3)); border: 1px solid var(--border-hover); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; box-sizing: border-box; }
+    .ce-notif-form-select { width: 100%; padding: 0.5rem; background: var(--app-input-bg, rgba(0,0,0,0.3)); border: 1px solid var(--border-hover); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; }
+    .ce-notif-form-textarea { width: 100%; padding: 0.5rem; background: var(--app-input-bg, rgba(0,0,0,0.3)); border: 1px solid var(--border-hover); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; resize: vertical; box-sizing: border-box; }
 
     /* Buttons - notification modal */
-    .ce-btn-cancel { padding: 0.5rem 1rem; background: var(--surface-glass-hover, rgba(255,255,255,0.08)); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-secondary); cursor: pointer; font-size: 0.85rem; }
+    .ce-btn-cancel { padding: 0.5rem 1rem; background: var(--surface-glass-hover, rgba(255,255,255,0.08)); border: 1px solid var(--border-hover); border-radius: var(--radius-sm); color: var(--color-dark-text-secondary); cursor: pointer; font-size: 0.85rem; }
     .ce-btn-save { padding: 0.5rem 1rem; background: var(--context-primary, #00d4aa); border: none; border-radius: var(--radius-sm); color: #000; cursor: pointer; font-size: 0.85rem; font-weight: 500; }
     .ce-btn-edit-icon { background: var(--surface-glass-hover, rgba(255,255,255,0.08)); border: none; color: var(--color-dark-text-secondary); padding: 0.35rem 0.5rem; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--text-xs); }
-    .ce-notif-card { background: var(--surface-glass-subtle, rgba(255,255,255,0.03)); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-base); padding: 0.75rem; }
-    .ce-rule-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: var(--surface-glass-subtle, rgba(255,255,255,0.03)); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08); }
+    .ce-notif-card { background: var(--surface-glass-subtle, rgba(255,255,255,0.03)); border: 1px solid var(--border-default); border-radius: var(--radius-base); padding: 0.75rem; }
+    .ce-rule-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: var(--surface-glass-subtle, rgba(255,255,255,0.03)); border-radius: var(--radius-sm); border: 1px solid var(--border-default); }
     .ce-rule-icon { font-size: 0.65rem; }
     .ce-operator-btn { font-size: 0.7rem; padding: 0.2rem 0.5rem; color: white; border: none; }
 
@@ -1984,7 +1984,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .ce-btn-approve { flex: 1; padding: 0.875rem 1.25rem; background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: var(--radius-md); color: var(--color-success-text-muted, #22c55e); font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 0.5rem; box-shadow: 0 0 20px rgba(34, 197, 94, 0.15); }
 
     /* Validation details */
-    .ce-validation-reasons-box { background: var(--surface-glass-hover, rgba(0, 0, 0, 0.2)); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-md); padding: 1rem; margin: 1rem 0; }
+    .ce-validation-reasons-box { background: var(--surface-glass-hover, rgba(0, 0, 0, 0.2)); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 1rem; margin: 1rem 0; }
 
     /* Feature card */
     .ce-feature-label { font-size: 0.65rem; margin-bottom: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
