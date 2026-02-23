@@ -874,6 +874,30 @@ class DashboardApp extends LitElement {
         grid-template-columns: repeat(3, 1fr);
       }
     }
+
+    .offline-banner {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 10000;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #1a1a2e;
+      text-align: center;
+      padding: 8px 16px;
+      font-size: var(--text-sm, 0.85rem);
+      font-weight: 600;
+      animation: slideDown 0.3s ease-out;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    @keyframes slideDown {
+      from { transform: translateY(-100%); }
+      to { transform: translateY(0); }
+    }
   `]
 
   static properties = {
@@ -892,7 +916,8 @@ class DashboardApp extends LitElement {
     currentUser: { type: Object },
     activeTab: { type: String },
     currentTime: { type: String },
-    showLogsFab: { type: Boolean }
+    showLogsFab: { type: Boolean },
+    isOffline: { type: Boolean }
   }
   
   constructor() {
@@ -909,6 +934,7 @@ class DashboardApp extends LitElement {
     this.showNotesPage = false
     this.showContextEnginePage = false
     this.showSslConfigPage = false
+    this.isOffline = !navigator.onLine
     this.showLogsFab = localStorage.getItem('symbion_show_logs') === 'true'
     this.currentUser = authService.getCurrentUser()
     // Restaurer le dernier onglet actif depuis sessionStorage (persiste aux reloads, reset à la fermeture du navigateur)
@@ -980,6 +1006,12 @@ class DashboardApp extends LitElement {
     }
     window.addEventListener('context-change', this._boundHandlers.contextChange)
 
+    // Offline detection
+    this._handleOnline = () => { this.isOffline = false }
+    this._handleOffline = () => { this.isOffline = true }
+    window.addEventListener('online', this._handleOnline)
+    window.addEventListener('offline', this._handleOffline)
+
     try {
       // Initialiser les services
       await this.initializeServices()
@@ -1033,6 +1065,9 @@ class DashboardApp extends LitElement {
       this._focusTrap.destroy()
       this._focusTrap = null
     }
+
+    window.removeEventListener('online', this._handleOnline)
+    window.removeEventListener('offline', this._handleOffline)
   }
 
   // PWA4: Focus trap management for full-page overlays
@@ -1191,6 +1226,12 @@ class DashboardApp extends LitElement {
   
   render() {
     return html`
+      ${this.isOffline ? html`
+        <div class="offline-banner" role="alert" aria-live="assertive">
+          ⚡ Mode hors-ligne — Les données affichées peuvent ne pas être à jour
+        </div>
+      ` : ''}
+
       <!-- Living background layers -->
       <div class="bio-background"></div>
       <div class="ambient-particles"></div>
