@@ -55,13 +55,13 @@ class LogsViewer extends LitElement {
 
     .connection-badge.online {
       background: rgba(34, 197, 94, 0.15);
-      color: #22c55e;
+      color: var(--color-success-text-muted, #22c55e);
       border: 1px solid rgba(34, 197, 94, 0.3);
     }
 
     .connection-badge.offline {
       background: rgba(255, 107, 107, 0.15);
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
       border: 1px solid rgba(255, 107, 107, 0.3);
     }
 
@@ -284,7 +284,7 @@ class LogsViewer extends LitElement {
     }
 
     .level-debug { background: rgba(148,163,184,0.12); color: #94a3b8; }
-    .level-info { background: rgba(34,197,94,0.12); color: #22c55e; }
+    .level-info { background: rgba(34,197,94,0.12); color: var(--color-success-text-muted, #22c55e); }
     .level-notice { background: rgba(59,130,246,0.12); color: #3b82f6; }
     .level-warning { background: rgba(245,158,11,0.15); color: #f59e0b; }
     .level-error { background: rgba(239,68,68,0.15); color: #ef4444; }
@@ -321,7 +321,7 @@ class LogsViewer extends LitElement {
       font-size: 0.8em;
       white-space: pre-wrap;
       word-break: break-all;
-      color: #aaa;
+      color: var(--color-dark-text-secondary, #aaa);
       max-height: 300px;
       overflow-y: auto;
     }
@@ -416,7 +416,7 @@ class LogsViewer extends LitElement {
       }
 
       .log-card:active {
-        background: rgba(255,255,255,0.06);
+        background: var(--surface-glass-hover, rgba(255,255,255,0.06));
       }
 
       .log-card-header {
@@ -452,7 +452,7 @@ class LogsViewer extends LitElement {
         font-size: 0.7em;
         white-space: pre-wrap;
         word-break: break-all;
-        color: #aaa;
+        color: var(--color-dark-text-secondary, #aaa);
         max-height: 250px;
         overflow-y: auto;
       }

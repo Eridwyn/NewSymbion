@@ -90,7 +90,7 @@ class AgentsNetworkWidget extends LitElement {
       background: rgba(239, 68, 68, 0.1);
       border: 1px solid rgba(239, 68, 68, 0.3);
       border-radius: var(--radius-base);
-      color: #fca5a5;
+      color: var(--color-error-text-muted, #fca5a5);
       text-align: center;
     }
 
@@ -266,7 +266,7 @@ class AgentsNetworkWidget extends LitElement {
 
     .action-btn.power {
       background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.2) 100%);
-      color: #fca5a5;
+      color: var(--color-error-text-muted, #fca5a5);
       border: 1px solid rgba(239, 68, 68, 0.4);
       box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
     }
@@ -316,7 +316,7 @@ class AgentsNetworkWidget extends LitElement {
     .action-btn.delete:hover:not(:disabled) {
       background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.2) 100%);
       border-color: rgba(239, 68, 68, 0.5);
-      color: #fca5a5;
+      color: var(--color-error-text-muted, #fca5a5);
       transform: translateY(-2px);
       box-shadow: 0 4px 16px rgba(239, 68, 68, 0.25);
     }

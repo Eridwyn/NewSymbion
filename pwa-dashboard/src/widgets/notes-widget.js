@@ -116,7 +116,7 @@ class NotesWidget extends LitElement {
     }
 
     .urgent-indicator {
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
       font-size: 0.9em;
     }
 
@@ -195,8 +195,8 @@ class NotesWidget extends LitElement {
 
     /* Utility classes (ex-inline) */
     .nw-subtitle { font-size: 0.6em; opacity: 0.7; font-weight: normal; }
-    .nw-error-state { color: #ff6b6b; }
-    .nw-no-context { background: rgba(255,107,107,0.2); color: #ff6b6b; }
+    .nw-error-state { color: var(--color-danger-text-muted, #ff6b6b); }
+    .nw-no-context { background: rgba(255,107,107,0.2); color: var(--color-danger-text-muted, #ff6b6b); }
   `]
 
   static properties = {

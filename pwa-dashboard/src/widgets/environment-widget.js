@@ -87,7 +87,7 @@ class EnvironmentWidget extends LitElement {
       background: rgba(239, 68, 68, 0.1);
       border: 1px solid rgba(239, 68, 68, 0.3);
       border-radius: var(--radius-base, 0.5rem);
-      color: #fca5a5;
+      color: var(--color-error-text-muted, #fca5a5);
       text-align: center;
     }
 
@@ -228,7 +228,7 @@ class EnvironmentWidget extends LitElement {
     }
 
     .reading-item {
-      background: rgba(0, 0, 0, 0.2);
+      background: var(--surface-glass-strong, rgba(0, 0, 0, 0.2));
       padding: 12px;
       border-radius: var(--radius-base, 0.5rem);
       display: flex;
@@ -301,7 +301,7 @@ class EnvironmentWidget extends LitElement {
     .sensor-delete-btn:hover {
       background: rgba(239, 68, 68, 0.2);
       border-color: rgba(239, 68, 68, 0.4);
-      color: #fca5a5;
+      color: var(--color-error-text-muted, #fca5a5);
     }
 
     /* empty-state provided by emptyStateStyles */
@@ -461,7 +461,7 @@ class EnvironmentWidget extends LitElement {
     }
 
     /* Utility classes (ex-inline) */
-    .ew-chart-hint { color: #888; margin: 0 0 12px 0; }
+    .ew-chart-hint { color: var(--color-dark-text-tertiary, #888); margin: 0 0 12px 0; }
     .ew-sensor-value-row { display: flex; align-items: center; gap: 8px; }
   `]
 

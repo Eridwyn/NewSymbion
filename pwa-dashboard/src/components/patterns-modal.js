@@ -82,7 +82,7 @@ class PatternsModal extends LitElement {
       background: linear-gradient(135deg,
         rgba(255, 107, 107, 0.15) 0%,
         rgba(255, 107, 107, 0.08) 100%);
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
       cursor: pointer;
       transition: all var(--duration-base) var(--ease-out);
       font-size: 1rem;

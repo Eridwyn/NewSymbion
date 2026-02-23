@@ -100,7 +100,7 @@ class ToastNotifications extends LitElement {
 
     .toast-priority.P0 {
       background: rgba(239, 68, 68, 0.2);
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
     }
 
     .toast-priority.P1 {

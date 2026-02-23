@@ -121,7 +121,7 @@ class PasskeyManager extends LitElement {
     .delete-btn {
       background: rgba(255, 107, 107, 0.1);
       border: 1px solid rgba(255, 107, 107, 0.3);
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
       padding: 0.5rem 1rem;
       border-radius: var(--radius-sm);
       font-size: 0.85em;
@@ -144,7 +144,7 @@ class PasskeyManager extends LitElement {
     .error {
       background: rgba(255, 107, 107, 0.1);
       border: 1px solid rgba(255, 107, 107, 0.3);
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
       padding: 1rem;
       border-radius: var(--radius-base, 0.5rem);
       margin-bottom: 1rem;

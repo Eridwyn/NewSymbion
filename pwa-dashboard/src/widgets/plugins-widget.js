@@ -195,7 +195,7 @@ class PluginsWidget extends LitElement {
     .error {
       text-align: center;
       padding: 1rem;
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
       background: rgba(255, 107, 107, 0.1);
       border: 1px solid rgba(255, 107, 107, 0.3);
       border-radius: var(--radius-sm);

@@ -49,13 +49,13 @@ export class SslWidget extends LitElement {
 
     .summary-warning {
       background: linear-gradient(135deg, rgba(251, 191, 36, 0.25) 0%, rgba(245, 158, 11, 0.2) 100%);
-      color: #fbbf24;
+      color: var(--color-warning-text-muted, #fbbf24);
       border: 1px solid rgba(251, 191, 36, 0.4);
     }
 
     .summary-critical {
       background: linear-gradient(135deg, rgba(255, 107, 107, 0.25) 0%, rgba(239, 68, 68, 0.2) 100%);
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
       border: 1px solid rgba(255, 107, 107, 0.4);
     }
 
@@ -178,8 +178,8 @@ export class SslWidget extends LitElement {
     }
 
     .days-remaining.ok { color: var(--context-primary, #00d4aa); }
-    .days-remaining.warning { color: #fbbf24; }
-    .days-remaining.critical { color: #ff6b6b; }
+    .days-remaining.warning { color: var(--color-warning-text-muted, #fbbf24); }
+    .days-remaining.critical { color: var(--color-danger-text-muted, #ff6b6b); }
     .days-remaining.error { color: var(--color-dark-text-tertiary, #94a3b8); }
 
     .expiry-date {
@@ -292,7 +292,7 @@ export class SslWidget extends LitElement {
 
     .close-btn:hover {
       background: rgba(255, 107, 107, 0.15);
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
     }
 
     /* Content */
@@ -373,12 +373,12 @@ export class SslWidget extends LitElement {
 
     .threshold-warning {
       background: rgba(251, 191, 36, 0.15);
-      color: #fbbf24;
+      color: var(--color-warning-text-muted, #fbbf24);
     }
 
     .threshold-critical {
       background: rgba(255, 107, 107, 0.15);
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
     }
 
     .domain-card-actions {
@@ -410,7 +410,7 @@ export class SslWidget extends LitElement {
     }
 
     .domain-card-actions .delete-btn:hover {
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
     }
 
     /* Form */
@@ -446,7 +446,7 @@ export class SslWidget extends LitElement {
     .form-input {
       width: 100%;
       padding: 0.625rem 0.875rem;
-      background: rgba(0, 0, 0, 0.4);
+      background: var(--app-input-bg, rgba(0, 0, 0, 0.4));
       border: 1px solid var(--border-medium);
       border-radius: var(--radius-base);
       color: var(--color-dark-text-primary, #f8f9fa);

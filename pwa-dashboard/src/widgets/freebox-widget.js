@@ -99,7 +99,7 @@ class FreeboxWidget extends LitElement {
     }
 
     .presence-label.away {
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
     }
 
     .connection-stats {
@@ -111,7 +111,7 @@ class FreeboxWidget extends LitElement {
     .stat-item {
       text-align: center;
       padding: 0.5rem;
-      background: rgba(255, 255, 255, 0.04);
+      background: var(--surface-glass, rgba(255, 255, 255, 0.04));
       border-radius: var(--radius-base);
     }
 
@@ -140,7 +140,7 @@ class FreeboxWidget extends LitElement {
       gap: 0.5rem;
       margin-top: 0.75rem;
       padding: 0.5rem;
-      background: rgba(255, 255, 255, 0.04);
+      background: var(--surface-glass, rgba(255, 255, 255, 0.04));
       border-radius: var(--radius-base);
       color: var(--color-dark-text-tertiary, #94a3b8);
       font-size: 0.8em;

@@ -131,7 +131,7 @@ export class SslConfigPage extends LitElement {
     }
 
     .domain-card:hover {
-      background: rgba(255, 255, 255, 0.06);
+      background: var(--surface-glass-hover, rgba(255, 255, 255, 0.06));
       border-color: var(--ctx-bg-intense);
     }
 
@@ -166,7 +166,7 @@ export class SslConfigPage extends LitElement {
       gap: 1rem;
       margin-bottom: 1rem;
       padding: 0.75rem;
-      background: rgba(0, 0, 0, 0.2);
+      background: var(--surface-glass-strong, rgba(0, 0, 0, 0.2));
       border-radius: var(--radius-base);
     }
 
@@ -190,11 +190,11 @@ export class SslConfigPage extends LitElement {
     }
 
     .detail-value.warning {
-      color: #fbbf24;
+      color: var(--color-warning-text-muted, #fbbf24);
     }
 
     .detail-value.critical {
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
     }
 
     .domain-thresholds {
@@ -214,13 +214,13 @@ export class SslConfigPage extends LitElement {
 
     .threshold-warning {
       background: rgba(251, 191, 36, 0.1);
-      color: #fbbf24;
+      color: var(--color-warning-text-muted, #fbbf24);
       border: 1px solid rgba(251, 191, 36, 0.2);
     }
 
     .threshold-critical {
       background: rgba(255, 107, 107, 0.1);
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
       border: 1px solid rgba(255, 107, 107, 0.2);
     }
 
@@ -258,7 +258,7 @@ export class SslConfigPage extends LitElement {
     .delete-btn {
       background: rgba(255, 107, 107, 0.1);
       border: 1px solid rgba(255, 107, 107, 0.2);
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
     }
 
     .delete-btn:hover {

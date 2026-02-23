@@ -18,7 +18,7 @@ export const formInputStyles = css`
     width: 100%;
     box-sizing: border-box;
     padding: 0.75rem 1rem;
-    background: rgba(0, 0, 0, 0.4);
+    background: var(--app-input-bg, rgba(0, 0, 0, 0.4));
     border: 1px solid var(--border-medium, rgba(255, 255, 255, 0.12));
     border-radius: var(--radius-md, 8px);
     color: var(--color-dark-text-primary, #f8f9fa);
@@ -37,7 +37,7 @@ export const formInputStyles = css`
 
   .form-input::placeholder,
   .form-textarea::placeholder {
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--app-placeholder, rgba(255, 255, 255, 0.3));
   }
 
   .form-textarea {
@@ -143,7 +143,7 @@ export const btnSuccessStyles = css`
   .btn-success {
     background: rgba(34, 197, 94, 0.15);
     border: 1px solid rgba(34, 197, 94, 0.4);
-    color: #22c55e;
+    color: var(--color-success-text-muted, #22c55e);
   }
 
   .btn-success:hover {

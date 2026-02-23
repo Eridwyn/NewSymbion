@@ -644,7 +644,7 @@ class DashboardApp extends LitElement {
       border-radius: var(--radius-md, 0.75rem);
       padding: 1.2rem;
       margin: 1rem 0;
-      color: #ff6b6b;
+      color: var(--color-danger-text-muted, #ff6b6b);
       font-weight: 500;
       box-shadow: 0 4px 16px rgba(255, 107, 107, 0.1);
     }
@@ -749,15 +749,15 @@ class DashboardApp extends LitElement {
         right: 0;
         margin-bottom: 0;
         background: linear-gradient(to top,
-          rgba(10, 10, 15, 0.98) 0%,
-          rgba(14, 14, 19, 0.95) 100%);
+          var(--app-nav-bg-a) 0%,
+          var(--app-nav-bg-b) 100%);
         backdrop-filter: blur(var(--blur-xl));
         -webkit-backdrop-filter: blur(var(--blur-xl));
         z-index: 90;
         padding: var(--space-2) var(--space-3);
         gap: var(--space-2);
         border-top: 1px solid var(--ctx-border);
-        box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.6),
+        box-shadow: var(--app-nav-shadow),
                     0 -1px 0 var(--ctx-border-subtle);
       }
 
@@ -885,7 +885,7 @@ class DashboardApp extends LitElement {
       }
 
       .dropdown-overlay {
-        background: rgba(0, 0, 0, 0.4);
+        background: var(--app-overlay-dim, rgba(0, 0, 0, 0.4));
       }
 
       @keyframes dropdownSlideUp {
