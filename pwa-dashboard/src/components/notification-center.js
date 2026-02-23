@@ -458,7 +458,7 @@ class NotificationCenter extends LitElement {
         }
         .notif-header-btn:hover {
           background: var(--surface-glass-bright);
-          color: #fff;
+          color: var(--color-dark-text-primary, #f8f9fa);
         }
         .notif-header-btn.danger {
           border-color: rgba(239,68,68,0.3);
@@ -479,7 +479,7 @@ class NotificationCenter extends LitElement {
         }
         .notif-close:hover {
           background: rgba(255,255,255,0.2);
-          color: #fff;
+          color: var(--color-dark-text-primary, #f8f9fa);
         }
         .notif-content {
           max-height: calc(80vh - 60px);

@@ -13,7 +13,7 @@ class LogsViewer extends LitElement {
     :host {
       display: block;
       min-height: 100vh;
-      background: #0a0a0b;
+      background: var(--color-dark-bg, #0a0a0b);
       color: var(--color-dark-text-primary, #f8f9fa);
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
@@ -23,7 +23,7 @@ class LogsViewer extends LitElement {
       align-items: center;
       justify-content: space-between;
       padding: 1rem 1.5rem;
-      background: linear-gradient(135deg, #111 0%, #1a1a2e 100%);
+      background: linear-gradient(135deg, var(--color-dark-surface, #111) 0%, var(--color-dark-elevated, #1a1a2e) 100%);
       border-bottom: 1px solid var(--border-default);
       position: sticky;
       top: 0;
@@ -143,7 +143,7 @@ class LogsViewer extends LitElement {
     }
 
     .filter-select option {
-      background: #1a1a2e;
+      background: var(--color-dark-surface, #1a1a2e);
       color: var(--color-dark-text-primary, #f8f9fa);
     }
 
@@ -200,7 +200,7 @@ class LogsViewer extends LitElement {
     th {
       padding: 0.6rem 0.8rem;
       text-align: left;
-      background: #111;
+      background: var(--color-dark-surface, #111);
       color: var(--color-dark-text-tertiary, #94a3b8);
       font-weight: 600;
       font-size: 0.85em;
@@ -314,7 +314,7 @@ class LogsViewer extends LitElement {
     }
 
     .json-expand {
-      background: rgba(0,0,0,0.3);
+      background: var(--surface-glass-strong, rgba(0,0,0,0.3));
       padding: 0.8rem 1rem;
       border-left: 3px solid #818cf8;
       font-family: 'JetBrains Mono', monospace;
@@ -444,7 +444,7 @@ class LogsViewer extends LitElement {
 
       .log-card-expand {
         margin-top: 0.5rem;
-        background: rgba(0,0,0,0.3);
+        background: var(--surface-glass-strong, rgba(0,0,0,0.3));
         padding: 0.6rem;
         border-radius: var(--radius-sm);
         border-left: 3px solid #818cf8;

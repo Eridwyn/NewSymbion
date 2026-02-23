@@ -96,7 +96,7 @@ class AgentControlWidget extends LitElement {
       gap: 12px;
       font-size: var(--text-xl, 1.25rem);
       font-weight: 600;
-      color: #ffffff;
+      color: var(--color-dark-text-primary, #f8f9fa);
     }
 
     .os-icon {
@@ -112,7 +112,7 @@ class AgentControlWidget extends LitElement {
     .agent-hostname {
       font-size: var(--text-xl, 1.25rem);
       font-weight: 600;
-      color: #ffffff;
+      color: var(--color-dark-text-primary, #f8f9fa);
     }
 
     .agent-meta {
@@ -153,7 +153,7 @@ class AgentControlWidget extends LitElement {
         rgba(255, 107, 107, 0.25) 0%,
         rgba(255, 107, 107, 0.15) 100%);
       border-color: rgba(255, 107, 107, 0.5);
-      color: #ffffff;
+      color: var(--color-dark-text-primary, #f8f9fa);
       transform: rotate(90deg) translateY(-2px);
       box-shadow: 0 6px 16px rgba(255, 107, 107, 0.3);
     }
@@ -313,7 +313,7 @@ class AgentControlWidget extends LitElement {
 
     .info-value {
       font-size: var(--text-base, 1rem);
-      color: #ffffff;
+      color: var(--color-dark-text-primary, #f8f9fa);
       font-family: 'Monaco', 'Consolas', monospace;
     }
 
@@ -353,7 +353,7 @@ class AgentControlWidget extends LitElement {
 
     .process-name {
       font-family: 'Monaco', 'Consolas', monospace;
-      color: #ffffff;
+      color: var(--color-dark-text-primary, #f8f9fa);
     }
 
     .kill-btn {
@@ -484,7 +484,7 @@ class AgentControlWidget extends LitElement {
       background: var(--surface-glass);
       border: 1px solid rgba(255, 255, 255, 0.2);
       border-radius: var(--radius-base);
-      color: #ffffff;
+      color: var(--color-dark-text-primary, #f8f9fa);
       font-family: 'Monaco', 'Consolas', monospace;
       font-size: var(--text-sm, 0.875rem);
     }
@@ -569,7 +569,7 @@ class AgentControlWidget extends LitElement {
     .ac-error-icon { font-size: 3em; margin-bottom: 1rem; opacity: 0.5; }
     .ac-error-text { font-size: 1.1em; opacity: 0.8; text-align: center; }
     .ac-error-hint { opacity: 0.6; }
-    .ac-error-close-btn { margin-top: 2rem; padding: 0.8rem 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: var(--radius-base); color: #fff; cursor: pointer; font-size: 0.95em; }
+    .ac-error-close-btn { margin-top: 2rem; padding: 0.8rem 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: var(--radius-base); color: var(--color-dark-text-primary, #f8f9fa); cursor: pointer; font-size: 0.95em; }
 
     /* Responsive */
     @media (max-width: 768px) {
