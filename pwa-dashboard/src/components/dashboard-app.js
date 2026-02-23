@@ -698,6 +698,10 @@ class DashboardApp extends LitElement {
       gap: 1.2rem;
     }
 
+    .tab-content.active > * {
+      animation: fadeIn 0.2s ease-out;
+    }
+
     @media (max-width: 768px) {
       .tabs {
         position: fixed;

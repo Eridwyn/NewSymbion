@@ -13,11 +13,11 @@ import { calculatePriorityScore, sortNotesByPriority, isHighPriority } from '../
 import { applyAllFilters, extractAllTags } from '../utils/notes-filters.js'
 import notesStreamService from '../services/notes-stream-service.js'
 import '../components/organic-loader.js'
-import { sharedAnimations } from '../styles/shared-animations.js'
+import { sharedAnimations, pageTransitionStyles } from '../styles/shared-animations.js'
 import { overlayStyles, closeButtonStyles, scrollbarStyles } from '../styles/shared-patterns.js'
 
 class NotesPage extends LitElement {
-  static styles = [sharedAnimations, overlayStyles, closeButtonStyles, scrollbarStyles, css`
+  static styles = [sharedAnimations, pageTransitionStyles, overlayStyles, closeButtonStyles, scrollbarStyles, css`
     .notes-container {
       max-width: 1200px;
       margin: var(--space-6) auto;

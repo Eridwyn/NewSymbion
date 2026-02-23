@@ -1,6 +1,6 @@
 import { LitElement, html, css } from 'lit'
 import './organic-loader.js'
-import { sharedAnimations } from '../styles/shared-animations.js'
+import { sharedAnimations, pageTransitionStyles } from '../styles/shared-animations.js'
 import { overlayStyles, scrollbarStyles, statusBadgeStyles, sectionBadgeStyles } from '../styles/shared-patterns.js'
 import { pageHeaderStyles } from '../styles/shared-page.js'
 import { formInputStyles, formGroupStyles, btnStyles } from '../styles/shared-forms.js'
@@ -16,7 +16,7 @@ export class SslConfigPage extends LitElement {
     showAddForm: { type: Boolean }
   }
 
-  static styles = [sharedAnimations, overlayStyles, scrollbarStyles, pageHeaderStyles, formInputStyles, formGroupStyles, btnStyles, statusBadgeStyles, sectionBadgeStyles, sectionStyles, css`
+  static styles = [sharedAnimations, pageTransitionStyles, overlayStyles, scrollbarStyles, pageHeaderStyles, formInputStyles, formGroupStyles, btnStyles, statusBadgeStyles, sectionBadgeStyles, sectionStyles, css`
     :host {
       z-index: 1000;
       overflow-x: hidden;

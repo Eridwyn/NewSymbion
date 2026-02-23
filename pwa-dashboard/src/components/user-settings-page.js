@@ -8,7 +8,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
-import { sharedAnimations } from '../styles/shared-animations.js'
+import { sharedAnimations, pageTransitionStyles } from '../styles/shared-animations.js'
 import { sectionStyles } from '../styles/shared-cards.js'
 import { overlayStyles, closeButtonStyles, scrollbarStyles, statusBadgeStyles } from '../styles/shared-patterns.js'
 import { btnStyles } from '../styles/shared-forms.js'
@@ -18,7 +18,7 @@ import decisionService from '../services/decision-service.js'
 import './passkey-manager.js'
 
 class UserSettingsPage extends LitElement {
-  static styles = [sharedAnimations, sectionStyles, statusBadgeStyles, btnStyles, overlayStyles, closeButtonStyles, scrollbarStyles, tabPillStyles, css`
+  static styles = [sharedAnimations, pageTransitionStyles, sectionStyles, statusBadgeStyles, btnStyles, overlayStyles, closeButtonStyles, scrollbarStyles, tabPillStyles, css`
     .settings-container {
       max-width: 800px;
       margin: var(--space-6) auto;

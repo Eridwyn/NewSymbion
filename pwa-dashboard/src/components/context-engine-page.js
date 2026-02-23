@@ -6,7 +6,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
-import { sharedAnimations } from '../styles/shared-animations.js'
+import { sharedAnimations, pageTransitionStyles } from '../styles/shared-animations.js'
 import { overlayStyles, closeButtonStyles, scrollbarStyles } from '../styles/shared-patterns.js'
 import { cardStyles } from '../styles/shared-cards.js'
 import { formInputStyles, btnSuccessStyles, btnSizeStyles } from '../styles/shared-forms.js'
@@ -20,7 +20,7 @@ import { IntelligenceMixin } from './ce-intelligence-mixin.js'
 import { ModesMixin } from './ce-modes-mixin.js'
 
 class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(LitElement))) {
-  static styles = [sharedAnimations, overlayStyles, closeButtonStyles, scrollbarStyles, formInputStyles, cardStyles, btnSuccessStyles, btnSizeStyles, css`
+  static styles = [sharedAnimations, pageTransitionStyles, overlayStyles, closeButtonStyles, scrollbarStyles, formInputStyles, cardStyles, btnSuccessStyles, btnSizeStyles, css`
     :host {
       display: flex;
       align-items: center;
