@@ -1943,6 +1943,138 @@ class ContextEnginePage extends LitElement {
         gap: 0.75rem;
       }
     }
+
+    /* === Utility classes (ex-inline styles) === */
+
+    /* Layout */
+    .ce-flex { display: flex; align-items: center; gap: 0.5rem; }
+    .ce-flex-col { display: flex; flex-direction: column; gap: 0.5rem; }
+    .ce-flex-col-md { display: flex; flex-direction: column; gap: 0.75rem; }
+    .ce-flex-wrap { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .ce-flex-wrap-sm { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    .ce-flex-between { display: flex; justify-content: space-between; align-items: center; }
+    .ce-flex-between-mb { display: flex; justify-content: space-between; margin-bottom: 0.25rem; }
+    .ce-flex-grow { flex: 1; }
+    .ce-flex-shrink-0 { flex-shrink: 0; }
+    .ce-flex-min-0 { flex: 1; min-width: 0; }
+    .ce-ml-auto { margin-left: auto; }
+    .ce-cursor-pointer { cursor: pointer; user-select: none; }
+
+    /* Spacing */
+    .ce-gap-md { gap: 0.75rem; }
+    .ce-gap-lg { gap: 1rem; }
+    .ce-mt-xs { margin-top: 0.25rem; }
+    .ce-mt-sm { margin-top: 0.5rem; }
+    .ce-mt-md { margin-top: 0.75rem; }
+    .ce-mt-lg { margin-top: 1rem; }
+    .ce-mt-xl { margin-top: 1.5rem; }
+    .ce-mb-0 { margin-bottom: 0; }
+    .ce-m-0 { margin: 0; }
+    .ce-heading { margin: 0 0 0.5rem; font-weight: 600; }
+
+    /* Typography */
+    .ce-text-xs { font-size: var(--text-xs); }
+    .ce-text-xs-secondary { font-size: var(--text-xs); color: var(--color-dark-text-secondary); }
+    .ce-text-xs-tertiary { font-size: var(--text-xs); color: var(--color-dark-text-tertiary); }
+    .ce-text-sm { font-size: 0.8rem; }
+    .ce-text-sm-secondary { font-size: 0.8rem; color: var(--color-dark-text-secondary); line-height: 1.6; }
+    .ce-text-md { font-size: 0.85rem; }
+    .ce-text-tiny { font-size: 0.7rem; }
+    .ce-text-tiny-tertiary { font-size: 0.7rem; color: var(--color-dark-text-tertiary); }
+    .ce-text-bold { font-weight: 600; }
+    .ce-text-center { text-align: center; }
+    .ce-text-2xl-bold { font-size: var(--text-2xl); font-weight: 700; }
+
+    /* Couleurs texte */
+    .ce-text-primary { color: var(--color-dark-text-primary); }
+    .ce-text-secondary { color: var(--color-dark-text-secondary); }
+    .ce-text-tertiary { color: var(--color-dark-text-tertiary); }
+    .ce-text-purple { color: #a78bfa; }
+    .ce-text-indigo { color: #818cf8; }
+    .ce-text-blue { color: #3b82f6; }
+    .ce-text-green { color: #22c55e; }
+    .ce-text-emerald { color: #10b981; }
+    .ce-text-amber { color: #f59e0b; }
+    .ce-text-orange { color: #fb923c; }
+    .ce-text-red { color: #ef4444; }
+
+    /* Backgrounds */
+    .ce-bg-dark { background: rgba(0, 0, 0, 0.2); padding: 0.5rem; border-radius: var(--radius-sm); }
+    .ce-bg-dark-xs { background: rgba(0, 0, 0, 0.2); padding: 0.1rem 0.3rem; border-radius: var(--radius-sm); }
+    .ce-bg-glass { background: rgba(255, 255, 255, 0.02); border-radius: var(--radius-base); border: 1px solid rgba(255, 255, 255, 0.08); }
+    .ce-bg-glass-item { background: rgba(255, 255, 255, 0.03); border-radius: var(--radius-sm); border: 1px solid rgba(255, 255, 255, 0.08); padding: 0.4rem 0.6rem; }
+    .ce-bg-glass-dashed { background: rgba(255, 255, 255, 0.02); border-radius: var(--radius-base); border: 1px dashed rgba(255, 255, 255, 0.1); margin-top: 0.75rem; }
+    .ce-stat-item { padding: 0.75rem; background: rgba(0, 0, 0, 0.2); border-radius: var(--radius-base); text-align: center; }
+
+    /* Badges */
+    .ce-badge-purple { padding: 0.35rem 0.875rem; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #a78bfa; font-size: var(--text-xs); border-radius: var(--radius-xl); }
+    .ce-badge-green { padding: 0.25rem 0.75rem; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: var(--radius-xl); font-size: var(--text-xs); color: #22c55e; }
+    .ce-badge-orange { padding: 0.25rem 0.75rem; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: var(--radius-xl); font-size: 0.8rem; color: #f59e0b; }
+    .ce-badge-neutral { padding: 0.3rem 0.75rem; border-radius: var(--radius-xl); background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); }
+    .ce-badge-tiny { font-size: 0.6rem; padding: 0.15rem 0.4rem; }
+
+    /* Bouton aide */
+    .ce-btn-help { cursor: pointer; font-size: var(--text-xs); font-weight: bold; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #3b82f6; border: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.4); }
+
+    /* Animations */
+    .ce-float-icon { font-size: var(--text-2xl); animation: float-icon 3s ease-in-out infinite; }
+    .ce-float-icon-sm { font-size: var(--text-xl); animation: float-icon 3s ease-in-out infinite; }
+    .ce-float-icon-lg { font-size: 3rem; animation: float-icon 3s ease-in-out infinite; }
+
+    /* Grids */
+    .ce-grid-auto { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; }
+    .ce-grid-2col { display: grid; grid-template-columns: auto 1fr; gap: 0.3rem 0.75rem; align-items: center; }
+
+    /* Progress bar */
+    .ce-progress-track { height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: 3px; overflow: hidden; }
+
+    /* Additional spacing */
+    .ce-p-md { padding: 0.75rem; }
+    .ce-p-lg { padding: 1rem; }
+    .ce-mb-xs { margin-bottom: 0.25rem; }
+    .ce-mb-sm { margin-bottom: 0.5rem; }
+    .ce-mb-md { margin-bottom: 0.75rem; }
+    .ce-mb-lg { margin-bottom: 1rem; }
+    .ce-mb-xl { margin-bottom: 1.25rem; }
+    .ce-mb-2xl { margin-bottom: 1.5rem; }
+    .ce-my-xs { margin: 0.25rem 0; }
+    .ce-heading-md { margin: 0 0 0.75rem; }
+
+    /* Font sizes */
+    .ce-text-base { font-size: 1rem; }
+    .ce-text-lg { font-size: 1.1rem; }
+    .ce-text-xl { font-size: var(--text-xl); }
+    .ce-text-normal { font-weight: normal; }
+
+    /* Display */
+    .ce-block { display: block; }
+    .ce-block-mb { display: block; margin-bottom: 0.3rem; }
+    .ce-opacity-6 { opacity: 0.6; }
+
+    /* Backgrounds */
+    .ce-bg-1a { background: #1a1a1a; }
+    .ce-bg-emerald { background: rgba(16, 185, 129, 0.15); padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .ce-bg-section { background: rgba(30, 35, 45, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.25rem; }
+
+    /* Checkbox */
+    .ce-checkbox { width: 16px; height: 16px; accent-color: var(--context-primary, #00d4aa); }
+
+    /* Flex variations */
+    .ce-flex-center { display: flex; align-items: center; justify-content: center; }
+
+    /* Section headers */
+    .ce-section-header { font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-dark-text-tertiary); margin-bottom: 0.75rem; }
+
+    /* Grid variations */
+    .ce-grid-auto-sm { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem; }
+
+    /* Opacity */
+    .ce-opacity-5 { opacity: 0.5; }
+    .ce-opacity-7 { opacity: 0.7; }
+    .ce-opacity-8 { opacity: 0.8; }
+
+    /* Cursor */
+    .ce-cursor { cursor: pointer; }
   `]
 
   static properties = {
@@ -2876,7 +3008,7 @@ class ContextEnginePage extends LitElement {
         .highlightedId="${this.highlightedAutomationId}"
         @slot-click="${this._handleTimelineSlotClick}"
         @automation-highlight="${this._handleTimelineHighlight}"
-        style="margin-bottom: 1.5rem;"
+        class="ce-mb-2xl"
       ></automation-timeline>
 
       <!-- Header Stats -->
@@ -2930,10 +3062,10 @@ class ContextEnginePage extends LitElement {
         <div class="automations-list">
           <!-- Add New Automation Card -->
           <div class="automation-card add-new" @click="${this.openCreateForm}">
-            <div class="automation-card-inner" style="display: flex; align-items: center; justify-content: center; min-height: 80px; cursor: pointer;">
-              <div style="text-align: center;">
+            <div class="automation-card-inner ce-flex-center" style="min-height: 80px; cursor: pointer;">
+              <div class="ce-text-center">
                 <div style="font-size: var(--text-2xl); margin-bottom: 0.25rem; opacity: 0.6;">+</div>
-                <div style="font-size: 0.85rem; color: var(--color-dark-text-secondary);">Nouvelle automation</div>
+                <div class="ce-text-md ce-text-secondary">Nouvelle automation</div>
               </div>
             </div>
           </div>
@@ -3022,7 +3154,7 @@ class ContextEnginePage extends LitElement {
             <span class="history-title-icon">📜</span>
             Historique récent
           </div>
-          <span style="font-size: var(--text-xs); color: var(--color-dark-text-tertiary);">
+          <span class="ce-text-xs-tertiary">
             ${this.automationHistory.length} exécution${this.automationHistory.length !== 1 ? 's' : ''}
           </span>
         </div>
@@ -3154,7 +3286,7 @@ class ContextEnginePage extends LitElement {
             <option value="${mode.value}" ?selected="${auto.goal_mode === mode.value}">${mode.label}</option>
           `)}
         </select>
-        <small style="color: var(--color-dark-text-tertiary); font-size: var(--text-xs); margin-top: 0.25rem; display: block;">
+        <small class="ce-text-xs-tertiary ce-mt-xs ce-block">
           Le mode que cette automation vise à atteindre. Permet à l'Intelligence d'apprendre.
         </small>
       </div>
@@ -3169,7 +3301,7 @@ class ContextEnginePage extends LitElement {
       </div>
 
       <div class="form-group">
-        <label style="display: flex; align-items: center; gap: 0.5rem;">
+        <label class="ce-flex">
           <input type="checkbox" ?checked="${auto.enabled !== false}"
             @change="${e => this.editingAutomation.enabled = e.target.checked}">
           Activée
@@ -3178,25 +3310,25 @@ class ContextEnginePage extends LitElement {
 
       <!-- Trust Settings -->
       <div class="form-group" style="background: var(--ctx-bg-subtle); padding: 0.75rem; border-radius: var(--radius-base); border: 1px solid var(--ctx-border-medium);">
-        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: var(--context-primary, #00d4aa);">🛡️ Niveau de confiance</label>
+        <label class="ce-text-bold ce-mb-sm ce-block" style="color: var(--context-primary, #00d4aa);">🛡️ Niveau de confiance</label>
 
-        <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+        <label class="ce-flex ce-mb-sm">
           <input type="checkbox" ?checked="${auto.trusted === true}"
             @change="${e => { this.editingAutomation.trusted = e.target.checked; this.requestUpdate() }}">
           <span>Trusted</span>
-          <span style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">— Auto-approuvée sans validation</span>
+          <span class="ce-text-tiny-tertiary">— Auto-approuvée sans validation</span>
         </label>
 
-        <label style="display: flex; align-items: center; gap: 0.5rem;">
+        <label class="ce-flex">
           <input type="checkbox" ?checked="${auto.skip_if_same_mode === true}"
             @change="${e => { this.editingAutomation.skip_if_same_mode = e.target.checked; this.requestUpdate() }}">
           <span>Skip si même mode</span>
-          <span style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">— Ne pas exécuter si déjà dans ce mode</span>
+          <span class="ce-text-tiny-tertiary">— Ne pas exécuter si déjà dans ce mode</span>
         </label>
 
-        <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.1); font-size: var(--text-xs); color: var(--color-dark-text-tertiary);">
+        <div class="ce-text-xs-tertiary ce-mt-sm" style="padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.1);">
           ${auto.trusted ? html`
-            <span style="color: #22c55e;">✓ Cette automation sera exécutée automatiquement sans demander de validation.</span>
+            <span class="ce-text-green">✓ Cette automation sera exécutée automatiquement sans demander de validation.</span>
           ` : html`
             <span>Le trust score augmente de +1% à chaque exécution réussie (max +20%).</span>
           `}
@@ -3206,21 +3338,21 @@ class ContextEnginePage extends LitElement {
       <!-- Actions Section -->
       <div class="form-group">
         <label>Actions (${auto.actions?.length || 0})</label>
-        <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
+        <div class="ce-flex-col ce-mt-sm">
           ${(auto.actions || []).map((action, idx) => html`
-            <div class="action-item" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: var(--radius-base); border: 1px solid rgba(255,255,255,0.08);">
-              <span style="flex: 1; font-size: 0.85rem;">${this.getActionLabel(action)}</span>
+            <div class="action-item ce-flex ce-bg-glass-item">
+              <span class="ce-flex-grow ce-text-md">${this.getActionLabel(action)}</span>
               <button class="btn btn-small btn-icon btn-danger" @click="${() => this.removeAction(idx)}" title="Supprimer">✕</button>
             </div>
           `)}
         </div>
 
         <!-- Add Action -->
-        <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: var(--radius-base); border: 1px dashed rgba(255,255,255,0.1);">
+        <div class="ce-bg-glass-dashed">
           <div style="display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap;">
             <div style="flex: 1; min-width: 150px;">
-              <label style="font-size: var(--text-xs); color: var(--color-dark-text-tertiary);">Type d'action</label>
-              <select class="form-input" id="new-action-type" style="margin-top: 0.25rem;">
+              <label class="ce-text-xs-tertiary">Type d'action</label>
+              <select class="form-input ce-mt-xs" id="new-action-type">
                 ${(this.schema?.actions || []).map(a => html`
                   <option value="${a.type}">${a.icon || ''} ${a.label}</option>
                 `)}
@@ -3230,9 +3362,9 @@ class ContextEnginePage extends LitElement {
           </div>
 
           ${this.showingActionConfig ? html`
-            <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.08);">
+            <div class="ce-mt-md" style="padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.08);">
               ${this.renderActionConfig()}
-              <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+              <div class="ce-flex ce-mt-md">
                 <button class="btn btn-small" @click="${() => this.showingActionConfig = false}">Annuler</button>
                 <button class="btn btn-small btn-primary" @click="${this.addConfiguredAction}">Ajouter</button>
               </div>
@@ -3241,9 +3373,9 @@ class ContextEnginePage extends LitElement {
         </div>
       </div>
 
-      <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
-        <button class="btn" style="flex: 1;" @click="${this.cancelForm}">Annuler</button>
-        <button class="btn btn-primary" style="flex: 1;" @click="${this.saveAutomation}">
+      <div class="ce-flex ce-gap-lg ce-mt-xl">
+        <button class="btn ce-flex-grow" @click="${this.cancelForm}">Annuler</button>
+        <button class="btn btn-primary ce-flex-grow" @click="${this.saveAutomation}">
           ${isEdit ? 'Enregistrer' : 'Créer'}
         </button>
       </div>
@@ -3313,7 +3445,7 @@ class ContextEnginePage extends LitElement {
     const actionSchema = this.schema?.actions?.find(a => a.type === type)
 
     if (!actionSchema || !actionSchema.fields?.length) {
-      return html`<div style="font-size: 0.8rem; color: var(--color-dark-text-tertiary);">
+      return html`<div class="ce-text-sm ce-text-tertiary">
         ${actionSchema?.description || 'Aucune configuration requise'}
       </div>`
     }
@@ -3321,7 +3453,7 @@ class ContextEnginePage extends LitElement {
     return html`
       ${actionSchema.fields.map((field, idx) => html`
         <div class="form-group" style="margin-bottom: ${idx < actionSchema.fields.length - 1 ? '0.5rem' : '0'};">
-          <label style="font-size: var(--text-xs);">${field.label}${field.required ? ' *' : ''}</label>
+          <label class="ce-text-xs">${field.label}${field.required ? ' *' : ''}</label>
           ${this.renderSchemaField(field, this.pendingAction?.[field.name], (val) => {
             this.pendingAction = { ...this.pendingAction, [field.name]: val }
             this.requestUpdate()
@@ -3423,16 +3555,16 @@ class ContextEnginePage extends LitElement {
 
     return html`
       <div class="form-group">
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
-          <label style="margin: 0;">Règles ${ruleCount > 0 ? `(${ruleCount})` : ''}</label>
+        <div class="ce-flex ce-mb-xs">
+          <label class="ce-m-0">Règles ${ruleCount > 0 ? `(${ruleCount})` : ''}</label>
           <button
             type="button"
             @click="${() => this.showHelp('rules')}"
-            style="cursor: pointer; font-size: var(--text-xs); font-weight: bold; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #3b82f6; border: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 2px 4px rgba(59,130,246,0.4);"
+            class="ce-btn-help"
           >?</button>
         </div>
 
-        <div class="rules-editor" style="padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: var(--radius-base); border: 1px solid rgba(255,255,255,0.08);">
+        <div class="rules-editor ce-bg-glass ce-p-md">
           ${this.renderRulesGroup(rules, [], 0)}
         </div>
       </div>
@@ -3462,7 +3594,7 @@ class ContextEnginePage extends LitElement {
 
     return html`
       <div class="rules-group" style="margin-left: ${indent}px; ${depth > 0 ? 'margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.02); border-radius: var(--radius-sm); border: 1px dashed rgba(255,255,255,0.1);' : ''}">
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+        <div class="ce-flex ce-mb-sm">
           <button
             class="btn btn-small"
             style="font-size: 0.7rem; padding: 0.2rem 0.5rem; background: ${operatorColor}; color: white; border: none;"
@@ -3470,9 +3602,9 @@ class ContextEnginePage extends LitElement {
             title="Cliquer pour basculer AND/OR"
           >${operatorLabel}</button>
           ${depth > 0 ? html`
-            <button class="btn btn-small btn-icon btn-danger" style="font-size: 0.6rem; padding: 0.15rem 0.4rem;" @click="${() => this.removeRulesGroup(path)}" title="Supprimer groupe">✕</button>
+            <button class="btn btn-small btn-icon btn-danger ce-badge-tiny" @click="${() => this.removeRulesGroup(path)}" title="Supprimer groupe">✕</button>
           ` : ''}
-          <span style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">
+          <span class="ce-text-tiny-tertiary">
             ${operatorHint}
           </span>
         </div>
@@ -3488,21 +3620,21 @@ class ContextEnginePage extends LitElement {
           }
         })}
 
-        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-          <button class="btn btn-small" style="font-size: 0.7rem;" @click="${() => this.showRuleConfigFor(path)}">
+        <div class="ce-flex ce-mt-sm">
+          <button class="btn btn-small ce-text-tiny" @click="${() => this.showRuleConfigFor(path)}">
             + Règle
           </button>
           ${depth < 1 ? html`
-            <button class="btn btn-small" style="font-size: 0.7rem;" @click="${() => this.addRulesGroup(path)}">
+            <button class="btn btn-small ce-text-tiny" @click="${() => this.addRulesGroup(path)}">
               + Groupe
             </button>
           ` : ''}
         </div>
 
         ${this.showingRuleConfig && JSON.stringify(this.pendingRulePath) === JSON.stringify(path) ? html`
-          <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1);">
+          <div class="ce-bg-glass-item ce-mt-md ce-p-md">
             ${this.renderRuleConfig()}
-            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+            <div class="ce-flex ce-mt-sm">
               <button class="btn btn-small" @click="${() => this.showingRuleConfig = false}">Annuler</button>
               <button class="btn btn-small btn-primary" @click="${this.addConfiguredRule}">Ajouter</button>
             </div>
@@ -3521,8 +3653,8 @@ class ContextEnginePage extends LitElement {
     return html`
       <div class="rule-item" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08); border-left: 3px solid ${categoryColor};">
         <span style="font-size: 0.65rem; color: ${categoryColor};" title="${isEvent ? 'Événement (déclencheur)' : 'État (condition)'}">${categoryIcon}</span>
-        <span style="flex: 1; font-size: 0.8rem;">${label}</span>
-        <button class="btn btn-small btn-icon btn-danger" style="font-size: 0.6rem; padding: 0.15rem 0.4rem;" @click="${() => this.removeRule(path)}" title="Supprimer">✕</button>
+        <span class="ce-flex-grow ce-text-sm">${label}</span>
+        <button class="btn btn-small btn-icon btn-danger ce-badge-tiny" @click="${() => this.removeRule(path)}" title="Supprimer">✕</button>
       </div>
     `
   }
@@ -3615,10 +3747,10 @@ class ContextEnginePage extends LitElement {
     const ruleSchema = allTypes.find(t => t.type === type)
 
     return html`
-      <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-        <div class="form-group" style="margin-bottom: 0;">
-          <label style="font-size: var(--text-xs);">Type de règle</label>
-          <select class="form-input" style="font-size: 0.8rem;"
+      <div class="ce-flex-col">
+        <div class="form-group ce-mb-0">
+          <label class="ce-text-xs">Type de règle</label>
+          <select class="form-input ce-text-sm"
             @change="${e => {
               this.pendingRuleType = e.target.value
               const newSchema = allTypes.find(t => t.type === e.target.value)
@@ -3637,13 +3769,13 @@ class ContextEnginePage extends LitElement {
             </optgroup>
           </select>
           ${ruleSchema?.description ? html`
-            <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-top: 0.25rem;">${ruleSchema.description}</div>
+            <div class="ce-text-tiny-tertiary ce-mt-xs">${ruleSchema.description}</div>
           ` : ''}
         </div>
 
         ${ruleSchema?.fields?.map(field => html`
-          <div class="form-group" style="margin-bottom: 0;">
-            <label style="font-size: var(--text-xs);">${field.label}${field.required ? ' *' : ''}</label>
+          <div class="form-group ce-mb-0">
+            <label class="ce-text-xs">${field.label}${field.required ? ' *' : ''}</label>
             ${this.renderSchemaField(field, this.pendingRule?.[field.name], (val) => {
               this.pendingRule = { ...this.pendingRule, [field.name]: val }
               this.requestUpdate()
@@ -3816,16 +3948,16 @@ class ContextEnginePage extends LitElement {
 
     return html`
       <div class="form-group">
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
-          <label style="margin: 0;">Déclencheurs ${hasTriggers ? `(${triggersGroup.triggers.length})` : ''}</label>
+        <div class="ce-flex ce-mb-xs">
+          <label class="ce-m-0">Déclencheurs ${hasTriggers ? `(${triggersGroup.triggers.length})` : ''}</label>
           <button
             type="button"
             @click="${() => this.showHelp('triggers')}"
-            style="cursor: pointer; font-size: var(--text-xs); font-weight: bold; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #3b82f6; border: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 2px 4px rgba(59,130,246,0.4);"
+            class="ce-btn-help"
           >?</button>
         </div>
 
-        <div class="triggers-editor" style="padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: var(--radius-base); border: 1px solid rgba(255,255,255,0.08);">
+        <div class="triggers-editor ce-bg-glass ce-p-md">
           ${this.renderTriggerGroup(triggersGroup, [], 0)}
         </div>
       </div>
@@ -3842,7 +3974,7 @@ class ContextEnginePage extends LitElement {
 
     return html`
       <div class="trigger-group" style="margin-left: ${indent}px; ${depth > 0 ? 'margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.02); border-radius: var(--radius-sm); border: 1px dashed rgba(255,255,255,0.1);' : ''}">
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+        <div class="ce-flex ce-mb-sm">
           <button
             class="btn btn-small"
             style="font-size: 0.7rem; padding: 0.2rem 0.5rem; background: ${operatorColor}; color: white; border: none;"
@@ -3850,9 +3982,9 @@ class ContextEnginePage extends LitElement {
             title="Cliquer pour basculer AND/OR"
           >${operatorLabel}</button>
           ${depth > 0 ? html`
-            <button class="btn btn-small btn-icon btn-danger" style="font-size: 0.6rem; padding: 0.15rem 0.4rem;" @click="${() => this.removeTriggerGroup(path)}" title="Supprimer groupe">✕</button>
+            <button class="btn btn-small btn-icon btn-danger ce-badge-tiny" @click="${() => this.removeTriggerGroup(path)}" title="Supprimer groupe">✕</button>
           ` : ''}
-          <span style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">
+          <span class="ce-text-tiny-tertiary">
             ${operatorHint}
           </span>
         </div>
@@ -3868,21 +4000,21 @@ class ContextEnginePage extends LitElement {
           }
         })}
 
-        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-          <button class="btn btn-small" style="font-size: 0.7rem;" @click="${() => this.showTriggerConfigFor(path)}">
+        <div class="ce-flex ce-mt-sm">
+          <button class="btn btn-small ce-text-tiny" @click="${() => this.showTriggerConfigFor(path)}">
             + Déclencheur
           </button>
           ${depth < 1 ? html`
-            <button class="btn btn-small" style="font-size: 0.7rem;" @click="${() => this.addTriggerGroup(path)}">
+            <button class="btn btn-small ce-text-tiny" @click="${() => this.addTriggerGroup(path)}">
               + Groupe
             </button>
           ` : ''}
         </div>
 
         ${this.showingTriggerConfig && JSON.stringify(this.pendingTriggerPath) === JSON.stringify(path) ? html`
-          <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1);">
+          <div class="ce-bg-glass-item ce-mt-md ce-p-md">
             ${this.renderTriggerConfig()}
-            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+            <div class="ce-flex ce-mt-sm">
               <button class="btn btn-small" @click="${() => this.showingTriggerConfig = false}">Annuler</button>
               <button class="btn btn-small btn-primary" @click="${this.addConfiguredTrigger}">Ajouter</button>
             </div>
@@ -3897,9 +4029,9 @@ class ContextEnginePage extends LitElement {
     const label = this.getTriggerLabel(trigger, triggerSchema)
 
     return html`
-      <div class="trigger-item" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08);">
-        <span style="flex: 1; font-size: 0.8rem;">${label}</span>
-        <button class="btn btn-small btn-icon btn-danger" style="font-size: 0.6rem; padding: 0.15rem 0.4rem;" @click="${() => this.removeTrigger(path)}" title="Supprimer">✕</button>
+      <div class="trigger-item ce-bg-glass-item ce-flex ce-my-xs">
+        <span class="ce-flex-grow ce-text-sm">${label}</span>
+        <button class="btn btn-small btn-icon btn-danger ce-badge-tiny" @click="${() => this.removeTrigger(path)}" title="Supprimer">✕</button>
       </div>
     `
   }
@@ -3961,10 +4093,10 @@ class ContextEnginePage extends LitElement {
     const triggerSchema = this.schema?.triggers?.find(t => t.type === type)
 
     return html`
-      <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-        <div class="form-group" style="margin-bottom: 0;">
-          <label style="font-size: var(--text-xs);">Type de déclencheur</label>
-          <select class="form-input" style="font-size: 0.8rem;"
+      <div class="ce-flex-col">
+        <div class="form-group ce-mb-0">
+          <label class="ce-text-xs">Type de déclencheur</label>
+          <select class="form-input ce-text-sm"
             @change="${e => {
               this.pendingTriggerType = e.target.value
               const newSchema = this.schema?.triggers?.find(t => t.type === e.target.value)
@@ -3976,13 +4108,13 @@ class ContextEnginePage extends LitElement {
             `)}
           </select>
           ${triggerSchema?.description ? html`
-            <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-top: 0.25rem;">${triggerSchema.description}</div>
+            <div class="ce-text-tiny-tertiary ce-mt-xs">${triggerSchema.description}</div>
           ` : ''}
         </div>
 
         ${triggerSchema?.fields?.map(field => html`
-          <div class="form-group" style="margin-bottom: 0;">
-            <label style="font-size: var(--text-xs);">${field.label}${field.required ? ' *' : ''}</label>
+          <div class="form-group ce-mb-0">
+            <label class="ce-text-xs">${field.label}${field.required ? ' *' : ''}</label>
             ${this.renderSchemaField(field, this.pendingTrigger?.[field.name], (val) => {
               this.pendingTrigger = { ...this.pendingTrigger, [field.name]: val }
               this.requestUpdate()
@@ -4075,28 +4207,28 @@ class ContextEnginePage extends LitElement {
 
     return html`
       <div class="form-group">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem;">
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <label style="margin: 0;">Conditions ${conditionCount > 0 ? `(${conditionCount})` : '(optionnel)'}</label>
+        <div class="ce-flex-between ce-mb-xs">
+          <div class="ce-flex">
+            <label class="ce-m-0">Conditions ${conditionCount > 0 ? `(${conditionCount})` : '(optionnel)'}</label>
             <button
               type="button"
               @click="${() => this.showHelp('conditions')}"
-              style="cursor: pointer; font-size: var(--text-xs); font-weight: bold; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #3b82f6; border: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 2px 4px rgba(59,130,246,0.4);"
+              class="ce-btn-help"
             >?</button>
           </div>
           ${hasConditions ? html`
-            <button type="button" class="btn btn-small btn-danger" @click="${() => this.clearConditions()}" style="font-size: 0.7rem; padding: 0.2rem 0.5rem;">
+            <button type="button" class="btn btn-small btn-danger ce-text-tiny" @click="${() => this.clearConditions()}" style="padding: 0.2rem 0.5rem;">
               Supprimer
             </button>
           ` : html`
-            <button type="button" class="btn btn-small" @click="${() => this.initConditions()}" style="font-size: var(--text-xs);">
+            <button type="button" class="btn btn-small" @click="${() => this.initConditions()}" class="ce-text-xs">
               + Ajouter
             </button>
           `}
         </div>
 
         ${hasConditions ? html`
-          <div class="conditions-editor" style="padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: var(--radius-base); border: 1px solid rgba(255,255,255,0.08);">
+          <div class="conditions-editor ce-bg-glass ce-p-md">
             ${this.renderConditionGroup(conditions, [], 0)}
           </div>
         ` : ''}
@@ -4183,7 +4315,7 @@ Exemple :
 
     return html`
       <div class="condition-group" style="margin-left: ${indent}px; ${depth > 0 ? 'margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.02); border-radius: var(--radius-sm); border: 1px dashed rgba(255,255,255,0.1);' : ''}">
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+        <div class="ce-flex ce-mb-sm">
           <button
             class="btn btn-small"
             style="font-size: 0.7rem; padding: 0.2rem 0.5rem; background: ${operatorColor}; color: white; border: none;"
@@ -4191,9 +4323,9 @@ Exemple :
             title="Cliquer pour basculer AND/OR"
           >${operatorLabel}</button>
           ${depth > 0 ? html`
-            <button class="btn btn-small btn-icon btn-danger" style="font-size: 0.6rem; padding: 0.15rem 0.4rem;" @click="${() => this.removeConditionGroup(path)}" title="Supprimer groupe">✕</button>
+            <button class="btn btn-small btn-icon btn-danger ce-badge-tiny" @click="${() => this.removeConditionGroup(path)}" title="Supprimer groupe">✕</button>
           ` : ''}
-          <span style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">
+          <span class="ce-text-tiny-tertiary">
             ${group.operator === 'and' ? 'Toutes les conditions doivent être vraies' : 'Au moins une condition doit être vraie'}
           </span>
         </div>
@@ -4209,19 +4341,19 @@ Exemple :
           }
         })}
 
-        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-          <button class="btn btn-small" style="font-size: 0.7rem;" @click="${() => this.showConditionConfigFor(path)}">
+        <div class="ce-flex ce-mt-sm">
+          <button class="btn btn-small ce-text-tiny" @click="${() => this.showConditionConfigFor(path)}">
             + Condition
           </button>
-          <button class="btn btn-small" style="font-size: 0.7rem;" @click="${() => this.addConditionGroup(path)}">
+          <button class="btn btn-small ce-text-tiny" @click="${() => this.addConditionGroup(path)}">
             + Groupe
           </button>
         </div>
 
         ${this.showingConditionConfig && JSON.stringify(this.pendingConditionPath) === JSON.stringify(path) ? html`
-          <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1);">
+          <div class="ce-bg-glass-item ce-mt-md ce-p-md">
             ${this.renderConditionConfig()}
-            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+            <div class="ce-flex ce-mt-sm">
               <button class="btn btn-small" @click="${() => this.showingConditionConfig = false}">Annuler</button>
               <button class="btn btn-small btn-primary" @click="${this.addConfiguredCondition}">Ajouter</button>
             </div>
@@ -4236,9 +4368,9 @@ Exemple :
     const label = this.getConditionLabel(cond, condSchema)
 
     return html`
-      <div class="condition-item" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08);">
-        <span style="flex: 1; font-size: 0.8rem;">${label}</span>
-        <button class="btn btn-small btn-icon btn-danger" style="font-size: 0.6rem; padding: 0.15rem 0.4rem;" @click="${() => this.removeCondition(path)}" title="Supprimer">✕</button>
+      <div class="condition-item ce-bg-glass-item ce-flex ce-my-xs">
+        <span class="ce-flex-grow ce-text-sm">${label}</span>
+        <button class="btn btn-small btn-icon btn-danger ce-badge-tiny" @click="${() => this.removeCondition(path)}" title="Supprimer">✕</button>
       </div>
     `
   }
@@ -4287,10 +4419,10 @@ Exemple :
     const condSchema = this.schema?.conditions?.find(c => c.type === type)
 
     return html`
-      <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-        <div class="form-group" style="margin-bottom: 0;">
-          <label style="font-size: var(--text-xs);">Type de condition</label>
-          <select class="form-input" style="font-size: 0.8rem;"
+      <div class="ce-flex-col">
+        <div class="form-group ce-mb-0">
+          <label class="ce-text-xs">Type de condition</label>
+          <select class="form-input ce-text-sm"
             @change="${e => {
               this.pendingConditionType = e.target.value
               const newSchema = this.schema?.conditions?.find(c => c.type === e.target.value)
@@ -4304,8 +4436,8 @@ Exemple :
         </div>
 
         ${condSchema?.fields?.map(field => html`
-          <div class="form-group" style="margin-bottom: 0;">
-            <label style="font-size: var(--text-xs);">${field.label}${field.required ? ' *' : ''}</label>
+          <div class="form-group ce-mb-0">
+            <label class="ce-text-xs">${field.label}${field.required ? ' *' : ''}</label>
             ${this.renderSchemaField(field, this.pendingCondition?.[field.name], (val) => {
               this.pendingCondition = { ...this.pendingCondition, [field.name]: val }
               this.requestUpdate()
@@ -4514,7 +4646,7 @@ Exemple :
             </span>
           ` : ''}
           ${h.trigger_type ? html`
-            <span style="opacity: 0.7;">via ${h.trigger_type}</span>
+            <span class="ce-opacity-7">via ${h.trigger_type}</span>
           ` : ''}
         </div>
       </div>
@@ -4532,10 +4664,10 @@ Exemple :
     }
 
     return html`
-      <div class="controls-title" style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
-        <span style="font-size: var(--text-xl); animation: float-icon 3s ease-in-out infinite;">⚖️</span>
+      <div class="controls-title ce-flex ce-gap-md ce-mb-lg">
+        <span class="ce-float-icon-sm">⚖️</span>
         <span>Demandes en attente</span>
-        <span style="padding: 0.25rem 0.75rem; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: var(--radius-xl); font-size: 0.8rem; color: #f59e0b; font-weight: 600;">
+        <span class="ce-badge-orange ce-text-bold">
           ${this.validations.length}
         </span>
       </div>
@@ -4560,17 +4692,17 @@ Exemple :
       ">
         <div class="validation-header" style="display: flex; align-items: flex-start; gap: 1rem;">
           <!-- Mini Gauge -->
-          <div style="flex-shrink: 0;">
+          <div class="ce-flex-shrink-0">
             ${this.renderMiniGauge(trustScore, 70)}
           </div>
 
-          <div class="validation-info" style="flex: 1; min-width: 0;">
-            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-              <span style="font-size: var(--text-xl);">⚡</span>
-              <div class="validation-title" style="font-size: 1.1rem; font-weight: 600; color: var(--color-dark-text-primary);">${actionType}</div>
+          <div class="validation-info ce-flex-min-0">
+            <div class="ce-flex ce-mb-sm">
+              <span class="ce-text-xl">⚡</span>
+              <div class="validation-title ce-text-bold ce-text-primary ce-text-lg">${actionType}</div>
             </div>
-            <div class="validation-subtitle" style="font-size: 0.85rem; color: var(--color-dark-text-secondary); display: flex; align-items: center; gap: 0.5rem;">
-              <span style="padding: 0.2rem 0.5rem; background: rgba(255,255,255,0.05); border-radius: var(--radius-sm); font-size: var(--text-xs);">
+            <div class="validation-subtitle ce-flex ce-text-md ce-text-secondary">
+              <span class="ce-text-xs" style="padding: 0.2rem 0.5rem; background: rgba(255,255,255,0.05); border-radius: var(--radius-sm);">
                 🤖 ${v.action?.agent_id || 'Système'}
               </span>
               <span style="padding: 0.2rem 0.5rem; background: ${glowColor}; border-radius: var(--radius-sm); font-size: var(--text-xs); color: ${color}; font-weight: 600;">
@@ -4587,7 +4719,7 @@ Exemple :
           padding: 1rem;
           margin: 1rem 0;
         ">
-          <div class="validation-reasons-title" style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-dark-text-tertiary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+          <div class="validation-reasons-title ce-flex ce-text-tiny ce-text-bold ce-text-tertiary ce-mb-md" style="text-transform: uppercase; letter-spacing: 0.08em;">
             📋 Raisons de la validation
           </div>
           ${reasons.map((r, i) => html`
@@ -4607,12 +4739,12 @@ Exemple :
                 margin-top: 0.35rem;
                 flex-shrink: 0;
               "></div>
-              <span style="font-size: var(--text-sm); color: var(--color-dark-text-secondary); line-height: 1.4;">${r}</span>
+              <span class="ce-text-sm-secondary" style="line-height: 1.4;">${r}</span>
             </div>
           `)}
         </div>
 
-        <div class="validation-actions" style="display: flex; gap: 1rem;">
+        <div class="validation-actions ce-flex ce-gap-lg">
           <button @click="${() => this.handleRejectValidation(v.validation_id)}" style="
             flex: 1;
             padding: 0.875rem 1.25rem;
@@ -4629,7 +4761,7 @@ Exemple :
             justify-content: center;
             gap: 0.5rem;
           ">
-            <span style="font-size: 1.1rem;">✗</span> Rejeter
+            <span class="ce-text-lg">✗</span> Rejeter
           </button>
           <button @click="${() => this.handleApproveValidation(v.validation_id)}" style="
             flex: 1;
@@ -4648,7 +4780,7 @@ Exemple :
             gap: 0.5rem;
             box-shadow: 0 0 20px rgba(34, 197, 94, 0.15);
           ">
-            <span style="font-size: 1.1rem;">✓</span> Approuver
+            <span class="ce-text-lg">✓</span> Approuver
           </button>
         </div>
       </div>
@@ -4751,62 +4883,62 @@ Exemple :
     return html`
       <!-- Help Section (collapsible) -->
       <div class="config-section" style="background: rgba(147, 51, 234, 0.1); border: 1px solid rgba(147, 51, 234, 0.3);">
-        <div class="config-title" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;"
+        <div class="config-title ce-flex ce-cursor-pointer"
           @click="${() => this.showNotifHelp = !this.showNotifHelp}">
           <span style="background: rgba(147, 51, 234, 0.3); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem;">?</span>
           Variables disponibles
-          <span style="margin-left: auto; font-size: var(--text-xs); opacity: 0.6;">${this.showNotifHelp ? '▼' : '▶'}</span>
+          <span class="ce-ml-auto ce-text-xs ce-opacity-6">${this.showNotifHelp ? '▼' : '▶'}</span>
         </div>
         ${this.showNotifHelp ? html`
-        <div style="font-size: 0.8rem; color: var(--color-dark-text-secondary); line-height: 1.6; margin-top: 0.75rem;">
-          <p style="margin: 0 0 0.75rem;">Utilisez <code style="background: rgba(0,0,0,0.3); padding: 0.1rem 0.3rem; border-radius: var(--radius-sm);">{variable}</code> dans les templates pour insérer des valeurs dynamiques.</p>
+        <div class="ce-text-sm-secondary ce-mt-md">
+          <p class="ce-heading-md">Utilisez <code class="ce-bg-dark-xs">{variable}</code> dans les templates pour insérer des valeurs dynamiques.</p>
 
-          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: var(--radius-sm); margin: 0 0 0.75rem;">
-            <p style="margin: 0 0 0.5rem; font-weight: 600;">Variables communes :</p>
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: var(--text-xs);">
-              <code style="color: #a78bfa;">{timestamp}</code><span>Date/heure de l'événement</span>
+          <div class="ce-bg-dark ce-heading-md">
+            <p class="ce-heading">Variables communes :</p>
+            <div class="ce-grid-2col ce-text-xs">
+              <code class="ce-text-purple">{timestamp}</code><span>Date/heure de l'événement</span>
             </div>
           </div>
 
-          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: var(--radius-sm); margin: 0 0 0.75rem;">
-            <p style="margin: 0 0 0.5rem; font-weight: 600;">🔌 Plugins :</p>
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: var(--text-xs);">
-              <code style="color: #a78bfa;">{plugin_name}</code><span>Nom du plugin</span>
-              <code style="color: #a78bfa;">{status}</code><span>État (online/offline/error)</span>
+          <div class="ce-bg-dark ce-heading-md">
+            <p class="ce-heading">🔌 Plugins :</p>
+            <div class="ce-grid-2col ce-text-xs">
+              <code class="ce-text-purple">{plugin_name}</code><span>Nom du plugin</span>
+              <code class="ce-text-purple">{status}</code><span>État (online/offline/error)</span>
             </div>
           </div>
 
-          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: var(--radius-sm); margin: 0 0 0.75rem;">
-            <p style="margin: 0 0 0.5rem; font-weight: 600;">🌡️ Environnement :</p>
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: var(--text-xs);">
-              <code style="color: #a78bfa;">{room}</code><span>Nom de la pièce</span>
-              <code style="color: #a78bfa;">{temperature}</code><span>Température actuelle</span>
-              <code style="color: #a78bfa;">{humidity}</code><span>Humidité actuelle</span>
-              <code style="color: #a78bfa;">{threshold}</code><span>Seuil déclenché</span>
+          <div class="ce-bg-dark ce-heading-md">
+            <p class="ce-heading">🌡️ Environnement :</p>
+            <div class="ce-grid-2col ce-text-xs">
+              <code class="ce-text-purple">{room}</code><span>Nom de la pièce</span>
+              <code class="ce-text-purple">{temperature}</code><span>Température actuelle</span>
+              <code class="ce-text-purple">{humidity}</code><span>Humidité actuelle</span>
+              <code class="ce-text-purple">{threshold}</code><span>Seuil déclenché</span>
             </div>
           </div>
 
-          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: var(--radius-sm); margin: 0 0 0.75rem;">
-            <p style="margin: 0 0 0.5rem; font-weight: 600;">⚙️ Automations :</p>
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: var(--text-xs);">
-              <code style="color: #a78bfa;">{automation_name}</code><span>Nom de l'automation</span>
-              <code style="color: #a78bfa;">{trigger}</code><span>Type de déclencheur</span>
-              <code style="color: #a78bfa;">{action}</code><span>Action exécutée</span>
-              <code style="color: #a78bfa;">{mode}</code><span>Mode actuel</span>
+          <div class="ce-bg-dark ce-heading-md">
+            <p class="ce-heading">⚙️ Automations :</p>
+            <div class="ce-grid-2col ce-text-xs">
+              <code class="ce-text-purple">{automation_name}</code><span>Nom de l'automation</span>
+              <code class="ce-text-purple">{trigger}</code><span>Type de déclencheur</span>
+              <code class="ce-text-purple">{action}</code><span>Action exécutée</span>
+              <code class="ce-text-purple">{mode}</code><span>Mode actuel</span>
             </div>
           </div>
 
-          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: var(--radius-sm); margin: 0 0 0.75rem;">
-            <p style="margin: 0 0 0.5rem; font-weight: 600;">🔒 Sécurité :</p>
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: var(--text-xs);">
-              <code style="color: #a78bfa;">{ip}</code><span>Adresse IP source</span>
-              <code style="color: #a78bfa;">{attempts}</code><span>Nombre de tentatives</span>
-              <code style="color: #a78bfa;">{username}</code><span>Nom d'utilisateur</span>
+          <div class="ce-bg-dark ce-heading-md">
+            <p class="ce-heading">🔒 Sécurité :</p>
+            <div class="ce-grid-2col ce-text-xs">
+              <code class="ce-text-purple">{ip}</code><span>Adresse IP source</span>
+              <code class="ce-text-purple">{attempts}</code><span>Nombre de tentatives</span>
+              <code class="ce-text-purple">{username}</code><span>Nom d'utilisateur</span>
             </div>
           </div>
 
-          <div style="background: rgba(16, 185, 129, 0.15); padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid rgba(16, 185, 129, 0.3);">
-            <p style="margin: 0; font-size: var(--text-xs);">
+          <div class="ce-bg-emerald">
+            <p class="ce-m-0 ce-text-xs">
               <strong>💡 Exemple :</strong><br>
               Titre: <code>⚠️ {room} - Humidité élevée</code><br>
               Corps: <code>Humidité à {humidity}% (seuil: {threshold}%)</code>
@@ -4818,14 +4950,14 @@ Exemple :
 
       <!-- Notification configs by category -->
       ${Object.entries(categories).filter(([_, cat]) => cat.configs.length > 0).map(([catKey, cat]) => html`
-        <div class="config-section" style="margin-top: 1rem;">
-          <div class="config-title" style="display: flex; align-items: center; gap: 0.5rem;">
+        <div class="config-section ce-mt-lg">
+          <div class="config-title ce-flex">
             <span>${cat.icon}</span>
             ${cat.name}
-            <span style="font-size: 0.7rem; opacity: 0.5; margin-left: auto;">${cat.configs.length} notifications</span>
+            <span class="ce-text-tiny ce-ml-auto ce-opacity-5">${cat.configs.length} notifications</span>
           </div>
 
-          <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.75rem;">
+          <div class="ce-flex-col-md ce-mt-md">
             ${cat.configs.map(config => html`
               <div class="notif-config-card" style="
                 background: rgba(255,255,255,0.03);
@@ -4834,22 +4966,22 @@ Exemple :
                 padding: 0.75rem;
                 ${!config.enabled ? 'opacity: 0.5;' : ''}
               ">
-                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                <div class="ce-flex ce-gap-md ce-mb-sm">
                   <!-- Toggle -->
-                  <label style="display: flex; align-items: center; cursor: pointer;">
+                  <label class="ce-flex ce-cursor">
                     <input type="checkbox"
                       ?checked="${config.enabled}"
                       @change="${e => this.toggleNotificationConfig(config.type_id, e.target.checked)}"
-                      style="width: 16px; height: 16px; accent-color: var(--context-primary, #00d4aa);"
+                      class="ce-checkbox"
                     >
                   </label>
 
                   <!-- Name & Description -->
-                  <div style="flex: 1; min-width: 0;">
-                    <div style="font-weight: 500; font-size: 0.85rem; color: var(--color-dark-text-primary);">
+                  <div class="ce-flex-min-0">
+                    <div class="ce-text-md ce-text-primary" style="font-weight: 500;">
                       ${config.display_name}
                     </div>
-                    <div style="font-size: 0.7rem; color: var(--color-dark-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    <div class="ce-text-tiny ce-text-secondary" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                       ${config.description}
                     </div>
                   </div>
@@ -4881,14 +5013,14 @@ Exemple :
                 </div>
 
                 <!-- Templates preview -->
-                <div style="font-size: 0.7rem; color: var(--color-dark-text-secondary); padding-left: 1.75rem;">
-                  <div style="margin-bottom: 0.2rem;">
-                    <span style="opacity: 0.6;">Titre:</span>
-                    <code style="background: rgba(0,0,0,0.2); padding: 0.1rem 0.3rem; border-radius: 3px;">${config.title_template}</code>
+                <div class="ce-text-tiny ce-text-secondary" style="padding-left: 1.75rem;">
+                  <div class="ce-mb-xs">
+                    <span class="ce-opacity-6">Titre:</span>
+                    <code class="ce-bg-dark-xs">${config.title_template}</code>
                   </div>
                   <div>
-                    <span style="opacity: 0.6;">Corps:</span>
-                    <span style="opacity: 0.8;">${config.body_template.length > 50 ? config.body_template.slice(0, 50) + '...' : config.body_template}</span>
+                    <span class="ce-opacity-6">Corps:</span>
+                    <span class="ce-opacity-8">${config.body_template.length > 50 ? config.body_template.slice(0, 50) + '...' : config.body_template}</span>
                   </div>
                 </div>
               </div>
@@ -4918,24 +5050,24 @@ Exemple :
             max-height: 80vh;
             overflow-y: auto;
           ">
-            <h3 style="margin: 0 0 1rem; font-size: 1rem; color: var(--color-dark-text-primary);">
+            <h3 class="ce-text-base ce-text-primary" style="margin: 0 0 1rem;">
               ✏️ Modifier "${this.editingNotifConfig.display_name}"
             </h3>
 
-            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <div class="ce-flex-col-md">
               <!-- Enabled -->
-              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+              <label class="ce-flex ce-cursor">
                 <input type="checkbox"
                   ?checked="${this.editingNotifConfig.enabled}"
                   @change="${e => this.editingNotifConfig = {...this.editingNotifConfig, enabled: e.target.checked}}"
-                  style="width: 16px; height: 16px; accent-color: var(--context-primary, #00d4aa);"
+                  class="ce-checkbox"
                 >
-                <span style="font-size: 0.85rem; color: var(--color-dark-text-primary);">Activée</span>
+                <span class="ce-text-md ce-text-primary">Activée</span>
               </label>
 
               <!-- Priority -->
               <div>
-                <label style="font-size: var(--text-xs); color: var(--color-dark-text-secondary); display: block; margin-bottom: 0.3rem;">Priorité</label>
+                <label class="ce-text-secondary ce-block-mb">Priorité</label>
                 <select
                   .value="${this.editingNotifConfig.priority}"
                   @change="${e => this.editingNotifConfig = {...this.editingNotifConfig, priority: e.target.value}}"
@@ -4949,15 +5081,15 @@ Exemple :
                     font-size: 0.85rem;
                   "
                 >
-                  <option value="P0" style="background: #1a1a1a;">P0 - Critique (email + push)</option>
-                  <option value="P1" style="background: #1a1a1a;">P1 - Important (push)</option>
-                  <option value="P2" style="background: #1a1a1a;">P2 - Normal (push silencieux)</option>
+                  <option value="P0" class="ce-bg-1a">P0 - Critique (email + push)</option>
+                  <option value="P1" class="ce-bg-1a">P1 - Important (push)</option>
+                  <option value="P2" class="ce-bg-1a">P2 - Normal (push silencieux)</option>
                 </select>
               </div>
 
               <!-- Title template -->
               <div>
-                <label style="font-size: var(--text-xs); color: var(--color-dark-text-secondary); display: block; margin-bottom: 0.3rem;">Template titre</label>
+                <label class="ce-text-secondary ce-block-mb">Template titre</label>
                 <input type="text"
                   .value="${this.editingNotifConfig.title_template}"
                   @input="${e => this.editingNotifConfig = {...this.editingNotifConfig, title_template: e.target.value}}"
@@ -4977,7 +5109,7 @@ Exemple :
 
               <!-- Body template -->
               <div>
-                <label style="font-size: var(--text-xs); color: var(--color-dark-text-secondary); display: block; margin-bottom: 0.3rem;">Template corps</label>
+                <label class="ce-text-secondary ce-block-mb">Template corps</label>
                 <textarea
                   .value="${this.editingNotifConfig.body_template}"
                   @input="${e => this.editingNotifConfig = {...this.editingNotifConfig, body_template: e.target.value}}"
@@ -5000,8 +5132,8 @@ Exemple :
               <!-- Available variables -->
               ${this.editingNotifConfig.available_variables?.length > 0 ? html`
                 <div style="background: rgba(147, 51, 234, 0.1); padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid rgba(147, 51, 234, 0.2);">
-                  <div style="font-size: 0.7rem; color: var(--color-dark-text-secondary); margin-bottom: 0.3rem;">Variables disponibles:</div>
-                  <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
+                  <div class="ce-text-tiny ce-text-secondary" style="margin-bottom: 0.3rem;">Variables disponibles:</div>
+                  <div class="ce-flex-wrap-sm">
                     ${this.editingNotifConfig.available_variables.map(v => html`
                       <code style="
                         background: rgba(0,0,0,0.3);
@@ -5018,7 +5150,7 @@ Exemple :
             </div>
 
             <!-- Actions -->
-            <div style="display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: flex-end;">
+            <div class="ce-flex ce-mt-lg" style="justify-content: flex-end;">
               <button
                 @click="${() => this.editingNotifConfig = null}"
                 style="
@@ -5142,37 +5274,37 @@ Exemple :
           margin-bottom: 1.25rem;
           box-shadow: 0 4px 24px rgba(139, 92, 246, 0.1);
         ">
-          <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem;">
-            <span style="font-size: var(--text-2xl); animation: float-icon 3s ease-in-out infinite;">🧠</span>
-            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 600; color: var(--color-dark-text-primary);">Intelligence v2</h3>
+          <div class="ce-flex ce-gap-md ce-mb-xl">
+            <span class="ce-float-icon">🧠</span>
+            <h3 class="ce-m-0 ce-text-bold ce-text-primary ce-text-lg">Intelligence v2</h3>
             ${stats ? html`
-              <span style="margin-left: auto; padding: 0.35rem 0.875rem; border-radius: var(--radius-xl); background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #a78bfa; font-size: var(--text-xs); font-weight: 600;">
+              <span class="ce-ml-auto ce-badge-purple ce-text-bold">
                 ${stats.total_samples} samples
               </span>
             ` : ''}
           </div>
 
           ${prediction ? html`
-            <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+            <div class="ce-flex-wrap" style="gap: 1.5rem;">
               <!-- Confidence Gauge -->
-              <div style="flex-shrink: 0;">
+              <div class="ce-flex-shrink-0">
                 ${this.renderConfidenceGauge(prediction.confidence, 130)}
               </div>
 
               <!-- Mode Info -->
               <div style="flex: 1; min-width: 200px;">
-                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
-                  <span style="font-size: 3rem; animation: float-icon 4s ease-in-out infinite;">${this.getModeIcon(prediction.mode)}</span>
+                <div class="ce-flex ce-gap-md ce-mb-lg">
+                  <span class="ce-float-icon-lg" style="animation-duration: 4s;">${this.getModeIcon(prediction.mode)}</span>
                   <div>
-                    <div style="font-size: var(--text-2xl); font-weight: 700; color: #a78bfa; margin-bottom: 0.25rem;">${this.getModeName(prediction.mode)}</div>
-                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <div class="ce-text-2xl-bold ce-text-purple ce-mb-xs">${this.getModeName(prediction.mode)}</div>
+                    <div class="ce-flex-wrap">
                       <span style="display: inline-block; padding: 0.3rem 0.75rem; border-radius: var(--radius-xl); font-size: var(--text-xs); font-weight: 600;
                         background: ${prediction.is_confident ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1))' : 'linear-gradient(135deg, rgba(251, 146, 60, 0.2), rgba(251, 146, 60, 0.1))'};
                         border: 1px solid ${prediction.is_confident ? 'rgba(34, 197, 94, 0.4)' : 'rgba(251, 146, 60, 0.4)'};
                         color: ${prediction.is_confident ? '#22c55e' : '#fb923c'};">
                         ${prediction.is_confident ? '✓ Confiant' : '⚠ Incertain'}
                       </span>
-                      <span style="padding: 0.3rem 0.75rem; border-radius: var(--radius-xl); font-size: var(--text-xs); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--color-dark-text-secondary);">
+                      <span class="ce-badge-neutral ce-text-xs ce-text-secondary">
                         ${prediction.samples_used} samples utilises
                       </span>
                     </div>
@@ -5181,9 +5313,9 @@ Exemple :
 
                 <!-- Alternatives -->
                 ${prediction.alternatives?.length > 0 ? html`
-                  <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                  <div class="ce-flex-wrap">
                     ${prediction.alternatives.map(alt => html`
-                      <span style="padding: 0.35rem 0.75rem; background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: var(--radius-xl); font-size: 0.8rem; color: var(--color-dark-text-secondary);">
+                      <span class="ce-badge-purple ce-text-sm ce-text-secondary" style="background: rgba(139, 92, 246, 0.1);">
                         ${this.getModeIcon(alt.mode)} ${this.getModeName(alt.mode)}: ${Math.round(alt.score * 100)}%
                       </span>
                     `)}
@@ -5193,7 +5325,7 @@ Exemple :
             </div>
 
             <!-- Correction Button -->
-            <div style="margin-top: 1.25rem; display: flex; justify-content: center;">
+            <div class="ce-flex-center" style="margin-top: 1.25rem;">
               <button @click=${this.togglePredictionCorrection}
                 style="padding: 0.5rem 1.25rem; background: ${this.showPredictionCorrection ? 'rgba(239, 68, 68, 0.15)' : 'rgba(139, 92, 246, 0.1)'}; border: 1px solid ${this.showPredictionCorrection ? 'rgba(239, 68, 68, 0.3)' : 'rgba(139, 92, 246, 0.25)'}; border-radius: 10px; color: ${this.showPredictionCorrection ? '#f87171' : '#a78bfa'}; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
                 ${this.showPredictionCorrection ? '✕ Annuler' : '✏️ Corriger la prediction'}
@@ -5202,22 +5334,22 @@ Exemple :
 
             <!-- Correction Panel -->
             ${this.showPredictionCorrection ? html`
-              <div style="margin-top: 1rem; padding: 1rem; background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: var(--radius-md); animation: card-enter 0.2s ease-out;">
+              <div class="ce-mt-lg ce-p-lg" style="background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: var(--radius-md); animation: card-enter 0.2s ease-out;">
                 ${this.predictionCorrectionSent ? html`
-                  <div style="text-align: center; padding: 0.75rem; color: #22c55e; font-weight: 600; font-size: 0.95rem;">
+                  <div class="ce-text-center ce-text-green ce-text-bold ce-p-md" style="font-size: 0.95rem;">
                     ✓ Correction enregistree (v1+v2)
                   </div>
                 ` : html`
-                  <div style="font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-dark-text-tertiary); margin-bottom: 0.75rem;">
+                  <div class="ce-section-header" style="letter-spacing: 0.05em;">
                     Quel est le bon mode ?
                   </div>
-                  <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                  <div class="ce-flex-wrap">
                     ${this.modes.map(m => html`
                       <button @click=${() => this.sendPredictionCorrection(m.slug)}
                         ?disabled=${m.slug === prediction.mode}
                         style="flex: 1; min-width: 80px; display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 0.75rem 0.5rem; background: ${m.slug === prediction.mode ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)'}; border: 1px solid ${m.slug === prediction.mode ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.12)'}; border-radius: 10px; color: ${m.slug === prediction.mode ? 'var(--color-dark-text-tertiary)' : 'var(--color-dark-text-primary)'}; cursor: ${m.slug === prediction.mode ? 'not-allowed' : 'pointer'}; opacity: ${m.slug === prediction.mode ? '0.35' : '1'}; transition: all 0.2s ease;">
                         <span style="font-size: var(--text-2xl);">${m.icon}</span>
-                        <span style="font-size: var(--text-xs);">${m.name}</span>
+                        <span class="ce-text-xs">${m.name}</span>
                       </button>
                     `)}
                   </div>
@@ -5227,13 +5359,13 @@ Exemple :
 
             <!-- Why Chain - Samples Contributing -->
             ${prediction.why?.length > 0 ? html`
-              <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid rgba(139, 92, 246, 0.15);">
-                <div style="font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-dark-text-tertiary); margin-bottom: 0.75rem;">Samples Contributifs</div>
-                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+              <div class="ce-mt-xl" style="padding-top: 1.25rem; border-top: 1px solid rgba(139, 92, 246, 0.15);">
+                <div class="ce-section-header">Samples Contributifs</div>
+                <div class="ce-flex-wrap">
                   ${prediction.why.slice(0, 5).map(w => html`
-                    <div style="padding: 0.5rem 0.75rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-base); font-size: var(--text-xs);">
-                      <span style="color: #a78bfa;">${this.getModeIcon(w.mode)}</span>
-                      <span style="color: var(--color-dark-text-secondary);">${w.mode}</span>
+                    <div class="ce-bg-dark ce-text-xs" style="padding: 0.5rem 0.75rem;">
+                      <span class="ce-text-purple">${this.getModeIcon(w.mode)}</span>
+                      <span class="ce-text-xs-secondary">${w.mode}</span>
                       <span style="color: ${w.similarity >= 0.8 ? '#22c55e' : w.similarity >= 0.5 ? '#fb923c' : '#9ca3af'}; margin-left: 0.5rem;">
                         ${Math.round(w.similarity * 100)}% sim
                       </span>
@@ -5243,27 +5375,27 @@ Exemple :
               </div>
             ` : ''}
           ` : html`
-            <div style="text-align: center; padding: 3rem; color: var(--color-dark-text-tertiary);">
-              <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.4; animation: float-icon 3s ease-in-out infinite;">🧠</div>
-              <div style="font-size: 1rem;">Pas de prediction v2 disponible</div>
-              <div style="font-size: 0.8rem; margin-top: 0.5rem; opacity: 0.7;">Le systeme collecte des donnees...</div>
+            <div class="ce-text-center ce-text-tertiary" style="padding: 3rem;">
+              <div class="ce-float-icon-lg ce-mb-lg" style="opacity: 0.4;">🧠</div>
+              <div class="ce-text-base">Pas de prediction v2 disponible</div>
+              <div class="ce-text-sm ce-mt-sm ce-opacity-7">Le systeme collecte des donnees...</div>
             </div>
           `}
         </div>
 
         <!-- Context Vector Section -->
         ${vector ? html`
-          <div class="section-card" style="background: rgba(30, 35, 45, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.25rem;">
-            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-              <span style="font-size: var(--text-xl); animation: float-icon 3s ease-in-out infinite;">📊</span>
-              <h3 style="margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-dark-text-primary);">Context Vector</h3>
-              <span style="margin-left: auto; font-size: 0.7rem; color: var(--color-dark-text-tertiary);">
+          <div class="section-card ce-bg-section">
+            <div class="ce-flex ce-mb-lg">
+              <span class="ce-float-icon-sm">📊</span>
+              <h3 class="ce-m-0 ce-text-bold ce-text-primary ce-text-base">Context Vector</h3>
+              <span class="ce-ml-auto ce-text-tiny-tertiary">
                 ${vector.feature_count || 0} features
               </span>
             </div>
 
             <!-- Dimensions as bars -->
-            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <div class="ce-flex-col-md">
               ${Object.entries(vector.dimensions || {}).map(([dim, value]) => this.renderDimensionBar(dim, value, vector.why?.[dim]))}
             </div>
           </div>
@@ -5271,21 +5403,21 @@ Exemple :
 
         <!-- Features Section -->
         ${features.length > 0 ? html`
-          <div class="section-card" style="background: rgba(30, 35, 45, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.25rem;">
-            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-              <span style="font-size: var(--text-xl); animation: float-icon 3s ease-in-out infinite;">📡</span>
-              <h3 style="margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-dark-text-primary);">Features Registry</h3>
-              <span style="margin-left: auto; padding: 0.25rem 0.75rem; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: var(--radius-xl); font-size: var(--text-xs); color: #22c55e; font-weight: 600;">
+          <div class="section-card ce-bg-section">
+            <div class="ce-flex ce-mb-lg">
+              <span class="ce-float-icon-sm">📡</span>
+              <h3 class="ce-m-0 ce-text-bold ce-text-primary ce-text-base">Features Registry</h3>
+              <span class="ce-ml-auto ce-badge-green ce-text-bold">
                 ${summary?.active_count || features.length} actives
               </span>
             </div>
 
             ${Object.entries(featuresBySource).map(([source, sourceFeatures]) => html`
-              <div style="margin-bottom: 1rem;">
-                <div style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-dark-text-tertiary); margin-bottom: 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <div class="ce-mb-lg">
+                <div class="ce-text-tiny ce-text-bold ce-text-tertiary ce-mb-sm" style="text-transform: uppercase; letter-spacing: 0.08em; padding-bottom: 0.25rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
                   ${source === 'agent' ? '🖥️ Agent' : source === 'classifier' ? '🏷️ Classifier' : source === 'sensor' ? '🌡️ Sensors' : source}
                 </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5rem;">
+                <div class="ce-grid-auto" style="gap: 0.5rem;">
                   ${sourceFeatures.map(f => this.renderFeatureCard(f))}
                 </div>
               </div>
@@ -5296,36 +5428,36 @@ Exemple :
         <!-- Stats Section -->
         ${stats ? html`
           <div class="section-card" style="background: rgba(30, 35, 45, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); padding: 1rem;">
-            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
-              <span style="font-size: 1rem;">📈</span>
-              <h3 style="margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--color-dark-text-primary);">Statistiques Apprentissage</h3>
+            <div class="ce-flex ce-mb-md">
+              <span class="ce-text-base">📈</span>
+              <h3 class="ce-m-0 ce-text-bold ce-text-primary" style="font-size: 0.9rem;">Statistiques Apprentissage</h3>
             </div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem;">
-              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-base); text-align: center;">
-                <div style="font-size: var(--text-2xl); font-weight: 700; color: #a78bfa;">${stats.total_samples}</div>
-                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">Total Samples</div>
+            <div class="ce-grid-auto-sm">
+              <div class="ce-stat-item">
+                <div class="ce-text-2xl-bold ce-text-purple">${stats.total_samples}</div>
+                <div class="ce-text-tiny-tertiary">Total Samples</div>
               </div>
-              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-base); text-align: center;">
-                <div style="font-size: var(--text-2xl); font-weight: 700; color: #22c55e;">${stats.by_source?.UserCorrection || 0}</div>
-                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">Corrections</div>
+              <div class="ce-stat-item">
+                <div class="ce-text-2xl-bold ce-text-green">${stats.by_source?.UserCorrection || 0}</div>
+                <div class="ce-text-tiny-tertiary">Corrections</div>
               </div>
-              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-base); text-align: center;">
-                <div style="font-size: var(--text-2xl); font-weight: 700; color: #fb923c;">${stats.by_source?.Bootstrap || 0}</div>
-                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">Bootstrap</div>
+              <div class="ce-stat-item">
+                <div class="ce-text-2xl-bold ce-text-orange">${stats.by_source?.Bootstrap || 0}</div>
+                <div class="ce-text-tiny-tertiary">Bootstrap</div>
               </div>
-              <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: var(--radius-base); text-align: center;">
-                <div style="font-size: var(--text-2xl); font-weight: 700; color: var(--color-dark-text-primary);">${(stats.average_weight || 0).toFixed(2)}</div>
-                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary);">Poids Moyen</div>
+              <div class="ce-stat-item">
+                <div class="ce-text-2xl-bold ce-text-primary">${(stats.average_weight || 0).toFixed(2)}</div>
+                <div class="ce-text-tiny-tertiary">Poids Moyen</div>
               </div>
             </div>
 
             <!-- Samples by mode -->
             ${stats.by_mode ? html`
-              <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.05);">
-                <div style="font-size: 0.7rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.5rem;">Samples par mode</div>
-                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+              <div class="ce-mt-lg" style="padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                <div class="ce-text-tiny-tertiary ce-mb-sm">Samples par mode</div>
+                <div class="ce-flex-wrap">
                   ${Object.entries(stats.by_mode).map(([mode, count]) => html`
-                    <span style="padding: 0.25rem 0.5rem; background: rgba(139, 92, 246, 0.1); border-radius: 10px; font-size: 0.7rem; color: var(--color-dark-text-secondary);">
+                    <span class="ce-text-tiny ce-text-secondary" style="padding: 0.25rem 0.5rem; background: rgba(139, 92, 246, 0.1); border-radius: 10px;">
                       ${this.getModeIcon(mode)} ${mode}: ${count}
                     </span>
                   `)}
@@ -5353,20 +5485,20 @@ Exemple :
     const label = dimension.replace('_prob', '').replace('_', ' ')
 
     return html`
-      <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <div class="ce-flex ce-gap-md">
         <span style="font-size: 1rem; width: 1.5rem; text-align: center;">${c.icon}</span>
-        <div style="flex: 1;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-            <span style="font-size: var(--text-xs); color: var(--color-dark-text-secondary); text-transform: capitalize;">${label}</span>
+        <div class="ce-flex-grow">
+          <div class="ce-flex-between-mb">
+            <span class="ce-text-xs-secondary" style="text-transform: capitalize;">${label}</span>
             <span style="font-size: var(--text-xs); font-weight: 600; color: ${c.start};">${percentage}%</span>
           </div>
-          <div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+          <div class="ce-progress-track">
             <div style="height: 100%; width: ${percentage}%; background: linear-gradient(90deg, ${c.start}, ${c.end}); border-radius: 3px; transition: width 0.5s ease-out;"></div>
           </div>
           ${why?.length > 0 ? html`
-            <div style="margin-top: 0.25rem; display: flex; flex-wrap: wrap; gap: 0.25rem;">
+            <div class="ce-flex-wrap-sm ce-mt-xs">
               ${why.slice(0, 3).map(w => html`
-                <span style="font-size: 0.65rem; padding: 0.1rem 0.4rem; background: rgba(255,255,255,0.05); border-radius: var(--radius-sm); color: var(--color-dark-text-tertiary);">
+                <span class="ce-badge-tiny ce-text-tertiary" style="background: rgba(255,255,255,0.05); border-radius: var(--radius-sm);">
                   ${w.feature_id}: ${w.contribution > 0 ? '+' : ''}${Math.round(w.contribution * 100)}%
                 </span>
               `)}
@@ -5408,11 +5540,11 @@ Exemple :
 
     return html`
       <div style="padding: 0.5rem 0.75rem; background: ${s.bg}; border: 1px solid ${s.border}; border-radius: var(--radius-base);">
-        <div style="font-size: 0.65rem; color: var(--color-dark-text-tertiary); margin-bottom: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+        <div class="ce-text-tertiary" style="font-size: 0.65rem; margin-bottom: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
           ${feature.feature_id}
         </div>
         <div style="font-size: 0.9rem; font-weight: 600; color: ${s.text};">${displayValue}</div>
-        <div style="font-size: 0.6rem; color: var(--color-dark-text-tertiary); opacity: 0.7;">
+        <div class="ce-text-tertiary ce-opacity-7" style="font-size: 0.6rem;">
           conf: ${Math.round(feature.confidence * 100)}%
         </div>
       </div>
@@ -5470,52 +5602,52 @@ Exemple :
     return html`
       <!-- Help Section (collapsible) -->
       <div class="config-section" style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3);">
-        <div class="config-title" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;"
+        <div class="config-title ce-flex ce-cursor-pointer"
           @click="${() => this.showConfigHelp = !this.showConfigHelp}">
           <span style="background: rgba(99, 102, 241, 0.3); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem;">?</span>
           Comment ça marche ?
-          <span style="margin-left: auto; font-size: var(--text-xs); opacity: 0.6;">${this.showConfigHelp ? '▼' : '▶'}</span>
+          <span class="ce-ml-auto ce-text-xs ce-opacity-6">${this.showConfigHelp ? '▼' : '▶'}</span>
         </div>
         ${this.showConfigHelp ? html`
-        <div style="font-size: 0.8rem; color: var(--color-dark-text-secondary); line-height: 1.6; margin-top: 0.75rem;">
+        <div class="ce-text-sm-secondary ce-mt-md">
 
           <p style="margin: 0.5rem 0 0.75rem;"><strong>1. Calcul du Trust Score</strong> (0.0 à 1.0) :</p>
-          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: var(--radius-sm); margin: 0 0 0.75rem; font-size: var(--text-xs);">
-            <p style="margin: 0 0 0.5rem;">Le système évalue 5 critères et fait la moyenne pondérée :</p>
+          <div class="ce-bg-dark ce-text-xs ce-heading-md">
+            <p class="ce-heading ce-text-normal">Le système évalue 5 critères et fait la moyenne pondérée :</p>
             <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 0.25rem 0.5rem;">
-              <span>• Mode & SSID correspondent ?</span><span style="color: #818cf8;">25%</span><span style="color: #6b7280;">→ 0 ou 1</span>
-              <span>• Agent en ligne, CPU/RAM ok ?</span><span style="color: #818cf8;">25%</span><span style="color: #6b7280;">→ 0 ou 1</span>
-              <span>• Action pas expirée ?</span><span style="color: #818cf8;">20%</span><span style="color: #6b7280;">→ 0 à 1</span>
-              <span>• Historique de succès</span><span style="color: #818cf8;">15%</span><span style="color: #6b7280;">→ 0 à 1</span>
-              <span>• Tes approbations passées</span><span style="color: #818cf8;">15%</span><span style="color: #6b7280;">→ 0 à 1</span>
+              <span>• Mode & SSID correspondent ?</span><span class="ce-text-indigo">25%</span><span class="ce-text-tertiary">→ 0 ou 1</span>
+              <span>• Agent en ligne, CPU/RAM ok ?</span><span class="ce-text-indigo">25%</span><span class="ce-text-tertiary">→ 0 ou 1</span>
+              <span>• Action pas expirée ?</span><span class="ce-text-indigo">20%</span><span class="ce-text-tertiary">→ 0 à 1</span>
+              <span>• Historique de succès</span><span class="ce-text-indigo">15%</span><span class="ce-text-tertiary">→ 0 à 1</span>
+              <span>• Tes approbations passées</span><span class="ce-text-indigo">15%</span><span class="ce-text-tertiary">→ 0 à 1</span>
             </div>
             <p style="margin: 0.5rem 0 0; font-style: italic;">Score max = 1.0 si tout est parfait.</p>
           </div>
 
           <p style="margin: 0.5rem 0 0.5rem;"><strong>2. Comment choisir les seuils ?</strong></p>
-          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: var(--radius-sm); margin: 0 0 0.75rem; font-size: var(--text-xs);">
-            <p style="margin: 0 0 0.5rem;">Chaque type d'action utilise un seuil selon son niveau d'impact :</p>
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.5rem;">
-              <span style="color: #10b981;">Low</span><span>→ Notifications (ex: "Tu as reçu un email")</span>
-              <span style="color: #3b82f6;">Medium</span><span>→ Changements de mode, ajustements légers</span>
-              <span style="color: #f59e0b;">High</span><span>→ Contrôle d'appareils (allumer/éteindre PC)</span>
-              <span style="color: #ef4444;">Very High</span><span>→ Actions critiques ou irréversibles</span>
+          <div class="ce-bg-dark ce-text-xs ce-heading-md">
+            <p class="ce-heading ce-text-normal">Chaque type d'action utilise un seuil selon son niveau d'impact :</p>
+            <div class="ce-grid-2col" style="gap: 0.25rem 0.5rem;">
+              <span class="ce-text-emerald">Low</span><span>→ Notifications (ex: "Tu as reçu un email")</span>
+              <span class="ce-text-blue">Medium</span><span>→ Changements de mode, ajustements légers</span>
+              <span class="ce-text-amber">High</span><span>→ Contrôle d'appareils (allumer/éteindre PC)</span>
+              <span class="ce-text-red">Very High</span><span>→ Actions critiques ou irréversibles</span>
             </div>
           </div>
 
           <p style="margin: 0.5rem 0;"><strong>3. Règle simple pour configurer :</strong></p>
-          <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: var(--radius-sm); margin: 0 0 0.75rem; font-size: var(--text-xs);">
-            <p style="margin: 0 0 0.5rem;"><strong>Seuil bas (0.3-0.4)</strong> = Peu exigeant, s'exécute souvent seul</p>
-            <p style="margin: 0 0 0.5rem;"><strong>Seuil moyen (0.5-0.6)</strong> = Équilibré, vérifie le contexte</p>
-            <p style="margin: 0 0 0.5rem;"><strong>Seuil haut (0.7-0.8)</strong> = Strict, demande validation si doute</p>
-            <p style="margin: 0;"><strong>Seuil très haut (0.9+)</strong> = Quasi toujours validation manuelle</p>
+          <div class="ce-bg-dark ce-text-xs ce-heading-md">
+            <p class="ce-heading ce-text-normal"><strong>Seuil bas (0.3-0.4)</strong> = Peu exigeant, s'exécute souvent seul</p>
+            <p class="ce-heading ce-text-normal"><strong>Seuil moyen (0.5-0.6)</strong> = Équilibré, vérifie le contexte</p>
+            <p class="ce-heading ce-text-normal"><strong>Seuil haut (0.7-0.8)</strong> = Strict, demande validation si doute</p>
+            <p class="ce-m-0"><strong>Seuil très haut (0.9+)</strong> = Quasi toujours validation manuelle</p>
           </div>
 
-          <div style="background: rgba(16, 185, 129, 0.15); padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid rgba(16, 185, 129, 0.3);">
-            <p style="margin: 0; font-size: var(--text-xs);">
+          <div class="ce-bg-emerald">
+            <p class="ce-m-0 ce-text-xs">
               <strong>💡 Exemple concret :</strong><br>
               Tu as High = 0.7. Une automation "Allumer PC" calcule un score de 0.66<br>
-              → <span style="color: #f59e0b;">0.66 < 0.7</span> = demande ta validation<br>
+              → <span class="ce-text-amber">0.66 < 0.7</span> = demande ta validation<br>
               Si tu baisses à 0.6, cette même action passera automatiquement.
             </p>
           </div>
@@ -5568,12 +5700,12 @@ Exemple :
             @change="${e => this.config = {...this.config, initial_trust_score: parseFloat(e.target.value)}}"
           >
         </div>
-        <div style="font-size: var(--text-xs); color: var(--color-dark-text-secondary); margin-top: 0.5rem;">
+        <div class="ce-text-xs-secondary ce-mt-sm">
           Score attribué aux nouvelles automations sans historique
         </div>
       </div>
 
-      <button class="btn btn-primary" @click="${this.saveConfig}" style="width: 100%; margin-top: 1rem;">
+      <button class="btn btn-primary ce-mt-lg" @click="${this.saveConfig}" style="width: 100%;">
         💾 Sauvegarder
       </button>
     `
@@ -5696,7 +5828,7 @@ Exemple :
       <div class="modal-overlay" @click="${() => this.closeModeForm()}">
         <div class="mode-form" @click="${e => e.stopPropagation()}">
           <div class="form-header">
-            <h3 style="margin: 0;">${isEditing ? 'Modifier le Mode' : 'Nouveau Mode'}</h3>
+            <h3 class="ce-m-0">${isEditing ? 'Modifier le Mode' : 'Nouveau Mode'}</h3>
             <button class="close-button" @click="${() => this.closeModeForm()}">✕</button>
           </div>
 
@@ -5850,7 +5982,7 @@ Exemple :
     return html`
       <div class="planning-container">
         <div class="planning-header">
-          <h3 style="margin: 0; color: var(--color-dark-text-primary);">Planning Horaire</h3>
+          <h3 class="ce-m-0 ce-text-primary">Planning Horaire</h3>
           <button class="btn btn-primary btn-sm" @click="${() => this.openRuleForm()}">
             + Nouvelle Règle
           </button>
@@ -5891,9 +6023,9 @@ Exemple :
         </div>
 
         <div class="planning-rules-list">
-          <h4 style="margin: 1rem 0 0.5rem; color: var(--color-dark-text-secondary);">Règles actives (${this.schedule?.rules?.length || 0})</h4>
+          <h4 class="ce-text-secondary" style="margin: 1rem 0 0.5rem;">Règles actives (${this.schedule?.rules?.length || 0})</h4>
           ${this.schedule?.rules?.length === 0 ? html`
-            <div class="empty-state" style="padding: 1rem;">
+            <div class="empty-state ce-p-lg">
               <div class="empty-text">Aucune règle configurée</div>
             </div>
           ` : ''}
@@ -5953,7 +6085,7 @@ Exemple :
       <div class="modal-overlay" @click="${() => this.closeRuleForm()}">
         <div class="rule-form" @click="${e => e.stopPropagation()}">
           <div class="form-header">
-            <h3 style="margin: 0;">${isEditing ? 'Modifier la Règle' : 'Nouvelle Règle'}</h3>
+            <h3 class="ce-m-0">${isEditing ? 'Modifier la Règle' : 'Nouvelle Règle'}</h3>
             <button class="close-button" @click="${() => this.closeRuleForm()}">✕</button>
           </div>
 
@@ -5991,13 +6123,13 @@ Exemple :
             </div>
 
             <div class="form-row">
-              <div class="form-group" style="flex: 1;">
+              <div class="form-group ce-flex-grow">
                 <label>Début</label>
                 <input type="time" class="form-input"
                   .value="${this.ruleFormData.start_time}"
                   @input="${e => this.ruleFormData = {...this.ruleFormData, start_time: e.target.value}}">
               </div>
-              <div class="form-group" style="flex: 1;">
+              <div class="form-group ce-flex-grow">
                 <label>Fin</label>
                 <input type="time" class="form-input"
                   .value="${this.ruleFormData.end_time}"
