@@ -65,7 +65,7 @@ class EnvironmentWidget extends LitElement {
     .widget-title {
       font-size: var(--text-lg, 1.125rem);
       font-weight: 600;
-      color: #ffffff;
+      color: var(--color-dark-text-primary, #f8f9fa);
       display: flex;
       align-items: center;
       gap: 8px;
@@ -109,7 +109,7 @@ class EnvironmentWidget extends LitElement {
     .auth-title {
       font-size: var(--text-lg, 1.125rem);
       font-weight: 600;
-      color: #ffffff;
+      color: var(--color-dark-text-primary, #f8f9fa);
       margin-bottom: 8px;
     }
 
@@ -206,7 +206,7 @@ class EnvironmentWidget extends LitElement {
     .room-name {
       font-size: var(--text-base, 1rem);
       font-weight: 600;
-      color: #ffffff;
+      color: var(--color-dark-text-primary, #f8f9fa);
       text-transform: capitalize;
     }
 
@@ -246,7 +246,7 @@ class EnvironmentWidget extends LitElement {
     .reading-value {
       font-size: var(--text-2xl, 1.5rem);
       font-weight: 700;
-      color: #ffffff;
+      color: var(--color-dark-text-primary, #f8f9fa);
       display: flex;
       align-items: baseline;
       gap: 4px;
@@ -362,14 +362,14 @@ class EnvironmentWidget extends LitElement {
     .modal-title {
       font-size: var(--text-2xl, 1.5rem);
       font-weight: 600;
-      color: #ffffff;
+      color: var(--color-dark-text-primary, #f8f9fa);
       text-transform: capitalize;
     }
 
     .modal-close {
       background: var(--surface-glass-strong);
       border: 1px solid rgba(255, 255, 255, 0.2);
-      color: #ffffff;
+      color: var(--color-dark-text-primary, #f8f9fa);
       width: 36px;
       height: 36px;
       border-radius: var(--radius-base, 0.5rem);

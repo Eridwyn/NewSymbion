@@ -45,7 +45,7 @@ class AgentsNetworkWidget extends LitElement {
 
     .widget-title {
       font-size: var(--text-lg, 1.125rem);
-      color: #ffffff;
+      color: var(--color-dark-text-primary, #f8f9fa);
       gap: 8px;
     }
 
@@ -180,7 +180,7 @@ class AgentsNetworkWidget extends LitElement {
     .agent-hostname {
       font-size: var(--text-base, 1rem);
       font-weight: 600;
-      color: #ffffff;
+      color: var(--color-dark-text-primary, #f8f9fa);
       margin-bottom: 4px;
     }
 

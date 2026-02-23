@@ -1809,18 +1809,18 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .ce-text-red { color: #ef4444; }
 
     /* Backgrounds */
-    .ce-bg-dark { background: rgba(0, 0, 0, 0.2); padding: 0.5rem; border-radius: var(--radius-sm); }
-    .ce-bg-dark-xs { background: rgba(0, 0, 0, 0.2); padding: 0.1rem 0.3rem; border-radius: var(--radius-sm); }
-    .ce-bg-glass { background: rgba(255, 255, 255, 0.02); border-radius: var(--radius-base); border: 1px solid rgba(255, 255, 255, 0.08); }
-    .ce-bg-glass-item { background: rgba(255, 255, 255, 0.03); border-radius: var(--radius-sm); border: 1px solid rgba(255, 255, 255, 0.08); padding: 0.4rem 0.6rem; }
-    .ce-bg-glass-dashed { background: rgba(255, 255, 255, 0.02); border-radius: var(--radius-base); border: 1px dashed rgba(255, 255, 255, 0.1); margin-top: 0.75rem; }
-    .ce-stat-item { padding: 0.75rem; background: rgba(0, 0, 0, 0.2); border-radius: var(--radius-base); text-align: center; }
+    .ce-bg-dark { background: var(--surface-glass-hover, rgba(0, 0, 0, 0.2)); padding: 0.5rem; border-radius: var(--radius-sm); }
+    .ce-bg-dark-xs { background: var(--surface-glass-hover, rgba(0, 0, 0, 0.2)); padding: 0.1rem 0.3rem; border-radius: var(--radius-sm); }
+    .ce-bg-glass { background: var(--surface-glass-faint, rgba(255, 255, 255, 0.02)); border-radius: var(--radius-base); border: 1px solid rgba(255, 255, 255, 0.08); }
+    .ce-bg-glass-item { background: var(--surface-glass-subtle, rgba(255, 255, 255, 0.03)); border-radius: var(--radius-sm); border: 1px solid rgba(255, 255, 255, 0.08); padding: 0.4rem 0.6rem; }
+    .ce-bg-glass-dashed { background: var(--surface-glass-faint, rgba(255, 255, 255, 0.02)); border-radius: var(--radius-base); border: 1px dashed rgba(255, 255, 255, 0.1); margin-top: 0.75rem; }
+    .ce-stat-item { padding: 0.75rem; background: var(--surface-glass-hover, rgba(0, 0, 0, 0.2)); border-radius: var(--radius-base); text-align: center; }
 
     /* Badges */
     .ce-badge-purple { padding: 0.35rem 0.875rem; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #a78bfa; font-size: var(--text-xs); border-radius: var(--radius-xl); }
     .ce-badge-green { padding: 0.25rem 0.75rem; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: var(--radius-xl); font-size: var(--text-xs); color: #22c55e; }
     .ce-badge-orange { padding: 0.25rem 0.75rem; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: var(--radius-xl); font-size: 0.8rem; color: #f59e0b; }
-    .ce-badge-neutral { padding: 0.3rem 0.75rem; border-radius: var(--radius-xl); background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); }
+    .ce-badge-neutral { padding: 0.3rem 0.75rem; border-radius: var(--radius-xl); background: var(--surface-glass, rgba(255, 255, 255, 0.05)); border: 1px solid rgba(255, 255, 255, 0.1); }
     .ce-badge-tiny { font-size: 0.6rem; padding: 0.15rem 0.4rem; }
 
     /* Bouton aide */
@@ -1940,27 +1940,27 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .ce-help-icon-indigo { background: rgba(99, 102, 241, 0.3); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
 
     /* Badge variants */
-    .ce-badge-glass { padding: 0.2rem 0.5rem; background: rgba(255,255,255,0.05); border-radius: var(--radius-sm); }
-    .ce-badge-glass-bg { background: rgba(255,255,255,0.05); border-radius: var(--radius-sm); }
+    .ce-badge-glass { padding: 0.2rem 0.5rem; background: var(--surface-glass, rgba(255,255,255,0.05)); border-radius: var(--radius-sm); }
+    .ce-badge-glass-bg { background: var(--surface-glass, rgba(255,255,255,0.05)); border-radius: var(--radius-sm); }
     .ce-badge-purple-pill { padding: 0.25rem 0.5rem; background: rgba(139, 92, 246, 0.1); border-radius: 10px; }
     .ce-badge-purple-bg { background: rgba(139, 92, 246, 0.1); }
 
     /* Code tag */
-    .ce-code-var { background: rgba(0,0,0,0.3); padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.7rem; color: #a78bfa; cursor: help; }
+    .ce-code-var { background: var(--surface-glass-strong, rgba(0,0,0,0.3)); padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.7rem; color: #a78bfa; cursor: help; }
 
     /* Notification modal */
-    .ce-notif-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 10000; }
+    .ce-notif-modal-overlay { position: fixed; inset: 0; background: var(--app-overlay-dim, rgba(0,0,0,0.7)); display: flex; align-items: center; justify-content: center; z-index: 10000; }
     .ce-notif-modal-content { background: linear-gradient(135deg, var(--app-page-bg-a) 0%, var(--app-page-bg-b) 100%); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-md); padding: 1.25rem; width: 90%; max-width: 450px; max-height: 80vh; overflow-y: auto; }
-    .ce-notif-form-input { width: 100%; padding: 0.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; box-sizing: border-box; }
-    .ce-notif-form-select { width: 100%; padding: 0.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; }
-    .ce-notif-form-textarea { width: 100%; padding: 0.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; resize: vertical; box-sizing: border-box; }
+    .ce-notif-form-input { width: 100%; padding: 0.5rem; background: var(--app-input-bg, rgba(0,0,0,0.3)); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; box-sizing: border-box; }
+    .ce-notif-form-select { width: 100%; padding: 0.5rem; background: var(--app-input-bg, rgba(0,0,0,0.3)); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; }
+    .ce-notif-form-textarea { width: 100%; padding: 0.5rem; background: var(--app-input-bg, rgba(0,0,0,0.3)); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; resize: vertical; box-sizing: border-box; }
 
     /* Buttons - notification modal */
     .ce-btn-cancel { padding: 0.5rem 1rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-secondary); cursor: pointer; font-size: 0.85rem; }
     .ce-btn-save { padding: 0.5rem 1rem; background: var(--context-primary, #00d4aa); border: none; border-radius: var(--radius-sm); color: #000; cursor: pointer; font-size: 0.85rem; font-weight: 500; }
     .ce-btn-edit-icon { background: rgba(255,255,255,0.08); border: none; color: var(--color-dark-text-secondary); padding: 0.35rem 0.5rem; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--text-xs); }
-    .ce-notif-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-base); padding: 0.75rem; }
-    .ce-rule-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: rgba(255,255,255,0.03); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08); }
+    .ce-notif-card { background: var(--surface-glass-subtle, rgba(255,255,255,0.03)); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-base); padding: 0.75rem; }
+    .ce-rule-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; margin: 0.25rem 0; background: var(--surface-glass-subtle, rgba(255,255,255,0.03)); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08); }
     .ce-rule-icon { font-size: 0.65rem; }
     .ce-operator-btn { font-size: 0.7rem; padding: 0.2rem 0.5rem; color: white; border: none; }
 
@@ -1984,7 +1984,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .ce-btn-approve { flex: 1; padding: 0.875rem 1.25rem; background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: var(--radius-md); color: #22c55e; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 0.5rem; box-shadow: 0 0 20px rgba(34, 197, 94, 0.15); }
 
     /* Validation details */
-    .ce-validation-reasons-box { background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-md); padding: 1rem; margin: 1rem 0; }
+    .ce-validation-reasons-box { background: var(--surface-glass-hover, rgba(0, 0, 0, 0.2)); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-md); padding: 1rem; margin: 1rem 0; }
 
     /* Feature card */
     .ce-feature-label { font-size: 0.65rem; margin-bottom: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
