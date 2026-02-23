@@ -563,8 +563,8 @@ class NotificationCenter extends LitElement {
         <div class="notif-header">
           <span class="notif-title">Notifications</span>
           <div class="notif-header-actions">
-            <button class="notif-header-btn" id="mark-all-read-btn">✓ Tout lu</button>
-            <button class="notif-header-btn danger" id="delete-all-btn">🗑 Tout suppr.</button>
+            <button class="notif-header-btn" id="mark-all-read-btn" aria-label="Marquer tout comme lu">✓ Tout lu</button>
+            <button class="notif-header-btn danger" id="delete-all-btn" aria-label="Supprimer toutes les notifications">🗑 Tout suppr.</button>
           </div>
           <button class="notif-close" aria-label="Fermer" title="Fermer">✕</button>
         </div>
@@ -605,9 +605,9 @@ class NotificationCenter extends LitElement {
         <div class="notif-meta">${escapeHtml(n.source)} • ${this.formatTime(n.timestamp)}</div>
         <div class="notif-actions">
           ${!n.acknowledged ? `
-            <button class="notif-btn notif-btn-ack" data-id="${escapeHtml(n.id)}">✓ Lu</button>
+            <button class="notif-btn notif-btn-ack" data-id="${escapeHtml(n.id)}" aria-label="Marquer comme lu">✓ Lu</button>
           ` : ''}
-          <button class="notif-btn notif-btn-delete" data-id="${escapeHtml(n.id)}">🗑 Supprimer</button>
+          <button class="notif-btn notif-btn-delete" data-id="${escapeHtml(n.id)}" aria-label="Supprimer la notification">🗑 Supprimer</button>
         </div>
       </div>
     `).join('')

@@ -27,9 +27,9 @@ export const formInputStyles = css`
     transition: all var(--duration-base, 0.2s) var(--ease-out, ease-out);
   }
 
-  .form-input:focus,
-  .form-textarea:focus,
-  .form-select:focus {
+  .form-input:focus-visible,
+  .form-textarea:focus-visible,
+  .form-select:focus-visible {
     outline: none;
     border-color: var(--context-primary, #00d4aa);
     box-shadow: 0 0 0 3px var(--ctx-border-subtle, rgba(0, 212, 170, 0.1));
@@ -105,6 +105,11 @@ export const btnStyles = css`
     cursor: not-allowed;
     transform: none;
     box-shadow: none;
+  }
+
+  .btn:focus-visible {
+    outline: 2px solid var(--context-primary, #00d4aa);
+    outline-offset: 2px;
   }
 
   .btn-secondary {

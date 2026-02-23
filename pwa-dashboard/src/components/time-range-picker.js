@@ -182,6 +182,12 @@ class TimeRangePicker extends LitElement {
       color: var(--primary-color, #00d4aa);
     }
 
+    .month-days-toggle:focus-visible {
+      outline: 2px solid var(--primary-color, #00d4aa);
+      outline-offset: 2px;
+      border-radius: var(--radius-sm, 4px);
+    }
+
     .month-days-grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
@@ -207,6 +213,13 @@ class TimeRangePicker extends LitElement {
 
     .month-day-btn:hover {
       background: var(--bg-hover, rgba(60, 65, 75, 0.8));
+    }
+
+    .day-btn:focus-visible,
+    .month-day-btn:focus-visible,
+    .quick-btn:focus-visible {
+      outline: 2px solid var(--primary-color, #00d4aa);
+      outline-offset: 2px;
     }
 
     .month-day-btn.selected {
@@ -449,7 +462,11 @@ class TimeRangePicker extends LitElement {
         <div class="section">
           <div
             class="month-days-toggle"
+            role="button"
+            tabindex="0"
             @click=${() => this.showMonthDays = !this.showMonthDays}
+            @keydown=${(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.showMonthDays = !this.showMonthDays; } }}
+            aria-expanded="${this.showMonthDays}"
           >
             <span>${this.showMonthDays ? '▼' : '▶'}</span>
             <span>📆 Jours du mois specifiques (optionnel)</span>

@@ -1194,7 +1194,7 @@ class DashboardApp extends LitElement {
       <div class="header">
         <div class="header-left">
           <h1><img src="/icon-192-transparent-v2.png" alt="Symbion" class="header-logo"> Symbion Dashboard</h1>
-          <div class="status-bar">
+          <div class="status-bar" aria-live="polite">
             <div class="status-indicator">
               <div class="status-dot ${this.apiStatus}" role="status" aria-label="API ${this.apiStatus}"></div>
               <span>API: ${this.apiStatus}</span>
@@ -1417,7 +1417,7 @@ class DashboardApp extends LitElement {
 
       <!-- FAB Logs (discret, bas-droite) -->
       ${this.showLogsFab ? html`
-        <button class="logs-fab" @click="${this._openLogViewer}" title="Ouvrir Log Viewer">
+        <button class="logs-fab" @click="${this._openLogViewer}" title="Ouvrir Log Viewer" aria-label="Ouvrir Log Viewer">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="4 17 10 11 4 5"></polyline>
             <line x1="12" y1="19" x2="20" y2="19"></line>
