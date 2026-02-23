@@ -18,8 +18,8 @@ class ContextEngineWidget extends LitElement {
 
     .widget {
       background: linear-gradient(135deg,
-        rgba(19, 20, 26, 0.95) 0%,
-        rgba(10, 10, 11, 0.98) 100%);
+        var(--app-widget-bg-a, rgba(19, 20, 26, 0.95)) 0%,
+        var(--app-widget-bg-b, rgba(10, 10, 11, 0.98)) 100%);
       border: 1px solid var(--ctx-border-medium);
       border-radius: var(--radius-lg);
       overflow: hidden;
@@ -28,8 +28,7 @@ class ContextEngineWidget extends LitElement {
 
     .widget:hover {
       border-color: var(--ctx-bg-intense);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
-                  0 0 40px var(--ctx-bg);
+      box-shadow: var(--shadow-lg), 0 0 40px var(--ctx-bg);
     }
 
     .header {
@@ -38,7 +37,7 @@ class ContextEngineWidget extends LitElement {
       gap: 0.75rem;
       padding: 1rem 1.25rem;
       border-bottom: 1px solid var(--border-subtle);
-      background: rgba(0, 0, 0, 0.2);
+      background: var(--surface-glass-subtle, rgba(0, 0, 0, 0.2));
     }
 
     .header-icon {
