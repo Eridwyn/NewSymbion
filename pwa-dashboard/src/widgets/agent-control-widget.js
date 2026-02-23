@@ -47,7 +47,7 @@ class AgentControlWidget extends LitElement {
     }
 
     .modal {
-      background: linear-gradient(135deg, rgba(30, 30, 30, 0.98) 0%, rgba(20, 20, 20, 0.98) 100%);
+      background: linear-gradient(135deg, var(--app-page-bg-a, rgba(30, 30, 30, 0.98)) 0%, var(--app-page-bg-b, rgba(20, 20, 20, 0.98)) 100%);
       border: 1px solid var(--ctx-border);
       border-radius: var(--radius-xl);
       width: 90%;

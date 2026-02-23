@@ -45,7 +45,7 @@ class EnvironmentWidget extends LitElement {
   static styles = [emptyStateStyles, statusBadgeStyles, css`
     :host {
       display: block;
-      background: var(--widget-background, #1a1a1a);
+      background: var(--widget-background, var(--color-dark-surface, #1a1a1a));
       border-radius: var(--radius-md, 0.75rem);
       padding: 20px;
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -313,7 +313,7 @@ class EnvironmentWidget extends LitElement {
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.85);
+      background: var(--surface-overlay, rgba(0, 0, 0, 0.85));
       backdrop-filter: blur(var(--blur-base));
       z-index: 1000;
       display: flex;
@@ -329,7 +329,7 @@ class EnvironmentWidget extends LitElement {
     }
 
     .modal-content {
-      background: linear-gradient(135deg, #1a1a1a 0%, #252525 100%);
+      background: linear-gradient(135deg, var(--color-dark-surface, #1a1a1a) 0%, var(--color-dark-elevated, #252525) 100%);
       border: 1px solid var(--ctx-border-medium);
       border-radius: var(--radius-lg);
       max-width: 900px;
@@ -433,7 +433,7 @@ class EnvironmentWidget extends LitElement {
         padding: 16px;
         position: sticky;
         top: 0;
-        background: linear-gradient(135deg, #1a1a1a 0%, #252525 100%);
+        background: linear-gradient(135deg, var(--color-dark-surface, #1a1a1a) 0%, var(--color-dark-elevated, #252525) 100%);
         z-index: 10;
         flex-shrink: 0;
       }

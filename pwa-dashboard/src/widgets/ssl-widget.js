@@ -209,7 +209,7 @@ export class SslWidget extends LitElement {
     .config-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.7);
+      background: var(--surface-overlay, rgba(0, 0, 0, 0.7));
       backdrop-filter: blur(4px);
       z-index: 1000;
       opacity: 0;
@@ -230,7 +230,7 @@ export class SslWidget extends LitElement {
       width: 380px;
       max-width: 95vw;
       height: 100vh;
-      background: linear-gradient(180deg, #12121a 0%, #0d0d14 100%);
+      background: linear-gradient(180deg, var(--color-dark-surface, #12121a) 0%, var(--color-dark-bg, #0d0d14) 100%);
       border-left: 1px solid var(--ctx-border-medium);
       z-index: 1001;
       transform: translateX(100%);

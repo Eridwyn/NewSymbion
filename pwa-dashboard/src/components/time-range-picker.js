@@ -65,7 +65,7 @@ class TimeRangePicker extends LitElement {
     .time-input input {
       width: 60px;
       padding: 0.5rem;
-      background: var(--bg-primary, #1a1f2e);
+      background: var(--bg-primary, var(--color-dark-surface, #1a1f2e));
       border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
       border-radius: var(--radius-sm);
       color: var(--text-primary, #fff);

@@ -95,8 +95,8 @@ class NotificationCenter extends LitElement {
       max-width: 420px;
       max-height: 80vh;
       background: linear-gradient(135deg,
-        rgba(19, 20, 26, 0.99) 0%,
-        rgba(10, 10, 11, 1) 100%);
+        var(--app-page-bg-a) 0%,
+        var(--app-page-bg-b) 100%);
       border: 1px solid var(--ctx-bg-emphasis);
       border-radius: var(--radius-lg, 12px);
       box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6),
@@ -417,7 +417,7 @@ class NotificationCenter extends LitElement {
           width: 90%;
           max-width: 400px;
           max-height: 80vh;
-          background: linear-gradient(135deg, rgba(19, 20, 26, 0.99) 0%, rgba(10, 10, 11, 1) 100%);
+          background: linear-gradient(135deg, var(--app-page-bg-a) 0%, var(--app-page-bg-b) 100%);
           border: 1px solid var(--ctx-bg-emphasis, rgba(0, 212, 170, 0.25));
           border-radius: var(--radius-md);
           box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);

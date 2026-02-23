@@ -96,7 +96,7 @@ export class SslConfigPage extends LitElement {
     /* Section override — SSL-specific simpler gradient */
     .section {
       padding: 1.5rem;
-      background: linear-gradient(135deg, rgba(26, 26, 26, 0.9) 0%, rgba(15, 15, 15, 0.85) 100%);
+      background: linear-gradient(135deg, var(--app-page-bg-a) 0%, var(--app-page-bg-b) 100%);
     }
 
     .section-header {
@@ -378,7 +378,7 @@ export class SslConfigPage extends LitElement {
 
     /* Form section collapsible */
     .form-section {
-      background: linear-gradient(135deg, rgba(26, 26, 26, 0.95) 0%, rgba(15, 15, 15, 0.9) 100%);
+      background: linear-gradient(135deg, var(--app-page-bg-a) 0%, var(--app-page-bg-b) 100%);
       border: 1px solid var(--ctx-bg-emphasis);
       animation: slideDown 0.2s ease-out;
     }

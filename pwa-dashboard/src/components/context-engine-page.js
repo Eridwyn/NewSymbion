@@ -31,7 +31,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
       width: 95%;
       max-width: 800px;
       max-height: 90vh;
-      background: linear-gradient(135deg, rgba(19, 20, 26, 0.98) 0%, rgba(10, 10, 11, 1) 100%);
+      background: linear-gradient(135deg, var(--app-page-bg-a) 0%, var(--app-page-bg-b) 100%);
       border: 1px solid var(--ctx-bg-emphasis);
       border-radius: var(--radius-lg);
       box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6),
@@ -95,7 +95,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .toast {
       padding: 0.75rem 1.25rem;
       border-radius: var(--radius-md);
-      background: rgba(25, 26, 32, 0.95);
+      background: var(--app-section-bg);
       border: 1px solid var(--border-medium);
       backdrop-filter: blur(16px);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
@@ -114,17 +114,17 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
 
     .toast.success {
       border-color: rgba(34, 197, 94, 0.4);
-      background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(25, 26, 32, 0.95) 100%);
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, var(--app-section-bg) 100%);
     }
 
     .toast.error {
       border-color: rgba(239, 68, 68, 0.4);
-      background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(25, 26, 32, 0.95) 100%);
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, var(--app-section-bg) 100%);
     }
 
     .toast.info {
       border-color: rgba(59, 130, 246, 0.4);
-      background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(25, 26, 32, 0.95) 100%);
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, var(--app-section-bg) 100%);
     }
 
     .toast-icon {
@@ -149,7 +149,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     }
 
     .confirm-dialog {
-      background: linear-gradient(135deg, rgba(25, 26, 32, 0.98) 0%, rgba(15, 15, 17, 1) 100%);
+      background: linear-gradient(135deg, var(--app-page-bg-a) 0%, var(--app-page-bg-b) 100%);
       border: 1px solid var(--border-medium);
       border-radius: var(--radius-lg);
       padding: 1.5rem;
@@ -1574,7 +1574,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     }
 
     .mode-form {
-      background: linear-gradient(135deg, rgba(25, 26, 32, 0.98) 0%, rgba(15, 15, 17, 1) 100%);
+      background: linear-gradient(135deg, var(--app-page-bg-a) 0%, var(--app-page-bg-b) 100%);
       border: 1px solid var(--border-medium);
       border-radius: var(--radius-lg);
       width: 90%;
@@ -1822,9 +1822,9 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .ce-opacity-6 { opacity: 0.6; }
 
     /* Backgrounds */
-    .ce-bg-1a { background: #1a1a1a; }
+    .ce-bg-1a { background: var(--color-dark-surface, #1a1a1a); }
     .ce-bg-emerald { background: rgba(16, 185, 129, 0.15); padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid rgba(16, 185, 129, 0.3); }
-    .ce-bg-section { background: rgba(30, 35, 45, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.25rem; }
+    .ce-bg-section { background: var(--app-section-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.25rem; }
 
     /* Checkbox */
     .ce-checkbox { width: 16px; height: 16px; accent-color: var(--context-primary, #00d4aa); }
@@ -1892,7 +1892,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .ce-bg-purple-section { background: rgba(147, 51, 234, 0.1); border: 1px solid rgba(147, 51, 234, 0.3); }
     .ce-bg-purple-subtle { background: rgba(147, 51, 234, 0.1); padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid rgba(147, 51, 234, 0.2); }
     .ce-bg-indigo-section { background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); }
-    .ce-bg-stats-section { background: rgba(30, 35, 45, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); padding: 1rem; }
+    .ce-bg-stats-section { background: var(--app-section-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); padding: 1rem; }
 
     /* Help icon (circle with ?) */
     .ce-help-icon-purple { background: rgba(147, 51, 234, 0.3); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
@@ -1909,7 +1909,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
 
     /* Notification modal */
     .ce-notif-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 10000; }
-    .ce-notif-modal-content { background: linear-gradient(135deg, rgba(30, 32, 40, 0.98) 0%, rgba(20, 22, 28, 1) 100%); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-md); padding: 1.25rem; width: 90%; max-width: 450px; max-height: 80vh; overflow-y: auto; }
+    .ce-notif-modal-content { background: linear-gradient(135deg, var(--app-page-bg-a) 0%, var(--app-page-bg-b) 100%); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-md); padding: 1.25rem; width: 90%; max-width: 450px; max-height: 80vh; overflow-y: auto; }
     .ce-notif-form-input { width: 100%; padding: 0.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; box-sizing: border-box; }
     .ce-notif-form-select { width: 100%; padding: 0.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; }
     .ce-notif-form-textarea { width: 100%; padding: 0.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; resize: vertical; box-sizing: border-box; }
