@@ -207,3 +207,20 @@ export const sharedAnimations = css`
     100% { transform: translate(0, 0) scale(1); opacity: 0.12; }
   }
 `
+
+export const pageTransitionStyles = css`
+  :host {
+    animation: pageSlideIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  @keyframes pageSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`
