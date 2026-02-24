@@ -174,6 +174,7 @@ impl SchemaRegistry {
             ("process.category.ide".to_string(), "💻 IDE actif".to_string()),
             ("process.category.media".to_string(), "🎬 Média actif".to_string()),
             ("agent.online".to_string(), "🖥️ Agent en ligne".to_string()),
+            ("appearance.theme".to_string(), "🌗 Thème interface (dark/light)".to_string()),
         ];
 
         // Add SSL features for each domain

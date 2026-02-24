@@ -736,7 +736,7 @@ class EnvironmentWidget extends LitElement {
       </div>
     `
 
-    this.modalContainer.innerHTML = DOMPurify.sanitize(modalHTML, { ADD_TAGS: ['canvas'], ADD_ATTR: ['id', 'style'] })
+    this.modalContainer.innerHTML = DOMPurify.sanitize(modalHTML, { ADD_TAGS: ['canvas', 'style'], ADD_ATTR: ['id', 'style'] })
 
     // Attach event listeners
     const overlay = this.modalContainer.querySelector('#modal-overlay')

@@ -18,6 +18,7 @@
 
 use axum::{
     extract::State,
+    http::StatusCode,
     routing::{get, post, put},
     Json, Router,
 };
@@ -30,7 +31,7 @@ use crate::context_intelligence::{
     LearnedPattern, ModePrediction, PredictionRecord, PatternExport,
 };
 use crate::intelligence::{
-    FeatureSample, FeatureRegistrySummary, ContextVector, VectorBuilder,
+    FeatureSample, FeatureRegistrySummary, FeatureValue, ContextVector, VectorBuilder,
     PredictionV2, InferenceStats, ShadowStats, SampleStats, V2StabilizationConfig,
 };
 
@@ -144,6 +145,19 @@ pub struct ShadowStatsResponse {
     /// Days since shadow mode started
     pub observation_days: i64,
 }
+
+/// Request to set a feature via HTTP (mirrors MQTT symbion/features/update)
+#[derive(Debug, Deserialize)]
+struct SetFeatureRequest {
+    feature_id: String,
+    value: serde_json::Value,
+    #[serde(default = "default_feature_source")]
+    source: String,
+    #[serde(default)]
+    ttl_seconds: u32,
+}
+
+fn default_feature_source() -> String { "http-api".to_string() }
 
 // ============================================================================
 // Handlers
@@ -424,6 +438,38 @@ async fn get_features(State(app): State<AppState>) -> Json<FeaturesResponse> {
     Json(FeaturesResponse { features, summary })
 }
 
+/// POST /v1/intelligence/features
+/// Set a feature value via HTTP (equivalent to MQTT symbion/features/update)
+async fn post_feature(
+    State(app): State<AppState>,
+    Json(update): Json<SetFeatureRequest>,
+) -> StatusCode {
+    let value = match &update.value {
+        serde_json::Value::Bool(b) => FeatureValue::Bool(*b),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                FeatureValue::Int(i)
+            } else if let Some(f) = n.as_f64() {
+                FeatureValue::Float(f)
+            } else {
+                FeatureValue::String(n.to_string())
+            }
+        }
+        serde_json::Value::String(s) => FeatureValue::String(s.clone()),
+        _ => FeatureValue::String(update.value.to_string()),
+    };
+
+    app.feature_registry.set_feature(
+        &update.feature_id,
+        value,
+        &update.source,
+        1.0,
+        update.ttl_seconds,
+    );
+    println!("[intelligence-http] feature set: {} = {} (source: {})", update.feature_id, update.value, update.source);
+    StatusCode::NO_CONTENT
+}
+
 /// GET /v1/intelligence/vector
 /// Returns current ContextVector built from features (v2 Intelligence)
 async fn get_vector(State(app): State<AppState>) -> Json<VectorResponse> {
@@ -512,7 +558,7 @@ pub fn intelligence_routes() -> Router<AppState> {
         .route("/patterns/export", get(get_patterns_export))
         .route("/predictions", get(get_predictions))
         .route("/signals", get(get_signals))
-        .route("/features", get(get_features))      // v2 Intelligence
+        .route("/features", get(get_features).post(post_feature)) // v2 Intelligence
         .route("/vector", get(get_vector))          // v2 Intelligence
         .route("/prediction2", get(get_prediction2)) // v2 Intelligence
         .route("/session", get(get_session))         // v2 Intelligence
