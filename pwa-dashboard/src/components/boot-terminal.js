@@ -519,7 +519,7 @@ class BootTerminal extends LitElement {
     }
 
     .success-icon {
-      font-size: 4rem;
+      font-size: var(--text-4xl);
       margin-bottom: 1rem;
       animation: successBounce 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
     }
@@ -836,7 +836,7 @@ class BootTerminal extends LitElement {
       }
 
       .success-icon {
-        font-size: 3rem;
+        font-size: var(--text-3xl);
       }
 
       .success-title {

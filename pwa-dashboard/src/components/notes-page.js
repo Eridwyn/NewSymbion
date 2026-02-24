@@ -13,11 +13,12 @@ import { calculatePriorityScore, sortNotesByPriority, isHighPriority } from '../
 import { applyAllFilters, extractAllTags } from '../utils/notes-filters.js'
 import notesStreamService from '../services/notes-stream-service.js'
 import '../components/organic-loader.js'
-import { sharedAnimations, pageTransitionStyles } from '../styles/shared-animations.js'
+import { sharedAnimations, pageTransitionStyles, scrollRevealStyles } from '../styles/shared-animations.js'
 import { overlayStyles, closeButtonStyles, scrollbarStyles } from '../styles/shared-patterns.js'
+import { setupScrollReveal } from '../utils/scroll-reveal.js'
 
 class NotesPage extends LitElement {
-  static styles = [sharedAnimations, pageTransitionStyles, overlayStyles, closeButtonStyles, scrollbarStyles, css`
+  static styles = [sharedAnimations, pageTransitionStyles, scrollRevealStyles, overlayStyles, closeButtonStyles, scrollbarStyles, css`
     .notes-container {
       max-width: 1200px;
       margin: var(--space-6) auto;
@@ -880,9 +881,14 @@ class NotesPage extends LitElement {
     document.addEventListener('keydown', this.handleEscape)
   }
 
+  firstUpdated() {
+    this._cleanupReveal = setupScrollReveal(this.shadowRoot)
+  }
+
   disconnectedCallback() {
     super.disconnectedCallback()
     document.removeEventListener('keydown', this.handleEscape)
+    this._cleanupReveal?.()
   }
 
   async loadNotes() {
@@ -1180,13 +1186,14 @@ class NotesPage extends LitElement {
           </div>
         ` : html`
           <div class="notes-grid">
-            ${filteredNotes.map(note => {
+            ${filteredNotes.map((note, idx) => {
               const isPriority = isHighPriority(note, this.currentContext)
 
               return html`
-                <div
-                  class="note-card ${note.data.urgent ? 'urgent' : ''} ${isPriority ? 'priority' : ''}"
-                  @click="${() => this.openNoteDetail(note)}">
+                <div class="scroll-reveal" style="transition-delay: ${idx * 0.05}s">
+                  <div
+                    class="note-card ${note.data.urgent ? 'urgent' : ''} ${isPriority ? 'priority' : ''}"
+                    @click="${() => this.openNoteDetail(note)}">
                   <div class="note-header">
                     <div class="note-indicators">
                       ${note.data.urgent ? html`<span class="urgent-indicator">🚨</span>` : ''}
@@ -1224,6 +1231,7 @@ class NotesPage extends LitElement {
                     <span class="note-timestamp">
                       ${this.formatTimestamp(note.timestamp)}
                     </span>
+                  </div>
                   </div>
                 </div>
               `

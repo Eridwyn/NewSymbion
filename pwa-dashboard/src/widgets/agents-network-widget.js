@@ -208,7 +208,7 @@ class AgentsNetworkWidget extends LitElement {
 
     .meta-label {
       color: var(--color-dark-text-tertiary, #94a3b8);
-      font-size: 11px;
+      font-size: var(--text-xs);
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }

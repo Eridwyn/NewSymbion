@@ -6,10 +6,12 @@
  */
 
 import { LitElement, html, css } from 'lit'
-import { sharedAnimations, pageTransitionStyles } from '../styles/shared-animations.js'
+import { sharedAnimations, pageTransitionStyles, scrollRevealStyles } from '../styles/shared-animations.js'
 import { overlayStyles, closeButtonStyles, scrollbarStyles } from '../styles/shared-patterns.js'
 import { cardStyles } from '../styles/shared-cards.js'
 import { formInputStyles, btnSuccessStyles, btnSizeStyles } from '../styles/shared-forms.js'
+import { loadingButtonStyles } from '../styles/shared-loading.js'
+import { setupScrollReveal } from '../utils/scroll-reveal.js'
 import csrfService from '../services/csrf-service.js'
 import automationsService from '../services/automations-service.js'
 import { getDayNameShort, getDayNameFull } from '../utils/time-utils.js'
@@ -20,7 +22,7 @@ import { IntelligenceMixin } from './ce-intelligence-mixin.js'
 import { ModesMixin } from './ce-modes-mixin.js'
 
 class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(LitElement))) {
-  static styles = [sharedAnimations, pageTransitionStyles, overlayStyles, closeButtonStyles, scrollbarStyles, formInputStyles, cardStyles, btnSuccessStyles, btnSizeStyles, css`
+  static styles = [sharedAnimations, pageTransitionStyles, overlayStyles, closeButtonStyles, scrollbarStyles, formInputStyles, cardStyles, btnSuccessStyles, btnSizeStyles, loadingButtonStyles, scrollRevealStyles, css`
     :host {
       display: flex;
       align-items: center;
@@ -128,7 +130,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     }
 
     .toast-icon {
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
     }
 
     .toast-message {
@@ -166,7 +168,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     }
 
     .confirm-title {
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       font-weight: 600;
       color: var(--color-dark-text-primary, #f8f9fa);
       text-align: center;
@@ -266,7 +268,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     }
 
     .validation-title {
-      font-size: 1rem;
+      font-size: var(--text-base);
       font-weight: 600;
       color: var(--color-dark-text-primary, #f8f9fa);
       margin-bottom: 0.25rem;
@@ -390,7 +392,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     }
 
     .header-title {
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       font-weight: 600;
       color: var(--color-dark-text-primary, #f8f9fa);
       display: flex;
@@ -471,7 +473,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     }
 
     .mode-icon {
-      font-size: 4rem;
+      font-size: var(--text-4xl);
       margin-bottom: 1rem;
       animation: float 3s ease-in-out infinite;
     }
@@ -1024,7 +1026,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     }
 
     .history-title-icon {
-      font-size: 1rem;
+      font-size: var(--text-base);
     }
 
     .history-timeline {
@@ -1145,7 +1147,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     }
 
     .empty-state-title {
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       font-weight: 600;
       color: var(--color-dark-text-primary, #f8f9fa);
       margin-bottom: 0.5rem;
@@ -1238,7 +1240,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     }
 
     .empty-icon {
-      font-size: 3rem;
+      font-size: var(--text-3xl);
       margin-bottom: 1rem;
       opacity: 0.5;
     }
@@ -1292,7 +1294,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .section-header h3 {
       margin: 0;
       color: var(--color-dark-text-primary, #f8f9fa);
-      font-size: 1rem;
+      font-size: var(--text-base);
       font-weight: 600;
     }
 
@@ -1644,7 +1646,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     }
 
     .preview-name {
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       font-weight: 600;
       color: var(--preview-accent, #1e40af);
     }
@@ -1753,7 +1755,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     /* Animations */
     .ce-float-icon { font-size: var(--text-2xl); animation: float-icon 3s ease-in-out infinite; }
     .ce-float-icon-sm { font-size: var(--text-xl); animation: float-icon 3s ease-in-out infinite; }
-    .ce-float-icon-lg { font-size: 3rem; animation: float-icon 3s ease-in-out infinite; }
+    .ce-float-icon-lg { font-size: var(--text-3xl); animation: float-icon 3s ease-in-out infinite; }
 
     /* Grids */
     .ce-grid-auto { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; }
@@ -1775,8 +1777,8 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .ce-heading-md { margin: 0 0 0.75rem; }
 
     /* Font sizes */
-    .ce-text-base { font-size: 1rem; }
-    .ce-text-lg { font-size: 1.1rem; }
+    .ce-text-base { font-size: var(--text-base); }
+    .ce-text-lg { font-size: var(--text-lg); }
     .ce-text-xl { font-size: var(--text-xl); }
     .ce-text-2xl { font-size: var(--text-2xl); }
     .ce-text-normal { font-weight: normal; }
@@ -1838,7 +1840,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .ce-lh-14 { line-height: 1.4; }
     .ce-uppercase-spaced { text-transform: uppercase; letter-spacing: 0.08em; }
     .ce-capitalize { text-transform: capitalize; }
-    .ce-dim-icon { font-size: 1rem; width: 1.5rem; text-align: center; }
+    .ce-dim-icon { font-size: var(--text-base); width: 1.5rem; text-align: center; }
     .ce-italic { font-style: italic; }
     .ce-text-context-primary { color: var(--context-primary, #00d4aa); }
 
@@ -1994,6 +1996,10 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     // UX Overlay states
     toasts: { type: Array },
     confirmDialog: { type: Object },
+    // Loading states for async buttons
+    isSavingMode: { type: Boolean },
+    isSavingAutomation: { type: Boolean },
+    isRunningAutomation: { type: String },
   }
 
   constructor() {
@@ -2052,6 +2058,10 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     // UX Overlay states
     this.toasts = []
     this.confirmDialog = null
+    // Loading states
+    this.isSavingMode = false
+    this.isSavingAutomation = false
+    this.isRunningAutomation = null
   }
 
   connectedCallback() {
@@ -2083,6 +2093,11 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     }, 10000)
   }
 
+  firstUpdated() {
+    super.firstUpdated?.()
+    this._cleanupReveal = setupScrollReveal(this.shadowRoot)
+  }
+
   disconnectedCallback() {
     super.disconnectedCallback()
     document.removeEventListener('keydown', this._handleKeydown)
@@ -2092,6 +2107,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     if (this._refreshInterval) {
       clearInterval(this._refreshInterval)
     }
+    this._cleanupReveal?.()
   }
 
   async loadAllData() {

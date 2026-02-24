@@ -101,7 +101,7 @@ class EnvironmentWidget extends LitElement {
     }
 
     .auth-icon {
-      font-size: 48px;
+      font-size: var(--text-4xl);
       margin-bottom: 16px;
       opacity: 0.8;
     }
@@ -237,7 +237,7 @@ class EnvironmentWidget extends LitElement {
     }
 
     .reading-label {
-      font-size: 11px;
+      font-size: var(--text-xs);
       color: var(--color-dark-text-tertiary, #94a3b8);
       text-transform: uppercase;
       letter-spacing: 0.5px;
