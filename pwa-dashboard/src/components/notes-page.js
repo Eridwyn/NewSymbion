@@ -23,6 +23,10 @@ class NotesPage extends LitElement {
       margin: var(--space-6) auto;
       padding: var(--space-6);
       overflow-x: hidden;
+      background: linear-gradient(135deg, var(--app-page-bg-a) 0%, var(--app-page-bg-b) 100%);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
       animation: slideUp var(--duration-slow) var(--ease-out);
     }
 
@@ -32,8 +36,11 @@ class NotesPage extends LitElement {
       align-items: center;
       justify-content: space-between;
       margin-bottom: var(--space-6);
-      padding-bottom: var(--space-4);
+      padding: var(--space-4) var(--space-5);
+      background: var(--surface-glass-strong, rgba(0, 0, 0, 0.3));
       border-bottom: 1px solid var(--border-default);
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-6)) var(--space-6);
     }
 
     .notes-title {
