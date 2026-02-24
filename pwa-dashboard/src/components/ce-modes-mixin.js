@@ -1,37 +1,30 @@
 import { html } from 'lit'
 import csrfService from '../services/csrf-service.js'
+import modeTransition from '../animations/mode-transition.js'
 
 export const ModesMixin = (Base) => class extends Base {
 
   // ============ Mode Change Overlay ============
-  showModeChangeOverlay(mode, duration) {
-    // Clear any pending dismiss
-    if (this._overlayTimer) clearTimeout(this._overlayTimer)
-
+  showModeChangeOverlay(mode, duration, clickEvent) {
     const theme = this.getModeTheme(mode)
-    this.modeChangeOverlay = {
-      mode,
-      duration,
+    const origin = clickEvent
+      ? { x: clickEvent.clientX, y: clickEvent.clientY }
+      : undefined
+
+    modeTransition.play({
       icon: this.getModeIcon(mode),
       name: this.getModeName(mode),
       color: theme.primary,
-      closing: false
-    }
-
-    // Start exit animation after 1.2s, then remove after animation completes
-    this._overlayTimer = setTimeout(() => {
-      this.modeChangeOverlay = { ...this.modeChangeOverlay, closing: true }
-      setTimeout(() => {
-        this.modeChangeOverlay = null
-      }, 400)
-    }, 1200)
+      duration: this.formatDuration(duration),
+      origin
+    })
   }
 
   // Mode actions
-  async setModeOverride(mode) {
+  async setModeOverride(mode, clickEvent) {
     try {
       // Show mode change overlay immediately
-      this.showModeChangeOverlay(mode, this.selectedDuration)
+      this.showModeChangeOverlay(mode, this.selectedDuration, clickEvent)
 
       const res = await csrfService.fetchWithCsrf('/v1/context/override', {
         method: 'POST',
@@ -125,7 +118,7 @@ export const ModesMixin = (Base) => class extends Base {
                     <button
                       class="mode-quick-btn ${mode === m.slug ? 'active' : ''}"
                       style="--btn-color: ${m.theme?.primary || '#6b7280'}"
-                      @click="${() => this.setModeOverride(m.slug)}"
+                      @click="${(e) => this.setModeOverride(m.slug, e)}"
                       title="${m.name}"
                     >
                       ${m.icon} ${m.name}
