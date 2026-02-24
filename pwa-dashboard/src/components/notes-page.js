@@ -375,13 +375,13 @@ class NotesPage extends LitElement {
     }
 
     .priority-badge {
-      background: linear-gradient(135deg, rgba(255, 193, 7, 0.25) 0%, rgba(255, 152, 0, 0.2) 100%);
-      color: #ffc107;
+      background: linear-gradient(135deg, color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 25%, transparent) 0%, color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 20%, transparent) 100%);
+      color: var(--color-warning-text-muted, #fbbf24);
       padding: 0.2rem 0.5rem;
       border-radius: var(--radius-base);
       font-size: 0.7em;
       font-weight: 600;
-      border: 1px solid rgba(255, 193, 7, 0.3);
+      border: 1px solid color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 30%, transparent);
     }
 
     .context-tag {
@@ -804,7 +804,7 @@ class NotesPage extends LitElement {
     /* === Utility classes (ex-inline styles) === */
     .np-modal-header-content { flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
     .np-flex-wrap { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-    .np-tags-meta { color: var(--color-dark-text-tertiary, #888); font-size: 0.8em; font-weight: 500; }
+    .np-tags-meta { color: var(--color-dark-text-tertiary, #6b7280); font-size: 0.8em; font-weight: 500; }
     .np-note-footer { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-default); display: flex; justify-content: space-between; align-items: center; }
     .np-flex-gap { display: flex; gap: 0.5rem; }
     .np-action-compact { padding: 0.4rem 0.8rem; }
