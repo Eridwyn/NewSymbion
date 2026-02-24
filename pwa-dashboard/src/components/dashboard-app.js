@@ -16,6 +16,7 @@ import '../services/mqtt-service.js'
 import '../services/agents-service.js'
 import '../services/context-service.js'
 import themeService from '../services/theme-service.js'
+import themeTransition from '../animations/theme-transition.js'
 // PWA8: Lazy-load widgets and pages (loaded on first render, not at parse time)
 const lazyWidgets = () => {
   import('../widgets/system-health-widget.js')
@@ -1339,7 +1340,7 @@ class DashboardApp extends LitElement {
           <span>${this.currentTime}</span>
         </div>
 
-        <button class="theme-toggle-btn" @click="${this._toggleTheme}" aria-label="Changer le thème" title="Changer le thème">
+        <button class="theme-toggle-btn" @click="${(e) => this._toggleTheme(e)}" aria-label="Changer le thème" title="Changer le thème">
           <span class="theme-icon">${this.currentTheme === 'dark' ? '☀️' : '🌙'}</span>
         </button>
 
@@ -1593,8 +1594,13 @@ class DashboardApp extends LitElement {
     }
   }
 
-  _toggleTheme() {
-    themeService.toggle()
+  _toggleTheme(e) {
+    const target = themeService.current === 'dark' ? 'light' : 'dark'
+    themeTransition.play({
+      to: target,
+      origin: e ? { x: e.clientX, y: e.clientY } : undefined,
+      onSwitch: () => themeService.toggle()
+    })
   }
 
   _handleDropdownKeydown(e) {
