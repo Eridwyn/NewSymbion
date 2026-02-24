@@ -43,14 +43,14 @@ const STYLES = `
     transparent 70%
   );
   transform: translate(-50%, -50%) scale(0);
-  animation: smt-ripple-expand 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+  animation: smt-ripple-expand 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
   pointer-events: none;
   will-change: transform, opacity;
 }
 
 .smt-ripple-2 {
-  animation-delay: 0.08s;
-  animation-duration: 0.7s;
+  animation-delay: 0.12s;
+  animation-duration: 1s;
   background: radial-gradient(
     circle,
     rgba(var(--smt-color-rgb), 0.18) 0%,
@@ -73,8 +73,8 @@ const STYLES = `
 
 @keyframes smt-bg-flood {
   0%   { background-color: rgba(0, 0, 0, 0); }
-  25%  { background-color: rgba(var(--smt-color-rgb), 0.10); }
-  50%  { background-color: rgba(var(--smt-color-rgb), 0.06); }
+  20%  { background-color: rgba(var(--smt-color-rgb), 0.10); }
+  40%  { background-color: rgba(var(--smt-color-rgb), 0.06); }
   100% { background-color: rgba(0, 0, 0, 0.85); }
 }
 
@@ -97,7 +97,7 @@ const STYLES = `
   height: 180px;
   border-radius: 50%;
   border: 2px solid rgba(var(--smt-color-rgb), 0.4);
-  animation: smt-glow-pulse 1.2s cubic-bezier(0.4, 0, 0.2, 1) 0.2s both;
+  animation: smt-glow-pulse 1.6s cubic-bezier(0.4, 0, 0.2, 1) 0.3s both;
   will-change: transform, opacity, box-shadow;
   z-index: 1;
 }
@@ -128,7 +128,7 @@ const STYLES = `
 .smt-icon {
   font-size: 5.5rem;
   line-height: 1;
-  animation: smt-icon-enter 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.25s both;
+  animation: smt-icon-enter 1s cubic-bezier(0.34, 1.56, 0.64, 1) 0.4s both;
   will-change: transform, opacity, filter;
   z-index: 2;
 }
@@ -163,7 +163,7 @@ const STYLES = `
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-top: 0.5rem;
-  animation: smt-name-enter 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) 0.5s both;
+  animation: smt-name-enter 0.8s cubic-bezier(0.22, 0.61, 0.36, 1) 0.8s both;
   text-shadow: 0 0 40px rgba(var(--smt-color-rgb), 0.5);
   will-change: transform, opacity;
   z-index: 2;
@@ -189,7 +189,7 @@ const STYLES = `
   font-size: 0.95rem;
   color: rgba(255, 255, 255, 0.6);
   margin-top: 0.25rem;
-  animation: smt-subtitle-enter 0.4s ease-out 0.7s both;
+  animation: smt-subtitle-enter 0.5s ease-out 1.2s both;
   will-change: transform, opacity;
   z-index: 2;
 }
@@ -214,8 +214,8 @@ const STYLES = `
   border-radius: 50%;
   background: var(--smt-color);
   box-shadow: 0 0 12px 4px rgba(var(--smt-color-rgb), 0.6);
-  animation: smt-particle-burst 1s cubic-bezier(0.4, 0, 0.2, 1) both;
-  animation-delay: calc(0.3s + var(--i) * 0.04s);
+  animation: smt-particle-burst 1.3s cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation-delay: calc(0.5s + var(--i) * 0.05s);
   will-change: transform, opacity;
 }
 
@@ -247,7 +247,7 @@ const STYLES = `
     rgba(var(--smt-color-rgb), 0.4),
     transparent
   );
-  animation: smt-scanline-sweep 1s ease-in-out 0.4s both;
+  animation: smt-scanline-sweep 1.4s ease-in-out 0.6s both;
   will-change: transform, opacity;
   z-index: 4;
   pointer-events: none;
@@ -304,12 +304,10 @@ const STYLES = `
   0% {
     transform: scale(1) translateY(0);
     opacity: 1;
-    filter: blur(0);
   }
   100% {
-    transform: scale(0.85) translateY(-30px);
+    transform: scale(1.1) translateY(-20px);
     opacity: 0;
-    filter: blur(8px);
   }
 }
 
@@ -317,13 +315,9 @@ const STYLES = `
 @keyframes smt-overlay-exit {
   0% {
     opacity: 1;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
   }
   100% {
     opacity: 0;
-    backdrop-filter: blur(0);
-    -webkit-backdrop-filter: blur(0);
   }
 }
 
@@ -382,7 +376,7 @@ class ModeTransition {
         const cy = (rows - 1) / 2
         const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2)
         const maxDist = Math.sqrt(cx ** 2 + cy ** 2)
-        const delay = 1.3 + (dist / maxDist) * 0.3
+        const delay = 2.2 + (dist / maxDist) * 0.4
         html += `<div class="smt-hex" style="--hx:${x};--hy:${y};--delay:${delay.toFixed(2)}s;left:${(x / cols) * 100}%;top:${(y / rows) * 100}%"></div>`
       }
     }
@@ -437,24 +431,24 @@ class ModeTransition {
     overlay.offsetHeight
 
     return new Promise((resolve) => {
-      // Phase 3: content exit + hex dissolve at 1.3s
+      // Phase 3: content exit + hex dissolve at 2.2s
       setTimeout(() => {
         const content = overlay.querySelector('.smt-content')
         if (content) {
-          content.style.animation = 'smt-content-exit 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards'
+          content.style.animation = 'smt-content-exit 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards'
         }
         const dissolve = overlay.querySelector('.smt-dissolve')
         if (dissolve) {
           dissolve.style.opacity = '1'
         }
-      }, 1300)
+      }, 2200)
 
-      // Overlay fade-out at 1.6s
+      // Overlay fade-out at 2.8s
       setTimeout(() => {
-        overlay.style.animation = 'smt-overlay-exit 0.4s ease-in forwards'
-      }, 1600)
+        overlay.style.animation = 'smt-overlay-exit 0.5s ease-out forwards'
+      }, 2800)
 
-      // Cleanup at 2.0s
+      // Cleanup at 3.4s
       setTimeout(() => {
         if (overlay.parentNode) {
           overlay.parentNode.removeChild(overlay)
@@ -462,7 +456,7 @@ class ModeTransition {
         this._overlay = null
         this._playing = false
         resolve()
-      }, 2000)
+      }, 3400)
     })
   }
 
