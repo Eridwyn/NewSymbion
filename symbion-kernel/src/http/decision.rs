@@ -384,6 +384,11 @@ pub(super) async fn execute_pending_action(
                 plugin_name, action_type
             ))
         }
+
+        ActionDefinition::SetFeature { .. } => {
+            // SetFeature is handled by AutomationEngine directly (needs FeatureRegistry)
+            Err("set_feature must be executed via AutomationEngine".to_string())
+        }
     }
 }
 

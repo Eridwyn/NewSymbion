@@ -406,6 +406,18 @@ pub enum ActionDefinition {
         // No impact_level for Delay - always allowed
     },
 
+    /// Set a feature value in the FeatureRegistry
+    SetFeature {
+        feature_id: String,
+        value: Value,
+        #[serde(default = "default_feature_source")]
+        source: String,
+        #[serde(default)]
+        ttl_seconds: u32,
+        #[serde(default = "default_impact_low")]
+        impact_level: ImpactLevel,
+    },
+
     /// Plugin-defined custom action
     Custom {
         plugin_name: String,
@@ -432,6 +444,10 @@ fn default_impact_from_command() -> ImpactLevel {
 
 fn default_priority() -> String {
     "P2".to_string()
+}
+
+fn default_feature_source() -> String {
+    "automation".to_string()
 }
 
 fn default_automation_reason() -> String {
@@ -580,6 +596,7 @@ impl ActionDefinition {
             ActionDefinition::ForceMode { .. } => "force_mode",
             ActionDefinition::AgentCommand { .. } => "agent_command",
             ActionDefinition::Delay { .. } => "delay",
+            ActionDefinition::SetFeature { .. } => "set_feature",
             ActionDefinition::Custom { .. } => "custom",
         }
     }
@@ -591,6 +608,7 @@ impl ActionDefinition {
             ActionDefinition::ForceMode { impact_level, .. } => *impact_level,
             ActionDefinition::AgentCommand { impact_level, .. } => *impact_level,
             ActionDefinition::Delay { .. } => ImpactLevel::Low, // Always allowed
+            ActionDefinition::SetFeature { impact_level, .. } => *impact_level,
             ActionDefinition::Custom { impact_level, .. } => *impact_level,
         }
     }

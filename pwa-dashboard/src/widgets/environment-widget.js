@@ -700,11 +700,12 @@ class EnvironmentWidget extends LitElement {
       return
     }
 
-    // Build modal HTML string
+    // Inject styles separately (DOMPurify strips <style> content)
+    const styleEl = document.createElement('style')
+    styleEl.textContent = [].concat(EnvironmentWidget.styles).map(s => s.cssText).join('\n')
+
+    // Build modal HTML (sanitized without styles)
     const modalHTML = `
-      <style>
-        ${[].concat(EnvironmentWidget.styles).map(s => s.cssText).join('\n')}
-      </style>
       <div class="modal-overlay" id="modal-overlay" aria-hidden="true">
         <div class="modal-content" id="modal-content" role="dialog" aria-modal="true" aria-labelledby="modal-title">
           <div class="modal-header">
@@ -736,7 +737,9 @@ class EnvironmentWidget extends LitElement {
       </div>
     `
 
-    this.modalContainer.innerHTML = DOMPurify.sanitize(modalHTML, { ADD_TAGS: ['canvas', 'style'], ADD_ATTR: ['id', 'style'] })
+    this.modalContainer.innerHTML = ''
+    this.modalContainer.appendChild(styleEl)
+    this.modalContainer.insertAdjacentHTML('beforeend', DOMPurify.sanitize(modalHTML, { ADD_TAGS: ['canvas'], ADD_ATTR: ['id'] }))
 
     // Attach event listeners
     const overlay = this.modalContainer.querySelector('#modal-overlay')

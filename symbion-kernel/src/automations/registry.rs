@@ -774,6 +774,36 @@ impl SchemaRegistry {
                 ],
             },
             ActionSchema {
+                action_type: "set_feature".to_string(),
+                label: "Définir une feature".to_string(),
+                description: "Définit une valeur dans le FeatureRegistry (ex: thème dark/light)".to_string(),
+                icon: "🔧".to_string(),
+                fields: vec![
+                    FieldSchema {
+                        name: "feature_id".to_string(),
+                        label: "Feature ID".to_string(),
+                        field_type: FieldType::Select,
+                        required: true,
+                        default_value: None,
+                        placeholder: Some("Ex: appearance.theme".to_string()),
+                        options_key: Some("features".to_string()),
+                        min: None,
+                        max: None,
+                    },
+                    FieldSchema {
+                        name: "value".to_string(),
+                        label: "Valeur".to_string(),
+                        field_type: FieldType::Text,
+                        required: true,
+                        default_value: None,
+                        placeholder: Some("dark, light, true, 42...".to_string()),
+                        options_key: None,
+                        min: None,
+                        max: None,
+                    },
+                ],
+            },
+            ActionSchema {
                 action_type: "delay".to_string(),
                 label: "Délai".to_string(),
                 description: "Attend avant la prochaine action".to_string(),
@@ -1088,7 +1118,7 @@ mod tests {
 
         assert_eq!(schema.triggers.len(), 7);  // mode_change, sensor_alert, agent_status, manual, plugin_health, scheduled, ssl_alert
         assert_eq!(schema.conditions.len(), 8);  // current_mode, time_range, day_of_week, day_of_month, month, sensor_value, agent_online, feature
-        assert_eq!(schema.actions.len(), 4);
+        assert_eq!(schema.actions.len(), 5);
         assert_eq!(schema.dynamic_values.modes.len(), 3);
         assert_eq!(schema.dynamic_values.agents.len(), 2);
         assert_eq!(schema.dynamic_values.rooms.len(), 2);

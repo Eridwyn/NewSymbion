@@ -252,6 +252,8 @@ pub async fn test_automation(
                 format!("Delay: {}s", seconds),
             crate::automations::ActionDefinition::Custom { plugin_name, action_type, .. } =>
                 format!("Plugin {} action: {}", plugin_name, action_type),
+            crate::automations::ActionDefinition::SetFeature { feature_id, value, .. } =>
+                format!("Set feature '{}' = {}", feature_id, value),
         }
     }).collect();
 
