@@ -703,7 +703,7 @@ class EnvironmentWidget extends LitElement {
     // Build modal HTML string
     const modalHTML = `
       <style>
-        ${EnvironmentWidget.styles.cssText}
+        ${[].concat(EnvironmentWidget.styles).map(s => s.cssText).join('\n')}
       </style>
       <div class="modal-overlay" id="modal-overlay" aria-hidden="true">
         <div class="modal-content" id="modal-content" role="dialog" aria-modal="true" aria-labelledby="modal-title">

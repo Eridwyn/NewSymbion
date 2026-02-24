@@ -122,7 +122,7 @@ class NotesWidget extends LitElement {
 
     .priority-badge {
       background: rgba(255, 193, 7, 0.2);
-      color: #ffc107;
+      color: var(--color-warning-text-muted, #fbbf24);
       padding: 0.1rem 0.4rem;
       border-radius: var(--radius-sm);
       font-size: 0.65em;

@@ -203,7 +203,7 @@ class DashboardApp extends LitElement {
       filter: invert(var(--app-logo-invert, 1)) sepia(var(--app-logo-invert, 1))
               saturate(var(--context-logo-saturation, 3))
               hue-rotate(var(--context-logo-hue, 100deg))
-              brightness(var(--context-logo-brightness, 1.1))
+              brightness(calc(var(--context-logo-brightness, 1.1) * var(--app-logo-brightness-factor, 1)))
               drop-shadow(0 0 12px color-mix(in srgb, var(--context-primary, #00d4aa) 60%, transparent))
               drop-shadow(0 0 20px var(--ctx-bg-intense));
     }
@@ -224,7 +224,7 @@ class DashboardApp extends LitElement {
       filter: invert(var(--app-logo-invert, 1)) sepia(var(--app-logo-invert, 1))
               saturate(calc(var(--context-logo-saturation, 3) + 1))
               hue-rotate(var(--context-logo-hue, 100deg))
-              brightness(calc(var(--context-logo-brightness, 1.1) + 0.15))
+              brightness(calc((var(--context-logo-brightness, 1.1) + 0.15) * var(--app-logo-brightness-factor, 1)))
               drop-shadow(0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 90%, transparent))
               drop-shadow(0 0 40px color-mix(in srgb, var(--context-primary, #00d4aa) 60%, transparent)) !important;
     }

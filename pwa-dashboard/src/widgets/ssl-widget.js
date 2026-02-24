@@ -75,7 +75,7 @@ export class SslWidget extends LitElement {
 
     .refresh-btn:hover {
       background: var(--surface-glass-hover);
-      color: #00d4ff;
+      color: var(--color-cyan-text-muted, #00d4ff);
       border-color: rgba(0, 212, 255, 0.3);
     }
 
@@ -406,7 +406,7 @@ export class SslWidget extends LitElement {
     }
 
     .domain-card-actions .edit-btn:hover {
-      color: #00d4ff;
+      color: var(--color-cyan-text-muted, #00d4ff);
     }
 
     .domain-card-actions .delete-btn:hover {
@@ -536,7 +536,7 @@ export class SslWidget extends LitElement {
       width: 100%;
       background: linear-gradient(135deg, rgba(0, 212, 255, 0.15) 0%, rgba(0, 180, 216, 0.1) 100%);
       border: 1px solid rgba(0, 212, 255, 0.25);
-      color: #00d4ff;
+      color: var(--color-cyan-text-muted, #00d4ff);
       padding: 0.75rem 1rem;
       border-radius: var(--radius-base);
       font-size: 0.85rem;
