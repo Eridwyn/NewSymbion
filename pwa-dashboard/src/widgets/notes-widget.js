@@ -94,8 +94,8 @@ class NotesWidget extends LitElement {
     }
 
     .note-card.urgent {
-      border-color: rgba(255, 107, 107, 0.5);
-      background: linear-gradient(135deg, rgba(255, 107, 107, 0.12) 0%, rgba(255, 107, 107, 0.04) 100%);
+      border-color: color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 50%, transparent);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 12%, transparent) 0%, color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 4%, transparent) 100%);
     }
 
     .note-card.urgent::before {
@@ -105,7 +105,7 @@ class NotesWidget extends LitElement {
     }
 
     .note-card.priority {
-      border-color: rgba(255, 193, 7, 0.3);
+      border-color: color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 30%, transparent);
     }
 
     .note-header {
@@ -121,7 +121,7 @@ class NotesWidget extends LitElement {
     }
 
     .priority-badge {
-      background: rgba(255, 193, 7, 0.2);
+      background: color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 20%, transparent);
       color: var(--color-warning-text-muted, #fbbf24);
       padding: 0.1rem 0.4rem;
       border-radius: var(--radius-sm);
@@ -196,7 +196,7 @@ class NotesWidget extends LitElement {
     /* Utility classes (ex-inline) */
     .nw-subtitle { font-size: 0.6em; opacity: 0.7; font-weight: normal; }
     .nw-error-state { color: var(--color-danger-text-muted, #ff6b6b); }
-    .nw-no-context { background: rgba(255,107,107,0.2); color: var(--color-danger-text-muted, #ff6b6b); }
+    .nw-no-context { background: color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 20%, transparent); color: var(--color-danger-text-muted, #ff6b6b); }
   `]
 
   static properties = {

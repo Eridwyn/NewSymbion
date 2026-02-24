@@ -65,7 +65,7 @@ class AgentControlWidget extends LitElement {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 24px 28px;
+      padding: var(--space-6, 1.5rem) var(--space-7, 1.75rem);
       border-bottom: 1px solid var(--ctx-border);
       background: linear-gradient(135deg, var(--surface-glass) 0%, var(--surface-glass-faint) 100%);
       position: relative;
@@ -248,7 +248,7 @@ class AgentControlWidget extends LitElement {
     .power-btn:disabled {
       opacity: 0.4;
       cursor: not-allowed;
-      transform: none !important;
+      transform: none;
     }
 
     .power-btn.danger {
@@ -516,7 +516,7 @@ class AgentControlWidget extends LitElement {
     .execute-btn:disabled {
       opacity: 0.4;
       cursor: not-allowed;
-      transform: none !important;
+      transform: none;
     }
 
     .command-output {

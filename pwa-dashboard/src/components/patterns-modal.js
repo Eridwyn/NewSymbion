@@ -170,7 +170,7 @@ class PatternsModal extends LitElement {
 
     .pattern-meta {
       font-size: var(--text-xs);
-      color: #808080;
+      color: var(--color-dark-text-tertiary, #808080);
       margin-top: 0.25rem;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -185,7 +185,7 @@ class PatternsModal extends LitElement {
       background: linear-gradient(135deg,
         rgba(16, 185, 129, 0.2) 0%,
         rgba(16, 185, 129, 0.1) 100%);
-      color: #10b981;
+      color: var(--color-success-text-muted, #10b981);
       border: 1px solid rgba(16, 185, 129, 0.4);
       box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
       transition: all var(--duration-base) var(--ease-out);
@@ -213,7 +213,7 @@ class PatternsModal extends LitElement {
     .empty-state {
       text-align: center;
       padding: 2rem;
-      color: #808080;
+      color: var(--color-dark-text-tertiary, #808080);
     }
 
     .empty-icon {

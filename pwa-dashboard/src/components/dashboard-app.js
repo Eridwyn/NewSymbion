@@ -219,14 +219,14 @@ class DashboardApp extends LitElement {
 
     .header-logo:hover {
       animation: none;
-      opacity: 1 !important;
+      opacity: 1;
       /* Hover intensifie le glow */
       filter: invert(var(--app-logo-invert, 1)) sepia(var(--app-logo-invert, 1))
               saturate(calc(var(--context-logo-saturation, 3) + 1))
               hue-rotate(var(--context-logo-hue, 100deg))
               brightness(calc((var(--context-logo-brightness, 1.1) + 0.15) * var(--app-logo-brightness-factor, 1)))
               drop-shadow(0 0 20px color-mix(in srgb, var(--context-primary, #00d4aa) 90%, transparent))
-              drop-shadow(0 0 40px color-mix(in srgb, var(--context-primary, #00d4aa) 60%, transparent)) !important;
+              drop-shadow(0 0 40px color-mix(in srgb, var(--context-primary, #00d4aa) 60%, transparent));
     }
 
     /* Status Bar */
@@ -268,20 +268,20 @@ class DashboardApp extends LitElement {
     }
 
     .status-dot.offline {
-      background: #4b5563;
+      background: var(--color-dark-text-tertiary, #4b5563);
       box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.3);
       opacity: 0.6;
     }
 
     .status-dot.polling {
-      background: #3b82f6;
+      background: var(--color-accent-blue, #3b82f6);
       box-shadow: 0 0 15px rgba(59, 130, 246, 0.6),
                   0 0 25px rgba(59, 130, 246, 0.3);
       animation: bio-pulse-glow 2s ease-in-out infinite;
     }
 
     .status-dot.loading {
-      background: #fbbf24;
+      background: var(--color-warning-text-muted, #fbbf24);
       box-shadow: 0 0 12px rgba(251, 191, 36, 0.6);
       animation: bio-pulse-loading 1.2s ease-in-out infinite;
     }
@@ -937,6 +937,16 @@ class DashboardApp extends LitElement {
       from { transform: translateY(-100%); }
       to { transform: translateY(0); }
     }
+
+    /* Global focus-visible styles for keyboard accessibility */
+    button:focus-visible,
+    a:focus-visible,
+    [role="button"]:focus-visible,
+    select:focus-visible,
+    input:focus-visible {
+      outline: 2px solid var(--context-primary, #00d4aa);
+      outline-offset: 2px;
+    }
   `]
 
   static properties = {
@@ -987,6 +997,7 @@ class DashboardApp extends LitElement {
     this.agentsService = null
     this.timeInterval = null
     this._realtimeInterval = null  // [Audit] Store for cleanup
+    this._pendingTimeouts = []  // Store setTimeout IDs for cleanup
 
     // [P0-5] Store bound handlers for cleanup
     this._boundHandlers = {
@@ -995,6 +1006,12 @@ class DashboardApp extends LitElement {
       systemHealth: null,
       contextChange: null
     }
+
+    // Store bound handlers for this.addEventListener (self-event listeners)
+    this._handleOpenNotesPage = this.handleOpenNotesPage.bind(this)
+    this._handleCreateNote = this.handleCreateNote.bind(this)
+    this._handleOpenContextEngine = this.handleOpenContextEngine.bind(this)
+    this._handleOpenSslConfig = this.handleOpenSslConfig.bind(this)
   }
 
   formatTime(date) {
@@ -1022,15 +1039,15 @@ class DashboardApp extends LitElement {
     // Démarrer l'horloge
     this.timeInterval = setInterval(() => this.updateTime(), 1000)
 
-    // Écouter les événements du notes-widget
-    this.addEventListener('open-notes-page', this.handleOpenNotesPage.bind(this))
-    this.addEventListener('create-note', this.handleCreateNote.bind(this))
+    // Écouter les événements du notes-widget (use stored bound refs for cleanup)
+    this.addEventListener('open-notes-page', this._handleOpenNotesPage)
+    this.addEventListener('create-note', this._handleCreateNote)
 
     // Écouter les événements du context-engine-widget
-    this.addEventListener('open-context-engine', this.handleOpenContextEngine.bind(this))
+    this.addEventListener('open-context-engine', this._handleOpenContextEngine)
 
     // Écouter les événements du ssl-widget pour ouvrir la page de config
-    this.addEventListener('open-ssl-config', this.handleOpenSslConfig.bind(this))
+    this.addEventListener('open-ssl-config', this._handleOpenSslConfig)
 
     // Écouter auth:expired pour rediriger vers login (session expirée)
     this._boundHandlers.authExpired = this.handleAuthExpired.bind(this)
@@ -1086,12 +1103,27 @@ class DashboardApp extends LitElement {
       this._realtimeInterval = null
     }
 
-    // [P0-5] Cleanup all stored event handlers to prevent memory leaks
+    // Clear all pending timeouts
+    for (const id of this._pendingTimeouts) {
+      clearTimeout(id)
+    }
+    this._pendingTimeouts = []
+
+    // Cleanup self-event listeners (this.addEventListener)
+    this.removeEventListener('open-notes-page', this._handleOpenNotesPage)
+    this.removeEventListener('create-note', this._handleCreateNote)
+    this.removeEventListener('open-context-engine', this._handleOpenContextEngine)
+    this.removeEventListener('open-ssl-config', this._handleOpenSslConfig)
+
+    // [P0-5] Cleanup all stored window/document event handlers to prevent memory leaks
     if (this._boundHandlers.authExpired) {
       window.removeEventListener('auth:expired', this._boundHandlers.authExpired)
     }
     if (this._boundHandlers.contextChange) {
       window.removeEventListener('context-change', this._boundHandlers.contextChange)
+    }
+    if (this._boundHandlers.logsToggle) {
+      window.removeEventListener('symbion-logs-toggle', this._boundHandlers.logsToggle)
     }
     if (this.apiService && this._boundHandlers.apiStatus) {
       this.apiService.removeEventListener('status-change', this._boundHandlers.apiStatus)
@@ -1326,7 +1358,7 @@ class DashboardApp extends LitElement {
 
       ${this.showUserMenu ? html`
         <div class="dropdown-overlay" @click="${this.toggleUserMenu}"></div>
-        <div class="user-dropdown" role="menu" aria-label="Actions utilisateur">
+        <div class="user-dropdown" role="menu" aria-label="Actions utilisateur" @keydown="${this._handleDropdownKeydown}">
           <div class="user-info">
             <div class="user-name">${this.currentUser?.username}</div>
             <div class="user-role">${this.currentUser?.role}</div>
@@ -1565,6 +1597,18 @@ class DashboardApp extends LitElement {
     themeService.toggle()
   }
 
+  _handleDropdownKeydown(e) {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      this.showUserMenu = false
+      // Return focus to the user menu button
+      this.updateComplete.then(() => {
+        const btn = this.shadowRoot.querySelector('.user-button')
+        btn?.focus()
+      })
+    }
+  }
+
   toggleUserMenu() {
     this.showUserMenu = !this.showUserMenu
   }
@@ -1622,12 +1666,13 @@ class DashboardApp extends LitElement {
     this.showNotesPage = true
 
     // Déclencher l'ouverture du formulaire de création après un court délai
-    setTimeout(() => {
+    const tid = setTimeout(() => {
       const notesPage = this.shadowRoot.querySelector('notes-page')
       if (notesPage && notesPage.openCreateModal) {
         notesPage.openCreateModal()
       }
     }, 100)
+    this._pendingTimeouts.push(tid)
   }
 
   async handleLogout() {

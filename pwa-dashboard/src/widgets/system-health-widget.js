@@ -92,36 +92,36 @@ class SystemHealthWidget extends LitElement {
       filter: drop-shadow(0 2px 4px var(--ctx-border-strong));
     }
 
-    /* Status Indicator Styles */
-    .status-indicator {
-      font-size: 2.5em !important;
+    /* Status Indicator Styles — compound selector beats .metric-value */
+    .metric-value.status-indicator {
+      font-size: 2.5em;
       line-height: 1;
-      background: none !important;
-      -webkit-background-clip: unset !important;
-      -webkit-text-fill-color: unset !important;
-      animation: none !important;
-      filter: none !important;
+      background: none;
+      -webkit-background-clip: unset;
+      -webkit-text-fill-color: unset;
+      animation: none;
+      filter: none;
     }
 
-    .status-indicator.connected {
+    .metric-value.status-indicator.connected {
       color: var(--context-primary, #00d4aa);
       text-shadow: 0 0 20px color-mix(in srgb, var(--context-primary) 80%, transparent),
                    0 0 40px var(--ctx-border-strong);
-      animation: statusPulse 2s ease-in-out infinite !important;
+      animation: statusPulse 2s ease-in-out infinite;
     }
 
-    .status-indicator.connecting {
+    .metric-value.status-indicator.connecting {
       color: var(--color-warning-text-muted, #fbbf24);
       text-shadow: 0 0 20px rgba(251, 191, 36, 0.6),
                    0 0 40px rgba(251, 191, 36, 0.3);
-      animation: statusSpin 2s linear infinite !important;
+      animation: statusSpin 2s linear infinite;
     }
 
-    .status-indicator.disconnected {
+    .metric-value.status-indicator.disconnected {
       color: var(--color-danger-text-muted, #ff6b6b);
       text-shadow: 0 0 20px rgba(255, 107, 107, 0.6),
                    0 0 40px rgba(255, 107, 107, 0.3);
-      animation: statusBlink 1.5s ease-in-out infinite !important;
+      animation: statusBlink 1.5s ease-in-out infinite;
     }
 
     @keyframes statusPulse {
@@ -194,7 +194,7 @@ class SystemHealthWidget extends LitElement {
     /* Responsive */
     @media (max-width: 768px) {
       .metrics-grid {
-        grid-template-columns: repeat(2, 1fr) !important;
+        grid-template-columns: repeat(2, 1fr);
         gap: 0.8rem;
       }
 
@@ -206,8 +206,8 @@ class SystemHealthWidget extends LitElement {
         font-size: 1.6em;
       }
 
-      .status-indicator {
-        font-size: 2em !important;
+      .metric-value.status-indicator {
+        font-size: 2em;
       }
 
       .metric-label {

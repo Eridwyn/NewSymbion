@@ -150,7 +150,7 @@ class AutomationTimeline extends LitElement {
       left: 0;
       right: 0;
       height: 2px;
-      background: #ef4444;
+      background: var(--color-danger-text-muted, #ef4444);
       z-index: 5;
       pointer-events: none;
     }
@@ -163,7 +163,7 @@ class AutomationTimeline extends LitElement {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #ef4444;
+      background: var(--color-danger-text-muted, #ef4444);
     }
 
     .legend {
