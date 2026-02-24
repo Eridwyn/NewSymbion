@@ -40,6 +40,14 @@ export const formInputStyles = css`
     color: var(--app-placeholder, rgba(255, 255, 255, 0.3));
   }
 
+  .form-input:invalid:not(:placeholder-shown),
+  .form-textarea:invalid:not(:placeholder-shown),
+  .form-input.error,
+  .form-textarea.error {
+    border-color: var(--color-error, #ef4444);
+    box-shadow: 0 0 0 3px var(--color-error-bg, rgba(239, 68, 68, 0.15));
+  }
+
   .form-textarea {
     resize: vertical;
     min-height: 80px;
@@ -164,7 +172,8 @@ export const btnSizeStyles = css`
 
   .btn-icon {
     padding: 0.4rem;
-    min-width: 32px;
+    min-width: 44px;
+    min-height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;

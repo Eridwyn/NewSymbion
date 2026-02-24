@@ -15,6 +15,7 @@
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles, emptyStateStyles } from '../styles/shared-widget.js'
+import { focusVisibleStyles } from '../styles/shared-patterns.js'
 import { btnStyles, btnSizeStyles } from '../styles/shared-forms.js'
 import { getTopPriorityNotes, isHighPriority } from '../utils/notes-scoring.js'
 import { applyAllFilters } from '../utils/notes-filters.js'
@@ -22,7 +23,7 @@ import notesStreamService from '../services/notes-stream-service.js'
 import '../components/organic-loader.js'
 
 class NotesWidget extends LitElement {
-  static styles = [sharedAnimations, widgetHeaderStyles, btnStyles, btnSizeStyles, emptyStateStyles, css`
+  static styles = [sharedAnimations, widgetHeaderStyles, btnStyles, btnSizeStyles, emptyStateStyles, focusVisibleStyles, css`
     :host {
       display: block;
     }

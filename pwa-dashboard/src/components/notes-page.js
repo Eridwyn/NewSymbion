@@ -163,8 +163,8 @@ class NotesPage extends LitElement {
       width: 40px;
       height: 20px;
       background: var(--surface-glass-strong);
-      border-radius: var(--radius-md, 0.75rem);
-      transition: all var(--duration-base) var(--ease-out);
+      border-radius: var(--radius-full, 9999px);
+      transition: background var(--duration-base) var(--ease-in-out);
     }
 
     .context-filter-toggle.active .toggle-switch {
@@ -180,7 +180,7 @@ class NotesPage extends LitElement {
       height: 16px;
       background: white;
       border-radius: 50%;
-      transition: all var(--duration-base) var(--ease-out);
+      transition: transform var(--duration-base) var(--ease-bounce);
     }
 
     .context-filter-toggle.active .toggle-switch::after {

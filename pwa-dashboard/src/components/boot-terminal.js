@@ -11,10 +11,11 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
+import { focusVisibleStyles } from '../styles/shared-patterns.js'
 import authService from '../services/auth-service.js'
 
 class BootTerminal extends LitElement {
-  static styles = [sharedAnimations, css`
+  static styles = [sharedAnimations, focusVisibleStyles, css`
     :host {
       display: block;
       position: fixed;
@@ -461,9 +462,9 @@ class BootTerminal extends LitElement {
     .error-message {
       padding: 0.875rem 1.125rem;
       background: linear-gradient(135deg,
-        rgba(255, 107, 107, 0.15) 0%,
-        rgba(255, 107, 107, 0.08) 100%);
-      border: 1px solid rgba(255, 107, 107, 0.3);
+        var(--color-danger-bg, rgba(255, 107, 107, 0.15)) 0%,
+        color-mix(in srgb, var(--color-danger-text, #ff6b6b) 8%, transparent) 100%);
+      border: 1px solid var(--color-danger-border, rgba(255, 107, 107, 0.3));
       border-radius: var(--radius-md);
       color: var(--color-danger-text-muted, #ff6b6b);
       font-size: var(--text-sm);

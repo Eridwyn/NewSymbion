@@ -7,11 +7,12 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
+import { focusVisibleStyles } from '../styles/shared-patterns.js'
 import automationsService from '../services/automations-service.js'
 import pollingScheduler from '../services/polling-scheduler.js'
 
 class ContextEngineWidget extends LitElement {
-  static styles = [sharedAnimations, css`
+  static styles = [sharedAnimations, focusVisibleStyles, css`
     :host {
       display: block;
     }

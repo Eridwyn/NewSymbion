@@ -154,9 +154,9 @@ class UserSettingsPage extends LitElement {
       width: 44px;
       height: 24px;
       background: var(--surface-glass-strong);
-      border-radius: var(--radius-md);
+      border-radius: var(--radius-full, 9999px);
       cursor: pointer;
-      transition: background 0.3s;
+      transition: background var(--duration-base, 0.25s) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
       border: none;
       padding: 0;
     }
@@ -174,7 +174,8 @@ class UserSettingsPage extends LitElement {
       height: 18px;
       background: var(--color-dark-text-tertiary, #94a3b8);
       border-radius: 50%;
-      transition: transform 0.3s;
+      transition: transform var(--duration-base, 0.25s) var(--ease-bounce, cubic-bezier(0.68, -0.55, 0.265, 1.55)),
+                  background var(--duration-base, 0.25s) var(--ease-out, ease-out);
     }
 
     .toggle-switch.active::after {

@@ -4,6 +4,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { focusVisibleStyles } from '../styles/shared-patterns.js'
 
 class TimeRangePicker extends LitElement {
   static properties = {
@@ -14,7 +15,7 @@ class TimeRangePicker extends LitElement {
     showMonthDays: { type: Boolean }
   }
 
-  static styles = css`
+  static styles = [focusVisibleStyles, css`
     :host {
       display: block;
     }
@@ -71,11 +72,18 @@ class TimeRangePicker extends LitElement {
       color: var(--color-dark-text-primary, #f8f9fa);
       font-size: 1rem;
       text-align: center;
+      transition: border-color var(--duration-base, 0.25s) var(--ease-out, ease-out),
+                  box-shadow var(--duration-base, 0.25s) var(--ease-out, ease-out);
+    }
+
+    .time-input input:hover {
+      border-color: var(--border-hover);
     }
 
     .time-input input:focus {
       outline: none;
       border-color: var(--context-primary, #00d4aa);
+      box-shadow: 0 0 0 3px var(--ctx-border-subtle, rgba(0, 212, 170, 0.1));
     }
 
     .time-visual {
@@ -258,7 +266,7 @@ class TimeRangePicker extends LitElement {
         font-size: var(--text-xs);
       }
     }
-  `
+  `]
 
   constructor() {
     super()
