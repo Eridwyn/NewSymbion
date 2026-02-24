@@ -502,23 +502,23 @@ class DashboardApp extends LitElement {
 
     /* Context Engine — accent violet */
     .context-engine-button {
-      color: #a78bfa;
+      color: var(--color-accent-purple, #a78bfa);
     }
 
     .context-engine-button:hover {
-      background: rgba(147, 51, 234, 0.1);
-      border-color: rgba(147, 51, 234, 0.3);
+      background: color-mix(in srgb, var(--color-accent-purple, #7c3aed) 10%, transparent);
+      border-color: color-mix(in srgb, var(--color-accent-purple, #7c3aed) 30%, transparent);
     }
 
     /* Déconnexion — accent rouge */
     .logout-button {
-      color: #f87171;
+      color: var(--color-danger-text-muted, #f87171);
       margin-bottom: 0;
     }
 
     .logout-button:hover {
-      background: rgba(239, 68, 68, 0.1);
-      border-color: rgba(239, 68, 68, 0.3);
+      background: color-mix(in srgb, var(--color-danger-text-muted, #ef4444) 10%, transparent);
+      border-color: color-mix(in srgb, var(--color-danger-text-muted, #ef4444) 30%, transparent);
     }
 
     /* Main Content - Spacious Layout */
@@ -657,9 +657,9 @@ class DashboardApp extends LitElement {
       width: 44px;
       height: 44px;
       border-radius: 50%;
-      background: rgba(99, 102, 241, 0.15);
-      border: 1px solid rgba(99, 102, 241, 0.25);
-      color: #818cf8;
+      background: color-mix(in srgb, var(--color-accent-purple, #6366f1) 15%, transparent);
+      border: 1px solid color-mix(in srgb, var(--color-accent-purple, #6366f1) 25%, transparent);
+      color: var(--color-accent-purple, #818cf8);
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -671,8 +671,8 @@ class DashboardApp extends LitElement {
 
     .logs-fab:hover {
       opacity: 1;
-      background: rgba(99, 102, 241, 0.25);
-      border-color: rgba(99, 102, 241, 0.5);
+      background: color-mix(in srgb, var(--color-accent-purple, #6366f1) 25%, transparent);
+      border-color: color-mix(in srgb, var(--color-accent-purple, #6366f1) 50%, transparent);
       transform: scale(1.1);
     }
 

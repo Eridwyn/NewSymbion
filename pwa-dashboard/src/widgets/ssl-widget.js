@@ -230,14 +230,14 @@ export class SslWidget extends LitElement {
       width: 380px;
       max-width: 95vw;
       height: 100vh;
-      background: linear-gradient(180deg, var(--color-dark-surface, #12121a) 0%, var(--color-dark-bg, #0d0d14) 100%);
+      background: linear-gradient(180deg, var(--app-page-bg-a, #12121a) 0%, var(--app-page-bg-b, #0d0d14) 100%);
       border-left: 1px solid var(--ctx-border-medium);
       z-index: 1001;
       transform: translateX(100%);
       transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       display: flex;
       flex-direction: column;
-      box-shadow: -8px 0 32px rgba(0, 0, 0, 0.5);
+      box-shadow: -8px 0 32px var(--shadow-heavy, rgba(0, 0, 0, 0.5));
     }
 
     .config-panel.open {
@@ -492,9 +492,9 @@ export class SslWidget extends LitElement {
 
     .btn-primary {
       flex: 1;
-      background: linear-gradient(135deg, var(--context-primary, #00d4aa) 0%, #00b89c 100%);
+      background: linear-gradient(135deg, var(--context-primary, #00d4aa) 0%, color-mix(in srgb, var(--context-primary, #00d4aa) 80%, #000) 100%);
       border: none;
-      color: #0a0a0f;
+      color: #fff;
     }
 
     .btn-primary:hover {
@@ -534,8 +534,8 @@ export class SslWidget extends LitElement {
 
     .check-now-btn {
       width: 100%;
-      background: linear-gradient(135deg, rgba(0, 212, 255, 0.15) 0%, rgba(0, 180, 216, 0.1) 100%);
-      border: 1px solid rgba(0, 212, 255, 0.25);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--color-cyan-text-muted, #00d4ff) 15%, transparent) 0%, color-mix(in srgb, var(--color-cyan-text-muted, #00d4ff) 10%, transparent) 100%);
+      border: 1px solid color-mix(in srgb, var(--color-cyan-text-muted, #00d4ff) 25%, transparent);
       color: var(--color-cyan-text-muted, #00d4ff);
       padding: 0.75rem 1rem;
       border-radius: var(--radius-base);
