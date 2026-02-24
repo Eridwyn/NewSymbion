@@ -494,6 +494,12 @@ impl ActionExecutorRegistry {
                     Err(e) => (false, Some(e.message)),
                 }
             }
+
+            ActionDefinition::SetFeature { .. } => {
+                // SetFeature is handled by the engine via FeatureRegistry (engine.rs)
+                // This executor path should not be reached
+                (false, Some("set_feature must be executed via AutomationEngine".to_string()))
+            }
         };
 
         let duration_ms = start.elapsed().as_millis() as u64;
@@ -546,6 +552,7 @@ impl ActionExecutorRegistry {
             ActionDefinition::Custom { plugin_name, action_type, .. } => {
                 format!("custom:{}/{}", plugin_name, action_type)
             }
+            ActionDefinition::SetFeature { .. } => "set_feature".to_string(),
         }
     }
 
@@ -571,6 +578,9 @@ impl ActionExecutorRegistry {
                 }
                 ActionDefinition::Custom { plugin_name, action_type, .. } => {
                     format!("Custom action: {}/{}", plugin_name, action_type)
+                }
+                ActionDefinition::SetFeature { feature_id, value, .. } => {
+                    format!("Set feature '{}' = {}", feature_id, value)
                 }
             })
             .collect()

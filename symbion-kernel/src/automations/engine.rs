@@ -839,6 +839,26 @@ impl AutomationEngine {
                 (true, None)
             }
 
+            ActionDefinition::SetFeature { feature_id, value, source, ttl_seconds, .. } => {
+                if let Some(ref registry) = ctx.feature_registry {
+                    let fv = match value {
+                        serde_json::Value::Bool(b) => FeatureValue::Bool(*b),
+                        serde_json::Value::Number(n) => {
+                            if let Some(i) = n.as_i64() { FeatureValue::Int(i) }
+                            else if let Some(f) = n.as_f64() { FeatureValue::Float(f) }
+                            else { FeatureValue::String(n.to_string()) }
+                        }
+                        serde_json::Value::String(s) => FeatureValue::String(s.clone()),
+                        _ => FeatureValue::String(value.to_string()),
+                    };
+                    registry.set_feature(feature_id, fv, source, 1.0, *ttl_seconds);
+                    eprintln!("[automations] 🔧 set feature {} = {} (source: {})", feature_id, value, source);
+                    (true, None)
+                } else {
+                    (false, Some("feature_registry not available".to_string()))
+                }
+            }
+
             ActionDefinition::Custom { plugin_name, action_type, .. } => {
                 // Custom actions will be implemented with plugin support
                 eprintln!(
@@ -995,6 +1015,7 @@ impl AutomationEngine {
             ActionDefinition::ForceMode { .. } => "force_mode".to_string(),
             ActionDefinition::AgentCommand { .. } => "agent_command".to_string(),
             ActionDefinition::Delay { .. } => "delay".to_string(),
+            ActionDefinition::SetFeature { .. } => "set_feature".to_string(),
             ActionDefinition::Custom { plugin_name, action_type, .. } => {
                 format!("custom:{}/{}", plugin_name, action_type)
             }
@@ -1020,6 +1041,9 @@ impl AutomationEngine {
                 }
                 ActionDefinition::Delay { seconds } => {
                     format!("Wait {} seconds", seconds)
+                }
+                ActionDefinition::SetFeature { feature_id, value, .. } => {
+                    format!("Set feature '{}' = {}", feature_id, value)
                 }
                 ActionDefinition::Custom { plugin_name, action_type, .. } => {
                     format!("Custom action: {}/{}", plugin_name, action_type)

@@ -149,6 +149,9 @@ class ContextService extends LitElement {
           }
           this.notifyModeChange(context)
         }
+
+        // Sync appearance.theme from kernel (automation-driven changes)
+        this._syncAppearanceTheme()
       }
 
     } catch (error) {
@@ -233,6 +236,31 @@ class ContextService extends LitElement {
       bubbles: true,
       composed: true
     }))
+  }
+
+  async _syncAppearanceTheme() {
+    try {
+      const apiService = document.querySelector('api-service')
+      if (!apiService) return
+      const data = await apiService.request('/v1/intelligence/features')
+      const feat = data?.features?.find(f => f.feature_id === 'appearance.theme')
+      const kernelTheme = feat?.value?.String
+      if (!kernelTheme) return
+
+      const { default: themeService } = await import('./theme-service.js')
+      if (themeService.current !== kernelTheme) {
+        console.log(`[context-service] Syncing theme from kernel: ${themeService.current} → ${kernelTheme}`)
+        themeService.current = kernelTheme
+        localStorage.setItem('symbion_theme', kernelTheme)
+        themeService._apply(kernelTheme)
+        document.body.dispatchEvent(new CustomEvent('theme-changed', {
+          detail: { theme: kernelTheme },
+          bubbles: true
+        }))
+      }
+    } catch (_) {
+      // Silencieux — sync non critique
+    }
   }
 
   // ===== API publique =====

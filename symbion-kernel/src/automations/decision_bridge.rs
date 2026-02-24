@@ -78,6 +78,9 @@ pub fn action_description(action: &ActionDefinition) -> String {
         ActionDefinition::Custom { plugin_name, action_type, .. } => {
             format!("custom(plugin='{}', type='{}')", plugin_name, action_type)
         }
+        ActionDefinition::SetFeature { feature_id, value, .. } => {
+            format!("set_feature(id='{}', value={})", feature_id, value)
+        }
     }
 }
 
