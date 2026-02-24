@@ -360,7 +360,7 @@ class AgentControlWidget extends LitElement {
       color: #ef4444;
       border: 1px solid rgba(239, 68, 68, 0.3);
       border-radius: var(--radius-sm);
-      font-size: 11px;
+      font-size: var(--text-xs);
       cursor: pointer;
       transition: all 0.2s ease;
     }
@@ -552,20 +552,20 @@ class AgentControlWidget extends LitElement {
     }
 
     /* === Utility classes (ex-inline styles) === */
-    .ac-meta-hint { font-size: 12px; color: var(--color-dark-text-tertiary, #888); margin-top: 8px; }
-    .ac-meta-inline { font-size: 12px; color: var(--color-dark-text-tertiary, #888); font-weight: normal; }
+    .ac-meta-hint { font-size: var(--text-xs); color: var(--color-dark-text-tertiary, #888); margin-top: 8px; }
+    .ac-meta-inline { font-size: var(--text-xs); color: var(--color-dark-text-tertiary, #888); font-weight: normal; }
     .ac-refresh-indicator { margin-left: 8px; color: #3b82f6; }
     .ac-text-center-muted { text-align: center; color: var(--color-dark-text-tertiary, #888); }
     .ac-power-btn-blue { background: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
     .ac-power-btn-green { background: rgba(34, 197, 94, 0.2); color: var(--color-success-text-muted, #22c55e); border: 1px solid rgba(34, 197, 94, 0.3); }
     .ac-cmd-actions { margin-top: 12px; }
-    .ac-cmd-cancel { padding: 8px 16px; font-size: 12px; }
-    .ac-cmd-id { color: var(--color-dark-text-tertiary, #888); font-size: 12px; margin-left: 12px; }
-    .ac-icon-lg { font-size: 1.5em; }
+    .ac-cmd-cancel { padding: 8px 16px; font-size: var(--text-xs); }
+    .ac-cmd-id { color: var(--color-dark-text-tertiary, #888); font-size: var(--text-xs); margin-left: 12px; }
+    .ac-icon-lg { font-size: var(--text-2xl); }
     .ac-title-inline { margin: 0 0 0 0.5rem; }
     .ac-error-body { display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 3rem; }
-    .ac-error-icon { font-size: 3em; margin-bottom: 1rem; opacity: 0.5; }
-    .ac-error-text { font-size: 1.1em; opacity: 0.8; text-align: center; }
+    .ac-error-icon { font-size: var(--text-4xl); margin-bottom: 1rem; opacity: 0.5; }
+    .ac-error-text { font-size: var(--text-lg); opacity: 0.8; text-align: center; }
     .ac-error-hint { opacity: 0.6; }
     .ac-error-close-btn { margin-top: 2rem; padding: 0.8rem 1.5rem; background: var(--surface-glass-strong); border: 1px solid var(--border-hover); border-radius: var(--radius-base); color: var(--color-dark-text-primary, #f8f9fa); cursor: pointer; font-size: 0.95em; }
 

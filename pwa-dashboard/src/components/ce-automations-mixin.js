@@ -137,6 +137,7 @@ export const AutomationsMixin = (Base) => class extends Base {
       this.showToast(errors[0], 'error')
       return
     }
+    this.isSavingAutomation = true
     try {
       // Split unified rules into triggers and conditions for backend
       if (this.editingAutomation._rules) {
@@ -162,6 +163,8 @@ export const AutomationsMixin = (Base) => class extends Base {
     } catch (e) {
       console.error('[context-engine] Failed to save automation:', e)
       this.showToast('Erreur: ' + (e.message || 'Erreur inconnue'), 'error')
+    } finally {
+      this.isSavingAutomation = false
     }
   }
 
@@ -299,7 +302,11 @@ export const AutomationsMixin = (Base) => class extends Base {
               </div>
             </div>
           </div>
-          ${filteredAutomations.map(auto => this.renderAutomationCard(auto))}
+          ${filteredAutomations.map((auto, idx) => html`
+            <div class="scroll-reveal" style="transition-delay: ${idx * 0.05}s">
+              ${this.renderAutomationCard(auto)}
+            </div>
+          `)}
         </div>
       `}
 
@@ -389,7 +396,11 @@ export const AutomationsMixin = (Base) => class extends Base {
           </span>
         </div>
         <div class="history-timeline">
-          ${this.automationHistory.slice(0, 5).map(h => this.renderHistoryItem(h))}
+          ${this.automationHistory.slice(0, 5).map((h, idx) => html`
+            <div class="scroll-reveal" style="transition-delay: ${idx * 0.06}s">
+              ${this.renderHistoryItem(h)}
+            </div>
+          `)}
         </div>
       </div>
     `
@@ -635,8 +646,9 @@ export const AutomationsMixin = (Base) => class extends Base {
       </div>
 
       <div class="ce-flex ce-gap-lg ce-mt-xl">
-        <button class="btn ce-flex-grow" @click="${this.cancelForm}">Annuler</button>
-        <button class="btn btn-primary ce-flex-grow" @click="${this.saveAutomation}">
+        <button class="btn ce-flex-grow" @click="${this.cancelForm}" ?disabled="${this.isSavingAutomation}">Annuler</button>
+        <button class="btn btn-primary ce-flex-grow ${this.isSavingAutomation ? 'is-loading' : ''}"
+          @click="${this.saveAutomation}" ?disabled="${this.isSavingAutomation}">
           ${isEdit ? 'Enregistrer' : 'Créer'}
         </button>
       </div>
@@ -1263,7 +1275,10 @@ export const AutomationsMixin = (Base) => class extends Base {
             </div>
             <div class="automation-actions">
               <div class="automation-quick-actions">
-                <button class="quick-action-btn play" @click="${() => this.runAutomationManually(auto.id)}" title="Executer" aria-label="Exécuter l'automatisation">▶</button>
+                <button class="quick-action-btn play ${this.isRunningAutomation === auto.id ? 'is-loading' : ''}"
+                  @click="${() => this.runAutomationManually(auto.id)}"
+                  ?disabled="${this.isRunningAutomation === auto.id}"
+                  title="Executer" aria-label="Exécuter l'automatisation">▶</button>
                 <button class="quick-action-btn" @click="${() => this.openEditForm(auto)}" title="Modifier" aria-label="Modifier l'automatisation">✏️</button>
                 <button class="quick-action-btn" @click="${() => this.deleteAutomation(auto.id)}" title="Supprimer" aria-label="Supprimer l'automatisation">🗑️</button>
               </div>
@@ -1280,6 +1295,7 @@ export const AutomationsMixin = (Base) => class extends Base {
   }
 
   async runAutomationManually(automationId) {
+    this.isRunningAutomation = automationId
     try {
       await csrfService.fetchWithCsrf(`/v1/automations/${automationId}/run`, {
         method: 'POST'
@@ -1290,6 +1306,8 @@ export const AutomationsMixin = (Base) => class extends Base {
     } catch (e) {
       console.error('[context-engine] Failed to run automation:', e)
       this.showToast('Erreur lors de l\'exécution', 'error')
+    } finally {
+      this.isRunningAutomation = null
     }
   }
 

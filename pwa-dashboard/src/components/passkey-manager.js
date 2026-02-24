@@ -100,7 +100,7 @@ class PasskeyManager extends LitElement {
     }
 
     .passkey-icon {
-      font-size: 2em;
+      font-size: var(--text-3xl);
     }
 
     .passkey-details {

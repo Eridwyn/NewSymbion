@@ -29,6 +29,7 @@ class ContextEngineWidget extends LitElement {
 
     .widget:hover {
       border-color: var(--ctx-bg-intense);
+      transform: translateY(-2px);
       box-shadow: var(--shadow-lg), 0 0 40px var(--ctx-bg);
     }
 
@@ -238,11 +239,11 @@ class ContextEngineWidget extends LitElement {
       }
 
       .mode-icon {
-        font-size: 2rem;
+        font-size: var(--text-3xl);
       }
 
       .mode-name {
-        font-size: 1rem;
+        font-size: var(--text-base);
       }
 
       .manage-btn {

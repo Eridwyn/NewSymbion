@@ -208,6 +208,34 @@ export const sharedAnimations = css`
   }
 `
 
+/**
+ * Scroll Reveal — éléments apparaissent progressivement au scroll.
+ * Usage: ajouter class="scroll-reveal" aux éléments, puis appeler
+ *        setupScrollReveal(this.shadowRoot) dans firstUpdated().
+ */
+export const scrollRevealStyles = css`
+  .scroll-reveal {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.5s var(--ease-out, cubic-bezier(0, 0, 0.2, 1)),
+                transform 0.5s var(--ease-out, cubic-bezier(0, 0, 0.2, 1));
+    will-change: opacity, transform;
+  }
+
+  .scroll-reveal.revealed {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scroll-reveal {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+  }
+`
+
 export const pageTransitionStyles = css`
   :host {
     animation: pageSlideIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) both;

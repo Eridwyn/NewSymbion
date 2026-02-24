@@ -23,6 +23,8 @@ export const cardStyles = css`
   .card:hover {
     border-color: var(--border-hover, rgba(255, 255, 255, 0.15));
     background: var(--surface-glass, rgba(255, 255, 255, 0.05));
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
 
   .card-header {
@@ -33,7 +35,7 @@ export const cardStyles = css`
   }
 
   .card-title {
-    font-size: 0.9rem;
+    font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
     color: var(--color-dark-text-primary, #f8f9fa);
   }
@@ -72,7 +74,8 @@ export const sectionStyles = css`
 
   .section:hover {
     border-color: color-mix(in srgb, var(--context-primary, #00d4aa) 18%, transparent);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4),
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4),
                 0 0 0 1px var(--ctx-border-subtle, rgba(0, 212, 170, 0.15)),
                 0 0 30px var(--ctx-bg-subtle, rgba(0, 212, 170, 0.05)),
                 inset 0 1px 0 var(--ctx-bg, rgba(0, 212, 170, 0.08));

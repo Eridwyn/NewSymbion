@@ -257,8 +257,9 @@ export const ModesMixin = (Base) => class extends Base {
           </div>
 
           <div class="form-actions">
-            <button class="btn" @click="${() => this.closeModeForm()}">Annuler</button>
-            <button class="btn btn-primary" @click="${() => this.saveMode()}">
+            <button class="btn" @click="${() => this.closeModeForm()}" ?disabled="${this.isSavingMode}">Annuler</button>
+            <button class="btn btn-primary ${this.isSavingMode ? 'is-loading' : ''}"
+              @click="${() => this.saveMode()}" ?disabled="${this.isSavingMode}">
               ${isEditing ? 'Mettre à jour' : 'Créer'}
             </button>
           </div>
@@ -292,6 +293,7 @@ export const ModesMixin = (Base) => class extends Base {
   }
 
   async saveMode() {
+    this.isSavingMode = true
     try {
       const isEditing = !!this.editingMode
       const url = isEditing ? `/v1/modes/${this.editingMode.id}` : '/v1/modes'
@@ -314,6 +316,8 @@ export const ModesMixin = (Base) => class extends Base {
     } catch (e) {
       console.error('[context-engine] Failed to save mode:', e)
       alert(`Erreur: ${e.message}`)
+    } finally {
+      this.isSavingMode = false
     }
   }
 

@@ -9,13 +9,14 @@
  */
 
 import { LitElement, html, css } from 'lit'
-import { sharedAnimations } from '../styles/shared-animations.js'
+import { sharedAnimations, scrollRevealStyles } from '../styles/shared-animations.js'
 import { focusVisibleStyles } from '../styles/shared-patterns.js'
 import csrfService from '../services/csrf-service.js'
 import { escapeHtml } from '../utils/sanitization.js'
+import { setupScrollReveal } from '../utils/scroll-reveal.js'
 
 class NotificationCenter extends LitElement {
-  static styles = [sharedAnimations, focusVisibleStyles, css`
+  static styles = [sharedAnimations, scrollRevealStyles, focusVisibleStyles, css`
     :host {
       position: relative;
       display: inline-flex;
@@ -379,8 +380,13 @@ class NotificationCenter extends LitElement {
     this._createModalContainer()
   }
 
+  firstUpdated() {
+    this._cleanupReveal = setupScrollReveal(this.shadowRoot)
+  }
+
   disconnectedCallback() {
     super.disconnectedCallback()
+    this._cleanupReveal?.()
     if (this._notificationHandler) {
       document.body.removeEventListener('notification-received', this._notificationHandler)
     }
@@ -607,19 +613,21 @@ class NotificationCenter extends LitElement {
       return
     }
 
-    content.innerHTML = this.notifications.map(n => `
-      <div class="notif-item ${n.acknowledged ? '' : 'unread'}">
-        <div class="notif-item-header">
-          <span class="notif-item-title">${escapeHtml(n.title)}</span>
-          <span class="notif-priority ${escapeHtml(n.priority)}">${escapeHtml(n.priority)}</span>
-        </div>
-        <div class="notif-body">${escapeHtml(n.body)}</div>
-        <div class="notif-meta">${escapeHtml(n.source)} • ${this.formatTime(n.timestamp)}</div>
-        <div class="notif-actions">
-          ${!n.acknowledged ? `
-            <button class="notif-btn notif-btn-ack" data-id="${escapeHtml(n.id)}" aria-label="Marquer comme lu">✓ Lu</button>
-          ` : ''}
-          <button class="notif-btn notif-btn-delete" data-id="${escapeHtml(n.id)}" aria-label="Supprimer la notification">🗑 Supprimer</button>
+    content.innerHTML = this.notifications.map((n, idx) => `
+      <div class="scroll-reveal" style="transition-delay: ${idx * 0.05}s">
+        <div class="notif-item ${n.acknowledged ? '' : 'unread'}">
+          <div class="notif-item-header">
+            <span class="notif-item-title">${escapeHtml(n.title)}</span>
+            <span class="notif-priority ${escapeHtml(n.priority)}">${escapeHtml(n.priority)}</span>
+          </div>
+          <div class="notif-body">${escapeHtml(n.body)}</div>
+          <div class="notif-meta">${escapeHtml(n.source)} • ${this.formatTime(n.timestamp)}</div>
+          <div class="notif-actions">
+            ${!n.acknowledged ? `
+              <button class="notif-btn notif-btn-ack" data-id="${escapeHtml(n.id)}" aria-label="Marquer comme lu">✓ Lu</button>
+            ` : ''}
+            <button class="notif-btn notif-btn-delete" data-id="${escapeHtml(n.id)}" aria-label="Supprimer la notification">🗑 Supprimer</button>
+          </div>
         </div>
       </div>
     `).join('')
@@ -640,6 +648,10 @@ class NotificationCenter extends LitElement {
         this.deleteNotification(id)
       })
     })
+
+    // Re-setup scroll reveal on dynamically added content
+    this._cleanupReveal?.()
+    this._cleanupReveal = setupScrollReveal(content)
   }
 
   async loadNotifications() {

@@ -4,6 +4,7 @@ import { sharedAnimations, pageTransitionStyles } from '../styles/shared-animati
 import { overlayStyles, scrollbarStyles, statusBadgeStyles, sectionBadgeStyles } from '../styles/shared-patterns.js'
 import { pageHeaderStyles } from '../styles/shared-page.js'
 import { formInputStyles, formGroupStyles, btnStyles } from '../styles/shared-forms.js'
+import { loadingButtonStyles } from '../styles/shared-loading.js'
 import { sectionStyles } from '../styles/shared-cards.js'
 
 export class SslConfigPage extends LitElement {
@@ -13,10 +14,11 @@ export class SslConfigPage extends LitElement {
     editingDomain: { type: Object },
     formData: { type: Object },
     checkingAll: { type: Boolean },
-    showAddForm: { type: Boolean }
+    showAddForm: { type: Boolean },
+    isSaving: { type: Boolean },
   }
 
-  static styles = [sharedAnimations, pageTransitionStyles, overlayStyles, scrollbarStyles, pageHeaderStyles, formInputStyles, formGroupStyles, btnStyles, statusBadgeStyles, sectionBadgeStyles, sectionStyles, css`
+  static styles = [sharedAnimations, pageTransitionStyles, overlayStyles, scrollbarStyles, pageHeaderStyles, formInputStyles, formGroupStyles, btnStyles, loadingButtonStyles, statusBadgeStyles, sectionBadgeStyles, sectionStyles, css`
     :host {
       z-index: 1000;
       overflow-x: hidden;
@@ -326,13 +328,13 @@ export class SslConfigPage extends LitElement {
     }
 
     .empty-icon {
-      font-size: 3rem;
+      font-size: var(--text-3xl);
       margin-bottom: 1rem;
       opacity: 0.5;
     }
 
     .empty-title {
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       font-weight: 600;
       color: var(--color-dark-text-tertiary, #94a3b8);
       margin-bottom: 0.5rem;
@@ -436,6 +438,7 @@ export class SslConfigPage extends LitElement {
     this.formData = this.getEmptyFormData()
     this.checkingAll = false
     this.showAddForm = false
+    this.isSaving = false
   }
 
   connectedCallback() {
@@ -538,6 +541,7 @@ export class SslConfigPage extends LitElement {
   }
 
   async saveDomain() {
+    this.isSaving = true
     const token = this.getAuthToken()
     const baseUrl = this.getApiBaseUrl()
     const headers = {
@@ -573,6 +577,8 @@ export class SslConfigPage extends LitElement {
       }
     } catch (err) {
       console.error('[ssl-config] Save error:', err)
+    } finally {
+      this.isSaving = false
     }
   }
 
@@ -751,7 +757,8 @@ export class SslConfigPage extends LitElement {
               <button class="btn btn-secondary" @click=${() => this.cancelEdit()}>
                 Annuler
               </button>
-              <button class="btn btn-primary" @click=${() => this.saveDomain()} ?disabled=${!this.formData.hostname}>
+              <button class="btn btn-primary ${this.isSaving ? 'is-loading' : ''}"
+                @click=${() => this.saveDomain()} ?disabled=${!this.formData.hostname || this.isSaving}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   ${this.editingDomain ? html`
                     <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
