@@ -213,15 +213,15 @@ export class SslConfigPage extends LitElement {
     }
 
     .threshold-warning {
-      background: rgba(251, 191, 36, 0.1);
+      background: color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 10%, transparent);
       color: var(--color-warning-text-muted, #fbbf24);
-      border: 1px solid rgba(251, 191, 36, 0.2);
+      border: 1px solid color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 20%, transparent);
     }
 
     .threshold-critical {
-      background: rgba(255, 107, 107, 0.1);
+      background: color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 10%, transparent);
       color: var(--color-danger-text-muted, #ff6b6b);
-      border: 1px solid rgba(255, 107, 107, 0.2);
+      border: 1px solid color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 20%, transparent);
     }
 
     .domain-actions {
@@ -246,23 +246,23 @@ export class SslConfigPage extends LitElement {
     }
 
     .edit-btn {
-      background: rgba(0, 212, 255, 0.1);
-      border: 1px solid rgba(0, 212, 255, 0.2);
+      background: color-mix(in srgb, var(--color-cyan-text-muted, #00d4ff) 10%, transparent);
+      border: 1px solid color-mix(in srgb, var(--color-cyan-text-muted, #00d4ff) 20%, transparent);
       color: var(--color-cyan-text-muted, #00d4ff);
     }
 
     .edit-btn:hover {
-      background: rgba(0, 212, 255, 0.2);
+      background: color-mix(in srgb, var(--color-cyan-text-muted, #00d4ff) 20%, transparent);
     }
 
     .delete-btn {
-      background: rgba(255, 107, 107, 0.1);
-      border: 1px solid rgba(255, 107, 107, 0.2);
+      background: color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 10%, transparent);
+      border: 1px solid color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 20%, transparent);
       color: var(--color-danger-text-muted, #ff6b6b);
     }
 
     .delete-btn:hover {
-      background: rgba(255, 107, 107, 0.2);
+      background: color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 20%, transparent);
     }
 
     /* Form Section */
@@ -295,13 +295,13 @@ export class SslConfigPage extends LitElement {
     }
 
     .btn-action {
-      background: linear-gradient(135deg, rgba(0, 212, 255, 0.15) 0%, rgba(0, 180, 216, 0.1) 100%);
-      border: 1px solid rgba(0, 212, 255, 0.3);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--color-cyan-text-muted, #00d4ff) 15%, transparent) 0%, color-mix(in srgb, var(--color-cyan-text-muted, #00b4d8) 10%, transparent) 100%);
+      border: 1px solid color-mix(in srgb, var(--color-cyan-text-muted, #00d4ff) 30%, transparent);
       color: var(--color-cyan-text-muted, #00d4ff);
     }
 
     .btn-action:hover {
-      background: linear-gradient(135deg, rgba(0, 212, 255, 0.25) 0%, rgba(0, 180, 216, 0.2) 100%);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--color-cyan-text-muted, #00d4ff) 25%, transparent) 0%, color-mix(in srgb, var(--color-cyan-text-muted, #00b4d8) 20%, transparent) 100%);
     }
 
     .btn-action:disabled {
@@ -431,6 +431,19 @@ export class SslConfigPage extends LitElement {
   connectedCallback() {
     super.connectedCallback()
     this.fetchDomains()
+
+    // Escape key handler to close the page
+    this._handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        this.close()
+      }
+    }
+    document.addEventListener('keydown', this._handleEscape)
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback()
+    document.removeEventListener('keydown', this._handleEscape)
   }
 
   getEmptyFormData() {
@@ -620,7 +633,7 @@ export class SslConfigPage extends LitElement {
 
   render() {
     return html`
-      <div class="page-container">
+      <div class="page-container" role="dialog" aria-modal="true" aria-label="Configuration SSL">
         <!-- Header -->
         <div class="page-header">
           <div class="header-left">

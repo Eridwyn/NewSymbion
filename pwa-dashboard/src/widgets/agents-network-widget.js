@@ -30,7 +30,7 @@ class AgentsNetworkWidget extends LitElement {
       display: block;
       background: var(--widget-background, var(--color-dark-surface, #1a1a1a));
       border-radius: var(--radius-md);
-      padding: 20px;
+      padding: var(--space-5, 1.25rem);
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
       color: var(--widget-color, #e5e5e5);
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -46,7 +46,7 @@ class AgentsNetworkWidget extends LitElement {
     .widget-title {
       font-size: var(--text-lg, 1.125rem);
       color: var(--color-dark-text-primary, #f8f9fa);
-      gap: 8px;
+      gap: var(--space-2, 0.5rem);
     }
 
     .view-toggle {
@@ -68,7 +68,7 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .view-btn.active {
-      background: #3b82f6;
+      background: var(--color-accent-blue, #3b82f6);
       color: white;
     }
 
@@ -86,7 +86,7 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .error-state {
-      padding: 20px;
+      padding: var(--space-5, 1.25rem);
       background: rgba(239, 68, 68, 0.1);
       border: 1px solid rgba(239, 68, 68, 0.3);
       border-radius: var(--radius-base);
@@ -134,7 +134,7 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .agent-card.offline::before {
-      background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+      background: linear-gradient(180deg, var(--color-danger-text-muted, #ef4444) 0%, #dc2626 100%);
       box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
     }
 
@@ -195,7 +195,7 @@ class AgentsNetworkWidget extends LitElement {
     .agent-meta {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px;
+      gap: var(--space-2, 0.5rem);
       margin-bottom: 12px;
       font-size: 0.8125rem;
     }
@@ -221,7 +221,7 @@ class AgentsNetworkWidget extends LitElement {
 
     .agent-actions {
       display: flex;
-      gap: 8px;
+      gap: var(--space-2, 0.5rem);
       justify-content: flex-end;
     }
 
@@ -261,7 +261,7 @@ class AgentsNetworkWidget extends LitElement {
     .action-btn:disabled {
       opacity: 0.4;
       cursor: not-allowed;
-      transform: none !important;
+      transform: none;
     }
 
     .action-btn.power {
@@ -332,7 +332,7 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .status-dot.offline {
-      background: #ef4444;
+      background: var(--color-danger-text-muted, #ef4444);
       box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
       opacity: 1;
     }
@@ -352,7 +352,7 @@ class AgentsNetworkWidget extends LitElement {
 
     .refresh-btn {
       background: rgba(59, 130, 246, 0.2);
-      color: #3b82f6;
+      color: var(--color-accent-blue, #3b82f6);
       border: 1px solid rgba(59, 130, 246, 0.3);
       border-radius: var(--radius-sm);
       padding: 8px 16px;

@@ -172,14 +172,14 @@ class UserSettingsPage extends LitElement {
       left: 3px;
       width: 18px;
       height: 18px;
-      background: #e0e0e0;
+      background: var(--color-dark-text-tertiary, #94a3b8);
       border-radius: 50%;
       transition: transform 0.3s;
     }
 
     .toggle-switch.active::after {
       transform: translateX(20px);
-      background: #818cf8;
+      background: var(--color-accent-indigo, #818cf8);
     }
 
     .info-label {
@@ -244,9 +244,9 @@ class UserSettingsPage extends LitElement {
     /* btn-danger: base fournie par btnStyles */
 
     .btn-danger:hover {
-      background: linear-gradient(135deg, rgba(255, 107, 107, 0.25) 0%, rgba(239, 68, 68, 0.2) 100%);
-      border-color: rgba(255, 107, 107, 0.5);
-      box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 25%, transparent) 0%, color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 20%, transparent) 100%);
+      border-color: color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 50%, transparent);
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 30%, transparent);
     }
 
     /* Container MFA setup - Style contextuel */
@@ -356,13 +356,13 @@ class UserSettingsPage extends LitElement {
     .backup-codes {
       margin-top: 1.5rem;
       padding: 1rem;
-      background: rgba(255, 193, 7, 0.05);
-      border: 1px solid rgba(255, 193, 7, 0.3);
+      background: color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 5%, transparent);
+      border: 1px solid color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 30%, transparent);
       border-radius: var(--radius-base);
     }
 
     .backup-codes-title {
-      color: #ffc107;
+      color: var(--color-warning-text-muted, #fbbf24);
       font-weight: 600;
       margin-bottom: 1rem;
       display: flex;
@@ -383,7 +383,7 @@ class UserSettingsPage extends LitElement {
       font-family: 'Courier New', monospace;
       font-size: 0.9em;
       text-align: center;
-      color: #ffc107;
+      color: var(--color-warning-text-muted, #fbbf24);
     }
 
     .alert {
@@ -396,21 +396,21 @@ class UserSettingsPage extends LitElement {
     }
 
     .alert.success {
-      background: rgba(76, 175, 80, 0.15);
-      border: 1px solid rgba(76, 175, 80, 0.3);
-      color: #4caf50;
+      background: color-mix(in srgb, var(--color-success-text-muted, #22c55e) 15%, transparent);
+      border: 1px solid color-mix(in srgb, var(--color-success-text-muted, #22c55e) 30%, transparent);
+      color: var(--color-success-text-muted, #22c55e);
     }
 
     .alert.error {
-      background: rgba(255, 107, 107, 0.15);
-      border: 1px solid rgba(255, 107, 107, 0.3);
+      background: color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 15%, transparent);
+      border: 1px solid color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 30%, transparent);
       color: var(--color-danger-text-muted, #ff6b6b);
     }
 
     .alert.warning {
-      background: rgba(255, 193, 7, 0.15);
-      border: 1px solid rgba(255, 193, 7, 0.3);
-      color: #ffc107;
+      background: color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 15%, transparent);
+      border: 1px solid color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 30%, transparent);
+      color: var(--color-warning-text-muted, #fbbf24);
     }
 
     .loading {
@@ -508,9 +508,9 @@ class UserSettingsPage extends LitElement {
 
     /* Colors */
     .us-text-primary { color: var(--context-primary, #00d4aa); }
-    .us-text-green { color: #4caf50; }
+    .us-text-green { color: var(--color-success-text-muted, #22c55e); }
     .us-text-red { color: var(--color-danger-text-muted, #ff6b6b); }
-    .us-text-yellow { color: #ffc107; }
+    .us-text-yellow { color: var(--color-warning-text-muted, #fbbf24); }
 
     /* Headings (context-primary + margin-bottom) */
     .us-heading-ctx { color: var(--context-primary, #00d4aa); margin-bottom: 1rem; }
@@ -524,28 +524,28 @@ class UserSettingsPage extends LitElement {
 
     /* Stat cards */
     .us-stat-card-ctx { background: var(--ctx-bg-subtle); border: 1px solid var(--ctx-border-medium); border-radius: var(--radius-base); padding: 1rem; text-align: center; }
-    .us-stat-card-green { background: rgba(76, 175, 80, 0.05); border: 1px solid rgba(76, 175, 80, 0.2); border-radius: var(--radius-base); padding: 1rem; text-align: center; }
-    .us-stat-card-red { background: rgba(255, 107, 107, 0.05); border: 1px solid rgba(255, 107, 107, 0.2); border-radius: var(--radius-base); padding: 1rem; text-align: center; }
-    .us-stat-card-yellow { background: rgba(255, 193, 7, 0.05); border: 1px solid rgba(255, 193, 7, 0.2); border-radius: var(--radius-base); padding: 1rem; text-align: center; }
+    .us-stat-card-green { background: color-mix(in srgb, var(--color-success-text-muted, #22c55e) 5%, transparent); border: 1px solid color-mix(in srgb, var(--color-success-text-muted, #22c55e) 20%, transparent); border-radius: var(--radius-base); padding: 1rem; text-align: center; }
+    .us-stat-card-red { background: color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 5%, transparent); border: 1px solid color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 20%, transparent); border-radius: var(--radius-base); padding: 1rem; text-align: center; }
+    .us-stat-card-yellow { background: color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 5%, transparent); border: 1px solid color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 20%, transparent); border-radius: var(--radius-base); padding: 1rem; text-align: center; }
     .us-stat-label { color: var(--color-dark-text-tertiary, #888); font-size: 0.9em; margin-top: 0.5rem; }
 
     /* Reason block (with context border) */
     .us-reason-block { background: var(--surface-glass-strong, rgba(0, 0, 0, 0.3)); border-left: 3px solid var(--context-primary, #00d4aa); padding: 0.8rem; border-radius: var(--radius-sm); }
-    .us-reason-block-yellow { background: var(--surface-glass-strong, rgba(0, 0, 0, 0.3)); border-left: 3px solid #ffc107; padding: 0.8rem; border-radius: var(--radius-sm); }
-    .us-reason-block-yellow-mt { background: var(--surface-glass-strong, rgba(0, 0, 0, 0.3)); border-left: 3px solid #ffc107; padding: 0.8rem; border-radius: var(--radius-sm); margin-top: 1rem; }
+    .us-reason-block-yellow { background: var(--surface-glass-strong, rgba(0, 0, 0, 0.3)); border-left: 3px solid var(--color-warning-text-muted, #fbbf24); padding: 0.8rem; border-radius: var(--radius-sm); }
+    .us-reason-block-yellow-mt { background: var(--surface-glass-strong, rgba(0, 0, 0, 0.3)); border-left: 3px solid var(--color-warning-text-muted, #fbbf24); padding: 0.8rem; border-radius: var(--radius-sm); margin-top: 1rem; }
     .us-reason-label { color: var(--color-dark-text-secondary, #aaa); font-size: 0.85em; margin-bottom: 0.3rem; }
     .us-reason-text { color: var(--color-dark-text-primary, #e0e0e0); font-size: 0.95em; }
 
     /* Badges */
     .us-badge-current { color: var(--context-primary, #00d4aa); font-size: 0.8em; margin-left: 0.5rem; }
-    .us-badge-expired { color: #ffc107; font-size: 0.8em; margin-left: 0.5rem; }
-    .us-badge-mfa { color: #4caf50; margin-left: 1rem; }
-    .us-badge-active { background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.3); padding: 0.5rem 1rem; border-radius: var(--radius-sm); }
-    .us-badge-active-text { color: #ffc107; font-weight: 600; font-size: 0.85em; }
+    .us-badge-expired { color: var(--color-warning-text-muted, #fbbf24); font-size: 0.8em; margin-left: 0.5rem; }
+    .us-badge-mfa { color: var(--color-success-text-muted, #22c55e); margin-left: 1rem; }
+    .us-badge-active { background: color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 15%, transparent); border: 1px solid color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 30%, transparent); padding: 0.5rem 1rem; border-radius: var(--radius-sm); }
+    .us-badge-active-text { color: var(--color-warning-text-muted, #fbbf24); font-weight: 600; font-size: 0.85em; }
 
     /* Section variants */
-    .us-section-expired { padding: 1rem; opacity: 0.7; border: 1px solid rgba(255, 193, 7, 0.3); }
-    .us-section-override { padding: 1rem; border: 1px solid rgba(255, 193, 7, 0.3); }
+    .us-section-expired { padding: 1rem; opacity: 0.7; border: 1px solid color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 30%, transparent); }
+    .us-section-override { padding: 1rem; border: 1px solid color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 30%, transparent); }
 
     /* Self-delete hint */
     .us-hint-italic { color: var(--color-dark-text-tertiary, #888); font-size: 0.9em; font-style: italic; }
@@ -562,7 +562,7 @@ class UserSettingsPage extends LitElement {
     .us-text-aaa-mb-sm { color: var(--color-dark-text-secondary, #aaa); margin-bottom: 0.5rem; }
 
     /* Override item title (yellow variant) */
-    .us-item-title-yellow { font-weight: 600; font-size: 1.1em; color: #ffc107; margin-bottom: 0.5rem; }
+    .us-item-title-yellow { font-weight: 600; font-size: 1.1em; color: var(--color-warning-text-muted, #fbbf24); margin-bottom: 0.5rem; }
   `]
 
   static properties = {
@@ -1688,9 +1688,9 @@ class UserSettingsPage extends LitElement {
 
   getImpactColor(level) {
     switch (level?.toUpperCase()) {
-      case 'HIGH': return '#ff6b6b'
-      case 'MEDIUM': return '#ffc107'
-      case 'LOW': return '#4caf50'
+      case 'HIGH': return 'var(--color-danger-text-muted, #ff6b6b)'
+      case 'MEDIUM': return 'var(--color-warning-text-muted, #fbbf24)'
+      case 'LOW': return 'var(--color-success-text-muted, #22c55e)'
       default: return '#888'
     }
   }

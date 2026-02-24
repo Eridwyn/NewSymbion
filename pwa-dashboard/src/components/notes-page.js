@@ -325,20 +325,20 @@ class NotesPage extends LitElement {
     }
 
     .note-card.urgent {
-      border-color: rgba(255, 107, 107, 0.5);
-      background: linear-gradient(135deg, rgba(255, 107, 107, 0.15) 0%, rgba(255, 107, 107, 0.05) 100%);
+      border-color: color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 50%, transparent);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 15%, transparent) 0%, color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 5%, transparent) 100%);
     }
 
     .note-card.urgent::before {
-      background: linear-gradient(180deg, #ff6b6b 0%, #ef4444 100%);
+      background: linear-gradient(180deg, var(--color-danger-text-muted, #ff6b6b) 0%, var(--color-danger-strong, #ef4444) 100%);
       opacity: 1;
       width: 4px;
-      box-shadow: 0 0 15px rgba(255, 107, 107, 0.5);
+      box-shadow: 0 0 15px color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 50%, transparent);
     }
 
     .note-card.priority {
-      border-color: rgba(255, 193, 7, 0.3);
-      background: linear-gradient(135deg, rgba(255, 193, 7, 0.08) 0%, rgba(255, 193, 7, 0.02) 100%);
+      border-color: color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 30%, transparent);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 8%, transparent) 0%, color-mix(in srgb, var(--color-warning-text-muted, #fbbf24) 2%, transparent) 100%);
     }
 
     .note-header {
@@ -359,7 +359,7 @@ class NotesPage extends LitElement {
       color: var(--color-danger-text-muted, #ff6b6b);
       font-weight: bold;
       font-size: 1.1em;
-      filter: drop-shadow(0 2px 6px rgba(255, 107, 107, 0.6));
+      filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 60%, transparent));
       animation: pulse-urgent 2s ease-in-out infinite;
     }
 
@@ -419,12 +419,12 @@ class NotesPage extends LitElement {
 
     .note-action.delete {
       color: var(--color-danger-text-muted, #ff6b6b);
-      border-color: rgba(255, 107, 107, 0.2);
+      border-color: color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 20%, transparent);
     }
 
     .note-action.delete:hover {
-      background: rgba(255, 107, 107, 0.2);
-      border-color: rgba(255, 107, 107, 0.4);
+      background: color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 20%, transparent);
+      border-color: color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 40%, transparent);
     }
 
     .note-preview {
@@ -529,8 +529,8 @@ class NotesPage extends LitElement {
     }
 
     .modal-close-btn:hover {
-      background: rgba(239, 68, 68, 0.25);
-      border-color: rgba(239, 68, 68, 0.4);
+      background: color-mix(in srgb, var(--color-danger-strong, #ef4444) 25%, transparent);
+      border-color: color-mix(in srgb, var(--color-danger-strong, #ef4444) 40%, transparent);
       color: var(--color-danger-text-muted, #ff6b6b);
       transform: rotate(90deg);
     }

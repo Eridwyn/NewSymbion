@@ -30,7 +30,7 @@ class ContextService extends LitElement {
     super.connectedCallback()
 
     // Listen for login success event
-    window.addEventListener('login-success', () => {
+    this._loginHandler = () => {
       console.log('[context-service] User logged in, fetching context...')
       this.fetchModes() // Load dynamic modes from API
       this.fetchContext()
@@ -41,7 +41,8 @@ class ContextService extends LitElement {
           this.fetchContext()
         }, 30000)
       }
-    })
+    }
+    window.addEventListener('login-success', this._loginHandler)
 
     // Listen for external context-change events (from context-engine-page)
     this._externalContextHandler = (event) => {
@@ -79,6 +80,9 @@ class ContextService extends LitElement {
     if (this.pollInterval) {
       clearInterval(this.pollInterval)
       this.pollInterval = null
+    }
+    if (this._loginHandler) {
+      window.removeEventListener('login-success', this._loginHandler)
     }
     if (this._externalContextHandler) {
       document.body.removeEventListener('context-change', this._externalContextHandler)

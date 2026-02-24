@@ -51,7 +51,7 @@ class NotificationCenter extends LitElement {
       position: absolute;
       top: -4px;
       right: -4px;
-      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      background: linear-gradient(135deg, var(--color-danger-text-muted, #ef4444) 0%, var(--color-danger-text-muted, #dc2626) 100%);
       color: white;
       font-size: 0.6rem;
       font-weight: 700;
@@ -62,7 +62,7 @@ class NotificationCenter extends LitElement {
       align-items: center;
       justify-content: center;
       padding: 0 4px;
-      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+      box-shadow: 0 2px 8px color-mix(in srgb, var(--color-danger-text-muted, #ef4444) 40%, transparent);
       animation: pulse 2s infinite;
     }
 
@@ -77,7 +77,7 @@ class NotificationCenter extends LitElement {
       background: var(--app-overlay-dim, rgba(0, 0, 0, 0.7));
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
-      z-index: 9998;
+      z-index: 1000;
       animation: fadeIn 0.2s ease-out;
     }
 
@@ -101,7 +101,7 @@ class NotificationCenter extends LitElement {
       border-radius: var(--radius-lg, 12px);
       box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6),
                   0 0 60px var(--ctx-border);
-      z-index: 9999;
+      z-index: 1100;
       overflow: hidden;
       animation: scaleIn 0.2s ease-out;
     }
@@ -197,11 +197,11 @@ class NotificationCenter extends LitElement {
     }
 
     .notification.P0 {
-      border-left-color: #ef4444;
+      border-left-color: var(--color-danger-text-muted, #ef4444);
     }
 
     .notification.P1 {
-      border-left-color: #fb923c;
+      border-left-color: var(--color-warning-text-muted, #fb923c);
     }
 
     .notification-header {
@@ -227,13 +227,13 @@ class NotificationCenter extends LitElement {
     }
 
     .notification-priority.P0 {
-      background: rgba(239, 68, 68, 0.2);
+      background: color-mix(in srgb, var(--color-danger-text-muted, #ef4444) 20%, transparent);
       color: var(--color-danger-text-muted, #ff6b6b);
     }
 
     .notification-priority.P1 {
-      background: rgba(251, 146, 60, 0.2);
-      color: #fb923c;
+      background: color-mix(in srgb, var(--color-warning-text-muted, #fb923c) 20%, transparent);
+      color: var(--color-warning-text-muted, #fb923c);
     }
 
     .notification-priority.P2 {
@@ -282,13 +282,13 @@ class NotificationCenter extends LitElement {
     }
 
     .action-btn.reject {
-      background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%);
-      border-color: rgba(239, 68, 68, 0.4);
-      color: #ef4444;
+      background: linear-gradient(135deg, color-mix(in srgb, var(--color-danger-text-muted, #ef4444) 20%, transparent) 0%, color-mix(in srgb, var(--color-danger-text-muted, #ef4444) 10%, transparent) 100%);
+      border-color: color-mix(in srgb, var(--color-danger-text-muted, #ef4444) 40%, transparent);
+      color: var(--color-danger-text-muted, #ef4444);
     }
 
     .action-btn.reject:hover {
-      background: linear-gradient(135deg, rgba(239, 68, 68, 0.3) 0%, rgba(239, 68, 68, 0.2) 100%);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--color-danger-text-muted, #ef4444) 30%, transparent) 0%, color-mix(in srgb, var(--color-danger-text-muted, #ef4444) 20%, transparent) 100%);
       transform: translateY(-1px);
     }
 
@@ -386,6 +386,9 @@ class NotificationCenter extends LitElement {
     if (this._ackHandler) {
       document.body.removeEventListener('notification-acknowledged', this._ackHandler)
     }
+    if (this._escapeHandler) {
+      document.removeEventListener('keydown', this._escapeHandler)
+    }
     this._removeModalContainer()
   }
 
@@ -403,7 +406,7 @@ class NotificationCenter extends LitElement {
           height: 100vh;
           background: var(--app-overlay-dim, rgba(0, 0, 0, 0.7));
           backdrop-filter: blur(4px);
-          z-index: 9998;
+          z-index: 1000;
           display: none;
         }
         #notification-modal-overlay.open {
@@ -421,7 +424,7 @@ class NotificationCenter extends LitElement {
           border: 1px solid var(--ctx-bg-emphasis, rgba(0, 212, 170, 0.25));
           border-radius: var(--radius-md);
           box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-          z-index: 9999;
+          z-index: 1100;
           display: none;
           overflow: hidden;
         }
@@ -461,11 +464,11 @@ class NotificationCenter extends LitElement {
           color: var(--color-dark-text-primary, #f8f9fa);
         }
         .notif-header-btn.danger {
-          border-color: rgba(239,68,68,0.3);
+          border-color: color-mix(in srgb, var(--color-danger-text-muted, #ef4444) 30%, transparent);
         }
         .notif-header-btn.danger:hover {
-          background: rgba(239,68,68,0.2);
-          color: #ef4444;
+          background: color-mix(in srgb, var(--color-danger-text-muted, #ef4444) 20%, transparent);
+          color: var(--color-danger-text-muted, #ef4444);
         }
         .notif-close {
           background: var(--surface-glass-strong);
@@ -510,8 +513,8 @@ class NotificationCenter extends LitElement {
           border-radius: var(--radius-sm);
           font-weight: 600;
         }
-        .notif-priority.P0 { background: rgba(239,68,68,0.2); color: var(--color-danger-text-muted, #ff6b6b); }
-        .notif-priority.P1 { background: rgba(251,146,60,0.2); color: #fb923c; }
+        .notif-priority.P0 { background: color-mix(in srgb, var(--color-danger-text-muted, #ef4444) 20%, transparent); color: var(--color-danger-text-muted, #ff6b6b); }
+        .notif-priority.P1 { background: color-mix(in srgb, var(--color-warning-text-muted, #fb923c) 20%, transparent); color: var(--color-warning-text-muted, #fb923c); }
         .notif-priority.P2 { background: var(--ctx-bg-strong, rgba(0,212,170,0.2)); color: var(--context-primary, #00d4aa); }
         .notif-body {
           font-size: var(--text-xs);
@@ -545,12 +548,12 @@ class NotificationCenter extends LitElement {
           background: var(--ctx-bg-emphasis, rgba(0,212,170,0.25));
         }
         .notif-btn-delete {
-          background: rgba(239,68,68,0.15);
-          border-color: rgba(239,68,68,0.4);
-          color: #ef4444;
+          background: color-mix(in srgb, var(--color-danger-text-muted, #ef4444) 15%, transparent);
+          border-color: color-mix(in srgb, var(--color-danger-text-muted, #ef4444) 40%, transparent);
+          color: var(--color-danger-text-muted, #ef4444);
         }
         .notif-btn-delete:hover {
-          background: rgba(239,68,68,0.25);
+          background: color-mix(in srgb, var(--color-danger-text-muted, #ef4444) 25%, transparent);
         }
         .notif-empty {
           padding: 2rem;
@@ -559,7 +562,7 @@ class NotificationCenter extends LitElement {
         }
       </style>
       <div id="notification-modal-overlay"></div>
-      <div id="notification-modal">
+      <div id="notification-modal" role="dialog" aria-modal="true" aria-label="Centre de notifications">
         <div class="notif-header">
           <span class="notif-title">Notifications</span>
           <div class="notif-header-actions">
@@ -578,6 +581,14 @@ class NotificationCenter extends LitElement {
     this._modalContainer.querySelector('.notif-close').addEventListener('click', () => this.closePanel())
     this._modalContainer.querySelector('#mark-all-read-btn').addEventListener('click', () => this.markAllAsRead())
     this._modalContainer.querySelector('#delete-all-btn').addEventListener('click', () => this.deleteAllNotifications())
+
+    // Escape key handler for accessibility
+    this._escapeHandler = (e) => {
+      if (e.key === 'Escape' && this.isOpen) {
+        this.closePanel()
+      }
+    }
+    document.addEventListener('keydown', this._escapeHandler)
   }
 
   _removeModalContainer() {

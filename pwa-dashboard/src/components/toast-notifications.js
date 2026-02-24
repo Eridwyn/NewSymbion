@@ -13,7 +13,7 @@ class ToastNotifications extends LitElement {
       position: fixed;
       bottom: var(--space-6, 1.5rem);
       right: var(--space-6, 1.5rem);
-      z-index: 100001; /* Au dessus de tous les modals (9999) et boot-terminal (100000) */
+      z-index: 1300;
       display: flex;
       flex-direction: column-reverse;
       gap: var(--space-3, 0.75rem);
@@ -105,7 +105,7 @@ class ToastNotifications extends LitElement {
 
     .toast-priority.P1 {
       background: rgba(251, 146, 60, 0.2);
-      color: #fb923c;
+      color: var(--color-warning-text-muted, #fb923c);
     }
 
     .toast-priority.P2 {

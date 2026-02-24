@@ -29,7 +29,7 @@ class BootTerminal extends LitElement {
         linear-gradient(135deg,
           var(--ctx-bg-subtle, rgba(0, 212, 170, 0.02)) 0%,
           transparent 100%);
-      z-index: 100000;
+      z-index: 1200;
       overflow-y: auto;
       animation: backgroundBreathing 10s ease-in-out infinite;
     }

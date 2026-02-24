@@ -85,7 +85,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
       bottom: 24px;
       left: 50%;
       transform: translateX(-50%);
-      z-index: 10001;
+      z-index: 1300;
       display: flex;
       flex-direction: column;
       gap: 8px;
@@ -139,7 +139,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .confirm-overlay {
       position: fixed;
       inset: 0;
-      z-index: 10002;
+      z-index: 1300;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -195,7 +195,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .mode-change-overlay {
       position: fixed;
       inset: 0;
-      z-index: 10000;
+      z-index: 1000;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -447,7 +447,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .validation-btn.reject {
       background: rgba(239, 68, 68, 0.15);
       border-color: rgba(239, 68, 68, 0.4);
-      color: #ef4444;
+      color: var(--color-danger-text-muted, #ef4444);
     }
 
     .validation-btn.reject:hover {
@@ -593,7 +593,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
       background: rgba(251, 146, 60, 0.1);
       border: 1px solid rgba(251, 146, 60, 0.3);
       border-radius: var(--radius-base);
-      color: #fb923c;
+      color: var(--color-warning-text-muted, #fb923c);
       font-size: 0.8rem;
     }
 
@@ -640,9 +640,9 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
       transform: translateY(-2px);
     }
 
-    .mode-btn.cravate:hover { border-color: #3b82f6; }
+    .mode-btn.cravate:hover { border-color: var(--color-accent-blue, #3b82f6); }
     .mode-btn.intime:hover { border-color: var(--context-primary, #00d4aa); }
-    .mode-btn.neutre:hover { border-color: #6b7280; }
+    .mode-btn.neutre:hover { border-color: var(--color-dark-text-tertiary, #6b7280); }
 
     .duration-buttons {
       display: flex;
@@ -673,7 +673,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
       border-radius: var(--radius-base);
       border: 1px solid rgba(239, 68, 68, 0.3);
       background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
+      color: var(--color-danger-text-muted, #ef4444);
       font-size: 0.8rem;
       cursor: pointer;
       transition: all 0.2s;
@@ -760,7 +760,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
 
     .trust-badge.low {
       background: rgba(239, 68, 68, 0.15);
-      color: #ef4444;
+      color: var(--color-danger-text-muted, #ef4444);
     }
 
     /* ===== Enhanced Automation Cards ===== */
@@ -822,9 +822,10 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
       background: var(--ctx-bg-subtle);
     }
 
-    .automation-card.add-new:hover div {
-      color: var(--context-primary, #00d4aa) !important;
-      opacity: 1 !important;
+    .automation-card.add-new:hover div,
+    .automation-card.add-new:hover div[class] {
+      color: var(--context-primary, #00d4aa);
+      opacity: 1;
     }
 
     .automation-card-inner {
@@ -887,8 +888,8 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     }
 
     .automation-category-badge.comfort { background: rgba(34, 197, 94, 0.15); color: var(--color-success-text-muted, #22c55e); }
-    .automation-category-badge.security { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
-    .automation-category-badge.energy { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+    .automation-category-badge.security { background: rgba(239, 68, 68, 0.15); color: var(--color-danger-text-muted, #ef4444); }
+    .automation-category-badge.energy { background: rgba(59, 130, 246, 0.15); color: var(--color-accent-blue, #3b82f6); }
     .automation-category-badge.notifications { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
     .automation-category-badge.custom { background: rgba(251, 191, 36, 0.15); color: var(--color-warning-text-muted, #fbbf24); }
 
@@ -1146,12 +1147,12 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     }
 
     .history-item.success::before {
-      background: #22c55e;
+      background: var(--color-success-text-muted, #22c55e);
       box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
     }
 
     .history-item.failed::before {
-      background: #ef4444;
+      background: var(--color-danger-text-muted, #ef4444);
       box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
     }
 
@@ -1430,7 +1431,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
 
     .confidence-bar-mini .confidence-fill {
       height: 100%;
-      background: linear-gradient(90deg, #22c55e, #16a34a);
+      background: linear-gradient(90deg, var(--color-success-text-muted, #22c55e), color-mix(in srgb, var(--color-success-text-muted, #22c55e) 80%, #000));
       border-radius: var(--radius-sm, 0.375rem);
       transition: width 0.3s ease;
     }
@@ -1558,7 +1559,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
       font-size: 0.6rem;
       padding: 0.15rem 0.4rem;
       background: rgba(99, 102, 241, 0.2);
-      color: #818cf8;
+      color: var(--color-accent-indigo, #818cf8);
       border-radius: var(--radius-sm);
       text-transform: uppercase;
       font-weight: 600;
@@ -1596,7 +1597,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
 
     .btn-danger {
       background: rgba(239, 68, 68, 0.15);
-      color: #ef4444;
+      color: var(--color-danger-text-muted, #ef4444);
     }
 
     .btn-danger:hover {
@@ -1799,14 +1800,14 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .ce-text-primary { color: var(--color-dark-text-primary); }
     .ce-text-secondary { color: var(--color-dark-text-secondary); }
     .ce-text-tertiary { color: var(--color-dark-text-tertiary); }
-    .ce-text-purple { color: #a78bfa; }
-    .ce-text-indigo { color: #818cf8; }
-    .ce-text-blue { color: #3b82f6; }
+    .ce-text-purple { color: var(--color-accent-purple, #a78bfa); }
+    .ce-text-indigo { color: var(--color-accent-indigo, #818cf8); }
+    .ce-text-blue { color: var(--color-accent-blue, #3b82f6); }
     .ce-text-green { color: var(--color-success-text-muted, #22c55e); }
-    .ce-text-emerald { color: #10b981; }
-    .ce-text-amber { color: #f59e0b; }
-    .ce-text-orange { color: #fb923c; }
-    .ce-text-red { color: #ef4444; }
+    .ce-text-emerald { color: var(--color-success-text-muted, #10b981); }
+    .ce-text-amber { color: var(--color-warning-text-muted, #f59e0b); }
+    .ce-text-orange { color: var(--color-warning-text-muted, #fb923c); }
+    .ce-text-red { color: var(--color-danger-text-muted, #ef4444); }
 
     /* Backgrounds */
     .ce-bg-dark { background: var(--surface-glass-hover, rgba(0, 0, 0, 0.2)); padding: 0.5rem; border-radius: var(--radius-sm); }
@@ -1817,14 +1818,14 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .ce-stat-item { padding: 0.75rem; background: var(--surface-glass-hover, rgba(0, 0, 0, 0.2)); border-radius: var(--radius-base); text-align: center; }
 
     /* Badges */
-    .ce-badge-purple { padding: 0.35rem 0.875rem; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #a78bfa; font-size: var(--text-xs); border-radius: var(--radius-xl); }
+    .ce-badge-purple { padding: 0.35rem 0.875rem; background: color-mix(in srgb, var(--color-accent-purple, #8b5cf6) 20%, transparent); border: 1px solid rgba(139, 92, 246, 0.3); color: var(--color-accent-purple, #a78bfa); font-size: var(--text-xs); border-radius: var(--radius-xl); }
     .ce-badge-green { padding: 0.25rem 0.75rem; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: var(--radius-xl); font-size: var(--text-xs); color: var(--color-success-text-muted, #22c55e); }
-    .ce-badge-orange { padding: 0.25rem 0.75rem; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: var(--radius-xl); font-size: 0.8rem; color: #f59e0b; }
+    .ce-badge-orange { padding: 0.25rem 0.75rem; background: color-mix(in srgb, var(--color-warning-text-muted, #f59e0b) 20%, transparent); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: var(--radius-xl); font-size: 0.8rem; color: var(--color-warning-text-muted, #f59e0b); }
     .ce-badge-neutral { padding: 0.3rem 0.75rem; border-radius: var(--radius-xl); background: var(--surface-glass, rgba(255, 255, 255, 0.05)); border: 1px solid var(--border-medium); }
     .ce-badge-tiny { font-size: 0.6rem; padding: 0.15rem 0.4rem; }
 
     /* Bouton aide */
-    .ce-btn-help { cursor: pointer; font-size: var(--text-xs); font-weight: bold; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #3b82f6; border: none; display: inline-flex; align-items: center; justify-content: center; color: var(--color-dark-text-primary, #fff); box-shadow: 0 2px 4px rgba(59, 130, 246, 0.4); }
+    .ce-btn-help { cursor: pointer; font-size: var(--text-xs); font-weight: bold; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: var(--color-accent-blue, #3b82f6); border: none; display: inline-flex; align-items: center; justify-content: center; color: var(--color-dark-text-primary, #fff); box-shadow: 0 2px 4px rgba(59, 130, 246, 0.4); }
 
     /* Animations */
     .ce-float-icon { font-size: var(--text-2xl); animation: float-icon 3s ease-in-out infinite; }
@@ -1946,10 +1947,10 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .ce-badge-purple-bg { background: rgba(139, 92, 246, 0.1); }
 
     /* Code tag */
-    .ce-code-var { background: var(--surface-glass-strong, rgba(0,0,0,0.3)); padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.7rem; color: #a78bfa; cursor: help; }
+    .ce-code-var { background: var(--surface-glass-strong, rgba(0,0,0,0.3)); padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.7rem; color: var(--color-accent-purple, #a78bfa); cursor: help; }
 
     /* Notification modal */
-    .ce-notif-modal-overlay { position: fixed; inset: 0; background: var(--app-overlay-dim, rgba(0,0,0,0.7)); display: flex; align-items: center; justify-content: center; z-index: 10000; }
+    .ce-notif-modal-overlay { position: fixed; inset: 0; background: var(--app-overlay-dim, rgba(0,0,0,0.7)); display: flex; align-items: center; justify-content: center; z-index: 1000; }
     .ce-notif-modal-content { background: linear-gradient(135deg, var(--app-page-bg-a) 0%, var(--app-page-bg-b) 100%); border: 1px solid var(--border-hover); border-radius: var(--radius-md); padding: 1.25rem; width: 90%; max-width: 450px; max-height: 80vh; overflow-y: auto; }
     .ce-notif-form-input { width: 100%; padding: 0.5rem; background: var(--app-input-bg, rgba(0,0,0,0.3)); border: 1px solid var(--border-hover); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; box-sizing: border-box; }
     .ce-notif-form-select { width: 100%; padding: 0.5rem; background: var(--app-input-bg, rgba(0,0,0,0.3)); border: 1px solid var(--border-hover); border-radius: var(--radius-sm); color: var(--color-dark-text-primary); font-size: 0.85rem; }
@@ -1980,7 +1981,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .ce-mode-choice-btn { flex: 1; min-width: 80px; display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 0.75rem 0.5rem; border-radius: 10px; transition: all 0.2s ease; }
 
     /* Validation buttons */
-    .ce-btn-reject { flex: 1; padding: 0.875rem 1.25rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-md); color: #ef4444; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+    .ce-btn-reject { flex: 1; padding: 0.875rem 1.25rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-md); color: var(--color-danger-text-muted, #ef4444); font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
     .ce-btn-approve { flex: 1; padding: 0.875rem 1.25rem; background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: var(--radius-md); color: var(--color-success-text-muted, #22c55e); font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 0.5rem; box-shadow: 0 0 20px rgba(34, 197, 94, 0.15); }
 
     /* Validation details */
