@@ -1836,7 +1836,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     .ce-grid-2col { display: grid; grid-template-columns: auto 1fr; gap: 0.3rem 0.75rem; align-items: center; }
 
     /* Progress bar */
-    .ce-progress-track { height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: 3px; overflow: hidden; }
+    .ce-progress-track { height: 6px; background: var(--surface-glass-strong); border-radius: 3px; overflow: hidden; }
 
     /* Additional spacing */
     .ce-p-md { padding: 0.75rem; }
@@ -2572,7 +2572,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
       <div class="validation-card" style="
         --validation-color: ${color};
         animation: card-enter 0.4s ease-out ${index * 0.1}s backwards;
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, var(--surface-glass-faint) 100%);
+        background: linear-gradient(135deg, var(--surface-glass) 0%, var(--surface-glass-faint) 100%);
         border: 1px solid ${trustClass === 'high' ? 'rgba(34, 197, 94, 0.2)' : trustClass === 'medium' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(239, 68, 68, 0.2)'};
       ">
         <div class="validation-header">
@@ -2631,7 +2631,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     return html`
       <div class="ce-gauge-container" style="width: ${size}px; height: ${size}px;">
         <svg class="ce-gauge-svg" width="${size}" height="${size}" viewBox="0 0 50 50">
-          <circle cx="25" cy="25" r="${radius}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="5"/>
+          <circle cx="25" cy="25" r="${radius}" fill="none" stroke="var(--border-medium)" stroke-width="5"/>
           <circle cx="25" cy="25" r="${radius}" fill="none" stroke="${color}" stroke-width="5"
             stroke-linecap="round"
             stroke-dasharray="${circumference}"

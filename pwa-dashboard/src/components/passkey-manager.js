@@ -89,7 +89,7 @@ class PasskeyManager extends LitElement {
 
     .passkey-item:hover {
       border-color: var(--ctx-border-medium);
-      background: linear-gradient(135deg, var(--surface-glass-hover) 0%, rgba(255, 255, 255, 0.04) 100%);
+      background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass) 100%);
     }
 
     .passkey-info {

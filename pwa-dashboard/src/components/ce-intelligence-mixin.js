@@ -136,7 +136,7 @@ export const IntelligenceMixin = (Base) => class extends Base {
                       <button @click=${() => this.sendPredictionCorrection(m.slug)}
                         ?disabled=${m.slug === prediction.mode}
                         class="ce-mode-choice-btn"
-                        style="background: ${m.slug === prediction.mode ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)'}; border: 1px solid ${m.slug === prediction.mode ? 'var(--border-subtle)' : 'var(--border-medium)'}; color: ${m.slug === prediction.mode ? 'var(--color-dark-text-tertiary)' : 'var(--color-dark-text-primary)'}; cursor: ${m.slug === prediction.mode ? 'not-allowed' : 'pointer'}; opacity: ${m.slug === prediction.mode ? '0.35' : '1'};">
+                        style="background: ${m.slug === prediction.mode ? 'var(--surface-glass-faint)' : 'var(--surface-glass)'}; border: 1px solid ${m.slug === prediction.mode ? 'var(--border-subtle)' : 'var(--border-medium)'}; color: ${m.slug === prediction.mode ? 'var(--color-dark-text-tertiary)' : 'var(--color-dark-text-primary)'}; cursor: ${m.slug === prediction.mode ? 'not-allowed' : 'pointer'}; opacity: ${m.slug === prediction.mode ? '0.35' : '1'};">
                         <span class="ce-text-2xl">${m.icon}</span>
                         <span class="ce-text-xs">${m.name}</span>
                       </button>
@@ -323,7 +323,7 @@ export const IntelligenceMixin = (Base) => class extends Base {
     const statusColors = {
       good: { bg: 'rgba(34, 197, 94, 0.1)', border: 'rgba(34, 197, 94, 0.3)', text: '#22c55e' },
       warning: { bg: 'rgba(251, 146, 60, 0.1)', border: 'rgba(251, 146, 60, 0.3)', text: '#fb923c' },
-      neutral: { bg: 'rgba(255,255,255,0.03)', border: 'var(--border-medium)', text: 'var(--color-dark-text-primary)' }
+      neutral: { bg: 'var(--surface-glass-subtle)', border: 'var(--border-medium)', text: 'var(--color-dark-text-primary)' }
     }
     const s = statusColors[status]
 
@@ -355,7 +355,7 @@ export const IntelligenceMixin = (Base) => class extends Base {
       <div class="ce-gauge-container" style="width: ${size}px; height: ${size}px;">
         <svg class="ce-gauge-svg" width="${size}" height="${size}" viewBox="0 0 100 100" style="filter: drop-shadow(0 0 12px ${glowColor});">
           <!-- Background circle -->
-          <circle cx="50" cy="50" r="${radius}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="8"/>
+          <circle cx="50" cy="50" r="${radius}" fill="none" stroke="var(--border-medium)" stroke-width="8"/>
           <!-- Progress circle -->
           <circle cx="50" cy="50" r="${radius}" fill="none" stroke="url(#gauge-gradient-${percentage})" stroke-width="8"
             stroke-linecap="round"

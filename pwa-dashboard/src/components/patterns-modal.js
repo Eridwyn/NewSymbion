@@ -105,7 +105,7 @@ class PatternsModal extends LitElement {
       padding: 0.75rem;
       border-radius: var(--radius-md);
       background: linear-gradient(135deg,
-        rgba(255, 255, 255, 0.06) 0%,
+        var(--surface-glass-hover) 0%,
         var(--surface-glass-subtle) 100%);
       border: 1px solid var(--border-medium);
       display: flex;
