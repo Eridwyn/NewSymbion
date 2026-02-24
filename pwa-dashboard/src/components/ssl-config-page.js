@@ -248,7 +248,7 @@ export class SslConfigPage extends LitElement {
     .edit-btn {
       background: rgba(0, 212, 255, 0.1);
       border: 1px solid rgba(0, 212, 255, 0.2);
-      color: #00d4ff;
+      color: var(--color-cyan-text-muted, #00d4ff);
     }
 
     .edit-btn:hover {
@@ -297,7 +297,7 @@ export class SslConfigPage extends LitElement {
     .btn-action {
       background: linear-gradient(135deg, rgba(0, 212, 255, 0.15) 0%, rgba(0, 180, 216, 0.1) 100%);
       border: 1px solid rgba(0, 212, 255, 0.3);
-      color: #00d4ff;
+      color: var(--color-cyan-text-muted, #00d4ff);
     }
 
     .btn-action:hover {
