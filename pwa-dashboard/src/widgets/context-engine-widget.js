@@ -151,7 +151,7 @@ class ContextEngineWidget extends LitElement {
     }
 
     .last-execution-status.failure {
-      color: #ef4444;
+      color: var(--color-error-text-muted, #ef4444);
     }
 
     .last-execution-time {
@@ -170,7 +170,7 @@ class ContextEngineWidget extends LitElement {
       border-radius: var(--radius-base);
       margin-bottom: 1rem;
       font-size: 0.8rem;
-      color: #ef4444;
+      color: var(--color-error-text-muted, #ef4444);
     }
 
     /* Manage Button */

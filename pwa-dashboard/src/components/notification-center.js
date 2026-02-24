@@ -143,7 +143,7 @@ class NotificationCenter extends LitElement {
     }
 
     .close-button:hover {
-      background: rgba(255, 255, 255, 0.2);
+      background: var(--surface-glass-bright);
       color: var(--color-dark-text-primary, #f8f9fa);
     }
 
@@ -478,7 +478,7 @@ class NotificationCenter extends LitElement {
           font-size: 1.2rem;
         }
         .notif-close:hover {
-          background: rgba(255,255,255,0.2);
+          background: var(--surface-glass-bright);
           color: var(--color-dark-text-primary, #f8f9fa);
         }
         .notif-content {

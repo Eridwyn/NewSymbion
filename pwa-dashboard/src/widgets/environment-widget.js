@@ -186,7 +186,7 @@ class EnvironmentWidget extends LitElement {
     }
 
     .room-card:hover {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
+      background: linear-gradient(135deg, var(--surface-glass-bright) 0%, var(--surface-glass-hover) 100%);
       border-color: var(--ctx-border-strong);
       transform: translateY(-4px) scale(1.02);
       box-shadow: 0 12px 32px var(--ctx-bg-strong);
@@ -382,7 +382,7 @@ class EnvironmentWidget extends LitElement {
     }
 
     .modal-close:hover {
-      background: rgba(255, 255, 255, 0.2);
+      background: var(--surface-glass-bright);
       border-color: var(--border-strong);
     }
 

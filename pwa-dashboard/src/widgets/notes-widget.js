@@ -83,7 +83,7 @@ class NotesWidget extends LitElement {
 
     .note-card:hover {
       border-color: var(--ctx-border-strong);
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
+      background: linear-gradient(135deg, var(--surface-glass-bright) 0%, var(--surface-glass-hover) 100%);
       transform: translateY(-1px);
       box-shadow: 0 8px 32px var(--ctx-border-medium, rgba(0,212,170,0.2)),
                   0 0 40px var(--ctx-bg-subtle, rgba(0,212,170,0.05));

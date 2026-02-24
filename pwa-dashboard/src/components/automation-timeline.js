@@ -22,10 +22,10 @@ class AutomationTimeline extends LitElement {
     }
 
     .timeline-container {
-      background: var(--card-bg, var(--app-section-bg, rgba(30, 35, 45, 0.95)));
+      background: var(--app-section-bg);
       border-radius: var(--radius-md, 0.75rem);
       padding: 1rem;
-      border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+      border: 1px solid var(--border-medium);
     }
 
     .timeline-header {
@@ -38,7 +38,7 @@ class AutomationTimeline extends LitElement {
     .timeline-title {
       font-size: 1rem;
       font-weight: 600;
-      color: var(--text-primary, #fff);
+      color: var(--color-dark-text-primary, #f8f9fa);
       display: flex;
       align-items: center;
       gap: 0.5rem;
@@ -55,7 +55,7 @@ class AutomationTimeline extends LitElement {
       text-align: center;
       font-size: 0.7rem;
       font-weight: 600;
-      color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+      color: var(--color-dark-text-secondary, #cbd5e1);
       padding-bottom: 0.5rem;
     }
 
@@ -71,7 +71,7 @@ class AutomationTimeline extends LitElement {
       left: 0;
       right: 0;
       font-size: 0.6rem;
-      color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+      color: var(--color-dark-text-tertiary, #94a3b8);
       transform: translateY(-50%);
       text-align: right;
       padding-right: 4px;
@@ -82,7 +82,7 @@ class AutomationTimeline extends LitElement {
     .day-column {
       position: relative;
       height: 320px;
-      background: var(--bg-tertiary, rgba(50, 55, 65, 0.3));
+      background: var(--surface-glass-hover);
       border-radius: var(--radius-sm);
       overflow: hidden;
     }
@@ -93,7 +93,7 @@ class AutomationTimeline extends LitElement {
       left: 0;
       right: 0;
       height: 1px;
-      background: var(--border-color, rgba(255, 255, 255, 0.06));
+      background: var(--border-subtle);
     }
 
     /* Automation bar */
@@ -120,7 +120,7 @@ class AutomationTimeline extends LitElement {
     }
 
     .auto-bar.highlighted {
-      box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+      box-shadow: 0 0 10px var(--border-strong);
       z-index: 3;
     }
 
@@ -132,7 +132,7 @@ class AutomationTimeline extends LitElement {
     .bar-label {
       font-size: 0.7rem;
       font-weight: 600;
-      color: rgba(255, 255, 255, 0.9);
+      color: var(--color-dark-text-primary, #f8f9fa);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -140,7 +140,7 @@ class AutomationTimeline extends LitElement {
 
     .bar-hours {
       font-size: 0.65rem;
-      color: rgba(255, 255, 255, 0.7);
+      color: var(--color-dark-text-secondary, #cbd5e1);
       white-space: nowrap;
     }
 
@@ -172,7 +172,7 @@ class AutomationTimeline extends LitElement {
       gap: 1rem;
       margin-top: 1rem;
       padding-top: 0.75rem;
-      border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+      border-top: 1px solid var(--border-medium);
     }
 
     .legend-item {
@@ -180,7 +180,7 @@ class AutomationTimeline extends LitElement {
       align-items: center;
       gap: 0.4rem;
       font-size: var(--text-xs);
-      color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+      color: var(--color-dark-text-secondary, #cbd5e1);
     }
 
     .legend-color {
@@ -192,7 +192,7 @@ class AutomationTimeline extends LitElement {
     .empty-state {
       text-align: center;
       padding: 2rem;
-      color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+      color: var(--color-dark-text-tertiary, #94a3b8);
     }
 
     .empty-state-icon {

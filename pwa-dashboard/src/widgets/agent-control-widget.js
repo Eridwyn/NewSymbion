@@ -457,7 +457,7 @@ class AgentControlWidget extends LitElement {
       left: 0;
       right: 0;
       bottom: 0;
-      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+      background: linear-gradient(90deg, transparent, var(--surface-glass-bright), transparent);
       animation: shimmer 2s infinite;
     }
 
@@ -567,7 +567,7 @@ class AgentControlWidget extends LitElement {
     .ac-error-icon { font-size: 3em; margin-bottom: 1rem; opacity: 0.5; }
     .ac-error-text { font-size: 1.1em; opacity: 0.8; text-align: center; }
     .ac-error-hint { opacity: 0.6; }
-    .ac-error-close-btn { margin-top: 2rem; padding: 0.8rem 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid var(--border-hover); border-radius: var(--radius-base); color: var(--color-dark-text-primary, #f8f9fa); cursor: pointer; font-size: 0.95em; }
+    .ac-error-close-btn { margin-top: 2rem; padding: 0.8rem 1.5rem; background: var(--surface-glass-strong); border: 1px solid var(--border-hover); border-radius: var(--radius-base); color: var(--color-dark-text-primary, #f8f9fa); cursor: pointer; font-size: 0.95em; }
 
     /* Responsive */
     @media (max-width: 768px) {

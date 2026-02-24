@@ -34,7 +34,7 @@ class TimeRangePicker extends LitElement {
     .section-label {
       font-size: 0.85rem;
       font-weight: 500;
-      color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+      color: var(--color-dark-text-secondary, #cbd5e1);
       display: flex;
       align-items: center;
       gap: 0.5rem;
@@ -46,7 +46,7 @@ class TimeRangePicker extends LitElement {
       align-items: center;
       gap: 1rem;
       padding: 0.75rem;
-      background: var(--bg-secondary, rgba(40, 45, 55, 0.5));
+      background: var(--surface-glass-hover);
       border-radius: var(--radius-base, 0.5rem);
     }
 
@@ -59,29 +59,29 @@ class TimeRangePicker extends LitElement {
 
     .time-input label {
       font-size: 0.7rem;
-      color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+      color: var(--color-dark-text-tertiary, #94a3b8);
     }
 
     .time-input input {
       width: 60px;
       padding: 0.5rem;
-      background: var(--bg-primary, var(--color-dark-surface, #1a1f2e));
-      border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+      background: var(--color-dark-surface);
+      border: 1px solid var(--border-medium);
       border-radius: var(--radius-sm);
-      color: var(--text-primary, #fff);
+      color: var(--color-dark-text-primary, #f8f9fa);
       font-size: 1rem;
       text-align: center;
     }
 
     .time-input input:focus {
       outline: none;
-      border-color: var(--primary-color, #00d4aa);
+      border-color: var(--context-primary, #00d4aa);
     }
 
     .time-visual {
       flex: 1;
       height: 8px;
-      background: var(--bg-tertiary, rgba(50, 55, 65, 0.8));
+      background: var(--surface-glass-strong);
       border-radius: var(--radius-sm);
       position: relative;
       margin: 0 0.5rem;
@@ -90,7 +90,7 @@ class TimeRangePicker extends LitElement {
     .time-visual-fill {
       position: absolute;
       height: 100%;
-      background: linear-gradient(90deg, var(--primary-color, #00d4aa), color-mix(in srgb, var(--context-primary) 60%, transparent));
+      background: linear-gradient(90deg, var(--context-primary, #00d4aa), color-mix(in srgb, var(--context-primary) 60%, transparent));
       border-radius: var(--radius-sm);
       transition: all 0.2s ease;
     }
@@ -100,7 +100,7 @@ class TimeRangePicker extends LitElement {
       justify-content: space-between;
       margin-top: 0.25rem;
       font-size: 0.6rem;
-      color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+      color: var(--color-dark-text-tertiary, #94a3b8);
     }
 
     /* Days of Week */
@@ -117,32 +117,32 @@ class TimeRangePicker extends LitElement {
       justify-content: center;
       min-width: 48px;
       padding: 0.5rem 0.75rem;
-      background: var(--bg-secondary, rgba(40, 45, 55, 0.5));
-      border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+      background: var(--surface-glass-hover);
+      border: 1px solid var(--border-medium);
       border-radius: var(--radius-base, 0.5rem);
-      color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+      color: var(--color-dark-text-secondary, #cbd5e1);
       cursor: pointer;
       transition: all 0.2s ease;
       font-size: 0.8rem;
     }
 
     .day-btn:hover {
-      background: var(--bg-hover, rgba(60, 65, 75, 0.8));
+      background: var(--surface-glass-bright);
     }
 
     .day-btn.selected {
-      background: var(--primary-color, rgba(0, 212, 170, 0.2));
-      border-color: var(--primary-color, #00d4aa);
-      color: var(--primary-color, #00d4aa);
+      background: var(--ctx-bg-strong);
+      border-color: var(--context-primary, #00d4aa);
+      color: var(--context-primary, #00d4aa);
     }
 
     .day-btn.weekend {
-      color: var(--warning-color, rgba(251, 191, 36, 0.8));
+      color: var(--color-warning-text-muted, #fbbf24);
     }
 
     .day-btn.weekend.selected {
-      background: var(--warning-color, rgba(251, 191, 36, 0.2));
-      border-color: var(--warning-color, rgba(251, 191, 36, 0.6));
+      background: rgba(251, 191, 36, 0.2);
+      border-color: rgba(251, 191, 36, 0.6);
     }
 
     /* Quick select buttons */
@@ -154,18 +154,18 @@ class TimeRangePicker extends LitElement {
 
     .quick-btn {
       padding: 0.25rem 0.75rem;
-      background: var(--bg-tertiary, rgba(50, 55, 65, 0.5));
-      border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+      background: var(--surface-glass-strong);
+      border: 1px solid var(--border-medium);
       border-radius: var(--radius-sm);
-      color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+      color: var(--color-dark-text-tertiary, #94a3b8);
       cursor: pointer;
       font-size: 0.7rem;
       transition: all 0.2s ease;
     }
 
     .quick-btn:hover {
-      background: var(--bg-hover, rgba(60, 65, 75, 0.8));
-      color: var(--text-primary, #fff);
+      background: var(--surface-glass-bright);
+      color: var(--color-dark-text-primary, #f8f9fa);
     }
 
     /* Month Days Grid */
@@ -174,16 +174,16 @@ class TimeRangePicker extends LitElement {
       align-items: center;
       gap: 0.5rem;
       cursor: pointer;
-      color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+      color: var(--color-dark-text-tertiary, #94a3b8);
       font-size: 0.8rem;
     }
 
     .month-days-toggle:hover {
-      color: var(--primary-color, #00d4aa);
+      color: var(--context-primary, #00d4aa);
     }
 
     .month-days-toggle:focus-visible {
-      outline: 2px solid var(--primary-color, #00d4aa);
+      outline: 2px solid var(--context-primary, #00d4aa);
       outline-offset: 2px;
       border-radius: var(--radius-sm, 4px);
     }
@@ -193,7 +193,7 @@ class TimeRangePicker extends LitElement {
       grid-template-columns: repeat(7, 1fr);
       gap: 4px;
       padding: 0.75rem;
-      background: var(--bg-secondary, rgba(40, 45, 55, 0.5));
+      background: var(--surface-glass-hover);
       border-radius: var(--radius-base, 0.5rem);
     }
 
@@ -202,30 +202,30 @@ class TimeRangePicker extends LitElement {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: var(--bg-tertiary, rgba(50, 55, 65, 0.5));
+      background: var(--surface-glass-strong);
       border: 1px solid transparent;
       border-radius: var(--radius-sm);
-      color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+      color: var(--color-dark-text-secondary, #cbd5e1);
       cursor: pointer;
       font-size: var(--text-xs);
       transition: all 0.15s ease;
     }
 
     .month-day-btn:hover {
-      background: var(--bg-hover, rgba(60, 65, 75, 0.8));
+      background: var(--surface-glass-bright);
     }
 
     .day-btn:focus-visible,
     .month-day-btn:focus-visible,
     .quick-btn:focus-visible {
-      outline: 2px solid var(--primary-color, #00d4aa);
+      outline: 2px solid var(--context-primary, #00d4aa);
       outline-offset: 2px;
     }
 
     .month-day-btn.selected {
-      background: var(--primary-color, rgba(0, 212, 170, 0.3));
-      border-color: var(--primary-color, rgba(0, 212, 170, 0.5));
-      color: var(--primary-color, #00d4aa);
+      background: var(--ctx-bg-strong);
+      border-color: var(--ctx-border-strong);
+      color: var(--context-primary, #00d4aa);
     }
 
     .month-day-btn.last-day {
@@ -236,15 +236,15 @@ class TimeRangePicker extends LitElement {
     /* Summary */
     .summary {
       padding: 0.75rem;
-      background: var(--bg-secondary, rgba(40, 45, 55, 0.3));
+      background: var(--surface-glass-subtle);
       border-radius: var(--radius-base, 0.5rem);
       font-size: 0.8rem;
-      color: var(--text-secondary, rgba(255, 255, 255, 0.7));
-      border-left: 3px solid var(--primary-color, #00d4aa);
+      color: var(--color-dark-text-secondary, #cbd5e1);
+      border-left: 3px solid var(--context-primary, #00d4aa);
     }
 
     .summary strong {
-      color: var(--text-primary, #fff);
+      color: var(--color-dark-text-primary, #f8f9fa);
     }
 
     @media (max-width: 480px) {

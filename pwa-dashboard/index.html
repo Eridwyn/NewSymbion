@@ -198,7 +198,7 @@
     <!-- Early theme detection to avoid flash of wrong theme -->
     <script>
       (function() {
-        var t = localStorage.getItem('symbion-theme') || 'dark';
+        var t = localStorage.getItem('symbion_theme') || 'dark';
         if (t === 'auto') t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', t);
       })();
