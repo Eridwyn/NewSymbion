@@ -26,11 +26,14 @@ export class SslConfigPage extends LitElement {
 
     .page-container {
       max-width: 800px;
-      margin: 0 auto;
-      padding: var(--space-5);
+      margin: var(--space-6) auto;
+      padding: var(--space-6);
       padding-bottom: 120px;
-      min-height: 100%;
       box-sizing: border-box;
+      background: linear-gradient(135deg, var(--app-page-bg-a) 0%, var(--app-page-bg-b) 100%);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
     }
 
     /* Loader container */
@@ -43,6 +46,13 @@ export class SslConfigPage extends LitElement {
     }
 
     /* Header */
+    .page-header {
+      padding: var(--space-4) var(--space-5);
+      background: var(--surface-glass-strong, rgba(0, 0, 0, 0.3));
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-6)) var(--space-6);
+    }
+
     .header-left {
       display: flex;
       align-items: center;
