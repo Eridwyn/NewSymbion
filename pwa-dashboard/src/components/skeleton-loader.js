@@ -11,6 +11,11 @@ class SkeletonLoader extends LitElement {
     :host {
       display: block;
       padding: var(--space-4, 1rem);
+      animation: skeleton-fade-in var(--duration-base, 0.25s) var(--ease-out, ease-out);
+    }
+
+    :host(.removing) {
+      animation: skeleton-fade-out var(--duration-base, 0.25s) var(--ease-out, ease-out) forwards;
     }
 
     .skeleton-line {
@@ -50,6 +55,16 @@ class SkeletonLoader extends LitElement {
     @keyframes shimmer {
       0% { background-position: 200% 0; }
       100% { background-position: -200% 0; }
+    }
+
+    @keyframes skeleton-fade-in {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes skeleton-fade-out {
+      from { opacity: 1; transform: translateY(0); }
+      to { opacity: 0; transform: translateY(-4px); }
     }
   `
 

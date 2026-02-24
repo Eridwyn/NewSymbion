@@ -10,11 +10,12 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
+import { focusVisibleStyles } from '../styles/shared-patterns.js'
 import csrfService from '../services/csrf-service.js'
 import { escapeHtml } from '../utils/sanitization.js'
 
 class NotificationCenter extends LitElement {
-  static styles = [sharedAnimations, css`
+  static styles = [sharedAnimations, focusVisibleStyles, css`
     :host {
       position: relative;
       display: inline-flex;

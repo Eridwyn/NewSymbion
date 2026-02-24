@@ -37,8 +37,8 @@ export const closeButtonStyles = css`
     background: var(--surface-glass-hover, rgba(255, 255, 255, 0.08));
     border: none;
     color: var(--color-dark-text-secondary, #adb5bd);
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     cursor: pointer;
     font-size: 1.2rem;

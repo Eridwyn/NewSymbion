@@ -7,9 +7,10 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { focusVisibleStyles } from './styles/shared-patterns.js'
 
 class LogsViewer extends LitElement {
-  static styles = css`
+  static styles = [focusVisibleStyles, css`
     :host {
       display: block;
       min-height: 100vh;
@@ -466,7 +467,7 @@ class LogsViewer extends LitElement {
     /* Utility classes (ex-inline) */
     .lv-hint { margin-top: 0.5rem; font-size: 0.85em; color: #666; }
     .lv-search-compact { max-width: 160px; }
-  `
+  `]
 
   static properties = {
     sourceTab: { type: String },

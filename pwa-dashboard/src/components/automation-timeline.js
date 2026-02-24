@@ -4,6 +4,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { focusVisibleStyles } from '../styles/shared-patterns.js'
 
 const MIN_HOUR = 6
 const MAX_HOUR = 24
@@ -16,7 +17,7 @@ class AutomationTimeline extends LitElement {
     highlightedId: { type: String }
   }
 
-  static styles = css`
+  static styles = [focusVisibleStyles, css`
     :host {
       display: block;
     }
@@ -229,7 +230,7 @@ class AutomationTimeline extends LitElement {
 
     /* Utility classes (ex-inline) */
     .at-schedule-hint { font-size: var(--text-xs); color: var(--text-secondary); }
-  `
+  `]
 
   constructor() {
     super()

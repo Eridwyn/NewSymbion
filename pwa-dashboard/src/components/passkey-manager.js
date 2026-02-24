@@ -11,10 +11,11 @@
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
+import { focusVisibleStyles } from '../styles/shared-patterns.js'
 import authService from '../services/auth-service.js'
 
 class PasskeyManager extends LitElement {
-  static styles = [sharedAnimations, css`
+  static styles = [sharedAnimations, focusVisibleStyles, css`
     :host {
       display: block;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
@@ -119,8 +120,8 @@ class PasskeyManager extends LitElement {
     }
 
     .delete-btn {
-      background: rgba(255, 107, 107, 0.1);
-      border: 1px solid rgba(255, 107, 107, 0.3);
+      background: var(--color-danger-bg, rgba(255, 107, 107, 0.1));
+      border: 1px solid var(--color-danger-border, rgba(255, 107, 107, 0.3));
       color: var(--color-danger-text-muted, #ff6b6b);
       padding: 0.5rem 1rem;
       border-radius: var(--radius-sm);
@@ -130,8 +131,8 @@ class PasskeyManager extends LitElement {
     }
 
     .delete-btn:hover {
-      background: rgba(255, 107, 107, 0.2);
-      border-color: rgba(255, 107, 107, 0.5);
+      background: color-mix(in srgb, var(--color-danger-text, #ff6b6b) 20%, transparent);
+      border-color: color-mix(in srgb, var(--color-danger-text, #ff6b6b) 50%, transparent);
     }
 
     .placeholder {
@@ -142,8 +143,8 @@ class PasskeyManager extends LitElement {
     }
 
     .error {
-      background: rgba(255, 107, 107, 0.1);
-      border: 1px solid rgba(255, 107, 107, 0.3);
+      background: var(--color-danger-bg, rgba(255, 107, 107, 0.1));
+      border: 1px solid var(--color-danger-border, rgba(255, 107, 107, 0.3));
       color: var(--color-danger-text-muted, #ff6b6b);
       padding: 1rem;
       border-radius: var(--radius-base, 0.5rem);

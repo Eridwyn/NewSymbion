@@ -637,7 +637,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
       background: var(--surface-glass-bright);
       border-radius: var(--radius-full, 9999px);
       cursor: pointer;
-      transition: background 0.2s;
+      transition: background var(--duration-base, 0.25s) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
     }
 
     .toggle.active {
@@ -653,7 +653,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
       height: 18px;
       background: white;
       border-radius: 50%;
-      transition: transform 0.2s;
+      transition: transform var(--duration-base, 0.25s) var(--ease-bounce, cubic-bezier(0.68, -0.55, 0.265, 1.55));
     }
 
     .toggle.active::after {
