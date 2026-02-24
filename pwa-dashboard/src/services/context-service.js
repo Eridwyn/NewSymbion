@@ -244,7 +244,8 @@ class ContextService extends LitElement {
       if (!apiService) return
       const data = await apiService.request('/v1/intelligence/features')
       const feat = data?.features?.find(f => f.feature_id === 'appearance.theme')
-      const kernelTheme = feat?.value?.String
+      // API returns { type: "String", value: "dark" } (serde adjacently tagged)
+      const kernelTheme = feat?.value?.value || feat?.value?.String
       if (!kernelTheme) return
 
       const { default: themeService } = await import('./theme-service.js')
