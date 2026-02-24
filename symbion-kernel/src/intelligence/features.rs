@@ -344,6 +344,9 @@ pub mod feature_ids {
     /// Context state — current mode and duration
     pub const CONTEXT_MODE: &str = "context.mode";
     pub const CONTEXT_TIME_IN_MODE: &str = "context.time_in_mode";
+
+    /// Appearance — user theme preference (dark/light)
+    pub const APPEARANCE_THEME: &str = "appearance.theme";
 }
 
 // ============================================================================
@@ -372,6 +375,9 @@ pub mod ttl {
 
     /// Context features (mode changes are event-driven)
     pub const CONTEXT: u32 = 0; // Never expires (updated on change)
+
+    /// User preference features (persist until changed)
+    pub const USER_PREFERENCE: u32 = 0; // Never expires
 }
 
 // ============================================================================
