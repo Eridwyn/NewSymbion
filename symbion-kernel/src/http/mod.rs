@@ -258,7 +258,7 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/schedule/rules/{id}", axum::routing::put(context::update_schedule_rule).delete(context::delete_schedule_rule))
         .route("/schedule/default", axum::routing::put(context::set_schedule_default_mode))
         // Notifications API (CSRF protected write operations)
-        .route("/notifications", post(notifications::send_notification))
+        .route("/notifications", post(notifications::send_notification).delete(notifications::delete_all_notifications))
         .route("/notifications/{id}/acknowledge", post(notifications::acknowledge_notification))
         .route("/notifications/{id}", axum::routing::delete(notifications::delete_notification))
         .route("/notifications/tokens", post(notifications::register_fcm_token))

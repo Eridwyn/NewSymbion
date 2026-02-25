@@ -174,6 +174,30 @@ pub(super) async fn delete_notification(
     })))
 }
 
+/// DELETE /notifications — Delete all notifications at once.
+#[utoipa::path(
+    delete,
+    path = "/notifications",
+    tag = "Notifications",
+    security(("bearer_auth" = [])),
+    params(
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 200, description = "All notifications deleted")
+    )
+)]
+pub(super) async fn delete_all_notifications(
+    State(app): State<AppState>,
+) -> Json<serde_json::Value> {
+    let count = app.notifications_manager.delete_all();
+    Json(serde_json::json!({
+        "success": true,
+        "message": format!("{} notifications deleted", count),
+        "count": count
+    }))
+}
+
 /// Request body for registering an FCM push token.
 #[derive(Debug, Deserialize, ToSchema)]
 pub(crate) struct RegisterFcmTokenRequest {

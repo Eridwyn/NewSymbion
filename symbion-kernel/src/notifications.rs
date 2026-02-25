@@ -641,6 +641,23 @@ impl NotificationManager {
         Ok(())
     }
 
+    /// Supprime toutes les notifications
+    pub fn delete_all(&self) -> usize {
+        let count;
+        {
+            let mut active = self.active_notifications.lock().unwrap();
+            active.clear();
+        }
+        {
+            let mut history = self.history.lock().unwrap();
+            count = history.len();
+            history.clear();
+        }
+        self.save_to_file();
+        println!("[notifications] deleted all ({} notifications)", count);
+        count
+    }
+
     /// Vérifie si une notification est acquittée
     pub fn is_acknowledged(&self, notification_id: &str) -> bool {
         self.active_notifications

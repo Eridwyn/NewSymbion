@@ -812,12 +812,15 @@ class NotificationCenter extends LitElement {
 
     console.log('[notification-center] Deleting all notifications')
 
-    // Supprimer chaque notification via l'API
-    const deletePromises = this.notifications.map(notif =>
-      csrfService.fetchWithCsrf(`/notifications/${notif.id}`, { method: 'DELETE' })
-        .catch(e => console.error('[notification-center] Delete failed for:', notif.id, e))
-    )
-    await Promise.all(deletePromises)
+    try {
+      const response = await csrfService.fetchWithCsrf('/notifications', { method: 'DELETE' })
+      if (response.ok) {
+        const data = await response.json()
+        console.log('[notification-center] All deleted:', data.message)
+      }
+    } catch (e) {
+      console.error('[notification-center] Delete all failed:', e)
+    }
 
     // Vider localement
     this.notifications = []
