@@ -17,22 +17,27 @@ use rumqttc::AsyncClient;
 use uuid::Uuid;
 use anyhow::Result;
 use std::time::Duration;
+use utoipa::ToSchema;
 
 // Structures pour tracking des commandes en cours
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PendingCommand {
     pub command_id: String,
     pub agent_id: String,
     pub command_type: String,
+    #[schema(value_type = Option<Object>)]
     pub parameters: Option<serde_json::Value>,
+    #[schema(value_type = String)]
     pub timestamp: OffsetDateTime,
     pub timeout: Duration,
     pub status: CommandStatus,
+    #[schema(value_type = Option<Object>)]
     pub output: Option<serde_json::Value>,
+    #[schema(value_type = Option<Object>)]
     pub error: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub enum CommandStatus {
     Sent,
     Acknowledged,
@@ -44,20 +49,23 @@ pub enum CommandStatus {
 }
 
 // Structure pour les réponses des agents (agents.response@v1)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentResponse {
     pub command_id: String,
     pub agent_id: String,
     pub status: String, // "success", "error", "in_progress", "cancelled"
+    #[schema(value_type = Option<Object>)]
     pub output: Option<serde_json::Value>,
+    #[schema(value_type = Option<Object>)]
     pub error: Option<serde_json::Value>,
     pub progress: Option<u32>,
+    #[schema(value_type = Option<Object>)]
     pub metadata: Option<serde_json::Value>,
     pub timestamp: String,
 }
 
 // Structures basées sur les contrats agents.registration@v1 et agents.heartbeat@v1
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Agent {
     pub agent_id: String,           // MAC sans colons (ex: a1b2c3d4e5f6)
     pub hostname: String,
@@ -67,7 +75,9 @@ pub struct Agent {
     pub network: AgentNetwork,
     pub version: Option<String>,
     pub status: AgentStatus,
+    #[schema(value_type = String)]
     pub last_seen: OffsetDateTime,
+    #[schema(value_type = String)]
     pub registration_time: OffsetDateTime,
     /// Timestamp Unix de soft-delete (None = actif, Some = supprimé)
     /// Purge automatique après 7 jours
@@ -75,13 +85,13 @@ pub struct Agent {
     pub deleted_at: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentNetwork {
     pub primary_mac: String,        // Format avec colons (ex: a1:b2:c3:d4:e5:f6)
     pub interfaces: Vec<AgentInterface>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentInterface {
     pub name: String,               // eth0, wlan0, etc.
     pub mac: String,
@@ -90,16 +100,17 @@ pub struct AgentInterface {
     pub interface_type: String,     // ethernet, wireless, loopback, other
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentStatus {
     pub status: String,             // online, idle, busy, maintenance
+    #[schema(value_type = Option<String>)]
     pub last_heartbeat: Option<OffsetDateTime>,
     pub system: Option<AgentSystemMetrics>,
     pub processes: Option<AgentProcesses>,
     pub services: Option<Vec<AgentService>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentSystemMetrics {
     pub uptime_seconds: u64,
     pub cpu: AgentCpuMetrics,
@@ -109,14 +120,14 @@ pub struct AgentSystemMetrics {
     pub temperature: Option<AgentTemperatureMetrics>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentCpuMetrics {
     pub percent: f32,
     pub load_avg: Option<[f32; 3]>,  // [1min, 5min, 15min]
     pub core_count: Option<u32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentMemoryMetrics {
     pub total_mb: u64,
     pub used_mb: u64,
@@ -124,7 +135,7 @@ pub struct AgentMemoryMetrics {
     pub percent_used: f32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentDiskMetrics {
     pub path: String,
     pub total_gb: f64,
@@ -133,12 +144,12 @@ pub struct AgentDiskMetrics {
     pub percent_used: f32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentNetworkMetrics {
     pub interfaces: Vec<AgentNetworkInterface>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentNetworkInterface {
     pub name: String,
     pub bytes_sent: Option<u64>,
@@ -148,13 +159,13 @@ pub struct AgentNetworkInterface {
     pub is_up: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentTemperatureMetrics {
     pub cpu_celsius: Option<f32>,
     pub sensors: Option<Vec<AgentTemperatureSensor>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentTemperatureSensor {
     pub name: String,
     pub value: f32,
@@ -162,7 +173,7 @@ pub struct AgentTemperatureSensor {
     pub critical: Option<f32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentProcesses {
     pub total_count: u32,
     pub running_count: u32,
@@ -170,7 +181,7 @@ pub struct AgentProcesses {
     pub top_memory: Option<Vec<AgentProcess>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentProcess {
     pub pid: u32,
     pub name: String,
@@ -179,7 +190,7 @@ pub struct AgentProcess {
     pub user: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentService {
     pub name: String,
     pub status: String,             // active, inactive, failed, unknown
@@ -187,30 +198,32 @@ pub struct AgentService {
 }
 
 // Messages MQTT pour les commandes (kernel → agent)
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct AgentCommand {
     pub command_id: String,
     pub agent_id: String,
     pub command_type: String,       // shutdown, reboot, hibernate, kill_process, run_command, get_metrics
+    #[schema(value_type = Option<Object>)]
     pub parameters: Option<serde_json::Value>,
     pub timeout_seconds: Option<u32>,
     pub timestamp: String,
 }
 
 /// MQTT contract: agent command response payload (fields required for deserialization)
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[allow(dead_code)]
 pub struct AgentCommandResponse {
     pub command_id: String,
     pub agent_id: String,
     pub status: String,             // success, error, timeout
+    #[schema(value_type = Option<Object>)]
     pub result: Option<serde_json::Value>,
     pub error_message: Option<String>,
     pub timestamp: String,
 }
 
 // Messages MQTT entrants (agent → kernel)
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct AgentRegistrationMessage {
     pub agent_id: String,
     pub hostname: String,
@@ -223,7 +236,7 @@ pub struct AgentRegistrationMessage {
     pub timestamp: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct AgentHeartbeatMessage {
     pub agent_id: String,
     pub status: String,
@@ -237,7 +250,7 @@ pub struct AgentHeartbeatMessage {
 }
 
 /// MQTT contract: last command status from agent (fields required for deserialization)
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[allow(dead_code)]
 pub struct AgentLastCommand {
     pub command_id: String,

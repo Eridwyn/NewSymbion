@@ -3,10 +3,22 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use time::OffsetDateTime;
+use utoipa::ToSchema;
 use crate::decision_http::{EvaluateRequest, AuditQueryParams, ResolveValidationRequest, CreateOverrideRequest, RevokeOverrideRequest};
 use crate::context_intelligence::DecisionSignal;
 
 /// POST /decision/evaluate -- Evaluate an action through the Decision Engine.
+#[utoipa::path(
+    post,
+    path = "/decision/evaluate",
+    tag = "Decision",
+    request_body = EvaluateRequest,
+    responses(
+        (status = 200, description = "Decision evaluation result", body = crate::decision::DecisionResult)
+    ),
+    security(("bearer_auth" = [])),
+    params(("X-CSRF-Token" = String, Header, description = "CSRF nonce"))
+)]
 pub(super) async fn decision_evaluate(
     State(app): State<AppState>,
     Json(req): Json<EvaluateRequest>,
@@ -23,6 +35,16 @@ pub(super) async fn decision_evaluate(
 }
 
 /// GET /decision/audit -- Retrieve the decision audit trail with optional query filters.
+#[utoipa::path(
+    get,
+    path = "/decision/audit",
+    tag = "Decision",
+    params(AuditQueryParams),
+    responses(
+        (status = 200, description = "Audit trail entries", body = serde_json::Value)
+    ),
+    security(("bearer_auth" = []))
+)]
 pub(super) async fn decision_get_audit(
     State(app): State<AppState>,
     Query(params): Query<AuditQueryParams>,
@@ -39,6 +61,16 @@ pub(super) async fn decision_get_audit(
 }
 
 /// GET /decision/metrics -- Return Decision Engine metrics in Prometheus text format.
+#[utoipa::path(
+    get,
+    path = "/decision/metrics",
+    tag = "Decision",
+    responses(
+        (status = 200, description = "Prometheus-format metrics", body = String),
+        (status = 500, description = "Internal server error")
+    ),
+    security(("bearer_auth" = []))
+)]
 pub(super) async fn decision_get_metrics(
     State(app): State<AppState>,
 ) -> Result<String, StatusCode> {
@@ -54,6 +86,15 @@ pub(super) async fn decision_get_metrics(
 }
 
 /// GET /decision/validations/pending -- List all pending validation requests.
+#[utoipa::path(
+    get,
+    path = "/decision/validations/pending",
+    tag = "Decision",
+    responses(
+        (status = 200, description = "List of pending validations", body = Vec<crate::decision::ValidationRequest>)
+    ),
+    security(("bearer_auth" = []))
+)]
 pub(super) async fn decision_list_pending_validations(
     State(app): State<AppState>,
 ) -> Json<Vec<crate::decision::ValidationRequest>> {
@@ -69,6 +110,21 @@ pub(super) async fn decision_list_pending_validations(
 }
 
 /// POST /decision/validation/{id}/resolve -- Approve or reject a pending validation and execute the associated action if approved.
+#[utoipa::path(
+    post,
+    path = "/decision/validation/{id}/resolve",
+    tag = "Decision",
+    request_body = ResolveValidationRequest,
+    responses(
+        (status = 200, description = "Resolved validation", body = crate::decision::ValidationRequest),
+        (status = 404, description = "Validation not found")
+    ),
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Validation request ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    )
+)]
 pub(super) async fn decision_resolve_validation(
     State(app): State<AppState>,
     Path(validation_id): Path<String>,
@@ -393,6 +449,18 @@ pub(super) async fn execute_pending_action(
 }
 
 /// POST /decision/override -- Create a new master override for the Decision Engine.
+#[utoipa::path(
+    post,
+    path = "/decision/override",
+    tag = "Decision",
+    request_body = CreateOverrideRequest,
+    responses(
+        (status = 200, description = "Created override", body = crate::decision::MasterOverride),
+        (status = 400, description = "Invalid request")
+    ),
+    security(("bearer_auth" = [])),
+    params(("X-CSRF-Token" = String, Header, description = "CSRF nonce"))
+)]
 pub(super) async fn decision_create_override(
     State(app): State<AppState>,
     Json(req): Json<CreateOverrideRequest>,
@@ -409,6 +477,15 @@ pub(super) async fn decision_create_override(
 }
 
 /// GET /decision/overrides/active -- List all currently active master overrides.
+#[utoipa::path(
+    get,
+    path = "/decision/overrides/active",
+    tag = "Decision",
+    responses(
+        (status = 200, description = "List of active overrides", body = Vec<crate::decision::MasterOverride>)
+    ),
+    security(("bearer_auth" = []))
+)]
 pub(super) async fn decision_list_active_overrides(
     State(app): State<AppState>,
 ) -> Json<Vec<crate::decision::MasterOverride>> {
@@ -424,6 +501,21 @@ pub(super) async fn decision_list_active_overrides(
 }
 
 /// DELETE /decision/override/{id} -- Revoke an active master override by ID.
+#[utoipa::path(
+    delete,
+    path = "/decision/override/{id}",
+    tag = "Decision",
+    request_body = RevokeOverrideRequest,
+    responses(
+        (status = 200, description = "Override revoked"),
+        (status = 404, description = "Override not found")
+    ),
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Override ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    )
+)]
 pub(super) async fn decision_revoke_override(
     State(app): State<AppState>,
     Path(override_id): Path<String>,
@@ -441,6 +533,15 @@ pub(super) async fn decision_revoke_override(
 }
 
 /// GET /decision/config -- Return the current Decision Engine configuration.
+#[utoipa::path(
+    get,
+    path = "/decision/config",
+    tag = "Decision",
+    responses(
+        (status = 200, description = "Decision engine configuration", body = crate::decision::DecisionConfig)
+    ),
+    security(("bearer_auth" = []))
+)]
 pub(super) async fn decision_get_config(
     State(app): State<AppState>,
 ) -> Json<crate::decision::DecisionConfig> {
@@ -456,6 +557,15 @@ pub(super) async fn decision_get_config(
 }
 
 /// GET /decision/agent-health -- Return health status for all registered agents.
+#[utoipa::path(
+    get,
+    path = "/decision/agent-health",
+    tag = "Decision",
+    responses(
+        (status = 200, description = "Agent health status", body = serde_json::Value)
+    ),
+    security(("bearer_auth" = []))
+)]
 pub(super) async fn decision_get_agent_health(
     State(app): State<AppState>,
 ) -> Json<serde_json::Value> {
@@ -471,6 +581,15 @@ pub(super) async fn decision_get_agent_health(
 }
 
 /// GET /decision/stats -- Return aggregate Decision Engine statistics.
+#[utoipa::path(
+    get,
+    path = "/decision/stats",
+    tag = "Decision",
+    responses(
+        (status = 200, description = "Decision engine statistics", body = crate::decision_http::DecisionStats)
+    ),
+    security(("bearer_auth" = []))
+)]
 pub(super) async fn decision_get_stats(
     State(app): State<AppState>,
 ) -> Json<crate::decision_http::DecisionStats> {
@@ -486,6 +605,15 @@ pub(super) async fn decision_get_stats(
 }
 
 /// GET /decision/validations/expired -- List all expired validation requests.
+#[utoipa::path(
+    get,
+    path = "/decision/validations/expired",
+    tag = "Decision",
+    responses(
+        (status = 200, description = "List of expired validations", body = Vec<crate::decision::ValidationRequest>)
+    ),
+    security(("bearer_auth" = []))
+)]
 pub(super) async fn decision_list_expired_validations(
     State(app): State<AppState>,
 ) -> Json<Vec<crate::decision::ValidationRequest>> {
@@ -501,6 +629,20 @@ pub(super) async fn decision_list_expired_validations(
 }
 
 /// DELETE /decision/validation/{id} -- Delete a specific validation request by ID.
+#[utoipa::path(
+    delete,
+    path = "/decision/validation/{id}",
+    tag = "Decision",
+    responses(
+        (status = 200, description = "Validation deleted"),
+        (status = 404, description = "Validation not found")
+    ),
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Validation request ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    )
+)]
 pub(super) async fn decision_delete_validation(
     State(app): State<AppState>,
     Path(validation_id): Path<String>,
@@ -517,6 +659,16 @@ pub(super) async fn decision_delete_validation(
 }
 
 /// DELETE /decision/validations/expired -- Delete all expired validation requests.
+#[utoipa::path(
+    delete,
+    path = "/decision/validations/expired",
+    tag = "Decision",
+    responses(
+        (status = 200, description = "All expired validations deleted", body = serde_json::Value)
+    ),
+    security(("bearer_auth" = [])),
+    params(("X-CSRF-Token" = String, Header, description = "CSRF nonce"))
+)]
 pub(super) async fn decision_delete_all_expired_validations(
     State(app): State<AppState>,
 ) -> Json<serde_json::Value> {

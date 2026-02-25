@@ -14,13 +14,14 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use time::{Duration, OffsetDateTime};
+use utoipa::ToSchema;
 
 // ============================================================================
 // Session Source
 // ============================================================================
 
 /// How the current session was established
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub enum SessionSource {
     /// Predicted by the intelligence engine
     Predicted,
@@ -54,17 +55,19 @@ impl SessionSource {
 // ============================================================================
 
 /// Current active mode session with metadata
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ActiveSession {
     /// Current mode (e.g., "focus", "maison", "pro")
     pub mode: String,
 
     /// When this session started
     #[serde(with = "time::serde::iso8601")]
+    #[schema(value_type = String)]
     pub started_at: OffsetDateTime,
 
     /// Last time the mode was confirmed (prediction matched or user action)
     #[serde(with = "time::serde::iso8601")]
+    #[schema(value_type = String)]
     pub last_confirmed_at: OffsetDateTime,
 
     /// How this session was established
@@ -80,6 +83,7 @@ pub struct ActiveSession {
     /// Override expiry time (if source is Override)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "option_iso8601")]
+    #[schema(value_type = Option<String>)]
     pub override_expires_at: Option<OffsetDateTime>,
 }
 
@@ -206,7 +210,7 @@ impl ActiveSession {
 // ============================================================================
 
 /// Configuration for session management
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SessionConfig {
     /// Minimum session duration before auto-switch (minutes)
     pub min_duration_minutes: i64,
@@ -533,7 +537,7 @@ impl SessionManager {
 }
 
 /// Session statistics for API exposure
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct SessionStats {
     pub current_mode: String,
     pub source: SessionSource,

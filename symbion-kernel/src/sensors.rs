@@ -38,9 +38,10 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use utoipa::ToSchema;
 
 /// MQTT sensor registration message
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SensorRegistrationMessage {
     pub sensor_id: String,
     pub sensor_type: String,
@@ -49,7 +50,7 @@ pub struct SensorRegistrationMessage {
 }
 
 /// MQTT environment reading message
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SensorEnvMessage {
     pub sensor_id: String,
     pub temperature_c: f32,
@@ -59,7 +60,7 @@ pub struct SensorEnvMessage {
 }
 
 /// Sensor information (auto-registered via MQTT)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Sensor {
     /// Unique sensor ID (e.g., "esp32-chambre-01", "esp32-salon-02")
     pub sensor_id: String,
@@ -95,7 +96,7 @@ pub struct Sensor {
 }
 
 /// Sensor status enum
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum SensorStatus {
     /// Sensor online and sending data

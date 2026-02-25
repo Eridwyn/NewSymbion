@@ -11,13 +11,14 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
+use utoipa::ToSchema;
 
 // ============================================================================
 // Feature Value Types
 // ============================================================================
 
 /// Typed feature value
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 #[serde(tag = "type", content = "value")]
 pub enum FeatureValue {
     Bool(bool),
@@ -59,7 +60,7 @@ impl FeatureValue {
 // ============================================================================
 
 /// A single feature sample with metadata and TTL
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct FeatureSample {
     /// Unique feature identifier (e.g., "agent.cpu.usage", "process.category.ide")
     pub feature_id: String,
@@ -75,6 +76,7 @@ pub struct FeatureSample {
 
     /// When this sample was recorded
     #[serde(with = "time::serde::iso8601")]
+    #[schema(value_type = String)]
     pub timestamp: OffsetDateTime,
 
     /// Time-to-live in seconds (0 = never expires)
@@ -286,13 +288,14 @@ impl FeatureRegistry {
 }
 
 /// Summary of registry state for debugging
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct FeatureRegistrySummary {
     pub total_count: usize,
     pub active_count: usize,
     pub expired_count: usize,
     pub by_source: HashMap<String, usize>,
     #[serde(with = "time::serde::iso8601")]
+    #[schema(value_type = String)]
     pub last_cleanup: OffsetDateTime,
 }
 

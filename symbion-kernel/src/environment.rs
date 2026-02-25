@@ -20,6 +20,7 @@
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
+use utoipa::ToSchema;
 use crate::dew_point_alerts::{DewPointAlertLevel, DewPointCalculator};
 
 /// Single environment reading (temperature + humidity + timestamp)
@@ -27,10 +28,11 @@ use crate::dew_point_alerts::{DewPointAlertLevel, DewPointCalculator};
 /// temperature_c and humidity_pct are Option<f32> to handle offline sensors:
 /// - Some(value) when sensor is online
 /// - None when sensor is offline (serializes to JSON null instead of NaN)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct EnvReading {
     pub temperature_c: Option<f32>,
     pub humidity_pct: Option<f32>,
+    #[schema(value_type = String)]
     pub timestamp: DateTime<Utc>,
 }
 
@@ -39,7 +41,7 @@ pub struct EnvReading {
 pub use crate::dew_point_alerts::DewPointAlertLevel as EnvironmentStatus;
 
 /// Room environment state with circular buffer history
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RoomEnvironmentState {
     /// Unique room identifier (e.g., "chambre", "salon")
     pub room_id: String,
@@ -48,6 +50,7 @@ pub struct RoomEnvironmentState {
     pub current: EnvReading,
 
     /// Historical readings (circular buffer, FIFO eviction)
+    #[schema(value_type = Vec<EnvReading>)]
     pub history: VecDeque<EnvReading>,
 
     /// Current status classification

@@ -23,6 +23,7 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use axum::extract::Query;
 use crate::http::AppState;
@@ -39,49 +40,49 @@ use crate::intelligence::{
 // Response Types
 // ============================================================================
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct IntelligenceStatusResponse {
     pub status: IntelligenceStatus,
     pub current_prediction: Option<ModePrediction>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct PatternsResponse {
     pub patterns: Vec<LearnedPattern>,
     pub count: usize,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct PredictionsResponse {
     pub predictions: Vec<PredictionRecord>,
     pub count: usize,
     pub accuracy_7_days: f32,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct SignalsResponse {
     pub signals: ContextSignals,
     pub prediction: ModePrediction,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct FeedbackRequest {
     pub chosen_mode: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct FeedbackResponse {
     pub success: bool,
     pub message: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct ConfigResponse {
     pub config: IntelligenceConfig,
 }
 
 /// Query params for pattern export (v1.1.9)
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Default, ToSchema)]
 pub struct PatternExportQuery {
     /// Filter by mode (e.g., "pro", "maison")
     pub mode: Option<String>,
@@ -95,7 +96,7 @@ pub struct PatternExportQuery {
     pub limit: Option<usize>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct PatternExportResponse {
     pub patterns: Vec<PatternExport>,
     pub count: usize,
@@ -103,7 +104,7 @@ pub struct PatternExportResponse {
 }
 
 /// Health counters response (v1.1.9)
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct HealthResponse {
     pub counters: HealthCounters,
     /// Detailed accuracy with denominators (v1.1.9 P0 fix)
@@ -113,14 +114,14 @@ pub struct HealthResponse {
 }
 
 /// Features response (v2 Intelligence)
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct FeaturesResponse {
     pub features: Vec<FeatureSample>,
     pub summary: FeatureRegistrySummary,
 }
 
 /// Vector response (v2 Intelligence)
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct VectorResponse {
     pub vector: ContextVector,
     pub best_mode: String,
@@ -129,7 +130,7 @@ pub struct VectorResponse {
 }
 
 /// Prediction v2 response (case-based inference)
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct Prediction2Response {
     pub prediction: PredictionV2,
     pub vector: ContextVector,
@@ -137,7 +138,7 @@ pub struct Prediction2Response {
 }
 
 /// Shadow stats response (v2 stabilization)
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct ShadowStatsResponse {
     pub shadow_stats: ShadowStats,
     pub sample_stats: SampleStats,
@@ -147,9 +148,10 @@ pub struct ShadowStatsResponse {
 }
 
 /// Request to set a feature via HTTP (mirrors MQTT symbion/features/update)
-#[derive(Debug, Deserialize)]
-struct SetFeatureRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct SetFeatureRequest {
     feature_id: String,
+    #[schema(value_type = Object)]
     value: serde_json::Value,
     #[serde(default = "default_feature_source")]
     source: String,
@@ -165,6 +167,15 @@ fn default_feature_source() -> String { "http-api".to_string() }
 
 /// GET /v1/intelligence/status
 /// Returns current status of the intelligence engine
+#[utoipa::path(
+    get,
+    path = "/intelligence/status",
+    tag = "Intelligence",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Current intelligence engine status", body = IntelligenceStatusResponse)
+    )
+)]
 async fn get_status(State(app): State<AppState>) -> Json<IntelligenceStatusResponse> {
     let status = app.context_intelligence.get_status();
     let current_prediction = status.last_prediction.clone();
@@ -177,6 +188,15 @@ async fn get_status(State(app): State<AppState>) -> Json<IntelligenceStatusRespo
 
 /// GET /v1/intelligence/health
 /// Returns health counters (24h) and detailed accuracy metrics (v1.1.9)
+#[utoipa::path(
+    get,
+    path = "/intelligence/health",
+    tag = "Intelligence",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Health counters and accuracy metrics", body = HealthResponse)
+    )
+)]
 async fn get_health(State(app): State<AppState>) -> Json<HealthResponse> {
     let counters = app.context_intelligence.get_health_counters();
     let accuracy = app.context_intelligence.calculate_accuracy_detailed(7);
@@ -198,6 +218,15 @@ async fn get_health(State(app): State<AppState>) -> Json<HealthResponse> {
 
 /// GET /v1/intelligence/patterns
 /// Returns all learned patterns
+#[utoipa::path(
+    get,
+    path = "/intelligence/patterns",
+    tag = "Intelligence",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "All learned patterns", body = PatternsResponse)
+    )
+)]
 async fn get_patterns(State(app): State<AppState>) -> Json<PatternsResponse> {
     let patterns = app.context_intelligence.get_patterns();
     let count = patterns.len();
@@ -207,6 +236,15 @@ async fn get_patterns(State(app): State<AppState>) -> Json<PatternsResponse> {
 
 /// GET /v1/intelligence/predictions
 /// Returns prediction history with accuracy stats
+#[utoipa::path(
+    get,
+    path = "/intelligence/predictions",
+    tag = "Intelligence",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Prediction history with accuracy stats", body = PredictionsResponse)
+    )
+)]
 async fn get_predictions(State(app): State<AppState>) -> Json<PredictionsResponse> {
     let predictions = app.context_intelligence.get_prediction_history();
     let count = predictions.len();
@@ -221,6 +259,15 @@ async fn get_predictions(State(app): State<AppState>) -> Json<PredictionsRespons
 
 /// GET /v1/intelligence/signals
 /// Returns current context signals and prediction
+#[utoipa::path(
+    get,
+    path = "/intelligence/signals",
+    tag = "Intelligence",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Current context signals and prediction", body = SignalsResponse)
+    )
+)]
 async fn get_signals(State(app): State<AppState>) -> Json<SignalsResponse> {
     let signals = app.context_intelligence.collect_signals().await;
     let prediction = app.context_intelligence.predict_mode(&signals);
@@ -233,6 +280,16 @@ async fn get_signals(State(app): State<AppState>) -> Json<SignalsResponse> {
 
 /// POST /v1/intelligence/feedback
 /// Record user feedback when manually correcting prediction
+#[utoipa::path(
+    post,
+    path = "/intelligence/feedback",
+    tag = "Intelligence",
+    security(("bearer_auth" = [])),
+    request_body = FeedbackRequest,
+    responses(
+        (status = 200, description = "Feedback recorded successfully", body = FeedbackResponse)
+    )
+)]
 async fn post_feedback(
     State(app): State<AppState>,
     Json(req): Json<FeedbackRequest>,
@@ -254,6 +311,15 @@ async fn post_feedback(
 
 /// GET /v1/intelligence/config
 /// Returns current configuration
+#[utoipa::path(
+    get,
+    path = "/intelligence/config",
+    tag = "Intelligence",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Current intelligence configuration", body = ConfigResponse)
+    )
+)]
 async fn get_config(State(app): State<AppState>) -> Json<ConfigResponse> {
     let config = app.context_intelligence.get_config();
     Json(ConfigResponse { config })
@@ -261,6 +327,16 @@ async fn get_config(State(app): State<AppState>) -> Json<ConfigResponse> {
 
 /// PUT /v1/intelligence/config
 /// Update intelligence configuration with validation (v1.1.9 security)
+#[utoipa::path(
+    put,
+    path = "/intelligence/config",
+    tag = "Intelligence",
+    security(("bearer_auth" = [])),
+    request_body = IntelligenceConfig,
+    responses(
+        (status = 200, description = "Configuration updated with audit trail", body = ConfigUpdateResponse)
+    )
+)]
 async fn put_config(
     State(app): State<AppState>,
     Json(requested): Json<IntelligenceConfig>,
@@ -338,7 +414,7 @@ async fn put_config(
 }
 
 /// Response for config update with audit trail
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct ConfigUpdateResponse {
     pub config: IntelligenceConfig,
     pub previous_config: IntelligenceConfig,
@@ -381,6 +457,22 @@ fn diff_config(old: &IntelligenceConfig, new: &IntelligenceConfig) -> Vec<String
 
 /// GET /v1/intelligence/patterns/export
 /// Export patterns with decay calculation and filtering (v1.1.9)
+#[utoipa::path(
+    get,
+    path = "/intelligence/patterns/export",
+    tag = "Intelligence",
+    security(("bearer_auth" = [])),
+    params(
+        ("mode" = Option<String>, Query, description = "Filter by mode (e.g., pro, maison)"),
+        ("day" = Option<u8>, Query, description = "Filter by day of week (0=Mon, 6=Sun)"),
+        ("min_confidence" = Option<f32>, Query, description = "Minimum confidence filter"),
+        ("sort_by" = Option<String>, Query, description = "Sort by: confidence (default), occurrences, last_seen"),
+        ("limit" = Option<usize>, Query, description = "Limit results")
+    ),
+    responses(
+        (status = 200, description = "Exported patterns with decay calculation", body = PatternExportResponse)
+    )
+)]
 async fn get_patterns_export(
     State(app): State<AppState>,
     Query(query): Query<PatternExportQuery>,
@@ -431,6 +523,15 @@ async fn get_patterns_export(
 
 /// GET /v1/intelligence/features
 /// Returns current features from FeatureRegistry (v2 Intelligence)
+#[utoipa::path(
+    get,
+    path = "/intelligence/features",
+    tag = "Intelligence",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Current features from FeatureRegistry", body = FeaturesResponse)
+    )
+)]
 async fn get_features(State(app): State<AppState>) -> Json<FeaturesResponse> {
     let features = app.feature_registry.get_all();
     let summary = app.feature_registry.summary();
@@ -440,6 +541,17 @@ async fn get_features(State(app): State<AppState>) -> Json<FeaturesResponse> {
 
 /// POST /v1/intelligence/features
 /// Set a feature value via HTTP (equivalent to MQTT symbion/features/update)
+#[utoipa::path(
+    post,
+    path = "/intelligence/features",
+    tag = "Intelligence",
+    security(("bearer_auth" = [])),
+    params(("X-CSRF-Token" = String, Header, description = "CSRF nonce")),
+    request_body = SetFeatureRequest,
+    responses(
+        (status = 204, description = "Feature set successfully")
+    )
+)]
 async fn post_feature(
     State(app): State<AppState>,
     Json(update): Json<SetFeatureRequest>,
@@ -472,6 +584,15 @@ async fn post_feature(
 
 /// GET /v1/intelligence/vector
 /// Returns current ContextVector built from features (v2 Intelligence)
+#[utoipa::path(
+    get,
+    path = "/intelligence/vector",
+    tag = "Intelligence",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Current ContextVector built from features", body = VectorResponse)
+    )
+)]
 async fn get_vector(State(app): State<AppState>) -> Json<VectorResponse> {
     let vector = VectorBuilder::new(&app.feature_registry).build();
     let (best_mode, confidence) = vector.best_mode();
@@ -488,6 +609,15 @@ async fn get_vector(State(app): State<AppState>) -> Json<VectorResponse> {
 
 /// GET /v1/intelligence/prediction2
 /// Returns v2 prediction using case-based inference
+#[utoipa::path(
+    get,
+    path = "/intelligence/prediction2",
+    tag = "Intelligence",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "V2 prediction using case-based inference", body = Prediction2Response)
+    )
+)]
 async fn get_prediction2(State(app): State<AppState>) -> Json<Prediction2Response> {
     // Build current context vector
     let vector = VectorBuilder::new(&app.feature_registry).build();
@@ -506,7 +636,7 @@ async fn get_prediction2(State(app): State<AppState>) -> Json<Prediction2Respons
 }
 
 /// Session response (v2 Intelligence)
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct SessionResponse {
     pub session: crate::intelligence::ActiveSession,
     pub stats: crate::intelligence::SessionStats,
@@ -515,6 +645,15 @@ pub struct SessionResponse {
 
 /// GET /v1/intelligence/session
 /// Returns current session with hysteresis info (v2 Intelligence)
+#[utoipa::path(
+    get,
+    path = "/intelligence/session",
+    tag = "Intelligence",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Current session with hysteresis info", body = SessionResponse)
+    )
+)]
 async fn get_session(State(app): State<AppState>) -> Json<SessionResponse> {
     let session = app.session_manager.current_session();
     let stats = app.session_manager.stats();
@@ -529,6 +668,15 @@ async fn get_session(State(app): State<AppState>) -> Json<SessionResponse> {
 
 /// GET /v1/intelligence/shadow-stats
 /// Returns v1 vs v2 shadow mode comparison statistics (v2 stabilization)
+#[utoipa::path(
+    get,
+    path = "/intelligence/shadow-stats",
+    tag = "Intelligence",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "V1 vs V2 shadow mode comparison statistics", body = ShadowStatsResponse)
+    )
+)]
 async fn get_shadow_stats(State(app): State<AppState>) -> Json<ShadowStatsResponse> {
     let shadow_stats = app.context_intelligence.get_shadow_stats();
     let config = app.context_intelligence.get_config();

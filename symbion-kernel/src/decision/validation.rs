@@ -8,10 +8,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use time::OffsetDateTime;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Statut d'une validation
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub enum ValidationStatus {
     Pending,
     Approved,
@@ -20,7 +21,7 @@ pub enum ValidationStatus {
 }
 
 /// Requête de validation en attente
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ValidationRequest {
     pub validation_id: String,
     pub decision_id: String,
@@ -28,10 +29,13 @@ pub struct ValidationRequest {
     pub context: DecisionContext,
     pub status: ValidationStatus,
     #[serde(with = "time::serde::rfc3339")]
+    #[schema(value_type = String)]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
+    #[schema(value_type = String)]
     pub expires_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339::option")]
+    #[schema(value_type = Option<String>)]
     pub resolved_at: Option<OffsetDateTime>,
     pub resolved_by: Option<String>, // username
 }
@@ -281,7 +285,7 @@ impl ValidationManager {
 }
 
 /// Statistiques validations
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ValidationStats {
     pub total: usize,
     pub pending: usize,

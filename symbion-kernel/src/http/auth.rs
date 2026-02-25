@@ -6,10 +6,20 @@ use axum::extract::Request;
 use axum::response::IntoResponse;
 use time::OffsetDateTime;
 use base64::Engine;
+use utoipa::ToSchema;
 
 // =============== AUTH ENDPOINTS ===============
 
 /// POST /auth/login — Authenticate user with username/password, return JWT token with optional MFA and device trust.
+#[utoipa::path(
+    post,
+    path = "/auth/login",
+    tag = "Authentication",
+    responses(
+        (status = 200, description = "Login successful", body = Object),
+        (status = 401, description = "Invalid credentials or MFA required", body = Object)
+    )
+)]
 pub(super) async fn auth_login(
     State(app): State<AppState>,
     req: Request,
@@ -138,6 +148,16 @@ pub(super) async fn auth_login(
 }
 
 /// GET /auth/verify — Verify JWT token validity and return decoded claims.
+#[utoipa::path(
+    get,
+    path = "/auth/verify",
+    tag = "Authentication",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Token is valid", body = Object),
+        (status = 401, description = "Invalid or expired token")
+    )
+)]
 pub(super) async fn auth_verify(
     State(app): State<AppState>,
     req: Request,
@@ -161,6 +181,16 @@ pub(super) async fn auth_verify(
 }
 
 /// GET /auth/session — Retrieve current session information for the authenticated user.
+#[utoipa::path(
+    get,
+    path = "/auth/session",
+    tag = "Authentication",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Current session info", body = Object),
+        (status = 401, description = "Invalid or expired token")
+    )
+)]
 pub(super) async fn auth_session(
     State(app): State<AppState>,
     req: Request,
@@ -179,6 +209,15 @@ pub(super) async fn auth_session(
 }
 
 /// POST /auth/logout — Log out the current user (client-side token removal).
+#[utoipa::path(
+    post,
+    path = "/auth/logout",
+    tag = "Authentication",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Logged out successfully", body = Object)
+    )
+)]
 pub(super) async fn auth_logout() -> Json<serde_json::Value> {
     // JWT est stateless - le client doit juste supprimer le token
     // On pourrait implémenter une blacklist de tokens pour invalidation côté serveur
@@ -189,6 +228,17 @@ pub(super) async fn auth_logout() -> Json<serde_json::Value> {
 }
 
 /// POST /auth/reload - Recharger les utilisateurs depuis users.json sans redémarrer le kernel
+#[utoipa::path(
+    post,
+    path = "/auth/reload",
+    tag = "Authentication",
+    security(("bearer_auth" = [])),
+    params(("X-CSRF-Token" = String, Header, description = "CSRF nonce")),
+    responses(
+        (status = 200, description = "Users reloaded successfully", body = Object),
+        (status = 500, description = "Failed to reload users")
+    )
+)]
 pub(super) async fn auth_reload_users(
     State(app): State<AppState>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
@@ -209,21 +259,33 @@ pub(super) async fn auth_reload_users(
 // ============================================================================
 
 /// Request payload for creating a new user with username, password, and role.
-#[derive(Debug, serde::Deserialize)]
-pub(super) struct CreateUserRequest {
+#[derive(Debug, serde::Deserialize, ToSchema)]
+pub(crate) struct CreateUserRequest {
     username: String,
     password: String,
     role: String,
 }
 
 /// Request payload for updating a user password with current and new password fields.
-#[derive(Debug, serde::Deserialize)]
-pub(super) struct UpdatePasswordRequest {
+#[derive(Debug, serde::Deserialize, ToSchema)]
+pub(crate) struct UpdatePasswordRequest {
     current_password: String,
     new_password: String,
 }
 
 /// POST /v1/users - Créer un nouvel utilisateur (admin seulement)
+#[utoipa::path(
+    post,
+    path = "/v1/users",
+    tag = "Authentication",
+    security(("bearer_auth" = [])),
+    params(("X-CSRF-Token" = String, Header, description = "CSRF nonce")),
+    request_body = CreateUserRequest,
+    responses(
+        (status = 200, description = "User created successfully", body = Object),
+        (status = 400, description = "Failed to create user")
+    )
+)]
 pub(super) async fn create_user(
     State(app): State<AppState>,
     Json(req): Json<CreateUserRequest>,
@@ -241,6 +303,20 @@ pub(super) async fn create_user(
 }
 
 /// DELETE /v1/users/{username} - Supprimer un utilisateur (admin seulement)
+#[utoipa::path(
+    delete,
+    path = "/v1/users/{username}",
+    tag = "Authentication",
+    security(("bearer_auth" = [])),
+    params(
+        ("username" = String, Path, description = "Username to delete"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 200, description = "User deleted successfully", body = Object),
+        (status = 404, description = "User not found")
+    )
+)]
 pub(super) async fn delete_user(
     State(app): State<AppState>,
     Path(username): Path<String>,
@@ -258,6 +334,15 @@ pub(super) async fn delete_user(
 }
 
 /// GET /v1/users - Lister tous les utilisateurs (admin seulement, sans mots de passe)
+#[utoipa::path(
+    get,
+    path = "/v1/users",
+    tag = "Authentication",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "List of users (without passwords)", body = Vec<Object>)
+    )
+)]
 pub(super) async fn list_users(
     State(app): State<AppState>,
 ) -> Json<Vec<serde_json::Value>> {
@@ -266,6 +351,23 @@ pub(super) async fn list_users(
 }
 
 /// PUT /v1/users/{username}/password - Changer le mot de passe d'un utilisateur
+#[utoipa::path(
+    put,
+    path = "/v1/users/{username}/password",
+    tag = "Authentication",
+    security(("bearer_auth" = [])),
+    params(
+        ("username" = String, Path, description = "Username whose password to update"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    request_body = UpdatePasswordRequest,
+    responses(
+        (status = 200, description = "Password updated successfully", body = Object),
+        (status = 401, description = "Current password incorrect"),
+        (status = 403, description = "Cannot change another user's password"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 pub(super) async fn update_user_password(
     State(app): State<AppState>,
     Path(username): Path<String>,
@@ -319,6 +421,17 @@ pub(super) async fn update_user_password(
 // ============================================================================
 
 /// GET /v1/auth/mfa/status - Vérifier si MFA est activé pour l'utilisateur courant
+#[utoipa::path(
+    get,
+    path = "/auth/mfa/status",
+    tag = "Authentication",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "MFA status for current user", body = Object),
+        (status = 401, description = "Invalid or expired token"),
+        (status = 404, description = "User not found")
+    )
+)]
 pub(super) async fn mfa_status(
     State(app): State<AppState>,
     req: Request,
@@ -359,21 +472,35 @@ pub(super) async fn mfa_status(
 }
 
 /// MFA setup request with optional recovery email address.
-#[derive(serde::Deserialize)]
-pub(super) struct MfaSetupRequest {
+#[derive(serde::Deserialize, ToSchema)]
+pub(crate) struct MfaSetupRequest {
     #[serde(default)]
     recovery_email: Option<String>,
 }
 
 /// MFA setup response containing the TOTP secret, QR code, and backup codes.
-#[derive(serde::Serialize)]
-pub(super) struct MfaSetupResponse {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct MfaSetupResponse {
     secret: String,
     qr_code: String,
     backup_codes: Vec<String>,
 }
 
 /// POST /v1/auth/mfa/setup - Initialiser la configuration MFA (génère secret + QR code)
+#[utoipa::path(
+    post,
+    path = "/auth/mfa/setup",
+    tag = "Authentication",
+    security(("bearer_auth" = [])),
+    request_body = MfaSetupRequest,
+    responses(
+        (status = 200, description = "MFA setup initiated with secret and QR code", body = MfaSetupResponse),
+        (status = 400, description = "MFA already enabled"),
+        (status = 401, description = "Invalid or expired token"),
+        (status = 404, description = "User not found"),
+        (status = 500, description = "Failed to generate secret or QR code")
+    )
+)]
 pub(super) async fn mfa_setup(
     State(app): State<AppState>,
     headers: axum::http::HeaderMap,
@@ -486,12 +613,26 @@ pub(super) async fn mfa_setup(
 }
 
 /// MFA verification request containing the TOTP code to validate.
-#[derive(serde::Deserialize)]
-pub(super) struct MfaVerifyRequest {
+#[derive(serde::Deserialize, ToSchema)]
+pub(crate) struct MfaVerifyRequest {
     code: String,
 }
 
 /// POST /v1/auth/mfa/verify - Vérifier un code TOTP et activer MFA
+#[utoipa::path(
+    post,
+    path = "/auth/mfa/verify",
+    tag = "Authentication",
+    security(("bearer_auth" = [])),
+    request_body = MfaVerifyRequest,
+    responses(
+        (status = 200, description = "MFA enabled successfully", body = Object),
+        (status = 400, description = "MFA not configured"),
+        (status = 401, description = "Invalid TOTP code or token"),
+        (status = 404, description = "User not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 pub(super) async fn mfa_verify(
     State(app): State<AppState>,
     headers: axum::http::HeaderMap,
@@ -579,6 +720,17 @@ pub(super) async fn mfa_verify(
 }
 
 /// POST /v1/auth/mfa/disable - Désactiver MFA pour l'utilisateur
+#[utoipa::path(
+    post,
+    path = "/auth/mfa/disable",
+    tag = "Authentication",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "MFA disabled successfully", body = Object),
+        (status = 401, description = "Invalid or expired token"),
+        (status = 500, description = "Failed to disable MFA")
+    )
+)]
 pub(super) async fn mfa_disable(
     State(app): State<AppState>,
     req: Request,
@@ -623,6 +775,16 @@ pub(super) async fn mfa_disable(
 // ============================================================================
 
 /// GET /v1/auth/csrf/nonce - Générer un nonce CSRF pour l'utilisateur courant
+#[utoipa::path(
+    get,
+    path = "/auth/csrf/nonce",
+    tag = "Authentication",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "CSRF nonce generated", body = Object),
+        (status = 401, description = "Invalid or expired token")
+    )
+)]
 pub(super) async fn csrf_generate_nonce(
     State(app): State<AppState>,
     req: Request,
@@ -651,6 +813,15 @@ pub(super) async fn csrf_generate_nonce(
 }
 
 /// GET /ca-certificate — Download the CA certificate as a PEM file.
+#[utoipa::path(
+    get,
+    path = "/ca-certificate",
+    tag = "Authentication",
+    responses(
+        (status = 200, description = "CA certificate PEM file", content_type = "application/x-pem-file"),
+        (status = 500, description = "Failed to read CA certificate")
+    )
+)]
 pub(super) async fn download_ca_certificate() -> Result<impl IntoResponse, StatusCode> {
     use axum::http::header;
 
@@ -683,12 +854,23 @@ pub(super) async fn download_ca_certificate() -> Result<impl IntoResponse, Statu
 // ============================================================================
 
 /// Registration start request containing a friendly name for the new passkey.
-#[derive(serde::Deserialize)]
-pub(super) struct WebAuthnRegisterStartRequest {
+#[derive(serde::Deserialize, ToSchema)]
+pub(crate) struct WebAuthnRegisterStartRequest {
     friendly_name: String, // Ex: "iPhone 15 Pro", "Windows Hello"
 }
 
 /// POST /auth/webauthn/register-start — Start passkey registration for the authenticated user.
+#[utoipa::path(
+    post,
+    path = "/auth/webauthn/register-start",
+    tag = "Authentication",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Registration challenge created", body = Object),
+        (status = 401, description = "Invalid or expired token"),
+        (status = 500, description = "Failed to start registration")
+    )
+)]
 pub(super) async fn webauthn_register_start(
     State(app): State<AppState>,
     req: Request,
@@ -740,6 +922,18 @@ pub(super) struct WebAuthnRegisterFinishRequest {
 }
 
 /// POST /auth/webauthn/register-finish — Complete passkey registration and persist the credential.
+#[utoipa::path(
+    post,
+    path = "/auth/webauthn/register-finish",
+    tag = "Authentication",
+    security(("bearer_auth" = [])),
+    request_body = Object,
+    responses(
+        (status = 200, description = "Passkey registered successfully", body = Object),
+        (status = 400, description = "Invalid credential or JSON body"),
+        (status = 401, description = "Invalid or expired token")
+    )
+)]
 pub(super) async fn webauthn_register_finish(
     State(app): State<AppState>,
     req: Request,
@@ -809,6 +1003,16 @@ pub(super) async fn webauthn_register_finish(
 }
 
 /// GET /auth/webauthn/passkeys - Lister les passkeys de l'utilisateur connecté
+#[utoipa::path(
+    get,
+    path = "/auth/webauthn/passkeys",
+    tag = "Authentication",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "List of user passkeys", body = Vec<Object>),
+        (status = 401, description = "Invalid or expired token")
+    )
+)]
 pub(super) async fn webauthn_list_passkeys(
     State(app): State<AppState>,
     req: Request,
@@ -854,6 +1058,19 @@ pub(super) async fn webauthn_list_passkeys(
 }
 
 /// DELETE /auth/webauthn/passkeys/:credential_id - Supprimer une passkey
+#[utoipa::path(
+    delete,
+    path = "/auth/webauthn/passkeys/{credential_id}",
+    tag = "Authentication",
+    security(("bearer_auth" = [])),
+    params(("credential_id" = String, Path, description = "Base64 URL-safe encoded credential ID")),
+    responses(
+        (status = 200, description = "Passkey deleted successfully", body = Object),
+        (status = 400, description = "Invalid credential_id format"),
+        (status = 401, description = "Invalid or expired token"),
+        (status = 404, description = "Passkey not found")
+    )
+)]
 pub(super) async fn webauthn_delete_passkey(
     State(app): State<AppState>,
     Path(credential_id): Path<String>,
@@ -909,12 +1126,22 @@ pub(super) async fn webauthn_delete_passkey(
 }
 
 /// Authentication start request containing the username to authenticate.
-#[derive(serde::Deserialize)]
-pub(super) struct WebAuthnAuthenticateStartRequest {
+#[derive(serde::Deserialize, ToSchema)]
+pub(crate) struct WebAuthnAuthenticateStartRequest {
     username: String,
 }
 
 /// POST /auth/webauthn/authenticate-start — Start passkey authentication for a given username.
+#[utoipa::path(
+    post,
+    path = "/auth/webauthn/authenticate-start",
+    tag = "Authentication",
+    request_body = WebAuthnAuthenticateStartRequest,
+    responses(
+        (status = 200, description = "Authentication challenge created", body = Object),
+        (status = 400, description = "Failed to start authentication")
+    )
+)]
 pub(super) async fn webauthn_authenticate_start(
     State(app): State<AppState>,
     Json(payload): Json<WebAuthnAuthenticateStartRequest>,
@@ -933,6 +1160,15 @@ pub(super) async fn webauthn_authenticate_start(
 }
 
 /// POST /auth/webauthn/authenticate-discoverable-start — Start passwordless authentication using discoverable credentials.
+#[utoipa::path(
+    post,
+    path = "/auth/webauthn/authenticate-discoverable-start",
+    tag = "Authentication",
+    responses(
+        (status = 200, description = "Discoverable authentication challenge created", body = Object),
+        (status = 400, description = "Failed to start discoverable authentication")
+    )
+)]
 pub(super) async fn webauthn_authenticate_discoverable_start(
     State(app): State<AppState>,
 ) -> Result<Json<webauthn_rs::prelude::RequestChallengeResponse>, (StatusCode, Json<serde_json::Value>)> {
@@ -956,6 +1192,18 @@ pub(super) struct WebAuthnAuthenticateFinishRequest {
 }
 
 /// POST /auth/webauthn/authenticate-finish — Complete passkey authentication and return a JWT token.
+#[utoipa::path(
+    post,
+    path = "/auth/webauthn/authenticate-finish",
+    tag = "Authentication",
+    request_body = Object,
+    responses(
+        (status = 200, description = "Authentication successful, JWT token returned", body = Object),
+        (status = 400, description = "Invalid request body"),
+        (status = 401, description = "Authentication failed"),
+        (status = 500, description = "Failed to create token")
+    )
+)]
 pub(super) async fn webauthn_authenticate_finish(
     State(app): State<AppState>,
     req: Request,

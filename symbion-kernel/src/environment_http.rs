@@ -18,13 +18,14 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use utoipa::ToSchema;
 
 use crate::environment::RoomEnvironmentState;
 use crate::http::AppState;
 use crate::sensors::Sensor;
 
 /// Response for list sensors endpoint
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct SensorsListResponse {
     pub sensors: Vec<Sensor>,
     pub count: usize,
@@ -32,14 +33,14 @@ pub struct SensorsListResponse {
 }
 
 /// Response for sensor detail endpoint
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct SensorDetailResponse {
     pub sensor: Sensor,
     pub environment: Option<RoomEnvironmentState>,
 }
 
 /// Query parameters for history endpoint
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct HistoryQuery {
     #[serde(default = "default_hours")]
     pub hours: u32,
@@ -63,6 +64,15 @@ pub fn build_environment_routes(state: AppState) -> Router {
 
 /// GET /v1/environment/sensors
 /// List all registered sensors
+#[utoipa::path(
+    get,
+    path = "/environment/sensors",
+    tag = "Environment",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "List of all registered sensors", body = SensorsListResponse)
+    )
+)]
 async fn list_sensors(
     State(app): State<AppState>,
 ) -> Result<Json<SensorsListResponse>, StatusCode> {
@@ -79,6 +89,17 @@ async fn list_sensors(
 
 /// GET /v1/environment/sensors/:sensor_id
 /// Get sensor details with current environment state
+#[utoipa::path(
+    get,
+    path = "/environment/sensors/{sensor_id}",
+    tag = "Environment",
+    security(("bearer_auth" = [])),
+    params(("sensor_id" = String, Path, description = "Sensor unique identifier")),
+    responses(
+        (status = 200, description = "Sensor detail with environment state", body = SensorDetailResponse),
+        (status = 404, description = "Sensor not found")
+    )
+)]
 async fn get_sensor(
     State(app): State<AppState>,
     Path(sensor_id): Path<String>,
@@ -98,6 +119,20 @@ async fn get_sensor(
 
 /// GET /v1/environment/sensors/:sensor_id/history?hours=24
 /// Get environment reading history for sensor
+#[utoipa::path(
+    get,
+    path = "/environment/sensors/{sensor_id}/history",
+    tag = "Environment",
+    security(("bearer_auth" = [])),
+    params(
+        ("sensor_id" = String, Path, description = "Sensor unique identifier"),
+        ("hours" = Option<u32>, Query, description = "Number of hours of history (default: 24)")
+    ),
+    responses(
+        (status = 200, description = "Sensor environment history", body = RoomEnvironmentState),
+        (status = 404, description = "Sensor not found")
+    )
+)]
 async fn get_sensor_history(
     State(app): State<AppState>,
     Path(sensor_id): Path<String>,
@@ -118,6 +153,17 @@ async fn get_sensor_history(
 /// GET /v1/environment/:room_id
 /// Get current environment state for a specific room (e.g., "chambre", "salon")
 /// Returns the most recent reading from sensors in that room
+#[utoipa::path(
+    get,
+    path = "/environment/{room_id}",
+    tag = "Environment",
+    security(("bearer_auth" = [])),
+    params(("room_id" = String, Path, description = "Room identifier (e.g., chambre, salon)")),
+    responses(
+        (status = 200, description = "Current room environment state", body = RoomEnvironmentState),
+        (status = 404, description = "Room not found")
+    )
+)]
 async fn get_room_environment(
     State(app): State<AppState>,
     Path(room_id): Path<String>,
@@ -132,6 +178,20 @@ async fn get_room_environment(
 
 /// GET /v1/environment/:room_id/history?hours=24
 /// Get historical environment readings for a room, filtered by hours
+#[utoipa::path(
+    get,
+    path = "/environment/{room_id}/history",
+    tag = "Environment",
+    security(("bearer_auth" = [])),
+    params(
+        ("room_id" = String, Path, description = "Room identifier (e.g., chambre, salon)"),
+        ("hours" = Option<u32>, Query, description = "Number of hours of history (default: 24)")
+    ),
+    responses(
+        (status = 200, description = "Room environment history readings", body = Vec<crate::environment::EnvReading>),
+        (status = 404, description = "Room not found")
+    )
+)]
 async fn get_room_history(
     State(app): State<AppState>,
     Path(room_id): Path<String>,

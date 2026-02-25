@@ -43,14 +43,16 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use tokio::fs;
+use utoipa::ToSchema;
 
 /// Définition d'un contrat d'événement MQTT
 /// Associe un topic MQTT à son schéma de données JSON
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Contract {
     /// Topic MQTT complet (ex: "symbion/hosts/heartbeat@v2")
     pub topic: String,
     /// Schéma JSON décrivant la structure des données attendues
+    #[schema(value_type = Object)]
     pub schema: serde_json::Value,
 }
 

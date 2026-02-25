@@ -8,6 +8,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::{IntoParams, ToSchema};
 
 /// État Decision Engine partagé
 #[derive(Clone)]
@@ -21,7 +22,7 @@ pub struct DecisionEngineState {
 }
 
 /// POST /v1/decision/evaluate - Évaluer une action
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct EvaluateRequest {
     pub action: crate::decision::Action,
     pub context: crate::decision::DecisionContext,
@@ -63,7 +64,7 @@ pub async fn evaluate_action(
 }
 
 /// GET /v1/decision/audit - Audit trail
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema, IntoParams)]
 pub struct AuditQueryParams {
     pub limit: Option<usize>,
     pub agent_id: Option<String>,
@@ -152,7 +153,7 @@ pub async fn delete_all_expired_validations(
 }
 
 /// POST /v1/decision/validation/:id/resolve - Résoudre validation
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct ResolveValidationRequest {
     pub approved: bool,
     pub username: String,
@@ -182,7 +183,7 @@ pub async fn resolve_validation(
 }
 
 /// POST /v1/decision/override - Créer override (MFA requis)
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateOverrideRequest {
     pub decision_id: String,
     pub override_type: crate::decision::OverrideType,
@@ -224,7 +225,7 @@ pub async fn list_active_overrides(
 }
 
 /// DELETE /v1/decision/override/:id - Révoquer override (MFA requis)
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct RevokeOverrideRequest {
     pub username: String,
     pub mfa_verified: bool,
@@ -278,7 +279,7 @@ pub async fn get_agent_health(
 }
 
 /// GET /v1/decision/stats - Statistiques globales
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct DecisionStats {
     pub audit: crate::decision::AuditStats,
     pub validation: crate::decision::ValidationStats,

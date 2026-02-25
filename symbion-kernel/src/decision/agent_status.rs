@@ -258,7 +258,7 @@ impl AgentHealthManager {
 }
 
 /// Statistiques états santé agents
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct AgentHealthStats {
     pub total_agents: usize,
     pub online: usize,

@@ -3,9 +3,10 @@
 //! Contains all configurable parameters for the context intelligence system.
 
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 /// Configuration for the intelligence engine
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct IntelligenceConfig {
     /// Threshold for auto-applying mode changes without validation (0.0-1.0)
     /// Default: 0.60 (60% confidence required)
@@ -71,7 +72,7 @@ pub struct IntelligenceConfig {
 }
 
 /// v2 Stabilization configuration - strict guards before activation
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct V2StabilizationConfig {
     /// Auto-apply threshold for v2 (stricter than v1)
     /// Default: 0.70 (70% confidence required)
@@ -171,7 +172,7 @@ impl Default for IntelligenceConfig {
 }
 
 /// Weights for different signal sources in prediction
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SignalWeights {
     /// Weight for temporal signals (hour + day of week)
     pub temporal: f32,

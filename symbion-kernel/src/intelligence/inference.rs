@@ -21,6 +21,7 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
+use utoipa::ToSchema;
 
 use super::vector::{ContextVector, dimensions};
 
@@ -29,7 +30,7 @@ use super::vector::{ContextVector, dimensions};
 // ============================================================================
 
 /// Source of a training sample (affects weight)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub enum SampleSource {
     /// User explicitly corrected the mode (highest weight)
     UserCorrection,
@@ -61,7 +62,7 @@ impl SampleSource {
 }
 
 /// A training sample linking a context vector to a chosen mode
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TrainingSample {
     /// Unique sample ID
     pub id: String,
@@ -77,6 +78,7 @@ pub struct TrainingSample {
 
     /// When this sample was recorded
     #[serde(with = "time::serde::iso8601")]
+    #[schema(value_type = String)]
     pub timestamp: OffsetDateTime,
 
     /// Base weight (before time decay)
@@ -84,7 +86,7 @@ pub struct TrainingSample {
 }
 
 /// Simplified vector for storage (just dimensions, no why-chain)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SampleVector {
     pub dimensions: HashMap<String, f32>,
 }
@@ -149,7 +151,7 @@ impl TrainingSample {
 // ============================================================================
 
 /// A mode prediction with confidence and alternatives
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct PredictionV2 {
     /// Predicted mode (or "unknown" if low confidence)
     pub mode: String,
@@ -171,14 +173,14 @@ pub struct PredictionV2 {
 }
 
 /// A mode with its score
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ModeScore {
     pub mode: String,
     pub score: f32,
 }
 
 /// Explanation for a prediction contribution
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct PredictionReason {
     pub sample_id: String,
     pub mode: String,
@@ -646,7 +648,7 @@ impl InferenceEngine {
 }
 
 /// Statistics about the inference engine
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct InferenceStats {
     pub total_samples: usize,
     pub by_source: HashMap<String, usize>,
@@ -655,7 +657,7 @@ pub struct InferenceStats {
 }
 
 /// Detailed sample statistics for v2 stabilization guards
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct SampleStats {
     /// Total number of samples
     pub total: usize,
@@ -672,7 +674,7 @@ pub struct SampleStats {
 }
 
 /// Auto-apply guard result for v2
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct AutoApplyGuard {
     /// Whether auto-apply is allowed
     pub allowed: bool,
@@ -683,7 +685,7 @@ pub struct AutoApplyGuard {
 }
 
 /// Individual guard check results
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct GuardChecks {
     pub confidence_ok: bool,
     pub total_samples_ok: bool,

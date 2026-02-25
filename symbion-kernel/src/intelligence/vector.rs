@@ -20,6 +20,7 @@
 use std::collections::HashMap;
 use serde::Serialize;
 use time::OffsetDateTime;
+use utoipa::ToSchema;
 
 use super::{FeatureRegistry, FeatureValue, feature_ids};
 
@@ -28,7 +29,7 @@ use super::{FeatureRegistry, FeatureValue, feature_ids};
 // ============================================================================
 
 /// Normalized context vector for mode prediction
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ContextVector {
     /// Normalized dimensions (0.0-1.0)
     pub dimensions: HashMap<String, f32>,
@@ -38,6 +39,7 @@ pub struct ContextVector {
 
     /// When this vector was built
     #[serde(with = "time::serde::iso8601")]
+    #[schema(value_type = String)]
     pub built_at: OffsetDateTime,
 
     /// Number of features used to build this vector
@@ -45,7 +47,7 @@ pub struct ContextVector {
 }
 
 /// Explanation item for a dimension contribution
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct WhyItem {
     /// Feature that contributed to this dimension
     pub feature_id: String,

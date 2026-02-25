@@ -4,10 +4,11 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use time::OffsetDateTime;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Niveau d'impact d'une action
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub enum ImpactLevel {
     Low,       // Actions locales, reversibles, sans risque
     Medium,    // Impact modere sur environnement
@@ -16,13 +17,14 @@ pub enum ImpactLevel {
 }
 
 /// Action a evaluer par le Decision Engine
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Action {
     pub action_type: String,
     pub agent_id: String,
     pub impact_level: ImpactLevel,
     pub trace_id: String,                       // Idempotence
     #[serde(with = "time::serde::rfc3339::option")]
+    #[schema(value_type = Option<String>)]
     pub expires_at: Option<OffsetDateTime>,     // TTL
     pub dry_run: bool,                          // Evaluation sans execution
     pub expected_mode: Option<String>,          // Mode contextuel attendu
@@ -39,7 +41,7 @@ impl Action {
 }
 
 /// Contexte de decision
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DecisionContext {
     pub mode: String,           // Mode contextuel actuel (Pro, Maison, Veille)
     pub ssid: String,           // SSID actuel
@@ -47,26 +49,28 @@ pub struct DecisionContext {
 }
 
 /// Etat d'un agent
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentState {
     pub id: String,
     #[serde(with = "time::serde::rfc3339")]
+    #[schema(value_type = String)]
     pub last_seen: OffsetDateTime,
     pub metrics: AgentMetrics,
     pub maintenance_mode: bool,
     #[serde(with = "time::serde::rfc3339::option")]
+    #[schema(value_type = Option<String>)]
     pub last_reconnect: Option<OffsetDateTime>,
 }
 
 /// Metriques agent
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentMetrics {
     pub cpu_usage: f32,              // 0.0-1.0
     pub memory_usage_percent: f32,   // 0.0-1.0
 }
 
 /// Resultat d'une decision
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DecisionResult {
     pub decision_id: String,
     pub outcome: DecisionOutcome,
@@ -75,7 +79,7 @@ pub struct DecisionResult {
 }
 
 /// Category of blocked reason for selective learning
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub enum BlockedReasonCategory {
     /// TTL expired - no learning (timing issue, not context)
     TtlExpired,
@@ -135,7 +139,7 @@ impl BlockedReasonCategory {
 }
 
 /// Issue d'une decision
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(tag = "type")]
 pub enum DecisionOutcome {
     Approved {
@@ -166,7 +170,7 @@ pub enum DecisionOutcome {
 }
 
 /// Avertissement d'un guard
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct GuardWarning {
     pub reason: String,
     pub explanation_code: String,
@@ -174,7 +178,7 @@ pub struct GuardWarning {
 }
 
 /// Blocage d'un guard
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct GuardBlock {
     pub reason: String,
     pub explanation_code: String,
@@ -182,7 +186,7 @@ pub struct GuardBlock {
 }
 
 /// Validation requise d'un guard
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct GuardRequire {
     pub reason: String,
     pub explanation_code: String,
@@ -199,7 +203,7 @@ pub struct GuardsEvaluation {
 }
 
 /// Criteres de calcul trust score
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TrustCriteria {
     pub context_match: f32,          // 0.0-1.0
     pub temporal_consistency: f32,   // 0.0-1.0
@@ -209,7 +213,7 @@ pub struct TrustCriteria {
 }
 
 /// Trust score calcule
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TrustScore {
     pub score: f32,
     pub breakdown: TrustCriteria,
@@ -217,7 +221,7 @@ pub struct TrustScore {
 }
 
 /// Record de decision persiste
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DecisionRecord {
     pub decision_id: String,
     pub trace_id: String,
@@ -227,12 +231,13 @@ pub struct DecisionRecord {
     pub outcome: DecisionOutcome,
     pub trust_score: Option<TrustScore>,
     #[serde(with = "time::serde::rfc3339")]
+    #[schema(value_type = String)]
     pub timestamp: OffsetDateTime,
     pub config_version: u64,
 }
 
 /// Configuration de decision (hot-reloadable)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DecisionConfig {
     pub version: u64,
     pub trust_weights: TrustWeights,
@@ -241,7 +246,7 @@ pub struct DecisionConfig {
 }
 
 /// Poids trust score
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct TrustWeights {
     pub context_match: f32,
     pub temporal_consistency: f32,
@@ -254,7 +259,7 @@ pub struct TrustWeights {
 /// Actions with impact >= threshold require manual validation.
 /// Setting very_high > 1.0 intentionally makes auto-approval impossible for
 /// VeryHigh impact actions (e.g., shutdown, security changes), forcing manual review.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ImpactThresholds {
     pub low: f32,
     pub medium: f32,
@@ -264,7 +269,7 @@ pub struct ImpactThresholds {
 }
 
 /// Mapping agent health
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct AgentHealthMapping {
     pub online_min_score: f32,
     pub active_min_score: f32,

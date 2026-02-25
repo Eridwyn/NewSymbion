@@ -4,16 +4,21 @@ use axum::http::StatusCode;
 use axum::Json;
 use serde::Deserialize;
 use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
+use utoipa::{IntoParams, ToSchema};
 use crate::models::HostState;
 use crate::wol::trigger_wol_udp;
+
+// Types referenced by utoipa::path body annotations
+use crate::contracts::Contract;
+use crate::health::KernelHealth;
 
 // ============================================================================
 // Host Views
 // ============================================================================
 
 /// Serializable view of a host's current state for API responses.
-#[derive(serde::Serialize)]
-pub(super) struct HostView {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct HostView {
     host_id: String,
     last_seen: String,       // format RFC3339 pour l'API
     stale: bool,             // true si > 90s
@@ -44,14 +49,24 @@ pub(super) fn to_view(h: &HostState) -> HostView {
 // ============================================================================
 
 /// Query parameters for the Wake-on-LAN endpoint.
-#[derive(Debug, Deserialize)]
-pub(super) struct WakeParams { pub host_id: String }
+#[derive(Debug, Deserialize, ToSchema, IntoParams)]
+pub(crate) struct WakeParams { pub host_id: String }
 
 // ============================================================================
 // Hosts / Contracts / Health Handlers
 // ============================================================================
 
 /// GET /hosts -- Return a list of all known hosts with their current state.
+#[utoipa::path(
+    get,
+    path = "/hosts",
+    tag = "System",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Liste de tous les hosts connus", body = Vec<HostView>),
+        (status = 401, description = "Non authentifié")
+    )
+)]
 pub(super) async fn get_hosts(State(app): State<AppState>) -> Json<Vec<HostView>> {
     let list: Vec<HostView> = {
         let states = app.states.lock();
@@ -61,6 +76,18 @@ pub(super) async fn get_hosts(State(app): State<AppState>) -> Json<Vec<HostView>
 }
 
 /// GET /hosts/:id -- Return a single host by ID, or 404 if not found.
+#[utoipa::path(
+    get,
+    path = "/hosts/{id}",
+    tag = "System",
+    security(("bearer_auth" = [])),
+    params(("id" = String, Path, description = "Identifiant unique du host")),
+    responses(
+        (status = 200, description = "Détail du host", body = HostView),
+        (status = 404, description = "Host non trouvé"),
+        (status = 401, description = "Non authentifié")
+    )
+)]
 pub(super) async fn get_host(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -75,6 +102,18 @@ pub(super) async fn get_host(
 
 
 /// POST /wake -- Send a Wake-on-LAN magic packet to the specified host.
+#[utoipa::path(
+    post,
+    path = "/wake",
+    tag = "System",
+    security(("bearer_auth" = [])),
+    params(WakeParams),
+    responses(
+        (status = 200, description = "Magic packet envoyé avec succès", body = Object),
+        (status = 400, description = "Paramètres invalides"),
+        (status = 401, description = "Non authentifié")
+    )
+)]
 pub(super) async fn wake(
     State(app): State<AppState>,
     Query(params): Query<WakeParams>,
@@ -153,11 +192,33 @@ pub(super) async fn send_magic_packet(mac: &str) -> (StatusCode, Json<serde_json
 }
 
 /// GET /contracts -- Return the list of all registered MQTT contract names.
+#[utoipa::path(
+    get,
+    path = "/contracts",
+    tag = "System",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Liste des noms de contrats MQTT", body = Vec<String>),
+        (status = 401, description = "Non authentifié")
+    )
+)]
 pub(super) async fn list_contracts(State(app): State<AppState>) -> Json<Vec<String>> {
     Json(app.contracts.list_contracts())
 }
 
 /// GET /contracts/{name} -- Return a single MQTT contract by name, or 404 if not found.
+#[utoipa::path(
+    get,
+    path = "/contracts/{name}",
+    tag = "System",
+    security(("bearer_auth" = [])),
+    params(("name" = String, Path, description = "Nom du contrat MQTT")),
+    responses(
+        (status = 200, description = "Détail du contrat MQTT", body = Contract),
+        (status = 404, description = "Contrat non trouvé"),
+        (status = 401, description = "Non authentifié")
+    )
+)]
 pub(super) async fn get_contract(
     State(app): State<AppState>,
     Path(name): Path<String>,
@@ -169,6 +230,14 @@ pub(super) async fn get_contract(
 }
 
 /// GET /system/health -- Return full infrastructure health status (MQTT, agents, plugins).
+#[utoipa::path(
+    get,
+    path = "/system/health",
+    tag = "System",
+    responses(
+        (status = 200, description = "Santé complète de l'infrastructure", body = KernelHealth)
+    )
+)]
 pub(super) async fn get_system_health(State(app): State<AppState>) -> Json<crate::health::KernelHealth> {
     let health = app.health_tracker.get_health(&app.contracts, &app.agents, &app.plugin_registry);
     Json(health)
@@ -176,6 +245,15 @@ pub(super) async fn get_system_health(State(app): State<AppState>) -> Json<crate
 
 /// GET /health/ready — Readiness probe pour monitoring externe (healthcheck.io, UptimeRobot, k8s)
 /// Vérifie que le kernel est prêt à servir des requêtes (MQTT connecté, contracts chargés)
+#[utoipa::path(
+    get,
+    path = "/health/ready",
+    tag = "System",
+    responses(
+        (status = 200, description = "Kernel prêt à servir des requêtes", body = Object),
+        (status = 503, description = "Kernel pas encore prêt")
+    )
+)]
 pub(super) async fn health_readiness_check(State(app): State<AppState>) -> Result<Json<serde_json::Value>, StatusCode> {
     let health = app.health_tracker.get_health(&app.contracts, &app.agents, &app.plugin_registry);
 
@@ -202,8 +280,8 @@ pub(super) async fn health_readiness_check(State(app): State<AppState>) -> Resul
 
 /// GET /v1/metrics/agents - Per-agent metrics in JSON format
 /// Returns detailed telemetry for each agent: CPU, RAM, disk, network, processes
-#[derive(serde::Serialize)]
-pub(super) struct AgentMetrics {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct AgentMetrics {
     agent_id: String,
     hostname: String,
     status: String,
@@ -217,16 +295,16 @@ pub(super) struct AgentMetrics {
 }
 
 /// CPU telemetry for a single agent (percent, load average, core count).
-#[derive(serde::Serialize)]
-pub(super) struct AgentCpuMetrics {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct AgentCpuMetrics {
     percent: f32,
     load_avg: Vec<f32>,
     core_count: u32,
 }
 
 /// Memory telemetry for a single agent (total, used, available, percent).
-#[derive(serde::Serialize)]
-pub(super) struct AgentMemoryMetrics {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct AgentMemoryMetrics {
     total_mb: u64,
     used_mb: u64,
     available_mb: u64,
@@ -234,8 +312,8 @@ pub(super) struct AgentMemoryMetrics {
 }
 
 /// Disk usage telemetry for a single mount point on an agent.
-#[derive(serde::Serialize)]
-pub(super) struct AgentDiskMetrics {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct AgentDiskMetrics {
     path: String,
     total_gb: f64,
     used_gb: f64,
@@ -244,8 +322,8 @@ pub(super) struct AgentDiskMetrics {
 }
 
 /// Network interface telemetry for a single agent (bytes sent/received, link status).
-#[derive(serde::Serialize)]
-pub(super) struct AgentNetworkMetrics {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct AgentNetworkMetrics {
     name: String,
     bytes_sent: u64,
     bytes_recv: u64,
@@ -253,13 +331,21 @@ pub(super) struct AgentNetworkMetrics {
 }
 
 /// Process count summary for a single agent (total and running).
-#[derive(serde::Serialize)]
-pub(super) struct AgentProcessMetrics {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct AgentProcessMetrics {
     total_count: u32,
     running_count: u32,
 }
 
 /// GET /v1/metrics/agents -- Return per-agent telemetry (CPU, RAM, disk, network, processes).
+#[utoipa::path(
+    get,
+    path = "/v1/metrics/agents",
+    tag = "System",
+    responses(
+        (status = 200, description = "Métriques détaillées par agent", body = Vec<AgentMetrics>)
+    )
+)]
 pub(super) async fn get_metrics_agents(
     State(app): State<AppState>,
 ) -> Json<Vec<AgentMetrics>> {
@@ -336,8 +422,8 @@ pub(super) async fn get_metrics_agents(
 
 /// GET /v1/metrics/system - Kernel performance metrics in JSON format
 /// Returns kernel runtime stats: uptime, memory, MQTT, plugins, context
-#[derive(serde::Serialize)]
-pub(super) struct SystemMetrics {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct SystemMetrics {
     kernel: KernelRuntimeMetrics,
     mqtt: MqttMetrics,
     agents: AgentsSummaryMetrics,
@@ -347,16 +433,16 @@ pub(super) struct SystemMetrics {
 }
 
 /// Kernel runtime stats (uptime, memory usage, contracts loaded).
-#[derive(serde::Serialize)]
-pub(super) struct KernelRuntimeMetrics {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct KernelRuntimeMetrics {
     uptime_seconds: u64,
     memory_usage_mb: f32,
     contracts_loaded: u32,
 }
 
 /// MQTT broker connection and throughput metrics.
-#[derive(serde::Serialize)]
-pub(super) struct MqttMetrics {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct MqttMetrics {
     status: String, // "connected", "disconnected", "reconnecting"
     reconnects_total: u32,
     messages_per_minute: f32,
@@ -364,31 +450,31 @@ pub(super) struct MqttMetrics {
 }
 
 /// Summary counts of agents by online/offline status.
-#[derive(serde::Serialize)]
-pub(super) struct AgentsSummaryMetrics {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct AgentsSummaryMetrics {
     total: usize,
     online: usize,
     offline: usize,
 }
 
 /// Plugin system status counts (total, running, failed).
-#[derive(serde::Serialize)]
-pub(super) struct PluginsMetrics {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct PluginsMetrics {
     total: u32,
     running: u32,
     failed: u32,
 }
 
 /// Context engine state (current mode and detection confidence).
-#[derive(serde::Serialize)]
-pub(super) struct ContextMetrics {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct ContextMetrics {
     current_mode: String, // "veille", "pro", "maison"
     confidence: f32,
 }
 
 /// Decision engine counters (total, approved, blocked, pending validations, active overrides).
-#[derive(serde::Serialize)]
-pub(super) struct DecisionEngineMetrics {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct DecisionEngineMetrics {
     decisions_total: u64,
     decisions_approved: u64,
     decisions_blocked: u64,
@@ -397,6 +483,14 @@ pub(super) struct DecisionEngineMetrics {
 }
 
 /// GET /v1/metrics/system -- Return aggregated kernel performance metrics (runtime, MQTT, agents, plugins, context, decisions).
+#[utoipa::path(
+    get,
+    path = "/v1/metrics/system",
+    tag = "System",
+    responses(
+        (status = 200, description = "Métriques agrégées du kernel", body = SystemMetrics)
+    )
+)]
 pub(super) async fn get_metrics_system(
     State(app): State<AppState>,
 ) -> Json<SystemMetrics> {
@@ -481,6 +575,14 @@ pub(super) async fn get_metrics_system(
 /// - Agent telemetry (count, online/offline status)
 /// - System metrics (MQTT status, uptime)
 /// - HTTP metrics (placeholder for future request counters)
+#[utoipa::path(
+    get,
+    path = "/metrics",
+    tag = "System",
+    responses(
+        (status = 200, description = "Métriques au format Prometheus exposition", body = String)
+    )
+)]
 pub(super) async fn prometheus_metrics_endpoint(
     State(app): State<AppState>,
 ) -> Result<String, StatusCode> {
@@ -595,8 +697,8 @@ pub(super) async fn prometheus_metrics_endpoint(
 // ============================================================================
 
 /// Query parameters for the logs endpoint (level filter, search, limit, time range, trace ID).
-#[derive(Deserialize)]
-pub(super) struct LogsQuery {
+#[derive(Deserialize, ToSchema, IntoParams)]
+pub(crate) struct LogsQuery {
     level: Option<String>,    // comma-separated: "info,warn,error"
     search: Option<String>,
     limit: Option<u32>,       // default 200, max 1000
@@ -605,17 +707,30 @@ pub(super) struct LogsQuery {
 }
 
 /// A single parsed and sanitized log entry from journalctl output.
-#[derive(serde::Serialize)]
-pub(super) struct LogEntry {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct LogEntry {
     timestamp: String,
     level: String,
     component: String,
     message: String,
     source: String,    // "kernel"
+    #[schema(value_type = Object)]
     raw: serde_json::Value,
 }
 
 /// GET /logs - Récupère les logs kernel depuis journalctl
+#[utoipa::path(
+    get,
+    path = "/logs",
+    tag = "System",
+    security(("bearer_auth" = [])),
+    params(LogsQuery),
+    responses(
+        (status = 200, description = "Entrées de logs du kernel", body = Object),
+        (status = 401, description = "Non authentifié"),
+        (status = 500, description = "Erreur lors de la lecture des logs")
+    )
+)]
 pub(super) async fn get_logs(
     Query(params): Query<LogsQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
