@@ -47,6 +47,7 @@ mod intelligence_http;  // Intelligence API endpoints
 mod plugins;  // Plugin Contract v1 - Plugin system structures and types
 mod mqtt_watchdog;  // MQTT connection watchdog - detects half-dead connections
 mod rate_limiter;  // Global IP-based rate limiting middleware
+mod openapi;  // K8: OpenAPI/Swagger documentation generation
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};

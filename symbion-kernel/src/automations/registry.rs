@@ -10,9 +10,10 @@
  */
 
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 /// Complete automation schema for PWA
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AutomationSchema {
     pub triggers: Vec<TriggerSchema>,
     pub trigger_group: TriggerGroupSchema,
@@ -22,7 +23,7 @@ pub struct AutomationSchema {
 }
 
 /// Schema for trigger groups (AND/OR logic)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TriggerGroupSchema {
     pub supports_groups: bool,
     pub default_operator: String,
@@ -31,7 +32,7 @@ pub struct TriggerGroupSchema {
 }
 
 /// Dynamic values from kernel registries
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DynamicValues {
     pub modes: Vec<ValueOption>,
     pub agents: Vec<ValueOption>,
@@ -54,7 +55,7 @@ pub struct DynamicValues {
 }
 
 /// Sensor option with room context
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SensorOption {
     pub value: String,
     pub label: String,
@@ -65,7 +66,7 @@ pub struct SensorOption {
 }
 
 /// Value option for dropdowns
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ValueOption {
     pub value: String,
     pub label: String,
@@ -74,7 +75,7 @@ pub struct ValueOption {
 }
 
 /// Schema for a trigger type
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TriggerSchema {
     #[serde(rename = "type")]
     pub trigger_type: String,
@@ -85,7 +86,7 @@ pub struct TriggerSchema {
 }
 
 /// Schema for a condition type
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConditionSchema {
     #[serde(rename = "type")]
     pub condition_type: String,
@@ -95,7 +96,7 @@ pub struct ConditionSchema {
 }
 
 /// Schema for an action type
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ActionSchema {
     #[serde(rename = "type")]
     pub action_type: String,
@@ -106,13 +107,14 @@ pub struct ActionSchema {
 }
 
 /// Field definition for forms
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct FieldSchema {
     pub name: String,
     pub label: String,
     pub field_type: FieldType,
     pub required: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<Object>)]
     pub default_value: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub placeholder: Option<String>,
@@ -124,7 +126,7 @@ pub struct FieldSchema {
     pub max: Option<f64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum FieldType {
     Text,

@@ -3,10 +3,11 @@
 
 use serde::{Deserialize, Serialize};
 use time::{OffsetDateTime, Time};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Règle de planning (créneau horaire → mode)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ScheduleRule {
     /// Identifiant unique
     pub id: String,
@@ -26,6 +27,7 @@ pub struct ScheduleRule {
     pub name: Option<String>,
     /// Date de création
     #[serde(with = "time::serde::rfc3339")]
+    #[schema(value_type = String)]
     pub created_at: OffsetDateTime,
 }
 
@@ -94,7 +96,7 @@ impl ScheduleRule {
 }
 
 /// Planning complet
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Schedule {
     /// Liste des règles
     pub rules: Vec<ScheduleRule>,
@@ -112,7 +114,7 @@ impl Default for Schedule {
 }
 
 /// Requête de création de règle
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateRuleRequest {
     pub mode_id: String,
     pub days: Vec<u8>,
@@ -124,7 +126,7 @@ pub struct CreateRuleRequest {
 }
 
 /// Requête de mise à jour de règle
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateRuleRequest {
     pub mode_id: Option<String>,
     pub days: Option<Vec<u8>>,
@@ -136,13 +138,13 @@ pub struct UpdateRuleRequest {
 }
 
 /// Requête pour changer le mode par défaut
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateDefaultModeRequest {
     pub default_mode_id: String,
 }
 
 /// Réponse avec le mode actif actuel
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct CurrentScheduleInfo {
     pub active_rule: Option<ScheduleRule>,
     pub current_mode_id: String,

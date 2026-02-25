@@ -10,12 +10,13 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use utoipa::ToSchema;
 
 /// Fichier de configuration des notifications
 const CONFIG_FILE: &str = "/var/lib/symbion/notification_configs.json";
 
 /// Priorité de notification
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum NotificationPriority {
     P0,
@@ -40,7 +41,7 @@ impl From<NotificationPriority> for crate::notifications::NotificationPriority {
 }
 
 /// Catégorie de notification
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum NotificationCategory {
     PluginHealth,
@@ -51,7 +52,7 @@ pub enum NotificationCategory {
 }
 
 /// Configuration d'un type de notification
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct NotificationTypeConfig {
     /// Identifiant unique du type
     pub type_id: String,
@@ -74,7 +75,7 @@ pub struct NotificationTypeConfig {
 }
 
 /// Information sur une variable disponible
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct VariableInfo {
     /// Nom de la variable (sans les {})
     pub name: String,
@@ -438,7 +439,7 @@ impl NotificationConfigManager {
 }
 
 /// Mise à jour partielle d'une configuration
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct NotificationConfigUpdate {
     pub enabled: Option<bool>,
     pub title_template: Option<String>,

@@ -40,6 +40,8 @@ use crate::notes_bridge::SharedNotesBridge;
 use axum::middleware::{self, Next};
 use axum::extract::{State, Request};
 use axum::response::Response;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 /// Structured error response helper for consistent API error format.
 /// Returns `(StatusCode, Json)` with fields: error (code), message (human-readable), status (number).
@@ -111,8 +113,9 @@ async fn require_auth(
 ) -> Result<Response, StatusCode> {
     let path = req.uri().path();
 
-    // Health check, auth routes et CA certificate toujours accessibles
-    if path.starts_with("/health") || path.starts_with("/auth") || path.starts_with("/ca-certificate") {
+    // Health check, auth routes, CA certificate et Swagger UI toujours accessibles
+    if path.starts_with("/health") || path.starts_with("/auth") || path.starts_with("/ca-certificate")
+        || path.starts_with("/swagger-ui") || path.starts_with("/api-docs") {
         return Ok(next.run(req).await);
     }
 
@@ -383,8 +386,20 @@ pub fn build_router(app_state: AppState) -> Router {
         .nest("/intelligence", intelligence_routes)
         .merge(plugin_router);
 
+    // K8: Generate OpenAPI spec on a dedicated thread with 4 MiB stack
+    // (utoipa derive generates deeply nested code that exceeds tokio's 2 MiB default)
+    let openapi_spec = std::thread::Builder::new()
+        .name("openapi-init".into())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(|| crate::openapi::ApiDoc::openapi())
+        .expect("failed to spawn openapi thread")
+        .join()
+        .expect("openapi thread panicked");
+
     // Router principal avec versioning
     Router::new()
+        // K8: Swagger UI + OpenAPI JSON (public, no auth)
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", openapi_spec))
         // Routes publiques (toujours accessibles)
         .merge(public_routes)
         // API v1 sous namespace /v1/

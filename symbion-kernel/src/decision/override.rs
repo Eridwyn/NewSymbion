@@ -8,17 +8,18 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use time::OffsetDateTime;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Type d'override
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub enum OverrideType {
     ForceApprove,  // Forcer approbation
     ForceDeny,     // Forcer refus
 }
 
 /// Override actif
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct MasterOverride {
     pub override_id: String,
     pub override_type: OverrideType,
@@ -26,8 +27,10 @@ pub struct MasterOverride {
     pub reason: String,
     pub created_by: String,  // username
     #[serde(with = "time::serde::rfc3339")]
+    #[schema(value_type = String)]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
+    #[schema(value_type = String)]
     pub expires_at: OffsetDateTime,
     pub mfa_verified: bool,  // MFA obligatoire
 }
@@ -230,7 +233,7 @@ impl OverrideManager {
 }
 
 /// Statistiques overrides
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct OverrideStats {
     pub total: usize,
     pub active: usize,

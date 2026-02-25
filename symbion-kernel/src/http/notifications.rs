@@ -3,12 +3,22 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::Deserialize;
+use utoipa::ToSchema;
 
 // ============================================================================
 // Notifications Endpoints
 // ============================================================================
 
 /// GET /notifications — List all notifications from history.
+#[utoipa::path(
+    get,
+    path = "/notifications",
+    tag = "Notifications",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "List of all notifications", body = Vec<crate::notifications::Notification>)
+    )
+)]
 pub(super) async fn list_notifications(
     State(app): State<AppState>,
 ) -> Json<Vec<crate::notifications::Notification>> {
@@ -16,6 +26,15 @@ pub(super) async fn list_notifications(
 }
 
 /// GET /notifications/active — List all unacknowledged notifications.
+#[utoipa::path(
+    get,
+    path = "/notifications/active",
+    tag = "Notifications",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "List of active (unacknowledged) notifications", body = Vec<crate::notifications::Notification>)
+    )
+)]
 pub(super) async fn list_active_notifications(
     State(app): State<AppState>,
 ) -> Json<Vec<crate::notifications::Notification>> {
@@ -23,6 +42,15 @@ pub(super) async fn list_active_notifications(
 }
 
 /// GET /notifications/tokens — List all registered FCM tokens.
+#[utoipa::path(
+    get,
+    path = "/notifications/tokens",
+    tag = "Notifications",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "List of registered FCM tokens", body = Vec<crate::notifications::FcmToken>)
+    )
+)]
 pub(super) async fn list_fcm_tokens(
     State(app): State<AppState>,
 ) -> Json<Vec<crate::notifications::FcmToken>> {
@@ -30,8 +58,8 @@ pub(super) async fn list_fcm_tokens(
 }
 
 /// Request body for sending a new notification.
-#[derive(Debug, Deserialize)]
-pub(super) struct SendNotificationRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct SendNotificationRequest {
     title: String,
     body: String,
     #[serde(default)]
@@ -41,10 +69,23 @@ pub(super) struct SendNotificationRequest {
     #[serde(default)]
     actions: Vec<crate::notifications::NotificationAction>,
     #[serde(default)]
+    #[schema(value_type = Object)]
     data: Option<serde_json::Value>,
 }
 
 /// POST /notifications — Send a new notification with optional priority and actions.
+#[utoipa::path(
+    post,
+    path = "/notifications",
+    tag = "Notifications",
+    request_body = SendNotificationRequest,
+    security(("bearer_auth" = [])),
+    params(("X-CSRF-Token" = String, Header, description = "CSRF nonce")),
+    responses(
+        (status = 200, description = "Notification sent successfully"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 pub(super) async fn send_notification(
     State(app): State<AppState>,
     Json(request): Json<SendNotificationRequest>,
@@ -78,6 +119,20 @@ pub(super) async fn send_notification(
 }
 
 /// POST /notifications/{id}/acknowledge — Acknowledge a notification by ID.
+#[utoipa::path(
+    post,
+    path = "/notifications/{id}/acknowledge",
+    tag = "Notifications",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Notification ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 200, description = "Notification acknowledged"),
+        (status = 404, description = "Notification not found")
+    )
+)]
 pub(super) async fn acknowledge_notification(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -92,6 +147,20 @@ pub(super) async fn acknowledge_notification(
 }
 
 /// DELETE /notifications/{id} — Delete a notification by ID.
+#[utoipa::path(
+    delete,
+    path = "/notifications/{id}",
+    tag = "Notifications",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Notification ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 200, description = "Notification deleted"),
+        (status = 404, description = "Notification not found")
+    )
+)]
 pub(super) async fn delete_notification(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -106,8 +175,8 @@ pub(super) async fn delete_notification(
 }
 
 /// Request body for registering an FCM push token.
-#[derive(Debug, Deserialize)]
-pub(super) struct RegisterFcmTokenRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct RegisterFcmTokenRequest {
     user_id: String,
     token: String,
     #[serde(default)]
@@ -115,6 +184,17 @@ pub(super) struct RegisterFcmTokenRequest {
 }
 
 /// POST /notifications/tokens — Register an FCM push token for a user/device.
+#[utoipa::path(
+    post,
+    path = "/notifications/tokens",
+    tag = "Notifications",
+    request_body = RegisterFcmTokenRequest,
+    security(("bearer_auth" = [])),
+    params(("X-CSRF-Token" = String, Header, description = "CSRF nonce")),
+    responses(
+        (status = 200, description = "FCM token registered successfully")
+    )
+)]
 pub(super) async fn register_fcm_token(
     State(app): State<AppState>,
     Json(request): Json<RegisterFcmTokenRequest>,
@@ -135,14 +215,34 @@ pub(super) async fn register_fcm_token(
 // Notification Config API
 // =============================================================================
 
-/// GET /notifications/config — List all notification type configurations.
+/// GET /notification-types — List all notification type configurations.
+#[utoipa::path(
+    get,
+    path = "/notification-types",
+    tag = "Notifications",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "List of notification type configurations", body = Vec<crate::notification_config::NotificationTypeConfig>)
+    )
+)]
 pub(super) async fn list_notification_configs(
     State(app): State<AppState>,
 ) -> Json<Vec<crate::notification_config::NotificationTypeConfig>> {
     Json(app.notification_config.list_all())
 }
 
-/// GET /notifications/config/{type_id} — Retrieve a specific notification type configuration.
+/// GET /notification-types/{type_id} — Retrieve a specific notification type configuration.
+#[utoipa::path(
+    get,
+    path = "/notification-types/{type_id}",
+    tag = "Notifications",
+    security(("bearer_auth" = [])),
+    params(("type_id" = String, Path, description = "Notification type identifier")),
+    responses(
+        (status = 200, description = "Notification type configuration", body = crate::notification_config::NotificationTypeConfig),
+        (status = 404, description = "Notification type not found")
+    )
+)]
 pub(super) async fn get_notification_config(
     State(app): State<AppState>,
     Path(type_id): Path<String>,
@@ -153,7 +253,22 @@ pub(super) async fn get_notification_config(
         .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Notification type '{}' not found", type_id)))
 }
 
-/// PUT /notifications/config/{type_id} — Update a notification type configuration.
+/// PUT /notification-types/{type_id} — Update a notification type configuration.
+#[utoipa::path(
+    put,
+    path = "/notification-types/{type_id}",
+    tag = "Notifications",
+    request_body = crate::notification_config::NotificationConfigUpdate,
+    security(("bearer_auth" = [])),
+    params(
+        ("type_id" = String, Path, description = "Notification type identifier"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 200, description = "Updated notification type configuration", body = crate::notification_config::NotificationTypeConfig),
+        (status = 404, description = "Notification type not found")
+    )
+)]
 pub(super) async fn update_notification_config(
     State(app): State<AppState>,
     Path(type_id): Path<String>,

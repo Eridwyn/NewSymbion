@@ -4,13 +4,14 @@
 
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
+use utoipa::ToSchema;
 
 // ============================================================================
 // Signal Collection
 // ============================================================================
 
 /// Snapshot of all contextual signals at a point in time
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ContextSignals {
     // Temporal
     pub hour: u8,                    // 0-23
@@ -33,6 +34,7 @@ pub struct ContextSignals {
     pub current_mode: String,
     pub time_in_current_mode_minutes: i64,
     #[serde(with = "time::serde::iso8601::option")]
+    #[schema(value_type = Option<String>)]
     pub last_manual_change: Option<OffsetDateTime>,
 }
 
@@ -41,7 +43,7 @@ pub struct ContextSignals {
 // ============================================================================
 
 /// Result of a mode prediction
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ModePrediction {
     pub mode: String,               // Mode slug prédit (ou "unknown" si incertain)
     pub confidence: f32,            // 0.0 - 1.0 (normalisé)
@@ -68,7 +70,7 @@ pub struct SinglePrediction {
 // ============================================================================
 
 /// A pattern learned from user behavior
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct LearnedPattern {
     pub mode: String,
     pub day_of_week: u8,
@@ -76,12 +78,13 @@ pub struct LearnedPattern {
     pub confidence: f32,
     pub occurrences: u32,
     #[serde(with = "time::serde::iso8601")]
+    #[schema(value_type = String)]
     pub last_seen: OffsetDateTime,
     pub source: PatternSource,
 }
 
 /// Where a pattern came from
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 pub enum PatternSource {
     /// Detected from history analysis
     Historical,
@@ -92,9 +95,10 @@ pub enum PatternSource {
 }
 
 /// Record of a prediction for learning purposes
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PredictionRecord {
     #[serde(with = "time::serde::iso8601")]
+    #[schema(value_type = String)]
     pub timestamp: OffsetDateTime,
     pub predicted_mode: String,
     pub actual_mode: Option<String>,  // Set when user corrects
@@ -106,7 +110,7 @@ pub struct PredictionRecord {
 }
 
 /// How a prediction was handled (v1.1.9)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 pub enum PredictionOutcome {
     /// Auto-applied (high confidence + established)
     AutoApplied,
@@ -117,9 +121,10 @@ pub enum PredictionOutcome {
 }
 
 /// User feedback on a prediction
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct UserFeedback {
     #[serde(with = "time::serde::iso8601")]
+    #[schema(value_type = String)]
     pub timestamp: OffsetDateTime,
     pub predicted_mode: String,
     pub actual_mode: String,       // What the user chose
@@ -131,7 +136,7 @@ pub struct UserFeedback {
 /// Note: `decayed_confidence` is a time-dependent snapshot computed at export time.
 /// The same pattern exported at different times will have different decayed values.
 /// Use `days_since_seen` for reproducible comparisons.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PatternExport {
     pub mode: String,
     pub day_of_week: u8,
@@ -140,6 +145,7 @@ pub struct PatternExport {
     pub decayed_confidence: f32,
     pub occurrences: u32,
     #[serde(with = "time::serde::iso8601")]
+    #[schema(value_type = String)]
     pub last_seen: OffsetDateTime,
     pub source: PatternSource,
     pub days_since_seen: u32,
@@ -170,7 +176,7 @@ pub enum DecisionSignal {
 // ============================================================================
 
 /// Detected change in user habits
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct HabitDrift {
     pub mode: String,
     pub day_of_week: u8,
@@ -185,7 +191,7 @@ pub struct HabitDrift {
 // ============================================================================
 
 /// Current status of the intelligence engine
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct IntelligenceStatus {
     pub enabled: bool,
     pub config: super::config::IntelligenceConfig,
@@ -196,8 +202,9 @@ pub struct IntelligenceStatus {
 }
 
 /// Health counters for observability (v1.1.9)
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct HealthCounters {
+    #[schema(value_type = Option<String>)]
     pub date: Option<time::Date>,
     pub push_sent: u32,
     pub suggestions_generated: u32,
@@ -205,12 +212,13 @@ pub struct HealthCounters {
     pub denied: u32,
     // Purge tracking (P0.5)
     #[serde(with = "time::serde::iso8601::option", default)]
+    #[schema(value_type = Option<String>)]
     pub purge_last_run_at: Option<OffsetDateTime>,
     pub purge_removed_count_last_run: u32,
 }
 
 /// Detailed accuracy stats with denominators (v1.1.9 P0 fix)
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct AccuracyStats {
     /// Total predictions made in period
     pub predictions_total: u32,
@@ -239,10 +247,11 @@ pub struct AccuracyStats {
 // ============================================================================
 
 /// Statistics for v1 vs v2 shadow mode comparison
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct ShadowStats {
     /// When tracking started
     #[serde(with = "time::serde::iso8601::option", default)]
+    #[schema(value_type = Option<String>)]
     pub tracking_since: Option<OffsetDateTime>,
 
     /// Total predictions compared
@@ -271,11 +280,12 @@ pub struct ShadowStats {
 
     /// Last comparison timestamp
     #[serde(with = "time::serde::iso8601::option", default)]
+    #[schema(value_type = Option<String>)]
     pub last_comparison_at: Option<OffsetDateTime>,
 }
 
 /// Period-specific shadow stats
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct ShadowPeriodStats {
     pub comparisons: u32,
     pub agreements: u32,
@@ -284,13 +294,14 @@ pub struct ShadowPeriodStats {
 }
 
 /// Detailed prediction log entry for auditability
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PredictionLogEntry {
     /// Unique trace ID
     pub trace_id: String,
 
     /// Timestamp
     #[serde(with = "time::serde::iso8601")]
+    #[schema(value_type = String)]
     pub timestamp: OffsetDateTime,
 
     /// Summary of context vector (top dimensions)
@@ -307,7 +318,7 @@ pub struct PredictionLogEntry {
 }
 
 /// Compact vector summary for logging
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct VectorSummary {
     pub top_dimensions: Vec<(String, f32)>,
     pub top_features: Vec<String>,
@@ -315,7 +326,7 @@ pub struct VectorSummary {
 }
 
 /// Compact prediction summary for logging
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PredictionSummary {
     pub mode: String,
     pub confidence: f32,
@@ -325,7 +336,7 @@ pub struct PredictionSummary {
 }
 
 /// Session state summary for logging
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SessionSummary {
     pub current_mode: String,
     pub time_in_mode_minutes: i64,
@@ -333,7 +344,7 @@ pub struct SessionSummary {
 }
 
 /// Auto-apply result for logging
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AutoApplyResult {
     pub allowed: bool,
     pub blocked_reason: Option<String>,

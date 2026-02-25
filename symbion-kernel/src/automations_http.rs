@@ -28,6 +28,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use time::OffsetDateTime;
+use utoipa::ToSchema;
 
 use crate::automations::{
     Automation, AutomationEvent, AutomationRequest, AutomationSchema, AutomationsListResponse,
@@ -37,7 +38,7 @@ use crate::automations::{
 use crate::http::AppState;
 
 /// Query params for history endpoint
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct HistoryQuery {
     #[serde(default = "default_limit")]
     pub limit: usize,
@@ -55,6 +56,15 @@ fn error_response(message: &str) -> Json<Value> {
 // ===== GET Endpoints (JWT auth only) =====
 
 /// GET /v1/automations - List all automations
+#[utoipa::path(
+    get,
+    path = "/automations",
+    tag = "Automations",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "List of all automations", body = AutomationsListResponse)
+    )
+)]
 pub async fn list_automations(
     State(app): State<AppState>,
 ) -> Result<Json<AutomationsListResponse>, StatusCode> {
@@ -70,6 +80,17 @@ pub async fn list_automations(
 }
 
 /// GET /v1/automations/{id} - Get automation detail
+#[utoipa::path(
+    get,
+    path = "/automations/{automation_id}",
+    tag = "Automations",
+    security(("bearer_auth" = [])),
+    params(("automation_id" = String, Path, description = "Automation unique identifier")),
+    responses(
+        (status = 200, description = "Automation detail", body = Automation),
+        (status = 404, description = "Automation not found")
+    )
+)]
 pub async fn get_automation(
     State(app): State<AppState>,
     Path(automation_id): Path<String>,
@@ -88,6 +109,15 @@ pub async fn get_automation(
 /// - Conditions: filters to evaluate before executing
 /// - Actions: what to execute when conditions are met
 /// - Dynamic values: agents, rooms, sensors, modes from live registries
+#[utoipa::path(
+    get,
+    path = "/automations/schema",
+    tag = "Automations",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Automation schema for rule builder", body = AutomationSchema)
+    )
+)]
 pub async fn get_automations_schema(
     State(app): State<AppState>,
 ) -> Json<AutomationSchema> {
@@ -128,6 +158,16 @@ pub async fn get_automations_schema(
 }
 
 /// GET /v1/automations/history - Get execution history
+#[utoipa::path(
+    get,
+    path = "/automations/history",
+    tag = "Automations",
+    security(("bearer_auth" = [])),
+    params(("limit" = Option<usize>, Query, description = "Maximum number of history records (default: 50)")),
+    responses(
+        (status = 200, description = "Execution history records", body = Vec<ExecutionRecord>)
+    )
+)]
 pub async fn get_automations_history(
     State(app): State<AppState>,
     Query(params): Query<HistoryQuery>,
@@ -138,6 +178,18 @@ pub async fn get_automations_history(
 // ===== POST/PUT/DELETE/PATCH Endpoints (CSRF protected) =====
 
 /// POST /v1/automations - Create automation
+#[utoipa::path(
+    post,
+    path = "/automations",
+    tag = "Automations",
+    security(("bearer_auth" = [])),
+    params(("X-CSRF-Token" = String, Header, description = "CSRF nonce")),
+    request_body = AutomationRequest,
+    responses(
+        (status = 201, description = "Automation created", body = Automation),
+        (status = 422, description = "Validation error")
+    )
+)]
 pub async fn create_automation(
     State(app): State<AppState>,
     Json(request): Json<AutomationRequest>,
@@ -160,6 +212,22 @@ pub async fn create_automation(
 }
 
 /// PUT /v1/automations/{id} - Update automation
+#[utoipa::path(
+    put,
+    path = "/automations/{automation_id}",
+    tag = "Automations",
+    security(("bearer_auth" = [])),
+    params(
+        ("automation_id" = String, Path, description = "Automation unique identifier"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    request_body = AutomationRequest,
+    responses(
+        (status = 200, description = "Automation updated", body = Automation),
+        (status = 404, description = "Automation not found"),
+        (status = 422, description = "Validation error")
+    )
+)]
 pub async fn update_automation(
     State(app): State<AppState>,
     Path(automation_id): Path<String>,
@@ -184,6 +252,20 @@ pub async fn update_automation(
 }
 
 /// DELETE /v1/automations/{id} - Soft-delete automation
+#[utoipa::path(
+    delete,
+    path = "/automations/{automation_id}",
+    tag = "Automations",
+    security(("bearer_auth" = [])),
+    params(
+        ("automation_id" = String, Path, description = "Automation unique identifier"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 204, description = "Automation soft-deleted"),
+        (status = 404, description = "Automation not found or already deleted")
+    )
+)]
 pub async fn delete_automation(
     State(app): State<AppState>,
     Path(automation_id): Path<String>,
@@ -202,6 +284,21 @@ pub async fn delete_automation(
 }
 
 /// PATCH /v1/automations/{id}/enable - Toggle enabled
+#[utoipa::path(
+    patch,
+    path = "/automations/{automation_id}/enable",
+    tag = "Automations",
+    security(("bearer_auth" = [])),
+    params(
+        ("automation_id" = String, Path, description = "Automation unique identifier"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    request_body = ToggleRequest,
+    responses(
+        (status = 200, description = "Automation toggled", body = Automation),
+        (status = 404, description = "Automation not found")
+    )
+)]
 pub async fn toggle_automation(
     State(app): State<AppState>,
     Path(automation_id): Path<String>,
@@ -221,6 +318,20 @@ pub async fn toggle_automation(
 }
 
 /// POST /v1/automations/{id}/test - Dry-run test
+#[utoipa::path(
+    post,
+    path = "/automations/{automation_id}/test",
+    tag = "Automations",
+    security(("bearer_auth" = [])),
+    params(
+        ("automation_id" = String, Path, description = "Automation unique identifier"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 200, description = "Dry-run test result", body = Object),
+        (status = 404, description = "Automation not found")
+    )
+)]
 pub async fn test_automation(
     State(app): State<AppState>,
     Path(automation_id): Path<String>,
@@ -270,6 +381,21 @@ pub async fn test_automation(
 }
 
 /// POST /v1/automations/{id}/run - Execute automation manually
+#[utoipa::path(
+    post,
+    path = "/automations/{automation_id}/run",
+    tag = "Automations",
+    security(("bearer_auth" = [])),
+    params(
+        ("automation_id" = String, Path, description = "Automation unique identifier"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 200, description = "Automation execution result", body = Object),
+        (status = 400, description = "Automation is disabled"),
+        (status = 404, description = "Automation not found")
+    )
+)]
 pub async fn run_automation(
     State(app): State<AppState>,
     Path(automation_id): Path<String>,

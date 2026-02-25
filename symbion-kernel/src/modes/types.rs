@@ -4,9 +4,10 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
+use utoipa::ToSchema;
 
 /// Thème visuel d'un mode
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 pub struct ModeTheme {
     /// Couleur principale (ex: #2563eb)
     pub primary: String,
@@ -27,7 +28,7 @@ impl Default for ModeTheme {
 }
 
 /// Mode dynamique (système ou personnalisé)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DynamicMode {
     /// Identifiant unique (UUID)
     pub id: String,
@@ -43,6 +44,7 @@ pub struct DynamicMode {
     pub is_system: bool,
     /// Date de création
     #[serde(with = "time::serde::rfc3339")]
+    #[schema(value_type = String)]
     pub created_at: OffsetDateTime,
     /// Ordre d'affichage
     pub display_order: u32,
@@ -140,7 +142,7 @@ pub fn default_system_modes() -> Vec<DynamicMode> {
 }
 
 /// Requête de création de mode
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateModeRequest {
     pub name: String,
     pub icon: String,
@@ -148,7 +150,7 @@ pub struct CreateModeRequest {
 }
 
 /// Requête de mise à jour de mode
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateModeRequest {
     pub name: Option<String>,
     pub icon: Option<String>,

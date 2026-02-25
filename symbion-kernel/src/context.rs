@@ -7,9 +7,10 @@ use parking_lot::RwLock;
 use crate::agents::{Agent, SharedAgentRegistry};
 use rumqttc::AsyncClient;
 use time::OffsetDateTime;
+use utoipa::ToSchema;
 
 /// Mode contextuel de Symbion
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
 pub enum Mode {
     /// Mode professionnel (bureau, travail)
     #[serde(rename = "pro", alias = "cravate")]
@@ -61,7 +62,7 @@ impl Mode {
 }
 
 /// Thème visuel associé à un mode
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Theme {
     pub primary: String,
     pub bg: String,
@@ -69,13 +70,14 @@ pub struct Theme {
 }
 
 /// État du contexte actuel
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ContextState {
     pub mode: Mode,
     /// Slug du mode dynamique (si utilisant mode_registry)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode_slug: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
+    #[schema(value_type = String)]
     pub changed_at: OffsetDateTime,
     pub reason: String,
     pub confidence: f32,
@@ -84,25 +86,27 @@ pub struct ContextState {
 }
 
 /// Override manuel temporaire du mode
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ManualOverride {
     pub mode: Mode,
     /// Slug du mode dynamique (si utilisant mode_registry)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode_slug: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
+    #[schema(value_type = String)]
     pub until: OffsetDateTime,
     pub reason: String,
 }
 
 /// Entrée d'historique de changement de mode
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ModeHistoryEntry {
     pub mode: Mode,
     /// Slug du mode dynamique (si utilisant mode_registry)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode_slug: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
+    #[schema(value_type = String)]
     pub timestamp: OffsetDateTime,
     pub reason: String,
     pub was_manual: bool,
@@ -111,7 +115,7 @@ pub struct ModeHistoryEntry {
 // Note: DetectedPattern removed - use LearnedPattern from context_intelligence.rs instead
 
 /// Statistiques par mode
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ModeStats {
     pub mode: Mode,
     pub total_duration_minutes: i64,
@@ -120,7 +124,7 @@ pub struct ModeStats {
 }
 
 /// Métriques de productivité par mode
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ProductivityMetrics {
     pub mode: Mode,
     pub notes_created: u32,

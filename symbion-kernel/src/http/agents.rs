@@ -4,12 +4,13 @@ use axum::http::StatusCode;
 use axum::Json;
 use serde::Deserialize;
 use time::format_description::well_known::Rfc3339;
+use utoipa::ToSchema;
 
 // ====== AGENTS ENDPOINTS ======
 
 /// Serializable view of an agent for API responses.
-#[derive(serde::Serialize)]
-pub(super) struct AgentView {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct AgentView {
     agent_id: String,
     hostname: String,
     os: String,
@@ -26,16 +27,18 @@ pub(super) struct AgentView {
 }
 
 /// Request body for sending a shell command to an agent.
-#[derive(Deserialize)]
-pub(super) struct AgentCommandRequest {
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct AgentCommandRequest {
     command: String,
+    #[schema(value_type = Object)]
     parameters: Option<serde_json::Value>,
 }
 
 /// Request body for sending a tracked command to an agent.
-#[derive(Deserialize)]
-pub(super) struct AgentCommandTrackingRequest {
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct AgentCommandTrackingRequest {
     command_type: String,
+    #[schema(value_type = Object)]
     parameters: serde_json::Value,
 }
 
@@ -67,6 +70,15 @@ pub(super) fn agent_to_view(agent: &crate::agents::Agent) -> AgentView {
 }
 
 /// GET /v1/agents -- List all registered agents with their current status.
+#[utoipa::path(
+    get,
+    path = "/agents",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "List of all registered agents", body = Vec<AgentView>)
+    )
+)]
 pub(super) async fn list_agents_endpoint(State(app): State<AppState>) -> Json<Vec<AgentView>> {
     let agents = app.agents.list_agents().await;
     let list: Vec<AgentView> = agents.values().map(agent_to_view).collect();
@@ -74,6 +86,19 @@ pub(super) async fn list_agents_endpoint(State(app): State<AppState>) -> Json<Ve
 }
 
 /// GET /v1/agents/{id} -- Return full details of a single agent by ID.
+#[utoipa::path(
+    get,
+    path = "/agents/{id}",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Agent ID")
+    ),
+    responses(
+        (status = 200, description = "Agent details"),
+        (status = 404, description = "Agent not found")
+    )
+)]
 pub(super) async fn get_agent_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -85,6 +110,21 @@ pub(super) async fn get_agent_endpoint(
 }
 
 /// DELETE /v1/agents/{id} -- Soft-delete an agent (purged after 7 days).
+#[utoipa::path(
+    delete,
+    path = "/v1/agents/{id}",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Agent ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 204, description = "Agent soft-deleted"),
+        (status = 404, description = "Agent not found or already deleted"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 pub(super) async fn delete_agent_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -109,6 +149,20 @@ pub(super) async fn delete_agent_endpoint(
 }
 
 /// DELETE /v1/environment/sensors/{sensor_id} -- Soft-delete a sensor (purged after 7 days).
+#[utoipa::path(
+    delete,
+    path = "/environment/sensors/{sensor_id}",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("sensor_id" = String, Path, description = "Sensor ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 204, description = "Sensor soft-deleted"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 pub(super) async fn delete_sensor_endpoint(
     State(app): State<AppState>,
     Path(sensor_id): Path<String>,
@@ -128,6 +182,20 @@ pub(super) async fn delete_sensor_endpoint(
 }
 
 /// POST /v1/agents/{id}/shutdown -- Send a shutdown command to the specified agent.
+#[utoipa::path(
+    post,
+    path = "/agents/{id}/shutdown",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Agent ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 200, description = "Shutdown command sent"),
+        (status = 500, description = "Failed to send shutdown command")
+    )
+)]
 pub(super) async fn agent_shutdown_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -146,6 +214,20 @@ pub(super) async fn agent_shutdown_endpoint(
 }
 
 /// POST /v1/agents/{id}/reboot -- Send a reboot command to the specified agent.
+#[utoipa::path(
+    post,
+    path = "/agents/{id}/reboot",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Agent ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 200, description = "Reboot command sent"),
+        (status = 500, description = "Failed to send reboot command")
+    )
+)]
 pub(super) async fn agent_reboot_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -164,6 +246,20 @@ pub(super) async fn agent_reboot_endpoint(
 }
 
 /// POST /v1/agents/{id}/hibernate -- Send a hibernate (sleep) command to the specified agent.
+#[utoipa::path(
+    post,
+    path = "/agents/{id}/hibernate",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Agent ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 200, description = "Hibernate command sent"),
+        (status = 500, description = "Failed to send hibernate command")
+    )
+)]
 pub(super) async fn agent_hibernate_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -182,6 +278,21 @@ pub(super) async fn agent_hibernate_endpoint(
 }
 
 /// POST /v1/agents/{id}/reconnect -- Send a reconnect command to the specified agent via MQTT.
+#[utoipa::path(
+    post,
+    path = "/v1/agents/{id}/reconnect",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Agent ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 200, description = "Reconnect command sent"),
+        (status = 404, description = "Agent not found"),
+        (status = 500, description = "Failed to send reconnect command")
+    )
+)]
 pub(super) async fn agent_reconnect_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -207,6 +318,20 @@ pub(super) async fn agent_reconnect_endpoint(
 }
 
 /// GET /v1/agents/{id}/processes -- Return the process list for an agent, or request it via MQTT.
+#[utoipa::path(
+    get,
+    path = "/agents/{id}/processes",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Agent ID")
+    ),
+    responses(
+        (status = 200, description = "Process list or request acknowledgement"),
+        (status = 404, description = "Agent not found"),
+        (status = 500, description = "Failed to request processes")
+    )
+)]
 pub(super) async fn agent_processes_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -235,6 +360,21 @@ pub(super) async fn agent_processes_endpoint(
 }
 
 /// POST /v1/agents/{id}/processes/{pid}/kill -- Kill a specific process on the agent by PID.
+#[utoipa::path(
+    post,
+    path = "/agents/{id}/processes/{pid}/kill",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Agent ID"),
+        ("pid" = u32, Path, description = "Process ID to kill"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 200, description = "Kill process command sent"),
+        (status = 500, description = "Failed to send kill process command")
+    )
+)]
 pub(super) async fn agent_kill_process_endpoint(
     State(app): State<AppState>,
     Path((id, pid)): Path<(String, u32)>,
@@ -255,6 +395,20 @@ pub(super) async fn agent_kill_process_endpoint(
 }
 
 /// POST /v1/agents/{id}/command -- Execute a shell command on the specified agent.
+#[utoipa::path(
+    post,
+    path = "/agents/{id}/command",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Agent ID")
+    ),
+    request_body = AgentCommandRequest,
+    responses(
+        (status = 200, description = "Command execution requested"),
+        (status = 500, description = "Failed to send command")
+    )
+)]
 pub(super) async fn agent_command_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -279,6 +433,20 @@ pub(super) async fn agent_command_endpoint(
 }
 
 /// GET /v1/agents/{id}/metrics -- Return real-time system metrics for an agent, or request them via MQTT.
+#[utoipa::path(
+    get,
+    path = "/agents/{id}/metrics",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Agent ID")
+    ),
+    responses(
+        (status = 200, description = "Agent system metrics or request acknowledgement"),
+        (status = 404, description = "Agent not found"),
+        (status = 500, description = "Failed to request metrics")
+    )
+)]
 pub(super) async fn agent_metrics_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -307,6 +475,18 @@ pub(super) async fn agent_metrics_endpoint(
 }
 
 /// GET /v1/agents/{id}/commands -- List pending commands for the specified agent.
+#[utoipa::path(
+    get,
+    path = "/agents/{id}/commands",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Agent ID")
+    ),
+    responses(
+        (status = 200, description = "Pending commands for the agent")
+    )
+)]
 pub(super) async fn agent_commands_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -319,6 +499,21 @@ pub(super) async fn agent_commands_endpoint(
 }
 
 /// POST /v1/agents/{id}/commands -- Submit a tracked command for execution on the agent.
+#[utoipa::path(
+    post,
+    path = "/agents/{id}/commands",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Agent ID")
+    ),
+    request_body = AgentCommandTrackingRequest,
+    responses(
+        (status = 200, description = "Command execution requested with tracking"),
+        (status = 400, description = "Bad request"),
+        (status = 500, description = "Failed to send tracked command")
+    )
+)]
 pub(super) async fn agent_commands_post_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
@@ -362,6 +557,20 @@ pub(super) async fn agent_commands_post_endpoint(
 }
 
 /// POST /v1/commands/{command_id}/cancel -- Cancel a pending or in-progress command.
+#[utoipa::path(
+    post,
+    path = "/commands/{command_id}/cancel",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("command_id" = String, Path, description = "Command ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 200, description = "Command cancellation result"),
+        (status = 404, description = "Command not found")
+    )
+)]
 pub(super) async fn cancel_command_endpoint(
     State(app): State<AppState>,
     Path(command_id): Path<String>,
@@ -390,6 +599,19 @@ pub(super) async fn cancel_command_endpoint(
 }
 
 /// GET /v1/commands/{command_id}/status -- Return the current status and output of a command.
+#[utoipa::path(
+    get,
+    path = "/commands/{command_id}/status",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("command_id" = String, Path, description = "Command ID")
+    ),
+    responses(
+        (status = 200, description = "Command status and output"),
+        (status = 404, description = "Command not found")
+    )
+)]
 pub(super) async fn command_status_endpoint(
     State(app): State<AppState>,
     Path(command_id): Path<String>,
@@ -408,6 +630,20 @@ pub(super) async fn command_status_endpoint(
 // =============== PLUGIN SYSTEMCTL ENDPOINTS ===============
 
 /// POST /v1/plugins/:name/start - Start plugin via sudo systemctl start (async, returns immediately)
+#[utoipa::path(
+    post,
+    path = "/v1/plugins/{name}/start",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("name" = String, Path, description = "Plugin name"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 200, description = "Start command accepted"),
+        (status = 400, description = "Invalid plugin name")
+    )
+)]
 pub(super) async fn start_plugin_systemctl(
     Path(name): Path<String>,
     State(_state): State<AppState>,
@@ -450,6 +686,20 @@ pub(super) async fn start_plugin_systemctl(
 }
 
 /// POST /v1/plugins/:name/stop - Stop plugin via sudo systemctl stop (async, returns immediately)
+#[utoipa::path(
+    post,
+    path = "/v1/plugins/{name}/stop",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("name" = String, Path, description = "Plugin name"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 200, description = "Stop command accepted"),
+        (status = 400, description = "Invalid plugin name")
+    )
+)]
 pub(super) async fn stop_plugin_systemctl(
     Path(name): Path<String>,
     State(_state): State<AppState>,
@@ -492,6 +742,20 @@ pub(super) async fn stop_plugin_systemctl(
 }
 
 /// POST /v1/plugins/:name/restart - Restart plugin via sudo systemctl restart (async, returns immediately)
+#[utoipa::path(
+    post,
+    path = "/v1/plugins/{name}/restart",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("name" = String, Path, description = "Plugin name"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 200, description = "Restart command accepted"),
+        (status = 400, description = "Invalid plugin name")
+    )
+)]
 pub(super) async fn restart_plugin_systemctl(
     Path(name): Path<String>,
     State(_state): State<AppState>,
@@ -534,6 +798,20 @@ pub(super) async fn restart_plugin_systemctl(
 }
 
 /// GET /v1/plugins/:name/status - Get plugin status via systemctl --user is-active
+#[utoipa::path(
+    get,
+    path = "/v1/plugins/{name}/status",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("name" = String, Path, description = "Plugin name")
+    ),
+    responses(
+        (status = 200, description = "Plugin systemctl status"),
+        (status = 400, description = "Invalid plugin name"),
+        (status = 500, description = "Failed to execute systemctl")
+    )
+)]
 pub(super) async fn get_plugin_systemctl_status(
     Path(name): Path<String>,
     State(_state): State<AppState>,

@@ -14,7 +14,7 @@
  * - scheduler.rs      : Periodic polling for scheduled triggers
  */
 
-mod types;
+pub(crate) mod types;
 mod persistence;
 mod events;
 mod listener;

@@ -25,6 +25,7 @@
 use crate::environment::{EnvReading, RoomEnvironmentState};
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 /// Configuration centralisée des paramètres d'alertes humidité
 ///
@@ -94,7 +95,7 @@ impl Default for DewPointAlertConfig {
 /// Niveau d'alerte basé sur point de rosée (5 niveaux progressifs)
 ///
 /// Ordre de priorité : Danger > Critical > Strong > Moderate > Weak > Safe
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum DewPointAlertLevel {
     /// Conditions normales - aucun risque

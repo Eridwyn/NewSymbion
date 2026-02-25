@@ -33,6 +33,7 @@ use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use utoipa::ToSchema;
 use crate::state::Shared;
 use crate::config::HostsConfig;
 use crate::contracts::ContractRegistry;
@@ -41,7 +42,7 @@ use tokio::task;
 
 /// Snapshot des métriques de santé du kernel à un instant T
 /// Structure sérialisable exposée via API REST et MQTT
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct KernelHealth {
     /// Durée de fonctionnement en secondes depuis le démarrage
     pub uptime_seconds: u64,

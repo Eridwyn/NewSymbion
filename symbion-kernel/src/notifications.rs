@@ -15,9 +15,10 @@ use std::time::{Duration, Instant};
 use tokio::time::sleep;
 use uuid::Uuid;
 use rumqttc::{AsyncClient, QoS};
+use utoipa::ToSchema;
 
 /// Notification complète avec métadonnées
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Notification {
     pub id: String,
     pub priority: NotificationPriority,
@@ -25,6 +26,7 @@ pub struct Notification {
     pub body: String,
     pub source: String,
     #[serde(with = "time::serde::timestamp")]
+    #[schema(value_type = String)]
     pub timestamp: time::OffsetDateTime,
     pub acknowledged: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -32,11 +34,12 @@ pub struct Notification {
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub actions: Vec<NotificationAction>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<Object>)]
     pub data: Option<serde_json::Value>,
 }
 
 /// Priorités des notifications avec sémantique retry
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub enum NotificationPriority {
     /// Critical - Immédiat + retry 5min si pas vu + email escalation
     P0,
@@ -47,14 +50,14 @@ pub enum NotificationPriority {
 }
 
 /// Actions interactives dans notification (validation humaine)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct NotificationAction {
     pub id: String,
     pub label: String,
     pub action_type: ActionType,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ActionType {
     Approve,
@@ -64,7 +67,7 @@ pub enum ActionType {
 }
 
 /// Token FCM enregistré par l'app mobile
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct FcmToken {
     pub user_id: String,
     pub token: String,

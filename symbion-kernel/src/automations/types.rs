@@ -14,6 +14,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use time::OffsetDateTime;
+use utoipa::ToSchema;
 
 // Re-export ImpactLevel from decision module for convenience
 pub use crate::decision::ImpactLevel;
@@ -28,7 +29,7 @@ pub const DEFAULT_CATEGORIES: &[(&str, &str)] = &[
 ];
 
 /// Complete automation rule
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Automation {
     pub id: String,
     pub name: String,
@@ -70,6 +71,7 @@ pub struct Automation {
     // Execution tracking
     #[serde(default)]
     #[serde(with = "time::serde::iso8601::option")]
+    #[schema(value_type = Option<String>)]
     pub last_executed_at: Option<OffsetDateTime>,
     #[serde(default)]
     pub execution_count: u64,
@@ -77,12 +79,15 @@ pub struct Automation {
     // Metadata
     #[serde(default)]
     #[serde(with = "time::serde::iso8601::option")]
+    #[schema(value_type = Option<String>)]
     pub created_at: Option<OffsetDateTime>,
     #[serde(default)]
     #[serde(with = "time::serde::iso8601::option")]
+    #[schema(value_type = Option<String>)]
     pub updated_at: Option<OffsetDateTime>,
     #[serde(default)]
     #[serde(with = "time::serde::iso8601::option")]
+    #[schema(value_type = Option<String>)]
     pub deleted_at: Option<OffsetDateTime>,
 }
 
@@ -95,7 +100,7 @@ fn default_cooldown() -> u32 {
 }
 
 /// Trigger types that can start an automation
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Trigger {
     /// Triggered when context mode changes
@@ -146,6 +151,7 @@ pub enum Trigger {
         plugin_name: String,
         trigger_type: String,
         #[serde(default)]
+        #[schema(value_type = Object)]
         config: Value,
     },
 }
@@ -171,7 +177,7 @@ impl Trigger {
 }
 
 /// Alert levels for sensor triggers
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AlertLevel {
     Normal,
@@ -181,7 +187,7 @@ pub enum AlertLevel {
 }
 
 /// Agent status types for triggers
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentStatusType {
     Online,
@@ -190,7 +196,7 @@ pub enum AgentStatusType {
 }
 
 /// Plugin health status for triggers
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum PluginHealthStatus {
     Healthy,
@@ -202,7 +208,7 @@ pub enum PluginHealthStatus {
 }
 
 /// Logical operator for condition/trigger groups
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum LogicalOperator {
     And,
@@ -210,16 +216,18 @@ pub enum LogicalOperator {
 }
 
 /// Group of triggers with AND/OR logic
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TriggerGroup {
     pub operator: LogicalOperator,
+    #[schema(value_type = Vec<Object>)]
     pub triggers: Vec<TriggerItem>,
 }
 
 /// Trigger item - can be single trigger or nested group
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(untagged)]
 pub enum TriggerItem {
+    #[schema(value_type = Object)]
     Group(Box<TriggerGroup>),
     Single(Trigger),
 }
@@ -248,14 +256,15 @@ impl Default for TriggerGroup {
 }
 
 /// Group of conditions with AND/OR logic
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConditionGroup {
     pub operator: LogicalOperator,
+    #[schema(value_type = Vec<Object>)]
     pub conditions: Vec<Condition>,
 }
 
 /// Comparison operators for conditions
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ComparisonOperator {
     Equals,
@@ -282,7 +291,7 @@ impl std::fmt::Display for ComparisonOperator {
 }
 
 /// Sensor metric types for conditions
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SensorMetric {
     Temperature,
@@ -292,7 +301,7 @@ pub enum SensorMetric {
 }
 
 /// Individual condition to evaluate
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Condition {
     /// Check current context mode
@@ -342,10 +351,12 @@ pub enum Condition {
         feature_id: String,
         operator: ComparisonOperator,
         /// Value to compare against (bool, float, string)
+        #[schema(value_type = Object)]
         value: serde_json::Value,
     },
 
     /// Nested condition group (for complex logic)
+    #[schema(value_type = Object)]
     Group(Box<ConditionGroup>),
 
     /// Plugin-defined custom condition
@@ -353,6 +364,7 @@ pub enum Condition {
         plugin_name: String,
         condition_type: String,
         #[serde(default)]
+        #[schema(value_type = Object)]
         config: Value,
     },
 }
@@ -362,7 +374,7 @@ fn default_equals() -> ComparisonOperator {
 }
 
 /// Actions that can be executed
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ActionDefinition {
     /// Send notification via plugin
@@ -395,6 +407,7 @@ pub enum ActionDefinition {
         agent_id: String,
         command_type: String,
         #[serde(default)]
+        #[schema(value_type = Option<Object>)]
         parameters: Option<Value>,
         #[serde(default = "default_impact_from_command")]
         impact_level: ImpactLevel,
@@ -409,6 +422,7 @@ pub enum ActionDefinition {
     /// Set a feature value in the FeatureRegistry
     SetFeature {
         feature_id: String,
+        #[schema(value_type = Object)]
         value: Value,
         #[serde(default = "default_feature_source")]
         source: String,
@@ -423,6 +437,7 @@ pub enum ActionDefinition {
         plugin_name: String,
         action_type: String,
         #[serde(default)]
+        #[schema(value_type = Object)]
         config: Value,
         #[serde(default = "default_impact_medium")]
         impact_level: ImpactLevel,
@@ -455,11 +470,12 @@ fn default_automation_reason() -> String {
 }
 
 /// Execution history entry
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ExecutionRecord {
     pub automation_id: String,
     pub automation_name: String,
     #[serde(with = "time::serde::iso8601")]
+    #[schema(value_type = String)]
     pub executed_at: OffsetDateTime,
     pub trigger_event: String,
     pub conditions_met: bool,
@@ -475,7 +491,7 @@ pub struct ExecutionRecord {
 }
 
 /// Result of a single action execution
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ActionResult {
     pub action_type: String,
     pub success: bool,
@@ -494,7 +510,7 @@ pub struct ActionResult {
 }
 
 /// Request to create/update automation
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AutomationRequest {
     pub name: String,
     #[serde(default)]
@@ -558,7 +574,7 @@ impl AutomationRequest {
 }
 
 /// Response for automation list
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct AutomationsListResponse {
     pub automations: Vec<Automation>,
     pub count: usize,
@@ -566,13 +582,13 @@ pub struct AutomationsListResponse {
 }
 
 /// Response for toggle endpoint
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ToggleRequest {
     pub enabled: bool,
 }
 
 /// Response for test endpoint (dry-run)
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct TestResult {
     pub automation_id: String,
     pub would_execute: bool,
@@ -581,7 +597,7 @@ pub struct TestResult {
 }
 
 /// Single condition evaluation result
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ConditionEvaluation {
     pub condition_type: String,
     pub passed: bool,
