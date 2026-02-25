@@ -373,38 +373,106 @@ class DashboardApp extends LitElement {
       background: var(--surface-glass, rgba(255,255,255,0.04));
       border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
       border-radius: 50%;
-      width: 42px;
-      height: 42px;
+      width: 44px;
+      height: 44px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.2rem;
+      font-size: 1.25rem;
       cursor: pointer;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                  background 0.3s ease,
+                  border-color 0.3s ease,
+                  box-shadow 0.3s ease;
       position: relative;
-      overflow: hidden;
+      overflow: visible;
       -webkit-tap-highlight-color: transparent;
+      animation: stt-btn-idle-glow 4s ease-in-out infinite;
+    }
+
+    @keyframes stt-btn-idle-glow {
+      0%, 100% { box-shadow: 0 0 8px var(--ctx-border-subtle, rgba(0,212,170,0.08)); }
+      50%      { box-shadow: 0 0 18px var(--ctx-border-medium, rgba(0,212,170,0.18)); }
+    }
+
+    /* Icon wrapper — 3D flip perspective */
+    .theme-toggle-btn .theme-icon-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      perspective: 200px;
     }
 
     .theme-toggle-btn .theme-icon {
       display: inline-block;
-      transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+      transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
                   opacity 0.3s ease;
+      animation: stt-icon-float 3s ease-in-out infinite;
+      will-change: transform;
     }
 
-    .theme-toggle-btn:active .theme-icon {
-      transform: rotate(180deg) scale(0.7);
+    @keyframes stt-icon-float {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-2px); }
+    }
+
+    /* Click: 3D flip + scale bounce */
+    .theme-toggle-btn.flipping {
+      animation: stt-btn-bounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .theme-toggle-btn.flipping .theme-icon {
+      animation: stt-icon-flip 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+
+    @keyframes stt-btn-bounce {
+      0%   { transform: scale(1); }
+      20%  { transform: scale(0.88); }
+      50%  { transform: scale(1.08); }
+      80%  { transform: scale(0.97); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes stt-icon-flip {
+      0%   { transform: rotateY(0deg) scale(1); opacity: 1; }
+      40%  { transform: rotateY(90deg) scale(0.8); opacity: 0.3; }
+      60%  { transform: rotateY(90deg) scale(0.8); opacity: 0.3; }
+      100% { transform: rotateY(0deg) scale(1); opacity: 1; }
+    }
+
+    /* Ring pulse — amorce from button border */
+    .theme-toggle-btn::after {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: 50%;
+      border: 2px solid var(--context-primary, #00d4aa);
+      opacity: 0;
+      transform: scale(1);
+      pointer-events: none;
+      transition: none;
+    }
+
+    .theme-toggle-btn.ring-pulse::after {
+      animation: stt-btn-ring-pulse 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+
+    @keyframes stt-btn-ring-pulse {
+      0%   { transform: scale(1); opacity: 0.8; }
+      100% { transform: scale(2.8); opacity: 0; }
     }
 
     .theme-toggle-btn:hover {
       background: var(--surface-glass-hover, rgba(255,255,255,0.08));
       border-color: var(--border-medium, rgba(255,255,255,0.15));
-      box-shadow: 0 0 16px var(--ctx-border-subtle);
+      box-shadow: 0 0 20px var(--ctx-border-subtle);
+      animation: none;
     }
 
     .theme-toggle-btn:focus-visible {
       outline: 2px solid var(--context-primary, #00d4aa);
       outline-offset: 2px;
+      animation: none;
     }
 
     /* Dropdown overlay (fermer en cliquant en dehors) */
@@ -1341,7 +1409,9 @@ class DashboardApp extends LitElement {
         </div>
 
         <button class="theme-toggle-btn" @click="${(e) => this._toggleTheme(e)}" aria-label="Changer le thème" title="Changer le thème">
-          <span class="theme-icon">${this.currentTheme === 'dark' ? '☀️' : '🌙'}</span>
+          <span class="theme-icon-wrapper">
+            <span class="theme-icon">${this.currentTheme === 'dark' ? '☀️' : '🌙'}</span>
+          </span>
         </button>
 
         <!-- Notification Center -->
@@ -1595,10 +1665,28 @@ class DashboardApp extends LitElement {
   }
 
   _toggleTheme(e) {
+    const btn = e?.currentTarget
+    const rect = btn?.getBoundingClientRect()
+    const origin = rect
+      ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+      : undefined
+
+    // Trigger button animations
+    if (btn) {
+      btn.classList.add('flipping', 'ring-pulse')
+      const cleanup = () => {
+        btn.classList.remove('flipping', 'ring-pulse')
+        btn.removeEventListener('animationend', cleanup)
+      }
+      btn.addEventListener('animationend', cleanup)
+      // Safety cleanup in case animationend doesn't fire
+      setTimeout(cleanup, 1200)
+    }
+
     const target = themeService.current === 'dark' ? 'light' : 'dark'
     themeTransition.play({
       to: target,
-      origin: e ? { x: e.clientX, y: e.clientY } : undefined,
+      origin,
       onSwitch: () => themeService.toggle()
     })
   }
