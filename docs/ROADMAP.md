@@ -1,9 +1,9 @@
 # Roadmap Technique - NewSymbion
 
-**Version** : 2026-02 (Post Audit + Sprint P0/P1/P2/P3 + Sprint 5/5 K3+K4)
-**Statut** : Fondations complètes, 29 P0/P1 + 42 P2 + 44 P3 corrigées, 2 P3 différées + 3 faux positifs
-**Dernière mise à jour** : 20 Février 2026
-**Score global** : 4.7/5
+**Version** : 2026-02 (Post Audit + Sprint P0/P1/P2/P3 + Sprint 5/5 K3+K4+K8)
+**Statut** : Fondations complètes, 29 P0/P1 + 47 P2 + 46 P3 corrigées, 3 faux positifs
+**Dernière mise à jour** : 25 Février 2026
+**Score global** : 4.8/5
 
 ---
 
@@ -13,25 +13,26 @@
 
 | Composant | Langage | LOC | Fichiers | Score | Tests |
 |-----------|---------|----:|----------|-------|------:|
-| **symbion-kernel** | Rust | ~38,100 | 86 | 4.8/5 | 324 |
-| **pwa-dashboard** | JS (Lit) | ~29,000 | 43 | 4.0/5 | 89 |
-| **symbion-agent-host** | Rust | ~2,100 | 13 | 4/5 | 14 |
-| **Plugins** (5) | Rust | ~4,900 | 14 | 4.8/5 | 2 |
-| **Infra** (scripts/CI) | Bash/YAML | ~2,400 | 20 | 3.5/5 | - |
-| **Total** | | **~84,170** | **176** | **4.4/5** | **429** |
+| **symbion-kernel** | Rust | ~40,300 | 87 | 4.8/5 | 320 |
+| **pwa-dashboard** | JS (Lit) | ~31,500 | 65 | 4.2/5 | 176 |
+| **symbion-agent-host** | Rust | ~4,650 | 13 | 4/5 | 5 |
+| **Plugins** (5) | Rust | ~4,960 | 14 | 4.8/5 | 0 |
+| **Infra** (scripts/CI) | Bash/YAML | ~2,960 | 16 | 3.5/5 | - |
+| **Total** | | **~84,370** | **195** | **4.5/5** | **501** |
 
 ### Chiffres Clés
 
 | Métrique | Valeur |
 |----------|--------|
-| Unit Tests | 429+ (324 kernel + 89 PWA + 14 agent + 2 plugins) |
-| API Routes (http/) | 107 .route() across 7 modules |
+| Unit Tests | 501+ (320 kernel + 176 PWA + 5 agent) |
+| API Routes (http/) | 109 .route() across 7 modules |
 | MQTT Topics | 10 subscriptions |
 | Automations actives | 16 (+ intelligence-managed) |
 | Modes contextuels | 4 système + custom |
 | Intelligence Samples | 34 (apprentissage continu) |
 | Data files (JSON) | 12 |
-| **Issues audit** | **116 identifiées — 29 P0/P1 + 42 P2 + 45 P3 corrigées, 1 P3 différée (K8 OpenAPI), 3 faux positifs** |
+| **Issues audit** | **116 identifiées — 29 P0/P1 + 47 P2 + 46 P3 corrigées, 3 faux positifs, 0 différées** |
+| **OpenAPI/Swagger** | 109 paths, 184 schemas, Swagger UI `/swagger-ui/` |
 
 ---
 
@@ -225,25 +226,26 @@
 
 ## Phase Active
 
-### PR6 — Production Readiness 🟡 ~93%
+### PR6 — Production Readiness 🟡 ~95%
 **En cours** — Démarré Novembre 2025
 
-**Complété** (13/14) :
+**Complété** (14/15) :
 - [x] CSP headers (strict default-deny)
 - [x] HSTS headers
 - [x] Security documentation
 - [x] CI/CD pipelines (3 GitHub Actions workflows)
 - [x] CI/CD test suite
 - [x] Rate limiting auth (5 attempts/15min)
-- [x] Rate limiting global IP-based (300 req/min)
+- [x] Rate limiting global IP-based (600 req/min, exemption JWT authentifié)
 - [x] Docker containerization (multi-stage)
 - [x] Health probes Kubernetes-compatible (`/health/live`, `/health/ready`)
 - [x] Log rotation journald (500M max, 30j rétention)
 - [x] Database backups automatiques (timer quotidien 3h, rotation 30j)
 - [x] Monitoring externe healthcheck.io
-- [x] TLS/SSL certificats (géré via Cloudflare)
+- [x] TLS/SSL certificats (géré via proxy infra — client certs supportés)
+- [x] ~~Let's Encrypt ACME~~ N/A — infra gère certificats via reverse proxy
 
-**Restant** (1/14) :
+**Restant** (1/15) :
 - [ ] SQLite migration (remplacer 12 fichiers JSON)
 
 ---
@@ -340,7 +342,7 @@
 
 ---
 
-### P2 — Améliorations (67 identifiées — 45 corrigées, 17 faux positifs, 5 restantes)
+### P2 — Améliorations (67 identifiées — 50 corrigées, 17 faux positifs, 0 restantes)
 
 #### Kernel (3) — ✅ TOUS CORRIGÉS
 
@@ -446,9 +448,9 @@
 
 ---
 
-### P3 — Issues Mineures (49) — 45 CORRIGÉES, 3 faux positifs, 1 différée
+### P3 — Issues Mineures (49) — 46 CORRIGÉES, 3 faux positifs, 0 différées
 
-#### Kernel (9) — 8 corrigées, 1 différée Sprint 8+
+#### Kernel (9) — ✅ TOUS CORRIGÉS
 
 | Issue | Statut | Fix |
 |-------|--------|-----|
@@ -460,9 +462,9 @@
 | ~~Old enum naming Cravate→Pro~~ | ✅ | Serde alias backward-compat (`context.rs`) — commit `0de5d73` |
 | ~~http.rs monolithique 3,793 LOC~~ | ✅ | Split en 7 modules (`http/`) — commit `0de5d73` |
 | ~~Doc comments handlers HTTP~~ | ✅ | 109 doc comments sur 6 modules (`http/`) — commit `f50e662` |
-| OpenAPI/Swagger non généré | ⏳ Sprint 8+ | Nouveau crate + annotations (LARGE) |
+| ~~OpenAPI/Swagger non généré~~ | ✅ | K8 : utoipa 5.x + swagger-ui, 109 paths, 184 schemas (`openapi.rs`) — commit `63083a2` |
 
-#### Intelligence (13) — 10 corrigees, 3 differees
+#### Intelligence (13) — ✅ TOUS CORRIGÉS
 
 | Issue | Statut | Fix |
 |-------|--------|-----|
@@ -752,7 +754,7 @@
 - [x] 7 issues PWA (MQTT unsubscribe, ARIA tabs, focus trap, emoji labels, lazy loading)
 - [x] 4 issues Infrastructure (CI retention, Dockerfile pin, SETUP.md, MONITORING.md)
 - 3 faux positifs éliminés (Freebox mem::forget, Login autocomplete, Agent cache)
-- ~~8~~ 1 différée Sprint 8+ (K8 OpenAPI)
+- 0 différée (K8 OpenAPI fait Sprint 25 Fév)
 
 ### Sprint Quick Wins + 5/5 ✅ TERMINÉ (19-20 Fév 2026)
 
@@ -782,16 +784,38 @@
   - `http/auth.rs` (26 items), `http/agents.rs` (20), `http/system.rs` (24)
   - `http/decision.rs` (15), `http/context.rs` (12), `http/notifications.rs` (12)
 
+### Sprint K8+P2 ✅ TERMINÉ (25 Fév 2026)
+
+**Commit `63083a2` — K8 OpenAPI/Swagger auto-généré**
+- [x] K8 : utoipa 5.x + utoipa-swagger-ui 9.x (`openapi.rs`, 39 fichiers, +2166 LOC)
+  - 109 paths annotés `#[utoipa::path]` sur 9 modules HTTP
+  - 184 schemas annotés `#[derive(ToSchema)]` sur 150+ DTOs
+  - Swagger UI accessible `/swagger-ui/` (sans auth)
+  - OpenAPI JSON `/api-docs/openapi.json`
+  - SecurityAddon JWT Bearer, 11 tags
+  - Thread dédié 8 MiB (spec trop large pour stack tokio 2 MiB)
+  - Fix 2 cycles récursifs `Condition↔ConditionGroup`, `TriggerItem↔TriggerGroup`
+
+**Commit `ce05533` — Bulk delete notifications + rate limiter**
+- [x] Endpoint `DELETE /notifications` (suppression bulk en 1 appel)
+- [x] Rate limiter : 300→600 req/min, exemption JWT authentifié
+- [x] Rate limiter : exemption `/swagger-ui` et `/api-docs`
+
+**Commit `94f854b` — 5 P2 restantes corrigées**
+- [x] `persistence.rs` : log erreur si parse JSON automations_history échoue
+- [x] `context.rs` : log erreur si parse JSON notes.json échoue
+- [x] `config.rs` (agent) : warning + fallback "unknown-host" si hostname échoue
+- [x] `engine.rs` : uuid notification IDs automations
+- [x] `ssl.rs` : log erreur si sérialisation DER certificat échoue
+
 ### Sprint 7 (Prochain) — PR6 + Features
-- [ ] PR6 : Let's Encrypt ACME
 - [ ] PR6 : SQLite migration (12 fichiers JSON)
 - [ ] Tests PWA (objectif 50%+ coverage)
 
-### Sprint 8+ (Long terme) — Features + P3 différée
+### Sprint 8+ (Long terme) — Features
 - [ ] F3 Intentions Log (type déjà défini)
 - [ ] F2 Digital Hygiene (activity tracking + burnout)
 - [ ] F5 Light Actuator (bridge hardware Tuya)
-- [ ] K8 : OpenAPI/Swagger documentation (seule P3 restante)
 
 ---
 
