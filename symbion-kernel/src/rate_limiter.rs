@@ -6,8 +6,8 @@
  * ou utilise une clé par défaut pour les connexions directes.
  *
  * Configuration :
- * - 120 requêtes/minute par IP (routes API)
- * - Exempté : /health, /metrics, /ca-certificate
+ * - 600 requêtes/minute par IP (routes publiques non authentifiées)
+ * - Exempté : requêtes JWT valides, /health, /metrics, /ca-certificate, /swagger-ui, /api-docs
  * - Nettoyage automatique des entrées expirées
  */
 
@@ -21,7 +21,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 /// Configuration du rate limiter
-const REQUESTS_PER_WINDOW: usize = 300;
+const REQUESTS_PER_WINDOW: usize = 600;
 const WINDOW_SECONDS: u64 = 60;
 const CLEANUP_INTERVAL: usize = 500; // Cleanup toutes les 500 requêtes
 
@@ -131,12 +131,29 @@ pub async fn rate_limit_middleware(
         return Ok(next.run(req).await);
     }
 
+    // Exempter Swagger UI et docs OpenAPI (assets statiques, multiples sous-requêtes)
+    if path.starts_with("/swagger-ui") || path.starts_with("/api-docs") {
+        return Ok(next.run(req).await);
+    }
+
     let client_ip = extract_client_ip(&req);
 
     // Exempter les connexions directes (localhost/LAN sans proxy)
     // Le rate limiting protège uniquement les accès via proxy externe (Cloudflare/nginx)
     if client_ip == "direct" {
         return Ok(next.run(req).await);
+    }
+
+    // Exempter les requêtes authentifiées (JWT valide) — le rate limiting strict
+    // protège uniquement les routes publiques (login, brute-force)
+    if let Some(auth_header) = req.headers().get("authorization") {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if let Some(token) = auth_str.strip_prefix("Bearer ") {
+                if app.auth_manager.verify_token(token).is_ok() {
+                    return Ok(next.run(req).await);
+                }
+            }
+        }
     }
 
     if let Err(retry_after) = app.rate_limiter.check_and_record(&client_ip) {

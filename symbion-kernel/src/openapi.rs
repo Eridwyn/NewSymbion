@@ -118,6 +118,7 @@ use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
         crate::http::notifications::send_notification,
         crate::http::notifications::acknowledge_notification,
         crate::http::notifications::delete_notification,
+        crate::http::notifications::delete_all_notifications,
         crate::http::notifications::register_fcm_token,
         crate::http::notifications::list_notification_configs,
         crate::http::notifications::get_notification_config,
