@@ -121,7 +121,7 @@ pub(super) async fn auth_login(
             };
 
             let notification = crate::notifications::Notification {
-                id: String::new(),
+                id: uuid::Uuid::new_v4().to_string(),
                 priority,
                 title,
                 body,

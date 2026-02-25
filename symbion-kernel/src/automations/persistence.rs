@@ -76,7 +76,10 @@ impl AutomationStore {
                 .context("Failed to read automations_history.json")?;
 
             let history: Vec<ExecutionRecord> =
-                serde_json::from_str(&content).unwrap_or_default();
+                serde_json::from_str(&content).unwrap_or_else(|e| {
+                    eprintln!("[automations] Failed to parse automations_history.json: {}", e);
+                    Vec::new()
+                });
 
             *self.history.write() = history;
         }

@@ -88,7 +88,12 @@ impl Default for AgentConfig {
             },
             agent: AgentInfo {
                 agent_id: uuid::Uuid::new_v4().to_string(),
-                hostname: hostname::get().unwrap_or_default().to_string_lossy().to_string(),
+                hostname: hostname::get()
+                    .map(|h| h.to_string_lossy().to_string())
+                    .unwrap_or_else(|e| {
+                        eprintln!("[agent] Warning: hostname resolution failed: {}, using fallback", e);
+                        "unknown-host".to_string()
+                    }),
                 version: env!("CARGO_PKG_VERSION").to_string(),
             },
         }
