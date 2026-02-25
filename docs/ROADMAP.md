@@ -14,17 +14,17 @@
 | Composant | Langage | LOC | Fichiers | Score | Tests |
 |-----------|---------|----:|----------|-------|------:|
 | **symbion-kernel** | Rust | ~40,300 | 87 | 4.8/5 | 320 |
-| **pwa-dashboard** | JS (Lit) | ~31,500 | 65 | 4.2/5 | 176 |
+| **pwa-dashboard** | JS (Lit) | ~36,400 | 75 | 4.5/5 | 562 |
 | **symbion-agent-host** | Rust | ~4,650 | 13 | 4/5 | 5 |
 | **Plugins** (5) | Rust | ~4,960 | 14 | 4.8/5 | 0 |
 | **Infra** (scripts/CI) | Bash/YAML | ~2,960 | 16 | 3.5/5 | - |
-| **Total** | | **~84,370** | **195** | **4.5/5** | **501** |
+| **Total** | | **~89,270** | **205** | **4.6/5** | **887** |
 
 ### Chiffres Clés
 
 | Métrique | Valeur |
 |----------|--------|
-| Unit Tests | 501+ (320 kernel + 176 PWA + 5 agent) |
+| Unit Tests | 887 (320 kernel + 562 PWA + 5 agent) |
 | API Routes (http/) | 109 .route() across 7 modules |
 | MQTT Topics | 10 subscriptions |
 | Automations actives | 16 (+ intelligence-managed) |
@@ -808,9 +808,16 @@
 - [x] `engine.rs` : uuid notification IDs automations
 - [x] `ssl.rs` : log erreur si sérialisation DER certificat échoue
 
-### Sprint 7 (Prochain) — PR6 + Features
+### Sprint Tests PWA ✅ TERMINÉ (25 Fév 2026)
+
+**Commit `4de3497` — Tests unitaires services PWA complets**
+- [x] 10 fichiers de tests services : auth, api, agents, context, decision, mqtt, notes-stream, offline-queue, polling-scheduler, theme
+- [x] 562 tests PWA (17 fichiers : 12 services + 5 utils)
+- [x] Couverture 100% des services (10/10 couverts)
+- Tests : 501 → 887 (+386)
+
+### Sprint 7 (Prochain) — PR6
 - [ ] PR6 : SQLite migration (12 fichiers JSON)
-- [ ] Tests PWA (objectif 50%+ coverage)
 
 ### Sprint 8+ (Long terme) — Features
 - [ ] F3 Intentions Log (type déjà défini)
