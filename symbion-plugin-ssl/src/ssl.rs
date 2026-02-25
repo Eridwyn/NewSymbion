@@ -115,7 +115,13 @@ impl SslChecker {
 
         // Get peer certificate
         let cert_der = match tls_stream.peer_certificate() {
-            Ok(Some(cert)) => cert.to_der().unwrap_or_default(),
+            Ok(Some(cert)) => match cert.to_der() {
+                Ok(der) => der,
+                Err(e) => {
+                    eprintln!("[ssl] Failed to serialize certificate DER for {}: {}", hostname, e);
+                    Vec::new()
+                }
+            },
             Ok(None) => return error_status("No peer certificate".to_string()),
             Err(e) => return error_status(format!("Failed to get peer cert: {}", e)),
         };

@@ -730,7 +730,10 @@ impl ContextEngine {
         let notes_path = PathBuf::from("notes.json");
         let notes: Vec<serde_json::Value> = if notes_path.exists() {
             match std::fs::read_to_string(&notes_path) {
-                Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
+                Ok(content) => serde_json::from_str(&content).unwrap_or_else(|e| {
+                    eprintln!("[context] Failed to parse notes.json: {}", e);
+                    Vec::new()
+                }),
                 Err(_) => Vec::new(),
             }
         } else {

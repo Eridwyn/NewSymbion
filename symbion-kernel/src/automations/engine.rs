@@ -506,7 +506,7 @@ impl AutomationEngine {
 
                     // Send validation request notification via notifications manager
                     let validation_notif = crate::notifications::Notification {
-                        id: String::new(),
+                        id: uuid::Uuid::new_v4().to_string(),
                         priority: crate::notifications::NotificationPriority::P1,
                         title: notif_title.clone(),
                         body: notif_body,
@@ -710,7 +710,7 @@ impl AutomationEngine {
                 };
 
                 let notification = crate::notifications::Notification {
-                    id: String::new(), // Will be assigned by manager
+                    id: uuid::Uuid::new_v4().to_string(),
                     priority: prio,
                     title: title.clone(),
                     body: body.clone(),
