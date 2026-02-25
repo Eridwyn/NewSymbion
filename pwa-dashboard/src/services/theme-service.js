@@ -27,6 +27,28 @@ class ThemeService {
     }))
   }
 
+  /**
+   * Apply theme CSS variables only (no event dispatch, no Lit re-render).
+   * Used during animated transitions to avoid visual flash.
+   */
+  applySilent(theme) {
+    this.current = theme
+    localStorage.setItem(STORAGE_KEY, theme)
+    this._apply(theme)
+  }
+
+  /**
+   * Dispatch theme-changed event (triggers Lit re-render).
+   * Call after animation overlay is removed.
+   */
+  notifyComponents() {
+    this._notifyKernel(this.current)
+    document.body.dispatchEvent(new CustomEvent('theme-changed', {
+      detail: { theme: this.current },
+      bubbles: true
+    }))
+  }
+
   _apply(theme) {
     document.documentElement.setAttribute('data-theme', theme)
   }
