@@ -252,6 +252,19 @@
 
 ## Features Planifiées (Non Implémentées)
 
+### AV2 — Agent Host v2 ⚪ 0%
+**Effort estimé** : 15-20 jours (multi-sprint)
+
+- Refonte architecture : plugin system + event bus interne
+- Split `main.rs` monolithique (1,242 LOC → modules)
+- Monitoring enrichi : GPU, battery, disk I/O, températures par core
+- Nouvelles capabilities : file transfer, screenshots, log streaming, scheduled tasks
+- Sécurité : mutual TLS, command signing, watchdog process
+- Tests : 5 → 50+ (objectif 4.5+/5)
+- Cross-platform : macOS complet, ARM/Raspberry Pi
+
+**Fichiers actuels** : `main.rs` (1,242 LOC), `discovery.rs`, `metrics/mod.rs`, `capabilities/mod.rs`, `execution/mod.rs`, `config.rs`, `local_api.rs`, `wizard.rs`, `updater.rs`
+
 ### F2 — Digital Hygiene ⚪ 0%
 **Effort estimé** : 9 jours
 
@@ -816,10 +829,60 @@
 - [x] Couverture 100% des services (10/10 couverts)
 - Tests : 501 → 887 (+386)
 
-### Sprint 7 (Prochain) — PR6
-- [ ] PR6 : SQLite migration (12 fichiers JSON)
+### Sprint 7 (Prochain) — SQLite Migration
+**Objectif** : Finaliser PR6 (95% → 100%) en remplaçant les 12 fichiers JSON par SQLite
 
-### Sprint 8+ (Long terme) — Features
+**Phase 1 — Fondations**
+- [ ] Ajouter `rusqlite` + schema migration system
+- [ ] Créer schéma initial (tables pour chaque data file)
+- [ ] Trait `Storage` abstrait (lecture/écriture générique)
+
+**Phase 2 — Migration progressive (dual-write)**
+- [ ] Migrer `data/modes.json` → SQLite (le plus simple)
+- [ ] Migrer `data/automations.json` + `automations_history.json`
+- [ ] Migrer `data/trust_scores.json`, `data/pending_actions.json`
+- [ ] Migrer `data/notifications.json`, `data/features.json`
+- [ ] Migrer `data/intelligence/` (patterns, samples, predictions)
+
+**Phase 3 — Finalisation**
+- [ ] Retirer les fallback JSON (lecture SQLite uniquement)
+- [ ] Script de migration pour instances existantes
+- [ ] Tests d'intégrité + benchmarks
+
+### Sprint 8 — Agent Host v2
+**Objectif** : Refonte du symbion-agent-host (4/5 → 4.5+/5)
+
+**Architecture**
+- [ ] Plugin system agent-side (trait `AgentPlugin`)
+- [ ] Event bus interne (au lieu du monolithe main.rs 1242 LOC)
+- [ ] Split main.rs en modules (mqtt, heartbeat, commands, lifecycle)
+
+**Monitoring enrichi**
+- [ ] GPU metrics (NVIDIA via nvidia-smi, AMD via rocm-smi)
+- [ ] Battery status (laptops/portables)
+- [ ] Température CPU/GPU détaillée (par core)
+- [ ] Monitoring réseau avancé (latence, débit temps réel)
+- [ ] Disk I/O metrics (read/write throughput)
+
+**Capabilities v2**
+- [ ] File transfer agent↔kernel (petit fichiers, configs)
+- [ ] Screenshot/screen capture à distance
+- [ ] Notification système locale (toast OS natif)
+- [ ] Scheduled tasks agent-side (cron local)
+- [ ] Log streaming (journalctl/Event Viewer → kernel)
+
+**Sécurité & Fiabilité**
+- [ ] Mutual TLS agent↔broker (certificats client)
+- [ ] Command signing (vérification signature kernel)
+- [ ] Watchdog process (redémarrage auto si crash)
+- [ ] Tests unitaires (objectif 50+ tests, actuellement 5)
+
+**Cross-platform**
+- [ ] macOS support complet (launchd, pmset)
+- [ ] Android/Termux amélioré (battery, notifications)
+- [ ] ARM support (Raspberry Pi)
+
+### Sprint 9+ (Long terme) — Features
 - [ ] F3 Intentions Log (type déjà défini)
 - [ ] F2 Digital Hygiene (activity tracking + burnout)
 - [ ] F5 Light Actuator (bridge hardware Tuya)
