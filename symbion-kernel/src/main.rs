@@ -29,6 +29,7 @@ mod decision;
 mod decision_http;
 mod webauthn;
 mod environment;
+mod database;  // Sprint 7: SQLite persistence layer (Phase 1)
 mod dew_point_alerts;  // F1: Physics-based humidity alerts (Magnus dew point formula)
 mod sensors;  // F1: Sensor registry for scalable IoT sensors
 mod environment_http;  // F1: API endpoints for environment monitoring
@@ -248,13 +249,37 @@ async fn main() {
     }
     let agents: SharedAgentRegistry = Arc::new(agent_registry);
 
+    // === SQLite Database (Sprint 7 Phase 1) ===
+    let db: Option<crate::database::SharedDatabase> = match crate::database::Database::open("./data/symbion.db") {
+        Ok(db) => {
+            let db = Arc::new(db);
+            eprintln!("[kernel] SQLite database initialized (WAL mode)");
+            // Import existing JSON data if DB is empty (one-shot migration)
+            if let Err(e) = crate::database::Database::import_json_if_needed(
+                &db,
+                "./data/sensors_environments.json",
+                "./data/automations_history.json",
+            ) {
+                eprintln!("[kernel] JSON import warning (non-fatal): {}", e);
+            }
+            Some(db)
+        }
+        Err(e) => {
+            eprintln!("[kernel] WARNING: SQLite init failed, JSON-only mode: {}", e);
+            None
+        }
+    };
+
     // F1: Sensor Registry pour capteurs environnementaux distribués
-    let sensor_registry_instance = crate::sensors::SensorRegistry::new("./data/sensors.json");
+    let mut sensor_registry_instance = crate::sensors::SensorRegistry::new("./data/sensors.json");
+    if let Some(ref db) = db {
+        sensor_registry_instance = sensor_registry_instance.with_database(db.clone());
+    }
     if let Err(e) = sensor_registry_instance.load_from_disk() {
         eprintln!("[kernel] warning: failed to load sensors from disk: {}", e);
     }
     let sensor_registry = Arc::new(sensor_registry_instance);
-    println!("[kernel] initialized Sensor Registry (F1 Environment)");
+    eprintln!("[kernel] initialized Sensor Registry (F1 Environment)");
 
     // Mode Registry pour modes dynamiques
     let mode_registry = crate::modes::create_shared_registry(std::path::PathBuf::from("./data"));
@@ -304,11 +329,13 @@ async fn main() {
     let notification_config = crate::notification_config::create_shared_config_manager();
     eprintln!("[kernel] initialized Notification Config Manager ({} types)", notification_config.list_all().len());
 
-    // Automations Store
-    let automations_store = Arc::new(
-        crate::automations::AutomationStore::new(std::path::PathBuf::from("./data"))
-            .expect("Failed to initialize automations store")
-    );
+    // Automations Store (with optional SQLite persistence)
+    let mut automations_store = crate::automations::AutomationStore::new(std::path::PathBuf::from("./data"))
+        .expect("Failed to initialize automations store");
+    if let Some(ref db) = db {
+        automations_store = automations_store.with_database(db.clone());
+    }
+    let automations_store = Arc::new(automations_store);
     // Create default system automations if needed (environment alerts, plugin health)
     match automations_store.ensure_system_defaults() {
         Ok(count) if count > 0 => eprintln!("[kernel] created {} default system automations", count),
