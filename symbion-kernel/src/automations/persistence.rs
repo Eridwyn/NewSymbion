@@ -33,6 +33,8 @@ pub struct AutomationStore {
     storage_path: PathBuf,
     history_path: PathBuf,
     dirty: Arc<AtomicBool>,
+    /// SQLite database (None = JSON-only fallback mode)
+    db: Option<crate::database::SharedDatabase>,
 }
 
 impl AutomationStore {
@@ -47,12 +49,20 @@ impl AutomationStore {
             storage_path,
             history_path,
             dirty: Arc::new(AtomicBool::new(false)),
+            db: None,
         };
 
         // Load existing data
         store.load_from_disk()?;
 
         Ok(store)
+    }
+
+    /// Attach a database for SQLite persistence of history.
+    /// If set, history is persisted to DB (primary) + JSON (fallback).
+    pub fn with_database(mut self, db: crate::database::SharedDatabase) -> Self {
+        self.db = Some(db);
+        self
     }
 
     /// Load automations from disk
@@ -333,17 +343,47 @@ impl AutomationStore {
 
     /// Add execution record to history
     pub fn add_history(&self, record: ExecutionRecord) -> Result<()> {
+        // Always keep in-memory copy for API compatibility
         {
             let mut history = self.history.write();
-            // Keep last 1000 records
             if history.len() >= 1000 {
                 history.remove(0);
             }
-            history.push(record);
+            history.push(record.clone());
         }
 
-        self.save_history()?;
+        // Try SQLite first (if configured)
+        if let Some(ref db) = self.db {
+            let actions_json = serde_json::to_string(&record.actions_executed)
+                .unwrap_or_else(|_| "[]".to_string());
 
+            let executed_at = record.executed_at
+                .format(&time::format_description::well_known::Rfc3339)
+                .unwrap_or_default();
+
+            let row = crate::database::automation_queries::HistoryRow {
+                automation_id: record.automation_id,
+                automation_name: record.automation_name,
+                executed_at,
+                trigger_event: record.trigger_event,
+                conditions_met: record.conditions_met,
+                success: record.success,
+                error: record.error,
+                trust_score: record.trust_score.map(|s| s as f64),
+                decision_outcome: record.decision_outcome,
+                actions_json,
+            };
+
+            match crate::database::automation_queries::insert_history(db, &row) {
+                Ok(_) => return Ok(()),
+                Err(e) => {
+                    eprintln!("[automations] SQLite history insert failed, falling back to JSON: {}", e);
+                }
+            }
+        }
+
+        // JSON fallback
+        self.save_history()?;
         Ok(())
     }
 

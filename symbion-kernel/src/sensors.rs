@@ -128,6 +128,9 @@ pub struct SensorRegistry {
 
     /// Dirty flag for debounced environment persistence
     dirty_env: Arc<AtomicBool>,
+
+    /// SQLite database (None = JSON-only fallback mode)
+    db: Option<crate::database::SharedDatabase>,
 }
 
 /// Shared reference to SensorRegistry (thread-safe)
@@ -145,7 +148,15 @@ impl SensorRegistry {
             persistence_path: path_str,
             persistence_env_path: env_path,
             dirty_env: Arc::new(AtomicBool::new(false)),
+            db: None,
         }
+    }
+
+    /// Attach a database for SQLite persistence.
+    /// If set, environments are persisted to DB (primary) + JSON (fallback).
+    pub fn with_database(mut self, db: crate::database::SharedDatabase) -> Self {
+        self.db = Some(db);
+        self
     }
 
     /// Register or update a sensor (auto-registration via MQTT)
@@ -383,7 +394,7 @@ impl SensorRegistry {
         Ok(())
     }
 
-    /// Save environments to disk (JSON persistence, debounced)
+    /// Save environments (SQLite primary, JSON fallback, debounced)
     /// Call this periodically (e.g., every 5 minutes) to persist history
     pub fn save_environments_to_disk(&self) -> Result<()> {
         // Only save if dirty flag is set
@@ -391,6 +402,22 @@ impl SensorRegistry {
             return Ok(());
         }
 
+        // Try SQLite first (if configured)
+        if let Some(ref db) = self.db {
+            match self.save_environments_to_db(db) {
+                Ok(count) => {
+                    self.dirty_env.store(false, Ordering::Relaxed);
+                    eprintln!("[sensors] saved {} environment readings to SQLite", count);
+                    return Ok(());
+                }
+                Err(e) => {
+                    eprintln!("[sensors] SQLite save failed, falling back to JSON: {}", e);
+                    // Fall through to JSON
+                }
+            }
+        }
+
+        // JSON fallback (original code)
         let environments = self.environments.read();
         let json = serde_json::to_string_pretty(&*environments)?;
         let json_size_kb = json.len() / 1024;
@@ -399,13 +426,41 @@ impl SensorRegistry {
         // Clear dirty flag
         self.dirty_env.store(false, Ordering::Relaxed);
 
-        println!(
-            "[sensors] saved {} environment histories to disk (~{} KB)",
+        eprintln!(
+            "[sensors] saved {} environment histories to JSON (~{} KB)",
             environments.len(),
             json_size_kb
         );
 
         Ok(())
+    }
+
+    /// Save current environment readings to SQLite.
+    fn save_environments_to_db(&self, db: &crate::database::Database) -> Result<usize> {
+        use crate::database::sensor_queries::{insert_readings, EnvRow};
+
+        let environments = self.environments.read();
+        let sensors = self.sensors.read();
+
+        let mut rows = Vec::new();
+        for (sensor_id, env_state) in environments.iter() {
+            let room_id = sensors.get(sensor_id)
+                .map(|s| s.room_id.clone())
+                .unwrap_or_else(|| env_state.room_id.clone());
+
+            // Save current reading (new since last save)
+            let status_str = format!("{:?}", env_state.status).to_lowercase();
+            rows.push(EnvRow {
+                sensor_id: sensor_id.clone(),
+                room_id,
+                temperature_c: env_state.current.temperature_c.map(|t| t as f64),
+                humidity_pct: env_state.current.humidity_pct.map(|h| h as f64),
+                status: status_str,
+                recorded_at: env_state.current.timestamp.to_rfc3339(),
+            });
+        }
+
+        insert_readings(db, &rows)
     }
 
     /// Load registry from disk
@@ -439,8 +494,25 @@ impl SensorRegistry {
         Ok(())
     }
 
-    /// Load environments from disk
+    /// Load environments (SQLite primary, JSON fallback)
     fn load_environments_from_disk(&self) -> Result<()> {
+        // Try SQLite first (if configured)
+        if let Some(ref db) = self.db {
+            match self.load_environments_from_db(db) {
+                Ok(count) if count > 0 => {
+                    eprintln!("[sensors] loaded {} environment histories from SQLite", count);
+                    return Ok(());
+                }
+                Ok(_) => {
+                    eprintln!("[sensors] SQLite empty, trying JSON fallback");
+                }
+                Err(e) => {
+                    eprintln!("[sensors] SQLite load failed, falling back to JSON: {}", e);
+                }
+            }
+        }
+
+        // JSON fallback (original code)
         if !Path::new(&self.persistence_env_path).exists() {
             return Ok(()); // No environment file yet, skip
         }
@@ -452,19 +524,53 @@ impl SensorRegistry {
         // (serde skips max_history, and status needs re-eval with latest logic)
         for env_state in environments.values_mut() {
             env_state.fix_max_history();
-            env_state.recalculate_status(); // Ensure status reflects current eval logic
+            env_state.recalculate_status();
         }
 
-        println!(
-            "[sensors] loaded {} environment histories from disk (~{} KB)",
+        eprintln!(
+            "[sensors] loaded {} environment histories from JSON (~{} KB)",
             environments.len(),
             json.len() / 1024
         );
 
-        // Restore environment states
         *self.environments.write() = environments;
 
         Ok(())
+    }
+
+    /// Load environments from SQLite into in-memory state.
+    fn load_environments_from_db(&self, db: &crate::database::Database) -> Result<usize> {
+        use crate::database::sensor_queries::load_latest_per_sensor;
+
+        // Load latest 20160 readings per sensor (7 days at 30s intervals)
+        let rows = load_latest_per_sensor(db, 20160)?;
+        if rows.is_empty() {
+            return Ok(0);
+        }
+
+        let mut environments: HashMap<String, RoomEnvironmentState> = HashMap::new();
+
+        for row in &rows {
+            let env_state = environments
+                .entry(row.sensor_id.clone())
+                .or_insert_with(|| RoomEnvironmentState::new(row.room_id.clone()));
+
+            let timestamp = chrono::DateTime::parse_from_rfc3339(&row.recorded_at)
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .unwrap_or_else(|_| chrono::Utc::now());
+
+            let reading = EnvReading {
+                temperature_c: row.temperature_c.map(|t| t as f32),
+                humidity_pct: row.humidity_pct.map(|h| h as f32),
+                timestamp,
+            };
+            env_state.update(reading);
+        }
+
+        let count = environments.len();
+        *self.environments.write() = environments;
+
+        Ok(count)
     }
 
     /// Get count of registered sensors (exclut les soft-deleted)
