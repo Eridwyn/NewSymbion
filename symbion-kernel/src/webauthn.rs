@@ -53,6 +53,8 @@ pub struct WebAuthnManager {
     /// États d'authentification temporaires (challenge -> state)
     authentication_states: Arc<RwLock<HashMap<String, AuthenticationState>>>,
     storage_path: PathBuf,
+    /// SQLite database (None = JSON-only fallback mode)
+    db: Option<crate::database::SharedDatabase>,
 }
 
 impl WebAuthnManager {
@@ -84,7 +86,63 @@ impl WebAuthnManager {
             registration_states: Arc::new(RwLock::new(HashMap::new())),
             authentication_states: Arc::new(RwLock::new(HashMap::new())),
             storage_path,
+            db: None,
         })
+    }
+
+    /// Attach a database for SQLite persistence.
+    pub fn with_database(mut self, db: crate::database::SharedDatabase) -> Self {
+        let count = crate::database::auth_queries::count_credentials(&db).unwrap_or(0);
+        if count > 0 {
+            let rows = crate::database::auth_queries::list_all_credentials(&db).unwrap_or_default();
+            let mut creds: HashMap<String, Vec<StoredCredential>> = HashMap::new();
+            for row in rows {
+                let credential: Passkey = match serde_json::from_str(&row.credential_json) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!("[webauthn] Failed to parse credential from DB: {}", e);
+                        continue;
+                    }
+                };
+                let stored = StoredCredential {
+                    username: row.username.clone(),
+                    credential_id: row.credential_id,
+                    credential,
+                    friendly_name: row.friendly_name,
+                    created_at: row.created_at,
+                    last_used_at: row.last_used_at,
+                };
+                creds.entry(row.username).or_default().push(stored);
+            }
+            eprintln!("[webauthn] Loaded {} users with passkeys from SQLite", creds.len());
+            *self.credentials.write() = creds;
+        } else {
+            // Seed DB from in-memory data
+            self.persist_to_db(&db);
+        }
+        self.db = Some(db);
+        self
+    }
+
+    /// Persist all credentials to SQLite
+    fn persist_to_db(&self, db: &crate::database::SharedDatabase) {
+        let creds = self.credentials.read();
+        for (_, user_creds) in creds.iter() {
+            for cred in user_creds {
+                let credential_json = serde_json::to_string(&cred.credential)
+                    .unwrap_or_else(|_| "{}".to_string());
+                let row = crate::database::auth_queries::WebauthnRow {
+                    id: None,
+                    username: cred.username.clone(),
+                    credential_id: cred.credential_id.clone(),
+                    credential_json,
+                    friendly_name: cred.friendly_name.clone(),
+                    created_at: cred.created_at,
+                    last_used_at: cred.last_used_at,
+                };
+                let _ = crate::database::auth_queries::insert_credential(db, &row);
+            }
+        }
     }
 
     /// Charge les credentials depuis le fichier JSON
@@ -104,8 +162,20 @@ impl WebAuthnManager {
         Ok(creds)
     }
 
-    /// Sauvegarde les credentials dans le fichier JSON
+    /// Sauvegarde les credentials (DB-primary, JSON-fallback)
     fn save_credentials(&self) -> Result<()> {
+        // Try SQLite first
+        if let Some(ref db) = self.db {
+            self.persist_to_db(db);
+            // Always write JSON as backup
+            let _ = self.save_credentials_json();
+            return Ok(());
+        }
+        self.save_credentials_json()
+    }
+
+    /// JSON-only save (fallback)
+    fn save_credentials_json(&self) -> Result<()> {
         let creds = self.credentials.read();
         let json = serde_json::to_string_pretty(&*creds)
             .context("Failed to serialize credentials")?;

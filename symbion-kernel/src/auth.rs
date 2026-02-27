@@ -83,6 +83,8 @@ pub struct AuthManager {
     decoding_key: DecodingKey,
     // Rate limiting: username -> Vec of attempt timestamps
     login_attempts: Arc<RwLock<HashMap<String, Vec<i64>>>>,
+    /// SQLite database (None = JSON-only fallback mode)
+    db: Option<crate::database::SharedDatabase>,
 }
 
 impl AuthManager {
@@ -95,7 +97,58 @@ impl AuthManager {
             encoding_key: EncodingKey::from_secret(jwt_secret.as_bytes()),
             decoding_key: DecodingKey::from_secret(jwt_secret.as_bytes()),
             login_attempts: Arc::new(RwLock::new(HashMap::new())),
+            db: None,
         })
+    }
+
+    /// Attach a database for SQLite persistence.
+    /// If the DB already has users, reloads from it.
+    pub fn with_database(mut self, db: crate::database::SharedDatabase) -> Self {
+        // Try to load from DB if it has data
+        match crate::database::auth_queries::count_users(&db) {
+            Ok(count) if count > 0 => {
+                match crate::database::auth_queries::list_users(&db) {
+                    Ok(rows) => {
+                        let mut users = HashMap::new();
+                        for row in rows {
+                            let mfa_config = row.mfa_config_json.as_deref()
+                                .and_then(|s| serde_json::from_str(s).ok());
+                            users.insert(row.username.clone(), User {
+                                username: row.username,
+                                password_hash: row.password_hash,
+                                role: row.role,
+                                created_at: row.created_at,
+                                mfa_config,
+                            });
+                        }
+                        eprintln!("[auth] Loaded {} users from SQLite", users.len());
+                        *self.users.write() = users;
+                    }
+                    Err(e) => eprintln!("[auth] SQLite load failed, using JSON: {}", e),
+                }
+            }
+            _ => {
+                // DB empty — seed from in-memory data (loaded from JSON)
+                let users = self.users.read();
+                for user in users.values() {
+                    let mfa_json = user.mfa_config.as_ref()
+                        .and_then(|m| serde_json::to_string(m).ok());
+                    let row = crate::database::auth_queries::UserRow {
+                        username: user.username.clone(),
+                        password_hash: user.password_hash.clone(),
+                        role: user.role.clone(),
+                        created_at: user.created_at,
+                        mfa_config_json: mfa_json,
+                    };
+                    let _ = crate::database::auth_queries::upsert_user(&db, &row);
+                }
+                if !users.is_empty() {
+                    eprintln!("[auth] Seeded {} users to SQLite", users.len());
+                }
+            }
+        }
+        self.db = Some(db);
+        self
     }
 
     fn load_users() -> Result<HashMap<String, User>> {
@@ -133,8 +186,38 @@ impl AuthManager {
         Ok(users)
     }
 
-    /// Save users to users.json file
+    /// Save users — DB primary, JSON fallback.
     fn save_users(&self, users: &HashMap<String, User>) -> Result<()> {
+        // Try SQLite first
+        if let Some(ref db) = self.db {
+            let mut db_ok = true;
+            for (_, user) in users {
+                let row = crate::database::auth_queries::UserRow {
+                    username: user.username.clone(),
+                    password_hash: user.password_hash.clone(),
+                    role: user.role.clone(),
+                    created_at: user.created_at,
+                    mfa_config_json: user.mfa_config.as_ref()
+                        .map(|c| serde_json::to_string(c).unwrap_or_default()),
+                };
+                if let Err(e) = crate::database::auth_queries::upsert_user(db, &row) {
+                    eprintln!("[auth] SQLite save failed, falling back to JSON: {}", e);
+                    db_ok = false;
+                    break;
+                }
+            }
+            if db_ok {
+                // Also write JSON as backup
+                let _ = self.save_users_json(users);
+                return Ok(());
+            }
+        }
+
+        // JSON fallback
+        self.save_users_json(users)
+    }
+
+    fn save_users_json(&self, users: &HashMap<String, User>) -> Result<()> {
         let json = serde_json::to_string_pretty(users)
             .context("Failed to serialize users")?;
         fs::write(USERS_FILE, json)
@@ -387,11 +470,7 @@ impl AuthManager {
 
         users.insert(username_lower.clone(), user);
 
-        // Save to file
-        let json = serde_json::to_string_pretty(&*users)
-            .context("Failed to serialize users")?;
-        fs::write(USERS_FILE, json)
-            .context("Failed to write users file")?;
+        self.save_users(&users)?;
 
         println!("[auth] User '{}' created with role '{}'", username_lower, role);
         Ok(())
@@ -416,11 +495,7 @@ impl AuthManager {
 
         user.mfa_config = mfa_config;
 
-        // Sauvegarder dans le fichier
-        let json = serde_json::to_string_pretty(&*users)
-            .context("Failed to serialize users")?;
-        fs::write(USERS_FILE, json)
-            .context("Failed to write users file")?;
+        self.save_users(&users)?;
 
         println!("[auth] MFA config updated for user '{}'", username_lower);
         Ok(())
@@ -456,11 +531,7 @@ impl AuthManager {
 
         user.password_hash = password_hash;
 
-        // Sauvegarder dans le fichier
-        let json = serde_json::to_string_pretty(&*users)
-            .context("Failed to serialize users")?;
-        fs::write(USERS_FILE, json)
-            .context("Failed to write users file")?;
+        self.save_users(&users)?;
 
         println!("[auth] Password updated for user '{}'", username_lower);
         Ok(())
@@ -489,11 +560,11 @@ impl AuthManager {
 
         users.remove(&username_lower);
 
-        // Sauvegarder dans le fichier
-        let json = serde_json::to_string_pretty(&*users)
-            .context("Failed to serialize users")?;
-        fs::write(USERS_FILE, json)
-            .context("Failed to write users file")?;
+        // Delete from DB if available
+        if let Some(ref db) = self.db {
+            let _ = crate::database::auth_queries::delete_user(db, &username_lower);
+        }
+        self.save_users(&users)?;
 
         println!("[auth] User '{}' deleted", username_lower);
         Ok(())

@@ -105,6 +105,8 @@ pub struct NotificationManager {
     rate_limits: Arc<Mutex<HashMap<String, (Instant, u32)>>>,
     /// Deduplication: recent content hashes with timestamp
     recent_hashes: Arc<Mutex<Vec<(u64, Instant)>>>,
+    /// SQLite database (None = JSON-only fallback mode)
+    db: Option<crate::database::SharedDatabase>,
 }
 
 #[derive(Debug, Clone)]
@@ -184,6 +186,7 @@ impl NotificationManager {
             mqtt_client,
             rate_limits: Arc::new(Mutex::new(HashMap::new())),
             recent_hashes: Arc::new(Mutex::new(Vec::new())),
+            db: None,
         };
 
         if history_count > 0 {
@@ -191,6 +194,74 @@ impl NotificationManager {
         }
 
         manager
+    }
+
+    /// Attach a database for SQLite persistence.
+    pub fn with_database(mut self, db: crate::database::SharedDatabase) -> Self {
+        let count = crate::database::notification_queries::count_notifications(&db).unwrap_or(0);
+        if count > 0 {
+            let rows = crate::database::notification_queries::list_notifications(&db, 10000).unwrap_or_default();
+            let mut notifs = Vec::new();
+            for row in rows {
+                let priority = match row.priority.as_str() {
+                    "P0" => NotificationPriority::P0,
+                    "P1" => NotificationPriority::P1,
+                    _ => NotificationPriority::P2,
+                };
+                let timestamp = time::OffsetDateTime::parse(&row.timestamp,
+                    &time::format_description::well_known::Rfc3339)
+                    .unwrap_or_else(|_| time::OffsetDateTime::now_utc());
+                let actions: Vec<NotificationAction> = serde_json::from_str(&row.actions_json)
+                    .unwrap_or_default();
+                let data: Option<serde_json::Value> = row.data_json
+                    .as_deref()
+                    .and_then(|j| serde_json::from_str(j).ok());
+
+                notifs.push(Notification {
+                    id: row.id,
+                    priority,
+                    title: row.title,
+                    body: row.body,
+                    source: row.source,
+                    timestamp,
+                    acknowledged: row.acknowledged,
+                    acknowledged_at: row.acknowledged_at,
+                    actions,
+                    data,
+                });
+            }
+            eprintln!("[notifications] Loaded {} notifications from SQLite", notifs.len());
+            *self.history.lock().unwrap() = notifs;
+        } else {
+            // Seed DB from in-memory data
+            self.persist_to_db(&db);
+        }
+        self.db = Some(db);
+        self
+    }
+
+    /// Persist all notifications to SQLite
+    fn persist_to_db(&self, db: &crate::database::SharedDatabase) {
+        let history = self.history.lock().unwrap();
+        for n in history.iter() {
+            let timestamp = n.timestamp.format(&time::format_description::well_known::Rfc3339)
+                .unwrap_or_default();
+            let actions_json = serde_json::to_string(&n.actions).unwrap_or_else(|_| "[]".to_string());
+            let data_json = n.data.as_ref().and_then(|d| serde_json::to_string(d).ok());
+            let row = crate::database::notification_queries::NotificationRow {
+                id: n.id.clone(),
+                priority: format!("{:?}", n.priority),
+                title: n.title.clone(),
+                body: n.body.clone(),
+                source: n.source.clone(),
+                timestamp,
+                acknowledged: n.acknowledged,
+                acknowledged_at: n.acknowledged_at,
+                actions_json,
+                data_json,
+            };
+            let _ = crate::database::notification_queries::insert_notification(db, &row);
+        }
     }
 
     /// Charge les notifications depuis le fichier JSON
@@ -204,8 +275,20 @@ impl NotificationManager {
         }
     }
 
-    /// Sauvegarde les notifications dans le fichier JSON
+    /// Sauvegarde les notifications (DB-primary, JSON-fallback)
     fn save_to_file(&self) {
+        // Try SQLite first
+        if let Some(ref db) = self.db {
+            self.persist_to_db(db);
+            // Always write JSON as backup
+            self.save_to_file_json();
+            return;
+        }
+        self.save_to_file_json();
+    }
+
+    /// JSON-only save (fallback)
+    fn save_to_file_json(&self) {
         let history = self.history.lock().unwrap();
 
         // Create directory if needed

@@ -88,15 +88,79 @@ pub struct VariableInfo {
 /// Manager de configuration des notifications
 pub struct NotificationConfigManager {
     configs: Arc<RwLock<HashMap<String, NotificationTypeConfig>>>,
+    /// SQLite database (None = JSON-only fallback mode)
+    db: Option<crate::database::SharedDatabase>,
 }
 
 impl NotificationConfigManager {
     pub fn new() -> Self {
         let mut manager = Self {
             configs: Arc::new(RwLock::new(HashMap::new())),
+            db: None,
         };
         manager.load_or_init_defaults();
         manager
+    }
+
+    /// Attach a database for SQLite persistence.
+    pub fn with_database(mut self, db: crate::database::SharedDatabase) -> Self {
+        let count = crate::database::config_queries::count_notif_configs(&db).unwrap_or(0);
+        if count > 0 {
+            let rows = crate::database::config_queries::list_notif_configs(&db).unwrap_or_default();
+            let mut map = self.configs.write().unwrap();
+            for row in rows {
+                let category: NotificationCategory = serde_json::from_str(&format!("\"{}\"", row.category))
+                    .unwrap_or(NotificationCategory::System);
+                let priority: NotificationPriority = serde_json::from_str(&format!("\"{}\"", row.priority))
+                    .unwrap_or_default();
+                let available_variables: Vec<VariableInfo> = serde_json::from_str(&row.available_variables_json)
+                    .unwrap_or_default();
+                map.insert(row.type_id.clone(), NotificationTypeConfig {
+                    type_id: row.type_id,
+                    display_name: row.display_name,
+                    description: row.description,
+                    category,
+                    enabled: row.enabled,
+                    title_template: row.title_template,
+                    body_template: row.body_template,
+                    priority,
+                    available_variables,
+                });
+            }
+            drop(map);
+            // Add missing defaults that might be new
+            self.add_missing_defaults();
+            eprintln!("[notification-config] Loaded {} configs from SQLite", count);
+        } else {
+            // Seed DB from in-memory data
+            self.persist_all_to_db(&db);
+        }
+        self.db = Some(db);
+        self
+    }
+
+    /// Persist all configs to SQLite
+    fn persist_all_to_db(&self, db: &crate::database::SharedDatabase) {
+        let configs = self.configs.read().unwrap();
+        for config in configs.values() {
+            let row = crate::database::config_queries::NotifConfigRow {
+                type_id: config.type_id.clone(),
+                display_name: config.display_name.clone(),
+                description: config.description.clone(),
+                category: serde_json::to_string(&config.category)
+                    .unwrap_or_else(|_| "\"system\"".to_string())
+                    .trim_matches('"').to_string(),
+                enabled: config.enabled,
+                title_template: config.title_template.clone(),
+                body_template: config.body_template.clone(),
+                priority: serde_json::to_string(&config.priority)
+                    .unwrap_or_else(|_| "\"P2\"".to_string())
+                    .trim_matches('"').to_string(),
+                available_variables_json: serde_json::to_string(&config.available_variables)
+                    .unwrap_or_else(|_| "[]".to_string()),
+            };
+            let _ = crate::database::config_queries::upsert_notif_config(db, &row);
+        }
     }
 
     /// Charge les configs depuis le fichier ou initialise les défauts
@@ -328,8 +392,21 @@ impl NotificationConfigManager {
         ]
     }
 
-    /// Sauvegarde les configs dans le fichier
+    /// Sauvegarde les configs (DB-primary, JSON-fallback)
     fn save_to_file(&self) {
+        // Try SQLite first
+        if let Some(ref db) = self.db {
+            self.persist_all_to_db(db);
+            // Always write JSON as backup
+            let _ = self.save_to_file_json();
+            return;
+        }
+
+        let _ = self.save_to_file_json();
+    }
+
+    /// JSON-only save (fallback)
+    fn save_to_file_json(&self) -> Result<(), String> {
         let configs = self.configs.read().unwrap();
         let list: Vec<&NotificationTypeConfig> = configs.values().collect();
 
@@ -341,12 +418,17 @@ impl NotificationConfigManager {
             Ok(json) => {
                 if let Err(e) = std::fs::write(CONFIG_FILE, json) {
                     eprintln!("[notification-config] Failed to save: {}", e);
+                    return Err(format!("Failed to save: {}", e));
                 } else {
                     println!("[notification-config] Saved {} configs", list.len());
                 }
             }
-            Err(e) => eprintln!("[notification-config] Serialize error: {}", e),
+            Err(e) => {
+                eprintln!("[notification-config] Serialize error: {}", e);
+                return Err(format!("Serialize error: {}", e));
+            }
         }
+        Ok(())
     }
 
     // === API publique ===

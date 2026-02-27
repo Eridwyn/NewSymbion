@@ -127,6 +127,8 @@ pub struct TrustTracker {
     min_modifier: f32,
     /// Half-life in days for temporal decay of modifiers
     decay_half_life_days: f32,
+    /// SQLite database (None = JSON-only fallback mode)
+    db: Option<crate::database::SharedDatabase>,
 }
 
 impl TrustTracker {
@@ -154,7 +156,95 @@ impl TrustTracker {
             max_modifier,
             min_modifier: -max_modifier,
             decay_half_life_days,
+            db: None,
         }
+    }
+
+    /// Attach a database for SQLite persistence.
+    pub fn with_database(mut self, db: crate::database::SharedDatabase) -> Self {
+        let action_count = crate::database::trust_queries::count_action_stats(&db).unwrap_or(0);
+        if action_count > 0 {
+            // Load from DB
+            let action_rows = crate::database::trust_queries::list_action_stats(&db).unwrap_or_default();
+            let agent_rows = crate::database::trust_queries::list_agent_stats(&db).unwrap_or_default();
+
+            let mut stats = self.stats.write().unwrap();
+            stats.action_stats.clear();
+            for row in action_rows {
+                stats.action_stats.insert(row.action_type.clone(), ActionTrustStats {
+                    action_type: row.action_type,
+                    total_executions: row.total_executions as u64,
+                    successful: row.successful as u64,
+                    failed: row.failed as u64,
+                    blocked: row.blocked as u64,
+                    current_trust_modifier: row.current_trust_modifier as f32,
+                    last_updated: OffsetDateTime::parse(&row.last_updated,
+                        &time::format_description::well_known::Rfc3339).unwrap_or_else(|_| OffsetDateTime::now_utc()),
+                });
+            }
+            stats.agent_stats.clear();
+            for row in agent_rows {
+                stats.agent_stats.insert(row.agent_id.clone(), AgentTrustStats {
+                    agent_id: row.agent_id,
+                    total_commands: row.total_commands as u64,
+                    successful: row.successful as u64,
+                    failed: row.failed as u64,
+                    current_trust_modifier: row.current_trust_modifier as f32,
+                    last_updated: OffsetDateTime::parse(&row.last_updated,
+                        &time::format_description::well_known::Rfc3339).unwrap_or_else(|_| OffsetDateTime::now_utc()),
+                });
+            }
+
+            // Load global counters
+            if let Ok(Some(val)) = crate::database::trust_queries::get_trust_global(&db, "total_decisions") {
+                stats.total_decisions = val.parse().unwrap_or(0);
+            }
+            if let Ok(Some(val)) = crate::database::trust_queries::get_trust_global(&db, "last_updated") {
+                stats.last_updated = OffsetDateTime::parse(&val,
+                    &time::format_description::well_known::Rfc3339).unwrap_or_else(|_| OffsetDateTime::now_utc());
+            }
+
+            eprintln!("[trust_tracker] Loaded {} action stats + {} agent stats from SQLite",
+                stats.action_stats.len(), stats.agent_stats.len());
+        } else {
+            // Seed DB from in-memory data
+            self.persist_to_db(&db);
+        }
+        self.db = Some(db);
+        self
+    }
+
+    /// Persist all stats to SQLite
+    fn persist_to_db(&self, db: &crate::database::SharedDatabase) {
+        let stats = self.stats.read().unwrap();
+        for s in stats.action_stats.values() {
+            let row = crate::database::trust_queries::ActionStatsRow {
+                action_type: s.action_type.clone(),
+                total_executions: s.total_executions as i64,
+                successful: s.successful as i64,
+                failed: s.failed as i64,
+                blocked: s.blocked as i64,
+                current_trust_modifier: s.current_trust_modifier as f64,
+                last_updated: s.last_updated.format(&time::format_description::well_known::Rfc3339)
+                    .unwrap_or_default(),
+            };
+            let _ = crate::database::trust_queries::upsert_action_stats(db, &row);
+        }
+        for s in stats.agent_stats.values() {
+            let row = crate::database::trust_queries::AgentStatsRow {
+                agent_id: s.agent_id.clone(),
+                total_commands: s.total_commands as i64,
+                successful: s.successful as i64,
+                failed: s.failed as i64,
+                current_trust_modifier: s.current_trust_modifier as f64,
+                last_updated: s.last_updated.format(&time::format_description::well_known::Rfc3339)
+                    .unwrap_or_default(),
+            };
+            let _ = crate::database::trust_queries::upsert_agent_stats(db, &row);
+        }
+        let _ = crate::database::trust_queries::set_trust_global(db, "total_decisions", &stats.total_decisions.to_string());
+        let _ = crate::database::trust_queries::set_trust_global(db, "last_updated",
+            &stats.last_updated.format(&time::format_description::well_known::Rfc3339).unwrap_or_default());
     }
 
     /// Load stats from file or create default
@@ -359,19 +449,34 @@ impl TrustTracker {
         }
     }
 
-    /// Save stats to disk
+    /// Save stats to disk (DB-primary, JSON-fallback)
     fn save(&self) {
+        // Try SQLite first
+        if let Some(ref db) = self.db {
+            self.persist_to_db(db);
+            // Always write JSON as backup
+            let _ = self.save_json();
+            return;
+        }
+        let _ = self.save_json();
+    }
+
+    /// JSON-only save (fallback)
+    fn save_json(&self) -> Result<(), String> {
         let stats = self.stats.read().unwrap();
         match serde_json::to_string_pretty(&*stats) {
             Ok(json) => {
                 if let Err(e) = fs::write(&self.data_file, json) {
                     eprintln!("[trust_tracker] failed to save stats: {}", e);
+                    return Err(e.to_string());
                 }
             }
             Err(e) => {
                 eprintln!("[trust_tracker] failed to serialize stats: {}", e);
+                return Err(e.to_string());
             }
         }
+        Ok(())
     }
 }
 

@@ -13,6 +13,8 @@ use time::{OffsetDateTime, Time};
 pub struct ScheduleRegistry {
     schedule: RwLock<Schedule>,
     persistence_path: PathBuf,
+    /// SQLite database (None = JSON-only fallback mode)
+    db: Option<crate::database::SharedDatabase>,
 }
 
 impl ScheduleRegistry {
@@ -22,12 +24,78 @@ impl ScheduleRegistry {
         let registry = Self {
             schedule: RwLock::new(Schedule::default()),
             persistence_path,
+            db: None,
         };
 
         // Charger depuis le disque
         registry.load_from_disk();
 
         registry
+    }
+
+    /// Attach a database for SQLite persistence.
+    pub fn with_database(mut self, db: crate::database::SharedDatabase) -> Self {
+        // Load from DB if it has data
+        let count = crate::database::config_queries::count_schedule_rules(&db).unwrap_or(0);
+        if count > 0 {
+            let rows = crate::database::config_queries::list_schedule_rules(&db).unwrap_or_default();
+            let default_mode = crate::database::config_queries::get_schedule_config(&db, "default_mode_id")
+                .unwrap_or(None)
+                .unwrap_or_else(|| "veille".to_string());
+
+            let mut rules = Vec::new();
+            for row in rows {
+                let days: Vec<u8> = serde_json::from_str(&row.days_json).unwrap_or_default();
+
+                rules.push(ScheduleRule {
+                    id: row.id,
+                    mode_id: row.mode_id,
+                    days,
+                    start_time: row.start_time,
+                    end_time: row.end_time,
+                    priority: row.priority as u8,
+                    enabled: row.enabled,
+                    name: row.name,
+                    created_at: OffsetDateTime::parse(&row.created_at,
+                        &time::format_description::well_known::Rfc3339).unwrap_or_else(|_| OffsetDateTime::now_utc()),
+                });
+            }
+
+            let mut schedule = self.schedule.write();
+            schedule.rules = rules;
+            schedule.default_mode_id = default_mode;
+            eprintln!("[schedule] Loaded {} rules from SQLite", count);
+        } else {
+            // Seed DB from in-memory data (loaded from JSON)
+            self.persist_to_db(&db);
+        }
+
+        self.db = Some(db);
+        self
+    }
+
+    /// Persist current state to SQLite
+    fn persist_to_db(&self, db: &crate::database::SharedDatabase) {
+        let schedule = self.schedule.read();
+        for rule in &schedule.rules {
+            let days_json = serde_json::to_string(&rule.days).unwrap_or_else(|_| "[]".to_string());
+            let created_at = rule.created_at.format(&time::format_description::well_known::Rfc3339)
+                .unwrap_or_default();
+
+            let row = crate::database::config_queries::ScheduleRuleRow {
+                id: rule.id.clone(),
+                mode_id: rule.mode_id.clone(),
+                days_json,
+                start_time: rule.start_time.clone(),
+                end_time: rule.end_time.clone(),
+                priority: rule.priority as i32,
+                enabled: rule.enabled,
+                name: rule.name.clone(),
+                created_at,
+            };
+            let _ = crate::database::config_queries::upsert_schedule_rule(db, &row);
+        }
+        let _ = crate::database::config_queries::set_schedule_config(db, "default_mode_id", &schedule.default_mode_id);
     }
 
     /// Charge le planning depuis le disque
@@ -57,8 +125,21 @@ impl ScheduleRegistry {
         }
     }
 
-    /// Sauvegarde le planning sur le disque
+    /// Sauvegarde le planning sur le disque (DB-primary, JSON-fallback)
     fn save_to_disk(&self) -> Result<(), String> {
+        // Try SQLite first
+        if let Some(ref db) = self.db {
+            self.persist_to_db(db);
+            // Always write JSON as backup
+            let _ = self.save_to_disk_json();
+            return Ok(());
+        }
+
+        self.save_to_disk_json()
+    }
+
+    /// JSON-only save (fallback)
+    fn save_to_disk_json(&self) -> Result<(), String> {
         let schedule = self.schedule.read();
 
         // Créer le répertoire parent si nécessaire
@@ -199,6 +280,11 @@ impl ScheduleRegistry {
         let removed = schedule.rules.remove(idx);
         drop(schedule);
 
+        // Delete from DB explicitly
+        if let Some(ref db) = self.db {
+            let _ = crate::database::config_queries::delete_schedule_rule(db, id);
+        }
+
         self.save_to_disk()?;
         eprintln!(
             "[schedule] Deleted rule: {} ({})",
@@ -214,6 +300,11 @@ impl ScheduleRegistry {
         {
             let mut schedule = self.schedule.write();
             schedule.default_mode_id = mode_id.clone();
+        }
+
+        // Persist default_mode to DB
+        if let Some(ref db) = self.db {
+            let _ = crate::database::config_queries::set_schedule_config(db, "default_mode_id", &mode_id);
         }
 
         self.save_to_disk()?;

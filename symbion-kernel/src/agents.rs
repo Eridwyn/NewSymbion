@@ -269,6 +269,8 @@ pub struct AgentRegistry {
     dirty: Arc<std::sync::atomic::AtomicBool>,
     /// Dispatcher pour événements automations
     automation_dispatcher: Arc<tokio::sync::RwLock<Option<crate::automations::EventDispatcher>>>,
+    /// SQLite database (None = JSON-only fallback mode)
+    db: Option<crate::database::SharedDatabase>,
 }
 
 impl AgentRegistry {
@@ -280,6 +282,80 @@ impl AgentRegistry {
             pending_commands: Arc::new(RwLock::new(HashMap::new())),
             dirty: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             automation_dispatcher: Arc::new(tokio::sync::RwLock::new(None)),
+            db: None,
+        }
+    }
+
+    /// Set database for SQLite persistence (called after construction).
+    pub async fn set_database(&mut self, db: crate::database::SharedDatabase) {
+        let count = crate::database::agent_queries::count_agents(&db).unwrap_or(0);
+        if count > 0 {
+            let rows = crate::database::agent_queries::list_agents(&db).unwrap_or_default();
+            let mut agents = HashMap::new();
+            for row in rows {
+                let capabilities: Vec<String> = serde_json::from_str(&row.capabilities_json)
+                    .unwrap_or_default();
+                let network: AgentNetwork = serde_json::from_str(&row.network_json)
+                    .unwrap_or_else(|_| AgentNetwork { primary_mac: String::new(), interfaces: vec![] });
+                let status: AgentStatus = serde_json::from_str(&row.status_json)
+                    .unwrap_or_else(|_| AgentStatus { status: "unknown".to_string(), last_heartbeat: None, system: None, processes: None, services: None });
+                let last_seen = OffsetDateTime::parse(&row.last_seen,
+                    &time::format_description::well_known::Rfc3339).unwrap_or_else(|_| OffsetDateTime::now_utc());
+                let registration_time = OffsetDateTime::parse(&row.registration_time,
+                    &time::format_description::well_known::Rfc3339).unwrap_or_else(|_| OffsetDateTime::now_utc());
+
+                agents.insert(row.agent_id.clone(), Agent {
+                    agent_id: row.agent_id,
+                    hostname: row.hostname,
+                    os: row.os,
+                    architecture: row.architecture,
+                    capabilities,
+                    network,
+                    version: row.version,
+                    status,
+                    last_seen,
+                    registration_time,
+                    deleted_at: row.deleted_at.as_deref()
+                        .and_then(|s| s.parse::<i64>().ok()),
+                });
+            }
+            eprintln!("[agents] Loaded {} agents from SQLite", agents.len());
+            *self.agents.write().await = agents;
+        } else {
+            // Seed DB from in-memory data
+            self.persist_to_db(&db);
+        }
+        self.db = Some(db);
+    }
+
+    /// Persist all agents to SQLite (sync — DB calls are fast under parking_lot::Mutex)
+    fn persist_to_db(&self, db: &crate::database::SharedDatabase) {
+        // Use try_read to avoid deadlocks in sync context; skip if can't acquire
+        let agents = match self.agents.try_read() {
+            Ok(guard) => guard,
+            Err(_) => return,
+        };
+        for a in agents.values() {
+            let capabilities_json = serde_json::to_string(&a.capabilities).unwrap_or_else(|_| "[]".to_string());
+            let network_json = serde_json::to_string(&a.network).unwrap_or_else(|_| "{}".to_string());
+            let status_json = serde_json::to_string(&a.status).unwrap_or_else(|_| "{}".to_string());
+            let last_seen = a.last_seen.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
+            let registration_time = a.registration_time.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
+
+            let row = crate::database::agent_queries::AgentRow {
+                agent_id: a.agent_id.clone(),
+                hostname: a.hostname.clone(),
+                os: a.os.clone(),
+                architecture: a.architecture.clone(),
+                capabilities_json,
+                network_json,
+                version: a.version.clone(),
+                status_json,
+                last_seen,
+                registration_time,
+                deleted_at: a.deleted_at.map(|ts| ts.to_string()),
+            };
+            let _ = crate::database::agent_queries::upsert_agent(db, &row);
         }
     }
 
@@ -312,8 +388,20 @@ impl AgentRegistry {
         Ok(())
     }
 
-    /// Sauvegarde les agents dans le fichier JSON
+    /// Sauvegarde les agents (DB-primary, JSON-fallback)
     pub async fn save_agents(&self) -> Result<()> {
+        // Try SQLite first
+        if let Some(ref db) = self.db {
+            self.persist_to_db(db);
+            // Always write JSON as backup
+            let _ = self.save_agents_json().await;
+            return Ok(());
+        }
+        self.save_agents_json().await
+    }
+
+    /// JSON-only save (fallback)
+    async fn save_agents_json(&self) -> Result<()> {
         // Clone data snapshot AVANT I/O pour minimiser durée du lock
         let agents_snapshot = {
             let agents_map = self.agents.read().await;
