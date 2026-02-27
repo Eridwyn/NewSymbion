@@ -58,11 +58,92 @@ impl AutomationStore {
         Ok(store)
     }
 
-    /// Attach a database for SQLite persistence of history.
-    /// If set, history is persisted to DB (primary) + JSON (fallback).
+    /// Attach a database for SQLite persistence of history + rules.
+    /// If set, data is persisted to DB (primary) + JSON (fallback).
     pub fn with_database(mut self, db: crate::database::SharedDatabase) -> Self {
+        // Load automation rules from DB if available
+        let rule_count = crate::database::automation_rule_queries::count_automations(&db).unwrap_or(0);
+        if rule_count > 0 {
+            let rows = crate::database::automation_rule_queries::list_automations(&db).unwrap_or_default();
+            let mut automations = HashMap::new();
+            for row in rows {
+                let triggers: Option<super::types::TriggerGroup> = row.triggers_json
+                    .as_deref()
+                    .and_then(|j| serde_json::from_str(j).ok());
+                let conditions = row.conditions_json
+                    .as_deref()
+                    .and_then(|j| serde_json::from_str(j).ok());
+                let actions: Vec<super::types::ActionDefinition> = serde_json::from_str(&row.actions_json)
+                    .unwrap_or_default();
+
+                let parse_dt = |s: &Option<String>| -> Option<OffsetDateTime> {
+                    s.as_deref().and_then(|v| OffsetDateTime::parse(v,
+                        &time::format_description::well_known::Rfc3339).ok())
+                };
+
+                let automation = super::types::Automation {
+                    id: row.id.clone(),
+                    name: row.name,
+                    description: row.description,
+                    category: row.category,
+                    goal_mode: row.goal_mode,
+                    enabled: row.enabled,
+                    trigger: None,
+                    triggers,
+                    conditions,
+                    actions,
+                    cooldown_seconds: row.cooldown_seconds as u32,
+                    trusted: row.trusted,
+                    skip_if_same_mode: row.skip_if_same_mode,
+                    auto_created: row.auto_created,
+                    last_executed_at: parse_dt(&row.last_executed_at),
+                    execution_count: row.execution_count as u64,
+                    created_at: parse_dt(&row.created_at),
+                    updated_at: parse_dt(&row.updated_at),
+                    deleted_at: parse_dt(&row.deleted_at),
+                };
+                automations.insert(row.id, automation);
+            }
+            eprintln!("[automations] Loaded {} automation rules from SQLite", automations.len());
+            *self.automations.write() = automations;
+        } else {
+            // Seed DB from in-memory data
+            self.persist_rules_to_db(&db);
+        }
+
         self.db = Some(db);
         self
+    }
+
+    /// Persist all automation rules to SQLite
+    fn persist_rules_to_db(&self, db: &crate::database::SharedDatabase) {
+        let automations = self.automations.read();
+        for a in automations.values() {
+            let fmt_dt = |dt: &Option<OffsetDateTime>| -> Option<String> {
+                dt.as_ref().and_then(|d| d.format(&time::format_description::well_known::Rfc3339).ok())
+            };
+            let row = crate::database::automation_rule_queries::AutomationRuleRow {
+                id: a.id.clone(),
+                name: a.name.clone(),
+                description: a.description.clone(),
+                category: a.category.clone(),
+                goal_mode: a.goal_mode.clone(),
+                enabled: a.enabled,
+                triggers_json: a.triggers.as_ref().and_then(|t| serde_json::to_string(t).ok()),
+                conditions_json: a.conditions.as_ref().and_then(|c| serde_json::to_string(c).ok()),
+                actions_json: serde_json::to_string(&a.actions).unwrap_or_else(|_| "[]".to_string()),
+                cooldown_seconds: a.cooldown_seconds as i32,
+                trusted: a.trusted,
+                skip_if_same_mode: a.skip_if_same_mode,
+                auto_created: a.auto_created,
+                last_executed_at: fmt_dt(&a.last_executed_at),
+                execution_count: a.execution_count as i64,
+                created_at: fmt_dt(&a.created_at),
+                updated_at: fmt_dt(&a.updated_at),
+                deleted_at: fmt_dt(&a.deleted_at),
+            };
+            let _ = crate::database::automation_rule_queries::upsert_automation(db, &row);
+        }
     }
 
     /// Load automations from disk
@@ -97,8 +178,21 @@ impl AutomationStore {
         Ok(())
     }
 
-    /// Save automations to disk
+    /// Save automations to disk (DB-primary, JSON-fallback)
     pub fn save_to_disk(&self) -> Result<()> {
+        // Try SQLite first
+        if let Some(ref db) = self.db {
+            self.persist_rules_to_db(db);
+            // Always write JSON as backup
+            let _ = self.save_to_disk_json();
+            self.dirty.store(false, Ordering::SeqCst);
+            return Ok(());
+        }
+        self.save_to_disk_json()
+    }
+
+    /// JSON-only save (fallback)
+    fn save_to_disk_json(&self) -> Result<()> {
         // Read automations without holding lock during IO
         let automations = { self.automations.read().clone() };
 

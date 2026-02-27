@@ -14,6 +14,13 @@
 pub mod migrations;
 pub mod sensor_queries;
 pub mod automation_queries;
+pub mod auth_queries;
+pub mod agent_queries;
+pub mod config_queries;
+pub mod notification_queries;
+pub mod trust_queries;
+pub mod inference_queries;
+pub mod automation_rule_queries;
 
 use anyhow::{Context, Result};
 use parking_lot::Mutex;

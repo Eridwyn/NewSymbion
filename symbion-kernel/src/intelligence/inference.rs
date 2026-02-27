@@ -253,6 +253,9 @@ pub struct InferenceEngine {
 
     /// Path to persistence file (None = no persistence)
     data_path: Option<std::path::PathBuf>,
+
+    /// SQLite database (None = JSON-only fallback mode)
+    db: Option<crate::database::SharedDatabase>,
 }
 
 impl Default for InferenceEngine {
@@ -268,6 +271,7 @@ impl InferenceEngine {
             samples: RwLock::new(Vec::new()),
             config,
             data_path: None,
+            db: None,
         }
     }
 
@@ -277,10 +281,67 @@ impl InferenceEngine {
             samples: RwLock::new(Vec::new()),
             config,
             data_path: Some(data_path),
+            db: None,
         };
         // Load existing samples from disk
         engine.load_samples();
         engine
+    }
+
+    /// Attach a database for SQLite persistence.
+    pub fn with_database(mut self, db: crate::database::SharedDatabase) -> Self {
+        let count = crate::database::inference_queries::count_samples(&db).unwrap_or(0);
+        if count > 0 {
+            let rows = crate::database::inference_queries::list_samples(&db).unwrap_or_default();
+            let mut samples = Vec::new();
+            for row in rows {
+                let dimensions: HashMap<String, f32> = serde_json::from_str(&row.vector_json)
+                    .unwrap_or_default();
+                let source: SampleSource = serde_json::from_str(&format!("\"{}\"", row.source))
+                    .unwrap_or(SampleSource::Bootstrap);
+                let timestamp = OffsetDateTime::parse(&row.timestamp,
+                    &time::format_description::well_known::Rfc3339)
+                    .or_else(|_| OffsetDateTime::parse(&row.timestamp,
+                        &time::format_description::well_known::Iso8601::DEFAULT))
+                    .unwrap_or_else(|_| OffsetDateTime::now_utc());
+                samples.push(TrainingSample {
+                    id: row.id,
+                    vector: SampleVector { dimensions },
+                    chosen_mode: row.chosen_mode,
+                    source,
+                    timestamp,
+                    base_weight: row.base_weight as f32,
+                });
+            }
+            eprintln!("[inference] Loaded {} samples from SQLite", samples.len());
+            *self.samples.write() = samples;
+        } else {
+            // Seed DB from in-memory data
+            self.persist_to_db(&db);
+        }
+        self.db = Some(db);
+        self
+    }
+
+    /// Persist all samples to SQLite
+    fn persist_to_db(&self, db: &crate::database::SharedDatabase) {
+        let samples = self.samples.read();
+        for s in samples.iter() {
+            let vector_json = serde_json::to_string(&s.vector.dimensions)
+                .unwrap_or_else(|_| "{}".to_string());
+            let timestamp = s.timestamp.format(&time::format_description::well_known::Rfc3339)
+                .unwrap_or_default();
+            let source = format!("{:?}", s.source);
+            let row = crate::database::inference_queries::SampleRow {
+                id: s.id.clone(),
+                vector_json,
+                chosen_mode: s.chosen_mode.clone(),
+                source,
+                timestamp,
+                base_weight: s.base_weight as f64,
+            };
+            let _ = crate::database::inference_queries::insert_sample(db, &row);
+        }
     }
 
     /// Load samples from disk
@@ -311,9 +372,21 @@ impl InferenceEngine {
         }
     }
 
-    /// Save samples to disk (atomic write: temp file + rename)
+    /// Save samples to disk (DB-primary, JSON-fallback)
     /// File I/O is offloaded to a background thread to avoid blocking the async runtime.
     pub fn save_samples(&self) {
+        // Try SQLite first
+        if let Some(ref db) = self.db {
+            self.persist_to_db(db);
+            // Also write JSON as backup (in background)
+            self.save_samples_json();
+            return;
+        }
+        self.save_samples_json();
+    }
+
+    /// JSON-only save (atomic write via background thread)
+    fn save_samples_json(&self) {
         let Some(path) = &self.data_path else { return };
 
         // Serialize under read lock (fast, in-memory)

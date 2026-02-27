@@ -11,6 +11,7 @@ use std::sync::Arc;
 pub struct ModeRegistry {
     modes: RwLock<HashMap<String, DynamicMode>>,
     persistence_path: PathBuf,
+    db: Option<crate::database::SharedDatabase>,
 }
 
 impl ModeRegistry {
@@ -20,6 +21,7 @@ impl ModeRegistry {
         let registry = Self {
             modes: RwLock::new(HashMap::new()),
             persistence_path,
+            db: None,
         };
 
         // Charger depuis le disque, ou bootstrap avec les défauts
@@ -29,6 +31,90 @@ impl ModeRegistry {
         }
 
         registry
+    }
+
+    /// Attache une base SQLite et charge les modes depuis la DB si elle en contient.
+    /// DB-primary / JSON-fallback : si la DB a des modes, ils remplacent ceux en mémoire.
+    pub fn with_database(&mut self, db: crate::database::SharedDatabase) {
+        self.db = Some(db.clone());
+
+        // Si la DB contient déjà des modes, les charger (DB = source de vérité)
+        match crate::database::config_queries::count_modes(&db) {
+            Ok(count) if count > 0 => {
+                match crate::database::config_queries::list_modes(&db) {
+                    Ok(rows) => {
+                        let mut modes = self.modes.write();
+                        modes.clear();
+                        for row in rows {
+                            let theme: ModeTheme = serde_json::from_str(&row.theme_json)
+                                .unwrap_or_else(|_| ModeTheme {
+                                    primary: "#6b7280".to_string(),
+                                    background: "#f8fafc".to_string(),
+                                    accent: "#374151".to_string(),
+                                });
+                            let created_at = time::OffsetDateTime::parse(
+                                &row.created_at,
+                                &time::format_description::well_known::Rfc3339,
+                            )
+                            .unwrap_or_else(|_| time::OffsetDateTime::now_utc());
+
+                            let mode = DynamicMode {
+                                id: row.id.clone(),
+                                name: row.name,
+                                slug: row.slug,
+                                icon: row.icon,
+                                theme,
+                                is_system: row.is_system,
+                                created_at,
+                                display_order: row.display_order as u32,
+                            };
+                            modes.insert(row.id, mode);
+                        }
+                        eprintln!("[modes] Loaded {} modes from SQLite (DB-primary)", modes.len());
+                    }
+                    Err(e) => {
+                        eprintln!("[modes] WARN: Failed to list modes from DB, keeping JSON data: {}", e);
+                    }
+                }
+            }
+            Ok(_) => {
+                // DB is empty — seed it from current in-memory modes (loaded from JSON)
+                eprintln!("[modes] DB empty, seeding from in-memory modes");
+                let _ = self.persist_to_db();
+            }
+            Err(e) => {
+                eprintln!("[modes] WARN: Failed to count modes in DB: {}", e);
+            }
+        }
+    }
+
+    /// Persiste tous les modes en mémoire vers la DB.
+    fn persist_to_db(&self) -> Result<(), String> {
+        if let Some(ref db) = self.db {
+            let modes = self.modes.read();
+            for mode in modes.values() {
+                let theme_json = serde_json::to_string(&mode.theme)
+                    .unwrap_or_else(|_| "{}".to_string());
+                let created_at = mode.created_at
+                    .format(&time::format_description::well_known::Rfc3339)
+                    .unwrap_or_default();
+                let row = crate::database::config_queries::ModeRow {
+                    id: mode.id.clone(),
+                    name: mode.name.clone(),
+                    slug: mode.slug.clone(),
+                    icon: mode.icon.clone(),
+                    theme_json,
+                    is_system: mode.is_system,
+                    created_at,
+                    display_order: mode.display_order as i32,
+                };
+                if let Err(e) = crate::database::config_queries::upsert_mode(db, &row) {
+                    eprintln!("[modes] WARN: DB upsert failed for {}: {}", mode.id, e);
+                    return Err(format!("DB upsert failed: {}", e));
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Initialise les modes système par défaut (bootstrap uniquement)
@@ -79,7 +165,21 @@ impl ModeRegistry {
     }
 
     /// Sauvegarde TOUS les modes sur le disque (système + custom)
+    /// DB-primary / JSON-fallback: écrit en DB d'abord, puis JSON comme backup.
     fn save_to_disk(&self) -> Result<(), String> {
+        // --- DB-primary: try writing to SQLite first ---
+        if self.db.is_some() {
+            match self.persist_to_db() {
+                Ok(()) => {
+                    eprintln!("[modes] Persisted modes to SQLite (DB-primary)");
+                }
+                Err(e) => {
+                    eprintln!("[modes] WARN: DB write failed, falling through to JSON-only: {}", e);
+                }
+            }
+        }
+
+        // --- JSON fallback (always written as backup) ---
         let modes = self.modes.read();
         let all_modes: Vec<&DynamicMode> = modes.values().collect();
 
@@ -95,7 +195,7 @@ impl ModeRegistry {
         std::fs::write(&self.persistence_path, json)
             .map_err(|e| format!("Failed to write modes file: {}", e))?;
 
-        eprintln!("[modes] Saved {} modes to disk", all_modes.len());
+        eprintln!("[modes] Saved {} modes to disk (JSON backup)", all_modes.len());
         Ok(())
     }
 

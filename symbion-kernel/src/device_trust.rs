@@ -51,6 +51,8 @@ impl DeviceToken {
 pub struct DeviceTrustManager {
     /// Stockage des tokens : token_id -> DeviceToken
     tokens: Arc<RwLock<HashMap<String, DeviceToken>>>,
+    /// SQLite database (None = JSON-only fallback mode)
+    db: Option<crate::database::SharedDatabase>,
 }
 
 impl DeviceTrustManager {
@@ -59,7 +61,64 @@ impl DeviceTrustManager {
         let tokens = Self::load_tokens()?;
         Ok(Self {
             tokens: Arc::new(RwLock::new(tokens)),
+            db: None,
         })
+    }
+
+    /// Attach a database for SQLite persistence.
+    pub fn with_database(mut self, db: crate::database::SharedDatabase) -> Self {
+        // Try to load all tokens from DB
+        let conn = db.conn();
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM device_tokens", [], |row| row.get(0))
+            .unwrap_or(0);
+        drop(conn);
+
+        if count > 0 {
+            // Load all tokens from DB
+            let conn = db.conn();
+            let mut stmt = conn.prepare(
+                "SELECT token, username, device_fingerprint, created_at, expires_at, last_used_at FROM device_tokens"
+            ).ok();
+            if let Some(ref mut stmt) = stmt {
+                let mut tokens = HashMap::new();
+                let rows = stmt.query_map::<DeviceToken, _, _>([], |row| {
+                    Ok(DeviceToken {
+                        token: row.get(0)?,
+                        username: row.get(1)?,
+                        device_fingerprint: row.get(2)?,
+                        created_at: row.get(3)?,
+                        expires_at: row.get(4)?,
+                        last_used_at: row.get(5)?,
+                    })
+                });
+                if let Ok(rows) = rows {
+                    for row in rows.flatten() {
+                        tokens.insert(row.token.clone(), row);
+                    }
+                    eprintln!("[device-trust] Loaded {} tokens from SQLite", tokens.len());
+                    *self.tokens.write() = tokens;
+                }
+            }
+        } else {
+            // DB empty — seed from in-memory data (loaded from JSON)
+            let tokens = self.tokens.read();
+            for token in tokens.values() {
+                let row = crate::database::auth_queries::DeviceTokenRow {
+                    token: token.token.clone(),
+                    username: token.username.clone(),
+                    device_fingerprint: token.device_fingerprint.clone(),
+                    created_at: token.created_at,
+                    expires_at: token.expires_at,
+                    last_used_at: token.last_used_at,
+                };
+                let _ = crate::database::auth_queries::upsert_device_token(&db, &row);
+            }
+            if !tokens.is_empty() {
+                eprintln!("[device-trust] Seeded {} tokens to SQLite", tokens.len());
+            }
+        }
+        self.db = Some(db);
+        self
     }
 
     /// Charge les tokens depuis le fichier JSON
@@ -79,15 +138,42 @@ impl DeviceTrustManager {
         Ok(tokens)
     }
 
-    /// Sauvegarde les tokens dans le fichier JSON
+    /// Save tokens — DB primary, JSON fallback.
     fn save_tokens(&self) -> Result<()> {
         let tokens = self.tokens.read();
-        let json = serde_json::to_string_pretty(&*tokens)
-            .context("Failed to serialize device tokens")?;
 
+        // Try SQLite first
+        if let Some(ref db) = self.db {
+            let mut db_ok = true;
+            for (_, token) in tokens.iter() {
+                let row = crate::database::auth_queries::DeviceTokenRow {
+                    token: token.token.clone(),
+                    username: token.username.clone(),
+                    device_fingerprint: token.device_fingerprint.clone(),
+                    created_at: token.created_at,
+                    expires_at: token.expires_at,
+                    last_used_at: token.last_used_at,
+                };
+                if let Err(e) = crate::database::auth_queries::upsert_device_token(db, &row) {
+                    eprintln!("[device-trust] SQLite save failed, falling back to JSON: {}", e);
+                    db_ok = false;
+                    break;
+                }
+            }
+            if db_ok {
+                let _ = self.save_tokens_json(&tokens);
+                return Ok(());
+            }
+        }
+
+        self.save_tokens_json(&tokens)
+    }
+
+    fn save_tokens_json(&self, tokens: &HashMap<String, DeviceToken>) -> Result<()> {
+        let json = serde_json::to_string_pretty(tokens)
+            .context("Failed to serialize device tokens")?;
         fs::write(DEVICE_TOKENS_FILE, json)
             .context("Failed to write device tokens file")?;
-
         Ok(())
     }
 

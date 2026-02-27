@@ -203,7 +203,7 @@ async fn main() {
         .unwrap_or_else(|_| "https://symbion.local:3000".to_string());
     let webauthn_storage_path = std::path::PathBuf::from("./data/webauthn_credentials.json");
     let webauthn_manager = match WebAuthnManager::new(&rp_id, &rp_origin, webauthn_storage_path) {
-        Ok(manager) => Arc::new(manager),
+        Ok(manager) => manager,
         Err(e) => {
             eprintln!("[kernel] failed to initialize webauthn manager: {}", e);
             std::process::exit(1);
@@ -213,7 +213,7 @@ async fn main() {
 
     // device trust manager
     let device_trust_manager = match crate::device_trust::DeviceTrustManager::new() {
-        Ok(manager) => Arc::new(manager),
+        Ok(manager) => manager,
         Err(e) => {
             eprintln!("[kernel] failed to initialize device trust manager: {}", e);
             std::process::exit(1);
@@ -247,7 +247,6 @@ async fn main() {
     if let Err(e) = agent_registry.load_agents().await {
         eprintln!("[kernel] failed to load agents: {}", e);
     }
-    let agents: SharedAgentRegistry = Arc::new(agent_registry);
 
     // === SQLite Database (Sprint 7 Phase 1) ===
     let db: Option<crate::database::SharedDatabase> = match crate::database::Database::open("./data/symbion.db") {
@@ -270,6 +269,29 @@ async fn main() {
         }
     };
 
+    // === Phase 2: Wire pre-init modules to SQLite ===
+    let auth_manager = if let Some(ref db) = db {
+        auth_manager.with_database(db.clone())
+    } else {
+        auth_manager
+    };
+    let device_trust_manager = if let Some(ref db) = db {
+        device_trust_manager.with_database(db.clone())
+    } else {
+        device_trust_manager
+    };
+    let device_trust_manager = Arc::new(device_trust_manager);
+    let webauthn_manager = if let Some(ref db) = db {
+        webauthn_manager.with_database(db.clone())
+    } else {
+        webauthn_manager
+    };
+    let webauthn_manager = Arc::new(webauthn_manager);
+    if let Some(ref db) = db {
+        agent_registry.set_database(db.clone()).await;
+    }
+    let agents: SharedAgentRegistry = Arc::new(agent_registry);
+
     // F1: Sensor Registry pour capteurs environnementaux distribués
     let mut sensor_registry_instance = crate::sensors::SensorRegistry::new("./data/sensors.json");
     if let Some(ref db) = db {
@@ -282,7 +304,11 @@ async fn main() {
     eprintln!("[kernel] initialized Sensor Registry (F1 Environment)");
 
     // Mode Registry pour modes dynamiques
-    let mode_registry = crate::modes::create_shared_registry(std::path::PathBuf::from("./data"));
+    let mut mode_registry = crate::modes::ModeRegistry::new(std::path::PathBuf::from("./data"));
+    if let Some(ref db) = db {
+        mode_registry.with_database(db.clone());
+    }
+    let mode_registry = Arc::new(mode_registry);
     eprintln!("[kernel] initialized Mode Registry ({} modes)", mode_registry.count());
 
     // Context Intelligence Engine - Intelligent autonomous context adaptation
@@ -302,10 +328,16 @@ async fn main() {
 
     // Inference Engine for case-based mode prediction (v2) with persistence
     let samples_path = std::path::PathBuf::from("./data/intelligence_samples.json");
-    let inference_engine = Arc::new(crate::intelligence::InferenceEngine::with_persistence(
+    let inference_engine = crate::intelligence::InferenceEngine::with_persistence(
         crate::intelligence::InferenceConfig::default(),
         samples_path,
-    ));
+    );
+    let inference_engine = if let Some(ref db) = db {
+        inference_engine.with_database(db.clone())
+    } else {
+        inference_engine
+    };
+    let inference_engine = Arc::new(inference_engine);
     eprintln!("[kernel] initialized Inference Engine v2 (with persistence)");
 
     // Session Manager for hysteresis-based mode transitions (v2)
@@ -318,15 +350,33 @@ async fn main() {
     bootstrap_scheduler.seed_inference_engine(&inference_engine, &initial_vector);
 
     // Schedule Registry pour planning horaire
-    let schedule_registry = crate::schedule::create_shared_registry(std::path::PathBuf::from("./data"));
+    let schedule_registry = crate::schedule::ScheduleRegistry::new(std::path::PathBuf::from("./data"));
+    let schedule_registry = if let Some(ref db) = db {
+        schedule_registry.with_database(db.clone())
+    } else {
+        schedule_registry
+    };
+    let schedule_registry = Arc::new(schedule_registry);
     eprintln!("[kernel] initialized Schedule Registry ({} rules)", schedule_registry.count_rules());
 
     // Notifications Manager (FCM, SMTP, ntfy.sh, MQTT for PWA)
-    let notifications_manager = crate::notifications::create_shared_manager(Some(mqtt_client.clone()));
+    let notifications_manager = crate::notifications::NotificationManager::new(Some(mqtt_client.clone()));
+    let notifications_manager = if let Some(ref db) = db {
+        notifications_manager.with_database(db.clone())
+    } else {
+        notifications_manager
+    };
+    let notifications_manager = Arc::new(notifications_manager);
     eprintln!("[kernel] initialized Notifications Manager");
 
     // Notification Configuration Manager
-    let notification_config = crate::notification_config::create_shared_config_manager();
+    let notification_config = crate::notification_config::NotificationConfigManager::new();
+    let notification_config = if let Some(ref db) = db {
+        notification_config.with_database(db.clone())
+    } else {
+        notification_config
+    };
+    let notification_config = Arc::new(notification_config);
     eprintln!("[kernel] initialized Notification Config Manager ({} types)", notification_config.list_all().len());
 
     // Automations Store (with optional SQLite persistence)
@@ -442,7 +492,13 @@ async fn main() {
 
     // Trust Tracker for evolving trust statistics (Phase 7)
     // Must be created BEFORE TrustCalculator so it can use the tracker
-    let trust_tracker = Arc::new(crate::decision::TrustTracker::new("./data"));
+    let trust_tracker = crate::decision::TrustTracker::new("./data");
+    let trust_tracker = if let Some(ref db) = db {
+        trust_tracker.with_database(db.clone())
+    } else {
+        trust_tracker
+    };
+    let trust_tracker = Arc::new(trust_tracker);
     println!("[kernel] initialized Trust Tracker (evolving statistics)");
     eprintln!("[kernel] ⏱ decision subsystem ready in {:?}", boot_start.elapsed());
 
