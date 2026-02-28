@@ -16,7 +16,8 @@ use tracing::{info, error, debug, warn};
 
 use crate::capabilities;
 use crate::discovery::SystemInfo;
-use crate::execution::CommandExecutor;
+use crate::execution::handler::CommandRegistry;
+use crate::execution::handlers;
 use crate::local_api;
 use crate::messages::*;
 use crate::metrics;
@@ -50,6 +51,7 @@ pub struct Agent {
     mqtt_client: AsyncClient,
     last_command: Option<CommandInfo>,
     command_receiver: mpsc::Receiver<ReceivedCommand>,
+    command_registry: CommandRegistry,
     local_api: Option<Arc<local_api::LocalApiServer>>,
     system_tray: Option<system_tray::SystemTray>,
     mqtt_connected: Arc<AtomicBool>,
@@ -81,8 +83,11 @@ impl Agent {
             keep_alive_secs: 30,
         });
 
-        info!("Agent initialized — ID: {}, Hostname: {}",
-              system_info.agent_id, system_info.hostname);
+        // Build command registry with all standard handlers
+        let command_registry = handlers::build_default_registry();
+
+        info!("Agent initialized — ID: {}, Hostname: {}, commands: {:?}",
+              system_info.agent_id, system_info.hostname, command_registry.command_types());
 
         Ok(Agent {
             config,
@@ -90,6 +95,7 @@ impl Agent {
             mqtt_client: mqtt_handle.client,
             last_command: None,
             command_receiver: mqtt_handle.command_rx,
+            command_registry,
             local_api: None,
             system_tray: None,
             mqtt_connected: mqtt_handle.connected,
@@ -264,7 +270,7 @@ impl Agent {
     }
 
     // ========================================================================
-    // Command Processing — delegates to execution module
+    // Command Processing — delegates to CommandRegistry
     // ========================================================================
 
     /// Process incoming command from MQTT
@@ -282,13 +288,26 @@ impl Agent {
 
         info!("Executing command: {} ({})", incoming.command_type, incoming.command_id);
 
-        let (status, data, err) = self.dispatch_command(&incoming).await;
+        // Dispatch via registry (with special-case for reconnect)
+        let result = if incoming.command_type == "reconnect" {
+            crate::execution::handler::CommandResult::success(serde_json::json!({
+                "message": "Reconnect acknowledged — agent will re-register on next heartbeat"
+            }))
+        } else {
+            match self.command_registry.execute(&incoming.command_type, incoming.parameters.as_ref()).await {
+                Some(result) => result,
+                None => crate::execution::handler::CommandResult::error(
+                    "UNKNOWN_COMMAND",
+                    format!("Unknown command type: {}", incoming.command_type),
+                ),
+            }
+        };
 
         // Update last command info
         self.last_command = Some(CommandInfo {
             command_id: incoming.command_id.clone(),
             command_type: incoming.command_type.clone(),
-            status: status.clone(),
+            status: result.status.clone(),
             timestamp: Utc::now(),
         });
 
@@ -296,213 +315,14 @@ impl Agent {
         let response = CommandResponse {
             command_id: incoming.command_id,
             agent_id: self.system_info.agent_id.clone(),
-            status,
-            output: data,
-            error: err,
+            status: result.status,
+            output: result.data,
+            error: result.error,
             execution_time_ms: start_time.elapsed().as_millis(),
             timestamp: Utc::now(),
         };
 
         self.send_response(response).await
-    }
-
-    /// Dispatch command to the appropriate handler via `execution` module.
-    /// Returns (status, output_data, error_info).
-    async fn dispatch_command(&self, cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
-        match cmd.command_type.as_str() {
-            "shutdown" | "reboot" | "hibernate" => {
-                self.handle_power_command(&cmd.command_type).await
-            }
-            "reconnect" => {
-                ("success".to_string(), Some(serde_json::json!({
-                    "message": "Reconnect acknowledged — agent will re-register on next heartbeat"
-                })), None)
-            }
-            "kill_process" => {
-                self.handle_kill_process(cmd).await
-            }
-            "run_command" => {
-                self.handle_shell_command(cmd).await
-            }
-            "get_metrics" => {
-                self.handle_get_metrics().await
-            }
-            "list_processes" => {
-                self.handle_list_processes().await
-            }
-            _ => {
-                let err = ErrorInfo {
-                    code: "UNKNOWN_COMMAND".to_string(),
-                    message: format!("Unknown command type: {}", cmd.command_type),
-                };
-                ("error".to_string(), None, Some(err))
-            }
-        }
-    }
-
-    /// Handle power commands (shutdown, reboot, hibernate) via execution module
-    async fn handle_power_command(&self, command_type: &str) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
-        match CommandExecutor::execute_power_command(command_type, None).await {
-            Ok(result) => {
-                if result.success {
-                    ("success".to_string(), Some(serde_json::json!({
-                        "message": format!("{} initiated", command_type)
-                    })), None)
-                } else {
-                    let err = ErrorInfo {
-                        code: format!("{}_FAILED", command_type.to_uppercase()),
-                        message: result.error.unwrap_or_default(),
-                    };
-                    ("error".to_string(), None, Some(err))
-                }
-            }
-            Err(e) => {
-                let err = ErrorInfo {
-                    code: "EXECUTION_ERROR".to_string(),
-                    message: e.to_string(),
-                };
-                ("error".to_string(), None, Some(err))
-            }
-        }
-    }
-
-    /// Handle kill_process via execution module
-    async fn handle_kill_process(&self, cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
-        let pid = match cmd.parameters.as_ref()
-            .and_then(|p| p.get("pid"))
-            .and_then(|p| p.as_u64())
-        {
-            Some(pid) => pid as u32,
-            None => {
-                return ("error".to_string(), None, Some(ErrorInfo {
-                    code: "INVALID_PARAMETERS".to_string(),
-                    message: "Missing 'pid' parameter".to_string(),
-                }));
-            }
-        };
-
-        match CommandExecutor::kill_process(pid).await {
-            Ok(result) => {
-                if result.success {
-                    ("success".to_string(), Some(serde_json::json!({
-                        "message": format!("Process {} killed", pid)
-                    })), None)
-                } else {
-                    let err = ErrorInfo {
-                        code: "KILL_FAILED".to_string(),
-                        message: result.error.unwrap_or_default(),
-                    };
-                    ("error".to_string(), None, Some(err))
-                }
-            }
-            Err(e) => {
-                let err = ErrorInfo {
-                    code: "EXECUTION_ERROR".to_string(),
-                    message: e.to_string(),
-                };
-                ("error".to_string(), None, Some(err))
-            }
-        }
-    }
-
-    /// Handle run_command via execution module with safety check
-    async fn handle_shell_command(&self, cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
-        let command = match cmd.parameters.as_ref()
-            .and_then(|p| p.get("command"))
-            .and_then(|p| p.as_str())
-        {
-            Some(c) => c,
-            None => {
-                return ("error".to_string(), None, Some(ErrorInfo {
-                    code: "INVALID_PARAMETERS".to_string(),
-                    message: "Missing 'command' parameter".to_string(),
-                }));
-            }
-        };
-
-        // Security: validate command against allowlist
-        if let Err(reason) = validate_shell_command(command) {
-            return ("error".to_string(), None, Some(ErrorInfo {
-                code: "UNSAFE_COMMAND".to_string(),
-                message: reason,
-            }));
-        }
-
-        let timeout_secs = cmd.parameters.as_ref()
-            .and_then(|p| p.get("timeout"))
-            .and_then(|t| t.as_u64())
-            .unwrap_or(30) as u32;
-
-        match CommandExecutor::execute_shell_command(command, timeout_secs).await {
-            Ok(result) => {
-                if result.success {
-                    // Clean ANSI escape codes from output
-                    let clean = clean_output(&result.output);
-                    ("success".to_string(), Some(serde_json::Value::String(clean)), None)
-                } else {
-                    let err = ErrorInfo {
-                        code: "COMMAND_FAILED".to_string(),
-                        message: format!("Exit code: {:?}", result.exit_code),
-                    };
-                    let clean = clean_output(&result.output);
-                    ("error".to_string(), Some(serde_json::Value::String(clean)), Some(err))
-                }
-            }
-            Err(e) => {
-                let err = ErrorInfo {
-                    code: "EXECUTION_ERROR".to_string(),
-                    message: e.to_string(),
-                };
-                ("error".to_string(), None, Some(err))
-            }
-        }
-    }
-
-    /// Handle get_metrics
-    async fn handle_get_metrics(&self) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
-        match metrics::SystemMetrics::collect().await {
-            Ok(system_metrics) => {
-                let process_info = metrics::ProcessInfo::collect().await.ok();
-                let services = metrics::ServiceStatus::collect_critical().await.ok();
-                let data = serde_json::json!({
-                    "system": system_metrics,
-                    "processes": process_info,
-                    "services": services,
-                    "timestamp": Utc::now()
-                });
-                ("success".to_string(), Some(data), None)
-            }
-            Err(e) => {
-                let err = ErrorInfo {
-                    code: "METRICS_ERROR".to_string(),
-                    message: e.to_string(),
-                };
-                ("error".to_string(), None, Some(err))
-            }
-        }
-    }
-
-    /// Handle list_processes
-    async fn handle_list_processes(&self) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
-        match metrics::ProcessInfo::collect().await {
-            Ok(process_info) => {
-                let data = serde_json::json!({
-                    "total_count": process_info.total_count,
-                    "running_count": process_info.running_count,
-                    "top_cpu": process_info.top_cpu,
-                    "top_memory": process_info.top_memory,
-                    "timestamp": Utc::now()
-                });
-                ("success".to_string(), Some(data), None)
-            }
-            Err(e) => {
-                let err = ErrorInfo {
-                    code: "PROCESSES_ERROR".to_string(),
-                    message: e.to_string(),
-                };
-                ("error".to_string(), None, Some(err))
-            }
-        }
     }
 
     // ========================================================================
@@ -549,128 +369,6 @@ impl Agent {
             };
             api.update_status(mqtt_connected, system_status).await;
         }
-    }
-}
-
-/// Allowed commands for remote shell execution.
-/// Only the first token (binary name) is checked — shell chaining is blocked separately.
-const ALLOWED_COMMANDS: &[&str] = &[
-    "cat", "date", "df", "dir", "echo", "free", "head", "hostname",
-    "id", "ifconfig", "ip", "ipconfig", "ls", "netstat", "nslookup",
-    "ping", "ps", "pwd", "systemctl", "tail", "tasklist", "tracert",
-    "traceroute", "uname", "uptime", "wc", "who", "whoami",
-];
-
-/// Shell metacharacters that indicate command chaining or injection.
-const DANGEROUS_PATTERNS: &[&str] = &[
-    ";", "&&", "||", "|", "$(", "`", "<(", ">(", "\n", "\r",
-];
-
-/// Validate a shell command against the allowlist.
-/// Returns Ok(()) if safe, Err(reason) if blocked.
-fn validate_shell_command(command: &str) -> Result<(), String> {
-    let trimmed = command.trim();
-    if trimmed.is_empty() {
-        return Err("Empty command".to_string());
-    }
-
-    // Block shell chaining / injection metacharacters
-    for pattern in DANGEROUS_PATTERNS {
-        if trimmed.contains(pattern) {
-            return Err(format!(
-                "Command contains blocked operator '{}': {}",
-                pattern, trimmed
-            ));
-        }
-    }
-
-    // Block output redirection
-    if trimmed.contains('>') {
-        return Err(format!("Command contains output redirection: {}", trimmed));
-    }
-
-    // Extract the first token (binary name) and validate against allowlist
-    let first_token = trimmed
-        .split_whitespace()
-        .next()
-        .unwrap_or("");
-
-    // Strip path prefix (e.g. /usr/bin/ls -> ls)
-    let binary_name = first_token.rsplit('/').next().unwrap_or(first_token);
-    // Also strip Windows path prefix (e.g. C:\Windows\System32\hostname.exe -> hostname.exe -> hostname)
-    let binary_name = binary_name.rsplit('\\').next().unwrap_or(binary_name);
-    let binary_name = binary_name.strip_suffix(".exe").unwrap_or(binary_name);
-
-    if !ALLOWED_COMMANDS.contains(&binary_name) {
-        return Err(format!("Command '{}' not in allowlist", binary_name));
-    }
-
-    Ok(())
-}
-
-/// Clean ANSI escape codes and control characters from command output
-fn clean_output(s: &str) -> String {
-    s.chars()
-        .filter(|c| c.is_ascii_graphic() || *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
-        .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_allowed_command_passes() {
-        assert!(validate_shell_command("ls -la").is_ok());
-        assert!(validate_shell_command("whoami").is_ok());
-        assert!(validate_shell_command("ping 8.8.8.8").is_ok());
-        assert!(validate_shell_command("df -h").is_ok());
-        assert!(validate_shell_command("systemctl status nginx").is_ok());
-    }
-
-    #[test]
-    fn test_blocked_command_rejected() {
-        assert!(validate_shell_command("rm -rf /").is_err());
-        assert!(validate_shell_command("curl http://evil.com").is_err());
-        assert!(validate_shell_command("wget http://evil.com").is_err());
-        assert!(validate_shell_command("powershell -Command Get-Process").is_err());
-        assert!(validate_shell_command("bash -c 'echo pwned'").is_err());
-    }
-
-    #[test]
-    fn test_chaining_blocked() {
-        assert!(validate_shell_command("ls; rm -rf /").is_err());
-        assert!(validate_shell_command("ls && cat /etc/shadow").is_err());
-        assert!(validate_shell_command("ls || wget evil.com").is_err());
-        assert!(validate_shell_command("ls | xargs rm").is_err());
-    }
-
-    #[test]
-    fn test_injection_blocked() {
-        assert!(validate_shell_command("echo $(whoami)").is_err());
-        assert!(validate_shell_command("echo `id`").is_err());
-        assert!(validate_shell_command("ls > /tmp/output").is_err());
-    }
-
-    #[test]
-    fn test_path_prefix_stripped() {
-        assert!(validate_shell_command("/usr/bin/ls -la").is_ok());
-        assert!(validate_shell_command("/bin/cat /etc/hostname").is_ok());
-    }
-
-    #[test]
-    fn test_empty_command() {
-        assert!(validate_shell_command("").is_err());
-        assert!(validate_shell_command("   ").is_err());
-    }
-
-    #[test]
-    fn test_clean_output() {
-        // clean_output strips non-printable control chars (like ESC \x1b)
-        // but keeps ASCII graphic chars like [, 3, 1, m
-        assert_eq!(clean_output("Hello\x1b World"), "Hello World");
-        assert_eq!(clean_output("line1\nline2"), "line1\nline2");
-        assert_eq!(clean_output("ok\x00hidden"), "okhidden");
     }
 }
 
