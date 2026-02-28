@@ -37,6 +37,7 @@ pub struct SystemStatus {
 pub struct LocalApiServer {
     status: Arc<RwLock<AgentStatus>>,
     reconnect_tx: mpsc::Sender<()>,
+    api_token: Option<String>,
 }
 
 impl LocalApiServer {
@@ -51,26 +52,53 @@ impl LocalApiServer {
             system: None,
         };
 
+        // Read optional API token from env
+        let api_token = std::env::var("SYMBION_AGENT_API_TOKEN").ok()
+            .filter(|t| !t.is_empty());
+
         Self {
             status: Arc::new(RwLock::new(initial_status)),
             reconnect_tx,
+            api_token,
         }
     }
 
-    /// Start the local API server on port 9899
+    /// Start the local API server on port 9899 (localhost only)
     pub async fn start(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let status = self.status.clone();
-        
-        // GET /status - Agent status and metrics
+        let api_token = self.api_token.clone();
+
+        // GET /status - Agent status and metrics (no auth required)
         let status_route = warp::path("status")
             .and(warp::get())
             .and(warp::any().map(move || status.clone()))
             .and_then(get_status);
 
-        // POST /reconnect - Force MQTT reconnection
+        // POST /reconnect - Force MQTT reconnection (auth required)
         let reconnect_tx = self.reconnect_tx.clone();
+        let token_for_reconnect = api_token.clone();
+        let reconnect_auth = warp::header::optional::<String>("authorization")
+            .and(warp::any().map(move || token_for_reconnect.clone()))
+            .and_then(|auth_header: Option<String>, expected_token: Option<String>| async move {
+                match expected_token {
+                    None => Ok::<_, warp::Rejection>(()),
+                    Some(expected) => {
+                        let provided = auth_header
+                            .as_deref()
+                            .and_then(|h| h.strip_prefix("Bearer "));
+                        if provided == Some(&expected) {
+                            Ok(())
+                        } else {
+                            Err(warp::reject::reject())
+                        }
+                    }
+                }
+            })
+            .untuple_one();
+
         let reconnect_route = warp::path("reconnect")
             .and(warp::post())
+            .and(reconnect_auth)
             .and(warp::any().map(move || reconnect_tx.clone()))
             .and_then(|tx: mpsc::Sender<()>| async move {
                 match tx.try_send(()) {
@@ -108,19 +136,49 @@ impl LocalApiServer {
             .allow_headers(vec!["content-type"])
             .allow_methods(vec!["GET", "POST"]);
 
-        // POST /open-dashboard - Open local dashboard in browser
+        // POST /open-dashboard - Open local dashboard in browser (auth required)
+        let token_for_dashboard = api_token.clone();
+        let dashboard_auth = warp::header::optional::<String>("authorization")
+            .and(warp::any().map(move || token_for_dashboard.clone()))
+            .and_then(|auth_header: Option<String>, expected_token: Option<String>| async move {
+                match expected_token {
+                    None => Ok::<_, warp::Rejection>(()),
+                    Some(expected) => {
+                        let provided = auth_header.as_deref().and_then(|h| h.strip_prefix("Bearer "));
+                        if provided == Some(&expected) { Ok(()) } else { Err(warp::reject::reject()) }
+                    }
+                }
+            })
+            .untuple_one();
+
         let open_dashboard_route = warp::path("open-dashboard")
             .and(warp::post())
+            .and(dashboard_auth)
             .and_then(open_dashboard_handler);
 
-        // GET /update/status - Check for updates
+        // GET /update/status - Check for updates (no auth required)
         let update_status_route = warp::path!("update" / "status")
             .and(warp::get())
             .and_then(update_status_handler);
 
-        // POST /update/install - Install available update
+        // POST /update/install - Install available update (auth required)
+        let token_for_update = api_token;
+        let update_auth = warp::header::optional::<String>("authorization")
+            .and(warp::any().map(move || token_for_update.clone()))
+            .and_then(|auth_header: Option<String>, expected_token: Option<String>| async move {
+                match expected_token {
+                    None => Ok::<_, warp::Rejection>(()),
+                    Some(expected) => {
+                        let provided = auth_header.as_deref().and_then(|h| h.strip_prefix("Bearer "));
+                        if provided == Some(&expected) { Ok(()) } else { Err(warp::reject::reject()) }
+                    }
+                }
+            })
+            .untuple_one();
+
         let update_install_route = warp::path!("update" / "install")
             .and(warp::post())
+            .and(update_auth)
             .and_then(update_install_handler);
 
         let routes = status_route
@@ -132,10 +190,10 @@ impl LocalApiServer {
             .or(update_install_route)
             .with(cors);
 
-        println!("[local-api] Starting local dashboard server on http://0.0.0.0:9899");
-        
+        println!("[local-api] Starting local dashboard server on http://127.0.0.1:9899");
+
         warp::serve(routes)
-            .run(([0, 0, 0, 0], 9899))
+            .run(([127, 0, 0, 1], 9899))
             .await;
 
         Ok(())
