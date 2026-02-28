@@ -21,11 +21,7 @@ use wry::WebViewBuilder;
 use tracing::{info, error};
 use std::sync::{Arc, Mutex};
 
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
-
-#[cfg(target_os = "windows")]
-const CREATE_NO_WINDOW: u32 = 0x08000000;
+use crate::windows_utils;
 
 pub struct SymbionGui {
     broker_host: String,
@@ -48,10 +44,10 @@ impl SymbionGui {
         // Create event loop for GUI with window support
         let event_loop = EventLoopBuilder::new().build();
 
-        // Create hidden window for WebView
+        // Create hidden window for WebView — compact, app-like size
         let window = WindowBuilder::new()
             .with_title(format!("Symbion Agent - {}", hostname))
-            .with_inner_size(LogicalSize::new(600.0, 800.0))
+            .with_inner_size(LogicalSize::new(420.0, 650.0))
             .with_resizable(true)
             .with_visible(false) // Start hidden
             .build(&event_loop)
@@ -61,6 +57,7 @@ impl SymbionGui {
         let dashboard_html = include_str!("../ui/simple-dashboard.html");
         let _webview = WebViewBuilder::new()
             .with_html(dashboard_html)
+            .with_transparent(true)
             .build(&window)
             .expect("Failed to build WebView");
 
@@ -146,12 +143,16 @@ impl SymbionGui {
                     }
                 } else if menu_id == "open_pwa" {
                     // Open main PWA in browser
-                    let _ = open_browser(&format!("http://{}:3001", broker_host));
+                    let _ = windows_utils::open_url(&format!("http://{}:3001", broker_host));
                 } else if menu_id == "open_config" {
-                    let _ = open_config_file();
+                    let _ = windows_utils::open_config();
                 } else if menu_id == "check_updates" {
-                    // TODO: Trigger update check via API
-                    info!("Manual update check requested");
+                    // Open dashboard on status tab to show update info
+                    let mut state = state_clone.lock().unwrap();
+                    state.window_visible = true;
+                    window.set_visible(true);
+                    window.set_focus();
+                    info!("Update check — showing dashboard");
                 }
             }
 
@@ -203,8 +204,7 @@ impl SymbionGui {
 
     /// Create system tray icon
     fn create_tray_icon(&self, menu: Menu, hostname: &str) -> Result<tray_icon::TrayIcon, Box<dyn std::error::Error>> {
-        // Load icon from embedded bytes (you'll need to add icon.ico to resources)
-        let icon = self.load_icon()?;
+        let icon = Self::generate_icon()?;
 
         let tray = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
@@ -215,12 +215,93 @@ impl SymbionGui {
         Ok(tray)
     }
 
-    /// Load application icon
-    fn load_icon(&self) -> Result<tray_icon::Icon, Box<dyn std::error::Error>> {
-        // For now, create a simple colored icon programmatically
-        // TODO: Replace with actual icon file
-        let rgba = vec![255u8; 32 * 32 * 4]; // 32x32 white icon
-        let icon = tray_icon::Icon::from_rgba(rgba, 32, 32)?;
+    /// Generate a programmatic Symbion "S" icon (32x32 RGBA)
+    fn generate_icon() -> Result<tray_icon::Icon, Box<dyn std::error::Error>> {
+        const SIZE: usize = 32;
+        let mut rgba = vec![0u8; SIZE * SIZE * 4];
+
+        // Symbion purple: #cba6f7 = (203, 166, 247)
+        let fg: [u8; 3] = [203, 166, 247];
+        // Darker background: #313244 = (49, 50, 68)
+        let bg: [u8; 3] = [49, 50, 68];
+
+        // Helper to set a pixel
+        let set = |buf: &mut Vec<u8>, x: usize, y: usize, r: u8, g: u8, b: u8, a: u8| {
+            if x < SIZE && y < SIZE {
+                let idx = (y * SIZE + x) * 4;
+                buf[idx] = r;
+                buf[idx + 1] = g;
+                buf[idx + 2] = b;
+                buf[idx + 3] = a;
+            }
+        };
+
+        // Draw rounded rectangle background
+        for y in 0..SIZE {
+            for x in 0..SIZE {
+                // Corner radius of 6
+                let in_rect = {
+                    let r = 6i32;
+                    let xi = x as i32;
+                    let yi = y as i32;
+                    let s = SIZE as i32;
+                    if xi < r && yi < r {
+                        (xi - r) * (xi - r) + (yi - r) * (yi - r) <= r * r
+                    } else if xi >= s - r && yi < r {
+                        (xi - (s - r - 1)) * (xi - (s - r - 1)) + (yi - r) * (yi - r) <= r * r
+                    } else if xi < r && yi >= s - r {
+                        (xi - r) * (xi - r) + (yi - (s - r - 1)) * (yi - (s - r - 1)) <= r * r
+                    } else if xi >= s - r && yi >= s - r {
+                        (xi - (s - r - 1)) * (xi - (s - r - 1)) + (yi - (s - r - 1)) * (yi - (s - r - 1)) <= r * r
+                    } else {
+                        true
+                    }
+                };
+
+                if in_rect {
+                    set(&mut rgba, x, y, bg[0], bg[1], bg[2], 255);
+                }
+            }
+        }
+
+        // Draw a stylized "S" letter using horizontal strokes
+        // The S is drawn in the region ~(8..24, 5..27)
+        let draw_hline = |buf: &mut Vec<u8>, y: usize, x1: usize, x2: usize| {
+            for x in x1..=x2 {
+                set(buf, x, y, fg[0], fg[1], fg[2], 255);
+                // Anti-aliasing: also draw with reduced opacity on neighbors for thickness
+                if y + 1 < SIZE { set(buf, x, y + 1, fg[0], fg[1], fg[2], 200); }
+            }
+        };
+
+        let draw_vline = |buf: &mut Vec<u8>, x: usize, y1: usize, y2: usize| {
+            for y in y1..=y2 {
+                set(buf, x, y, fg[0], fg[1], fg[2], 255);
+                if x + 1 < SIZE { set(buf, x + 1, y, fg[0], fg[1], fg[2], 200); }
+            }
+        };
+
+        // Top horizontal bar of S
+        draw_hline(&mut rgba, 7, 10, 22);
+        draw_hline(&mut rgba, 8, 10, 22);
+
+        // Left vertical bar (top half)
+        draw_vline(&mut rgba, 10, 7, 14);
+        draw_vline(&mut rgba, 11, 7, 14);
+
+        // Middle horizontal bar
+        draw_hline(&mut rgba, 14, 10, 22);
+        draw_hline(&mut rgba, 15, 10, 22);
+
+        // Right vertical bar (bottom half)
+        draw_vline(&mut rgba, 21, 15, 23);
+        draw_vline(&mut rgba, 22, 15, 23);
+
+        // Bottom horizontal bar of S
+        draw_hline(&mut rgba, 23, 10, 22);
+        draw_hline(&mut rgba, 24, 10, 22);
+
+        let icon = tray_icon::Icon::from_rgba(rgba, SIZE as u32, SIZE as u32)?;
         Ok(icon)
     }
 }
@@ -229,51 +310,4 @@ impl Default for SymbionGui {
     fn default() -> Self {
         Self::new("127.0.0.1".to_string())
     }
-}
-
-/// Open URL in default browser
-fn open_browser(url: &str) -> Result<(), std::io::Error> {
-    #[cfg(target_os = "windows")]
-    {
-        let mut cmd = std::process::Command::new("rundll32");
-        cmd.creation_flags(CREATE_NO_WINDOW)
-            .args(&["url.dll,FileProtocolHandler", url])
-            .spawn()?;
-    }
-
-    #[cfg(target_os = "linux")]
-    std::process::Command::new("xdg-open").arg(url).spawn()?;
-
-    #[cfg(target_os = "macos")]
-    std::process::Command::new("open").arg(url).spawn()?;
-
-    Ok(())
-}
-
-/// Open configuration file in default text editor
-fn open_config_file() -> Result<(), std::io::Error> {
-    // Get config file path
-    let config_path = match crate::config::AgentConfig::config_file_path() {
-        Ok(path) => path,
-        Err(_) => return Err(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "Could not find config file path"
-        )),
-    };
-
-    #[cfg(target_os = "windows")]
-    {
-        let mut cmd = std::process::Command::new("notepad");
-        cmd.creation_flags(CREATE_NO_WINDOW)
-            .arg(&config_path)
-            .spawn()?;
-    }
-
-    #[cfg(target_os = "linux")]
-    std::process::Command::new("xdg-open").arg(&config_path).spawn()?;
-
-    #[cfg(target_os = "macos")]
-    std::process::Command::new("open").arg(&config_path).spawn()?;
-
-    Ok(())
 }

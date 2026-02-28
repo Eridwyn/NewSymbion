@@ -129,9 +129,11 @@ impl Agent {
     /// Start agent main loop with graceful shutdown on SIGTERM/SIGINT
     pub async fn run(&mut self) -> Result<()> {
         info!("Starting agent main loop...");
+        self.log("INFO", "Agent main loop started").await;
 
         // Initial registration
         self.register().await?;
+        self.log("INFO", "Agent registered with kernel").await;
 
         let mut heartbeat_timer = interval(Duration::from_secs(self.config.heartbeat_interval_secs));
         let mut registration_timer = interval(Duration::from_secs(300));
@@ -152,6 +154,7 @@ impl Agent {
                 _ = heartbeat_timer.tick() => {
                     if let Err(e) = self.send_heartbeat().await {
                         error!("Failed to send heartbeat: {}", e);
+                        self.log("ERROR", &format!("Heartbeat failed: {}", e)).await;
                     }
                     let connected = self.mqtt_connected.load(Ordering::Relaxed);
                     self.update_local_api_status(connected).await;
@@ -168,10 +171,12 @@ impl Agent {
                         Some(cmd) => {
                             if let Err(e) = self.process_command(cmd).await {
                                 error!("Failed to process command: {}", e);
+                                self.log("ERROR", &format!("Command failed: {}", e)).await;
                             }
                         }
                         None => {
                             warn!("Command channel closed");
+                            self.log("WARN", "Command channel closed").await;
                             self.send_offline_heartbeat().await;
                             break Ok(());
                         }
@@ -186,8 +191,10 @@ impl Agent {
                     }
                 } => {
                     info!("Reconnect signal received, forcing re-registration...");
+                    self.log("INFO", "Reconnect signal received").await;
                     if let Err(e) = self.register().await {
                         error!("Failed to re-register after reconnect signal: {}", e);
+                        self.log("ERROR", &format!("Re-registration failed: {}", e)).await;
                     }
                 }
             }
@@ -287,6 +294,7 @@ impl Agent {
         }
 
         info!("Executing command: {} ({})", incoming.command_type, incoming.command_id);
+        self.log("INFO", &format!("Command: {} ({})", incoming.command_type, incoming.command_id)).await;
 
         // Dispatch via registry (with special-case for reconnect)
         let result = if incoming.command_type == "reconnect" {
@@ -339,6 +347,13 @@ impl Agent {
     // Local API status update
     // ========================================================================
 
+    /// Push a log entry to the local API ring buffer (if available)
+    async fn log(&self, level: &str, message: &str) {
+        if let Some(ref api) = self.local_api {
+            api.push_log(level, message).await;
+        }
+    }
+
     async fn update_local_api_status(&self, mqtt_connected: bool) {
         if let Some(ref api) = self.local_api {
             let system_status = match metrics::SystemMetrics::collect().await {
@@ -346,15 +361,46 @@ impl Agent {
                     let process_count = metrics::ProcessInfo::collect().await
                         .map(|p| p.total_count as u32)
                         .unwrap_or(0);
+
+                    // Aggregate disk: use root "/" or first disk
+                    let (disk_used, disk_total) = m.disk.first()
+                        .map(|d| (Some(d.used_gb), Some(d.total_gb)))
+                        .unwrap_or((None, None));
+
+                    // Temperature: use cpu_celsius from temperature metrics
+                    let temperature = m.temperature.as_ref()
+                        .and_then(|t| t.cpu_celsius)
+                        .map(|c| c as f64);
+
+                    // Network: aggregate all interfaces
+                    let (net_rx, net_tx) = m.network.as_ref()
+                        .map(|n| {
+                            let rx: u64 = n.interfaces.iter().map(|i| i.bytes_recv).sum();
+                            let tx: u64 = n.interfaces.iter().map(|i| i.bytes_sent).sum();
+                            (Some(rx), Some(tx))
+                        })
+                        .unwrap_or((None, None));
+
                     Some(local_api::SystemStatus {
                         cpu_percent: m.cpu.percent as f64,
                         memory_used_mb: m.memory.used_mb,
                         memory_total_mb: m.memory.total_mb,
+                        disk_used_gb: disk_used,
+                        disk_total_gb: disk_total,
                         process_count,
                         load_average: Some(m.cpu.load_avg[0]),
+                        temperature,
+                        swap_used_mb: Some(m.swap.used_mb),
+                        swap_total_mb: Some(m.swap.total_mb),
+                        network_rx_bytes: net_rx,
+                        network_tx_bytes: net_tx,
+                        cpu_cores: Some(m.cpu.core_count),
                     })
                 }
-                Err(_) => None,
+                Err(e) => {
+                    api.push_log("ERROR", &format!("Metrics collection failed: {}", e)).await;
+                    None
+                }
             };
             api.update_status(mqtt_connected, system_status).await;
         }

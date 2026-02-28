@@ -5,14 +5,11 @@
 
 use serde::Serialize;
 use warp::Filter;
+use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
 
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
-
-#[cfg(target_os = "windows")]
-const CREATE_NO_WINDOW: u32 = 0x08000000;
+use crate::windows_utils;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AgentStatus {
@@ -30,12 +27,32 @@ pub struct SystemStatus {
     pub cpu_percent: f64,
     pub memory_used_mb: u64,
     pub memory_total_mb: u64,
+    pub disk_used_gb: Option<f64>,
+    pub disk_total_gb: Option<f64>,
     pub process_count: u32,
     pub load_average: Option<f64>,
+    pub temperature: Option<f64>,
+    pub swap_used_mb: Option<u64>,
+    pub swap_total_mb: Option<u64>,
+    pub network_rx_bytes: Option<u64>,
+    pub network_tx_bytes: Option<u64>,
+    pub cpu_cores: Option<usize>,
 }
+
+/// A single log entry stored in the ring buffer
+#[derive(Debug, Clone, Serialize)]
+pub struct LogEntry {
+    pub level: String,
+    pub message: String,
+    pub timestamp: String,
+}
+
+/// Maximum number of log entries kept in the ring buffer
+const LOG_BUFFER_CAPACITY: usize = 200;
 
 pub struct LocalApiServer {
     status: Arc<RwLock<AgentStatus>>,
+    logs: Arc<RwLock<VecDeque<LogEntry>>>,
     reconnect_tx: mpsc::Sender<()>,
     api_token: Option<String>,
 }
@@ -58,6 +75,7 @@ impl LocalApiServer {
 
         Self {
             status: Arc::new(RwLock::new(initial_status)),
+            logs: Arc::new(RwLock::new(VecDeque::with_capacity(LOG_BUFFER_CAPACITY))),
             reconnect_tx,
             api_token,
         }
@@ -113,15 +131,17 @@ impl LocalApiServer {
                 }
             });
 
-        // GET /logs - Agent logs (if available)
+        // GET /logs - Agent logs from ring buffer
+        let logs = self.logs.clone();
         let logs_route = warp::path("logs")
             .and(warp::get())
-            .map(|| {
-                // Return recent log entries
-                warp::reply::json(&serde_json::json!({
-                    "logs": ["[INFO] Agent started", "[INFO] MQTT connected"]
-                }))
-            });
+            .and(warp::any().map(move || logs.clone()))
+            .and_then(get_logs);
+
+        // POST /open-config - Open config file in editor
+        let open_config_route = warp::path("open-config")
+            .and(warp::post())
+            .and_then(open_config_handler);
 
         // Static files for dashboard UI - fallback to embedded HTML
         let ui_route = warp::path::end()
@@ -186,6 +206,7 @@ impl LocalApiServer {
             .or(logs_route)
             .or(ui_route)
             .or(open_dashboard_route)
+            .or(open_config_route)
             .or(update_status_route)
             .or(update_install_route)
             .with(cors);
@@ -205,10 +226,24 @@ impl LocalApiServer {
         status.mqtt_connected = mqtt_connected;
         status.system = system;
         status.uptime_seconds += 5; // Approximation, updated every 5s
-        
+
         if mqtt_connected {
             status.last_heartbeat = Some(chrono::Utc::now().to_rfc3339());
         }
+    }
+
+    /// Push a log entry into the ring buffer
+    pub async fn push_log(&self, level: &str, message: &str) {
+        let entry = LogEntry {
+            level: level.to_string(),
+            message: message.to_string(),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        };
+        let mut logs = self.logs.write().await;
+        if logs.len() >= LOG_BUFFER_CAPACITY {
+            logs.pop_front();
+        }
+        logs.push_back(entry);
     }
 
     /// Get current status (for external access)
@@ -239,23 +274,7 @@ impl LocalApiServer {
 
     /// Open main PWA in browser
     pub fn open_main_pwa(&self) -> Result<(), std::io::Error> {
-        let url = "http://localhost:3000"; // PWA kernel address
-        
-        #[cfg(target_os = "linux")]
-        std::process::Command::new("xdg-open").arg(url).spawn()?;
-        
-        #[cfg(target_os = "windows")]
-        {
-            let mut cmd = std::process::Command::new("rundll32");
-            cmd.creation_flags(CREATE_NO_WINDOW)
-                .args(&["url.dll,FileProtocolHandler", url])
-                .spawn()?;
-        }
-        
-        #[cfg(target_os = "macos")]
-        std::process::Command::new("open").arg(url).spawn()?;
-
-        Ok(())
+        windows_utils::open_url("http://localhost:3000")
     }
 }
 
@@ -282,23 +301,7 @@ async fn open_dashboard_handler() -> Result<impl warp::Reply, warp::Rejection> {
 }
 
 fn open_local_dashboard() -> Result<(), std::io::Error> {
-    let url = "http://localhost:9899";
-
-    #[cfg(target_os = "linux")]
-    std::process::Command::new("xdg-open").arg(url).spawn()?;
-
-    #[cfg(target_os = "windows")]
-    {
-        let mut cmd = std::process::Command::new("rundll32");
-        cmd.creation_flags(CREATE_NO_WINDOW)
-            .args(&["url.dll,FileProtocolHandler", url])
-            .spawn()?;
-    }
-
-    #[cfg(target_os = "macos")]
-    std::process::Command::new("open").arg(url).spawn()?;
-
-    Ok(())
+    windows_utils::open_url("http://localhost:9899")
 }
 
 async fn update_status_handler() -> Result<impl warp::Reply, warp::Rejection> {
@@ -381,5 +384,26 @@ async fn update_install_handler() -> Result<impl warp::Reply, warp::Rejection> {
     Ok(warp::reply::json(&serde_json::json!({
         "success": true,
         "message": "Update started, agent will restart shortly"
+    })))
+}
+
+async fn get_logs(
+    logs: Arc<RwLock<VecDeque<LogEntry>>>,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let logs = logs.read().await;
+    let entries: Vec<&LogEntry> = logs.iter().collect();
+    Ok(warp::reply::json(&serde_json::json!({ "logs": entries })))
+}
+
+async fn open_config_handler() -> Result<impl warp::Reply, warp::Rejection> {
+    if let Err(e) = windows_utils::open_config() {
+        return Ok(warp::reply::json(&serde_json::json!({
+            "success": false,
+            "error": format!("Failed to open config: {}", e)
+        })));
+    }
+    Ok(warp::reply::json(&serde_json::json!({
+        "success": true,
+        "message": "Config file opened"
     })))
 }

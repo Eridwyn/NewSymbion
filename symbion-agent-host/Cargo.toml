@@ -1,6 +1,6 @@
 [package]
 name = "symbion-agent-host"
-version = "1.2.1"
+version = "1.2.2"
 edition = "2021"
 description = "Multi-OS system agent for Symbion network control"
 authors = ["Symbion Team"]
@@ -22,8 +22,7 @@ uuid = { version = "1.0", features = ["v4"] }
 # System Info & Metrics
 sysinfo = "0.30"
 nix = "0.27"  # Unix system calls (Linux/macOS)
-gethostname = "0.4"  # Cross-platform hostname detection
-hostname = "0.4"  # Alternative hostname detection
+hostname = "0.4"  # Cross-platform hostname detection
 
 # Network Discovery
 if-addrs = "0.10"  # Network interface enumeration

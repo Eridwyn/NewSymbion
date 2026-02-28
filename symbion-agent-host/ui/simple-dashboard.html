@@ -1,448 +1,707 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Symbion Agent Dashboard</title>
+    <title>Symbion Agent</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
-            min-height: 100vh;
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        ::-webkit-scrollbar { display: none; }
+        html, body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #1e1e2e;
+            color: #cdd6f4;
+            height: 100%;
+            overflow: hidden;
+            scrollbar-width: none;
+            user-select: none;
+            -webkit-user-select: none;
         }
-        .dashboard {
-            max-width: 400px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            backdrop-filter: blur(10px);
+
+        .app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
         }
+
+        /* ── Header ── */
         .header {
-            text-align: center;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 15px;
-        }
-        .logo {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 5px;
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .hostname {
-            color: #666;
-            font-size: 14px;
-        }
-        .status-indicator {
             display: flex;
             align-items: center;
-            justify-content: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: #181825;
+            border-bottom: 1px solid #313244;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .header-logo {
+            font-size: 16px;
+            font-weight: 700;
+            color: #cba6f7;
+        }
+        .header-host {
+            font-size: 12px;
+            color: #6c7086;
+        }
+        .header-right {
+            display: flex;
+            align-items: center;
             gap: 8px;
-            margin: 15px 0;
         }
-        .status-dot {
-            width: 12px;
-            height: 12px;
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            background: #313244;
+        }
+        .status-badge.online { color: #a6e3a1; }
+        .status-badge.offline { color: #f38ba8; }
+        .dot {
+            width: 6px; height: 6px;
             border-radius: 50%;
-            background: #22c55e;
-            animation: pulse 2s infinite;
+            background: currentColor;
         }
-        .status-dot.offline {
-            background: #ef4444;
+        .dot.pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+        /* ── Tabs ── */
+        .tabs {
+            display: flex;
+            background: #181825;
+            border-bottom: 1px solid #313244;
         }
-        .status-dot.connecting {
-            background: #f59e0b;
+        .tab {
+            flex: 1;
+            padding: 8px 0;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 500;
+            color: #6c7086;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: color .15s, border-color .15s;
         }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
+        .tab:hover { color: #bac2de; }
+        .tab.active {
+            color: #cba6f7;
+            border-bottom-color: #cba6f7;
         }
-        .metrics {
-            margin: 20px 0;
+
+        /* ── Panel ── */
+        .panels {
+            flex: 1;
+            overflow-y: auto;
+            scrollbar-width: none;
         }
-        .metric {
+        .panel { display: none; padding: 14px 16px; }
+        .panel.active { display: block; }
+
+        /* ── Status panel ── */
+        .section-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .6px;
+            color: #6c7086;
+            margin-bottom: 8px;
+            margin-top: 14px;
+        }
+        .section-title:first-child { margin-top: 0; }
+
+        .metric-row {
             display: flex;
             justify-content: space-between;
-            padding: 12px 0;
-            border-bottom: 1px solid #eee;
-        }
-        .metric:last-child {
-            border-bottom: none;
+            align-items: center;
+            padding: 6px 0;
         }
         .metric-label {
-            font-weight: 500;
-            color: #555;
+            font-size: 13px;
+            color: #a6adc8;
         }
         .metric-value {
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 13px;
             font-weight: 600;
-            color: #333;
+            font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+            color: #cdd6f4;
         }
-        .actions {
-            margin-top: 20px;
+
+        /* Progress bars */
+        .bar-container {
+            margin: 4px 0 8px;
+        }
+        .bar-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+        .bar-header .label { color: #a6adc8; }
+        .bar-header .value { color: #cdd6f4; font-family: 'SF Mono', monospace; font-weight: 600; }
+        .bar-track {
+            width: 100%;
+            height: 6px;
+            background: #313244;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width .5s ease;
+        }
+        .bar-fill.cpu { background: #89b4fa; }
+        .bar-fill.mem { background: #a6e3a1; }
+        .bar-fill.disk { background: #f9e2af; }
+        .bar-fill.swap { background: #cba6f7; }
+        .bar-fill.warn { background: #fab387; }
+        .bar-fill.crit { background: #f38ba8; }
+
+        /* Info grid */
+        .info-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px;
+            gap: 8px;
+            margin-top: 8px;
         }
-        .btn {
-            padding: 12px 16px;
-            border: none;
+        .info-card {
+            background: #313244;
             border-radius: 8px;
-            cursor: pointer;
+            padding: 10px 12px;
+        }
+        .info-card .card-label {
+            font-size: 10px;
+            color: #6c7086;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+        .info-card .card-value {
             font-size: 14px;
-            font-weight: 500;
-            transition: all 0.2s ease;
-            text-decoration: none;
+            font-weight: 600;
+            margin-top: 2px;
+            font-family: 'SF Mono', monospace;
+        }
+
+        /* ── Agents panel ── */
+        .agent-card {
+            background: #313244;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+        .agent-card-header {
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            justify-content: center;
+            margin-bottom: 6px;
+        }
+        .agent-name {
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .agent-status {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 8px;
+        }
+        .agent-status.online { background: rgba(166,227,161,.15); color: #a6e3a1; }
+        .agent-status.offline { background: rgba(243,139,168,.15); color: #f38ba8; }
+        .agent-detail {
+            font-size: 12px;
+            color: #6c7086;
+        }
+
+        /* ── Logs panel ── */
+        .log-controls {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+        .log-filter {
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 10px;
+            border: 1px solid #313244;
+            background: transparent;
+            color: #6c7086;
+            cursor: pointer;
+        }
+        .log-filter.active {
+            background: #313244;
+            color: #cdd6f4;
+            border-color: #45475a;
+        }
+        .log-list {
+            font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+            font-size: 11px;
+            line-height: 1.6;
+            max-height: calc(100vh - 180px);
+            overflow-y: auto;
+            scrollbar-width: none;
+        }
+        .log-entry {
+            padding: 2px 0;
+            display: flex;
             gap: 6px;
         }
-        .btn-primary {
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            color: white;
+        .log-time { color: #585b70; min-width: 65px; }
+        .log-level {
+            min-width: 40px;
+            font-weight: 600;
         }
-        .btn-secondary {
-            background: #f8f9fa;
-            color: #495057;
-            border: 1px solid #dee2e6;
+        .log-level.INFO { color: #6c7086; }
+        .log-level.WARN { color: #f9e2af; }
+        .log-level.ERROR { color: #f38ba8; }
+        .log-level.DEBUG { color: #585b70; }
+        .log-msg { color: #bac2de; word-break: break-all; }
+
+        /* ── Config panel ── */
+        .config-group {
+            background: #313244;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
         }
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        }
-        .footer {
-            text-align: center;
-            margin-top: 20px;
+        .config-group-title {
             font-size: 12px;
-            color: #888;
+            font-weight: 600;
+            color: #cba6f7;
+            margin-bottom: 8px;
         }
+        .config-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            font-size: 12px;
+        }
+        .config-key { color: #6c7086; }
+        .config-val { color: #cdd6f4; font-family: 'SF Mono', monospace; }
+
+        /* Buttons */
+        .btn {
+            padding: 7px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            font-family: inherit;
+            transition: opacity .15s;
+            color: #cdd6f4;
+        }
+        .btn:hover { opacity: .85; }
+        .btn:active { opacity: .7; }
+        .btn-primary { background: #cba6f7; color: #1e1e2e; }
+        .btn-ghost {
+            background: #313244;
+            border: 1px solid #45475a;
+        }
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        /* Update banner */
+        .update-banner {
+            background: #313244;
+            border-left: 3px solid #cba6f7;
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+            font-size: 12px;
+        }
+        .update-banner strong { color: #cba6f7; }
+
+        /* Error state */
+        .error-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6c7086;
+        }
+        .error-state .icon { font-size: 32px; margin-bottom: 12px; }
+        .error-state .msg { font-size: 13px; margin-bottom: 16px; }
+
+        /* Loading */
         .loading {
             text-align: center;
-            color: #666;
-            margin: 20px 0;
-        }
-        .error {
-            text-align: center;
-            color: #dc3545;
-            margin: 20px 0;
-            font-size: 14px;
-        }
-        .update-banner {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 15px 0;
-            text-align: center;
-        }
-        .update-banner h3 {
-            margin: 0 0 10px 0;
-            font-size: 16px;
-        }
-        .update-banner p {
-            margin: 5px 0;
+            padding: 40px;
+            color: #6c7086;
             font-size: 13px;
-            opacity: 0.9;
         }
-        .update-banner .btn {
-            margin-top: 10px;
-            background: white;
-            color: #667eea;
-            font-weight: bold;
+
+        /* Footer */
+        .footer {
+            padding: 6px 16px;
+            text-align: center;
+            font-size: 10px;
+            color: #45475a;
+            background: #181825;
+            border-top: 1px solid #313244;
         }
     </style>
 </head>
 <body>
-    <div class="dashboard">
-        <div class="header">
-            <div class="logo">⚡ Symbion Agent</div>
-            <div class="hostname" id="hostname">Loading...</div>
-            <div class="status-indicator">
-                <div class="status-dot" id="status-dot"></div>
-                <span id="status-text">Connecting...</span>
+<div class="app">
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <span class="header-logo">Symbion</span>
+            <span class="header-host" id="hostname">--</span>
+        </div>
+        <div class="header-right">
+            <div class="status-badge offline" id="status-badge">
+                <span class="dot pulse"></span>
+                <span id="status-text">--</span>
             </div>
-        </div>
-        
-        <div id="update-section"></div>
-
-        <div id="content">
-            <div class="loading">
-                Loading agent status...
-            </div>
-        </div>
-        
-        <div class="actions" id="actions" style="display: none;">
-            <button class="btn btn-primary" onclick="openMainPWA()">
-                🌐 Main PWA
-            </button>
-            <button class="btn btn-secondary" onclick="reconnect()">
-                🔄 Reconnect
-            </button>
-            <button class="btn btn-secondary" onclick="showNotification()">
-                🔔 Test Notify
-            </button>
-            <button class="btn btn-secondary" onclick="refreshData()">
-                📊 Refresh
-            </button>
-        </div>
-        
-        <div class="footer">
-            Symbion Agent v1.0.4 • Local Dashboard
         </div>
     </div>
 
-    <script>
-        class AgentDashboard {
-            constructor() {
-                this.updateInterval = null;
-                this.retryCount = 0;
-                this.init();
-            }
+    <!-- Tabs -->
+    <div class="tabs">
+        <div class="tab active" data-tab="status">Status</div>
+        <div class="tab" data-tab="agents">Agents</div>
+        <div class="tab" data-tab="logs">Logs</div>
+        <div class="tab" data-tab="config">Config</div>
+    </div>
 
-            async init() {
-                console.log('[Dashboard] Starting...');
-                await this.fetchStatus();
-                await this.checkForUpdates();
-                this.startPeriodicUpdate();
-            }
+    <!-- Panels -->
+    <div class="panels">
+        <!-- Status Panel -->
+        <div class="panel active" id="panel-status">
+            <div id="update-section"></div>
+            <div id="status-content">
+                <div class="loading">Connexion...</div>
+            </div>
+        </div>
 
-            async checkForUpdates() {
-                try {
-                    const response = await fetch('http://localhost:9899/update/status');
-                    if (!response.ok) return;
+        <!-- Agents Panel -->
+        <div class="panel" id="panel-agents">
+            <div class="section-title">Cet agent</div>
+            <div id="agents-content">
+                <div class="loading">Chargement...</div>
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-primary" onclick="openMainPWA()">Ouvrir PWA</button>
+                <button class="btn btn-ghost" onclick="reconnect()">Reconnecter MQTT</button>
+            </div>
+        </div>
 
-                    const updateInfo = await response.json();
-                    if (updateInfo.update_available) {
-                        this.showUpdateBanner(updateInfo);
-                    }
-                } catch (error) {
-                    console.log('[Dashboard] Update check failed:', error);
-                }
-            }
+        <!-- Logs Panel -->
+        <div class="panel" id="panel-logs">
+            <div class="log-controls">
+                <button class="log-filter active" data-level="all" onclick="filterLogs('all',this)">Tout</button>
+                <button class="log-filter" data-level="INFO" onclick="filterLogs('INFO',this)">Info</button>
+                <button class="log-filter" data-level="WARN" onclick="filterLogs('WARN',this)">Warn</button>
+                <button class="log-filter" data-level="ERROR" onclick="filterLogs('ERROR',this)">Error</button>
+            </div>
+            <div class="log-list" id="log-list">
+                <div class="loading">Chargement des logs...</div>
+            </div>
+        </div>
 
-            showUpdateBanner(updateInfo) {
-                const updateSection = document.getElementById('update-section');
-                updateSection.innerHTML = `
-                    <div class="update-banner">
-                        <h3>🔄 Mise à jour disponible !</h3>
-                        <p>Version ${updateInfo.current_version} → ${updateInfo.latest_version}</p>
-                        <p style="font-size: 12px; margin-top: 10px;">${updateInfo.release_notes || 'Nouvelle version disponible'}</p>
-                        <button class="btn" onclick="installUpdate()">Installer et redémarrer</button>
-                    </div>
-                `;
-            }
+        <!-- Config Panel -->
+        <div class="panel" id="panel-config">
+            <div id="config-content">
+                <div class="loading">Chargement...</div>
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-ghost" onclick="openConfigFile()">Ouvrir fichier config</button>
+            </div>
+        </div>
+    </div>
 
-            async fetchStatus() {
-                try {
-                    const response = await fetch('http://localhost:9899/status');
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    
-                    const data = await response.json();
-                    this.updateUI(data);
-                    this.retryCount = 0;
-                } catch (error) {
-                    console.warn('[Dashboard] Fetch failed:', error);
-                    this.handleError(error);
-                    this.retryCount++;
-                }
-            }
+    <!-- Footer -->
+    <div class="footer">
+        <span id="footer-version">Symbion Agent</span> &middot; <span id="footer-uptime">--</span>
+    </div>
+</div>
 
-            updateUI(data) {
-                // Update hostname
-                document.getElementById('hostname').textContent = data.hostname || 'Unknown Host';
-                
-                // Update connection status
-                const connected = data.mqtt_connected;
-                const statusDot = document.getElementById('status-dot');
-                const statusText = document.getElementById('status-text');
-                
-                statusDot.className = connected ? 'status-dot' : 'status-dot offline';
-                statusText.textContent = connected ? 'Connected' : 'Disconnected';
-                
-                // Update metrics
-                const metrics = [
-                    ['Agent ID', data.agent_id || 'Unknown'],
-                    ['Version', data.version || '1.0.4'],
-                    ['Uptime', this.formatUptime(data.uptime_seconds)],
-                    ['MQTT Status', connected ? '✅ Connected' : '❌ Offline']
-                ];
-                
-                if (data.system) {
-                    metrics.push(
-                        ['CPU Usage', `${data.system.cpu_percent?.toFixed(1)}%` || 'N/A'],
-                        ['Memory', `${data.system.memory_used_mb} MB` || 'N/A'],
-                        ['Processes', data.system.process_count?.toString() || 'N/A']
-                    );
-                }
-                
-                this.renderMetrics(metrics);
-                document.getElementById('actions').style.display = 'grid';
-            }
+<script>
+(function() {
+    'use strict';
 
-            renderMetrics(metrics) {
-                const content = document.getElementById('content');
-                content.innerHTML = `
-                    <div class="metrics">
-                        ${metrics.map(([label, value]) => `
-                            <div class="metric">
-                                <span class="metric-label">${label}:</span>
-                                <span class="metric-value">${value}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-            }
+    const API = 'http://localhost:9899';
+    let currentFilter = 'all';
+    let logsAutoScroll = true;
 
-            handleError(error) {
-                const content = document.getElementById('content');
-                const statusText = document.getElementById('status-text');
-                const statusDot = document.getElementById('status-dot');
-                
-                statusDot.className = 'status-dot offline';
-                statusText.textContent = 'Connection Error';
-                
-                content.innerHTML = `
-                    <div class="error">
-                        ⚠️ Failed to connect to agent<br>
-                        <small>${error.message}</small>
-                        <br><br>
-                        <button class="btn btn-secondary" onclick="dashboard.fetchStatus()" style="margin: 0 auto;">
-                            Retry Connection
-                        </button>
-                    </div>
-                `;
-            }
-
-            formatUptime(seconds) {
-                if (!seconds) return '0s';
-                
-                const hours = Math.floor(seconds / 3600);
-                const minutes = Math.floor((seconds % 3600) / 60);
-                const secs = seconds % 60;
-                
-                if (hours > 0) {
-                    return `${hours}h ${minutes}m`;
-                } else if (minutes > 0) {
-                    return `${minutes}m ${secs}s`;
-                } else {
-                    return `${secs}s`;
-                }
-            }
-
-            startPeriodicUpdate() {
-                this.updateInterval = setInterval(() => {
-                    this.fetchStatus();
-                }, 5000); // Every 5 seconds
-            }
-
-            stop() {
-                if (this.updateInterval) {
-                    clearInterval(this.updateInterval);
-                }
-            }
-        }
-
-        // Global actions
-        async function openMainPWA() {
-            try {
-                // Try to detect kernel PWA automatically
-                const candidates = [
-                    'http://localhost:3000',
-                    'http://192.168.1.100:3000'
-                ];
-                
-                for (const url of candidates) {
-                    try {
-                        const response = await fetch(url, { method: 'HEAD', mode: 'no-cors' });
-                        window.open(url, '_blank');
-                        return;
-                    } catch (e) {
-                        continue;
-                    }
-                }
-                
-                // Fallback
-                window.open('http://localhost:3000', '_blank');
-            } catch (error) {
-                console.error('Failed to open PWA:', error);
-            }
-        }
-
-        async function reconnect() {
-            try {
-                document.getElementById('status-text').textContent = 'Reconnecting...';
-                
-                const response = await fetch('http://localhost:9899/reconnect', {
-                    method: 'POST'
-                });
-                
-                if (response.ok) {
-                    setTimeout(() => {
-                        dashboard.fetchStatus();
-                    }, 2000);
-                }
-            } catch (error) {
-                console.error('Reconnect failed:', error);
-            }
-        }
-
-        async function showNotification() {
-            // This would be handled by the backend
-            alert('🔔 Test notification sent!');
-        }
-
-        function refreshData() {
-            dashboard.fetchStatus();
-        }
-
-        async function installUpdate() {
-            try {
-                document.getElementById('update-section').innerHTML = `
-                    <div class="update-banner">
-                        <h3>⏳ Installation en cours...</h3>
-                        <p>L'agent va redémarrer automatiquement</p>
-                    </div>
-                `;
-
-                const response = await fetch('http://localhost:9899/update/install', {
-                    method: 'POST'
-                });
-
-                if (response.ok) {
-                    setTimeout(() => {
-                        location.reload();
-                    }, 3000);
-                } else {
-                    alert('❌ Échec de l\'installation');
-                }
-            } catch (error) {
-                console.error('Update install failed:', error);
-                alert('❌ Erreur lors de l\'installation');
-            }
-        }
-
-        // Initialize dashboard
-        let dashboard;
-        document.addEventListener('DOMContentLoaded', () => {
-            dashboard = new AgentDashboard();
+    // ── Tab Navigation ──
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
         });
+    });
 
-        // Cleanup on unload
-        window.addEventListener('beforeunload', () => {
-            if (dashboard) {
-                dashboard.stop();
+    // ── Formatters ──
+    function fmtUptime(s) {
+        if (!s) return '0s';
+        const d = Math.floor(s / 86400);
+        const h = Math.floor((s % 86400) / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        if (d > 0) return d + 'j ' + h + 'h';
+        if (h > 0) return h + 'h ' + m + 'm';
+        return m + 'm ' + (s % 60) + 's';
+    }
+
+    function fmtBytes(bytes) {
+        if (bytes == null) return '--';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+        return (bytes / 1073741824).toFixed(2) + ' GB';
+    }
+
+    function barClass(pct) {
+        if (pct > 90) return 'crit';
+        if (pct > 75) return 'warn';
+        return '';
+    }
+
+    function makeBar(label, pct, baseClass) {
+        const cls = barClass(pct) || baseClass;
+        return `<div class="bar-container">
+            <div class="bar-header">
+                <span class="label">${label}</span>
+                <span class="value">${pct.toFixed(1)}%</span>
+            </div>
+            <div class="bar-track"><div class="bar-fill ${cls}" style="width:${Math.min(pct,100)}%"></div></div>
+        </div>`;
+    }
+
+    // ── Status Panel ──
+    function renderStatus(d) {
+        const sys = d.system || {};
+        const cpuPct = sys.cpu_percent != null ? sys.cpu_percent : 0;
+        const memPct = sys.memory_total_mb > 0 ? (sys.memory_used_mb / sys.memory_total_mb * 100) : 0;
+
+        let html = '';
+
+        // Bars
+        html += makeBar('CPU', cpuPct, 'cpu');
+        html += makeBar('RAM', memPct, 'mem');
+
+        // Disk
+        if (sys.disk_used_gb != null && sys.disk_total_gb > 0) {
+            const diskPct = sys.disk_used_gb / sys.disk_total_gb * 100;
+            html += makeBar('Disque', diskPct, 'disk');
+        }
+
+        // Swap
+        if (sys.swap_used_mb != null && sys.swap_total_mb > 0) {
+            const swapPct = sys.swap_used_mb / sys.swap_total_mb * 100;
+            html += makeBar('Swap', swapPct, 'swap');
+        }
+
+        // Info cards
+        html += '<div class="info-grid">';
+        html += infoCard('CPU', cpuPct.toFixed(1) + '%');
+        html += infoCard('RAM', sys.memory_used_mb ? (sys.memory_used_mb + '/' + sys.memory_total_mb + ' MB') : '--');
+        html += infoCard('Processus', sys.process_count || '--');
+        html += infoCard('Load Avg', sys.load_average != null ? sys.load_average.toFixed(2) : '--');
+
+        if (sys.temperature != null) {
+            html += infoCard('Temp.', sys.temperature.toFixed(1) + ' °C');
+        }
+        if (sys.network_rx_bytes != null) {
+            html += infoCard('Net RX', fmtBytes(sys.network_rx_bytes));
+        }
+        if (sys.network_tx_bytes != null) {
+            html += infoCard('Net TX', fmtBytes(sys.network_tx_bytes));
+        }
+        if (sys.disk_used_gb != null) {
+            html += infoCard('Disque', sys.disk_used_gb.toFixed(1) + '/' + (sys.disk_total_gb || 0).toFixed(0) + ' GB');
+        }
+        html += '</div>';
+
+        document.getElementById('status-content').innerHTML = html;
+
+        // Header
+        document.getElementById('hostname').textContent = d.hostname || '--';
+        const badge = document.getElementById('status-badge');
+        const stxt = document.getElementById('status-text');
+        if (d.mqtt_connected) {
+            badge.className = 'status-badge online';
+            stxt.textContent = 'MQTT';
+        } else {
+            badge.className = 'status-badge offline';
+            stxt.textContent = 'Offline';
+        }
+
+        // Footer
+        document.getElementById('footer-version').textContent = 'Symbion Agent v' + (d.version || '?');
+        document.getElementById('footer-uptime').textContent = fmtUptime(d.uptime_seconds);
+    }
+
+    function infoCard(label, value) {
+        return `<div class="info-card"><div class="card-label">${label}</div><div class="card-value">${value}</div></div>`;
+    }
+
+    // ── Agents Panel ──
+    function renderAgent(d) {
+        const sys = d.system || {};
+        let html = `<div class="agent-card">
+            <div class="agent-card-header">
+                <span class="agent-name">${d.hostname || 'Unknown'}</span>
+                <span class="agent-status ${d.mqtt_connected ? 'online' : 'offline'}">${d.mqtt_connected ? 'En ligne' : 'Hors ligne'}</span>
+            </div>
+            <div class="agent-detail">ID: ${d.agent_id || '--'}</div>
+            <div class="agent-detail">Version: ${d.version || '--'}</div>
+            <div class="agent-detail">Uptime: ${fmtUptime(d.uptime_seconds)}</div>
+            <div class="agent-detail">CPU: ${sys.cpu_percent != null ? sys.cpu_percent.toFixed(1) + '%' : '--'} · RAM: ${sys.memory_used_mb || '--'} MB</div>
+        </div>`;
+        document.getElementById('agents-content').innerHTML = html;
+    }
+
+    // ── Logs Panel ──
+    function renderLogs(logs) {
+        if (!logs || logs.length === 0) {
+            document.getElementById('log-list').innerHTML = '<div class="loading">Aucun log</div>';
+            return;
+        }
+        const list = document.getElementById('log-list');
+        let html = '';
+        for (const log of logs) {
+            const level = log.level || 'INFO';
+            if (currentFilter !== 'all' && level !== currentFilter) continue;
+            const time = log.timestamp ? log.timestamp.substring(11, 19) : '--:--:--';
+            html += `<div class="log-entry">
+                <span class="log-time">${time}</span>
+                <span class="log-level ${level}">${level}</span>
+                <span class="log-msg">${escapeHtml(log.message || '')}</span>
+            </div>`;
+        }
+        list.innerHTML = html || '<div class="loading">Aucun log pour ce filtre</div>';
+        if (logsAutoScroll) {
+            list.scrollTop = list.scrollHeight;
+        }
+    }
+
+    function escapeHtml(s) {
+        const d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    // ── Config Panel ──
+    function renderConfig(d) {
+        const sys = d.system || {};
+        let html = '';
+        html += `<div class="config-group">
+            <div class="config-group-title">Agent</div>
+            <div class="config-row"><span class="config-key">Agent ID</span><span class="config-val">${d.agent_id || '--'}</span></div>
+            <div class="config-row"><span class="config-key">Version</span><span class="config-val">${d.version || '--'}</span></div>
+            <div class="config-row"><span class="config-key">Hostname</span><span class="config-val">${d.hostname || '--'}</span></div>
+        </div>`;
+        html += `<div class="config-group">
+            <div class="config-group-title">Connexion</div>
+            <div class="config-row"><span class="config-key">MQTT</span><span class="config-val">${d.mqtt_connected ? 'Connecté' : 'Déconnecté'}</span></div>
+            <div class="config-row"><span class="config-key">Dernier heartbeat</span><span class="config-val">${d.last_heartbeat ? d.last_heartbeat.substring(11, 19) : '--'}</span></div>
+        </div>`;
+        html += `<div class="config-group">
+            <div class="config-group-title">Système</div>
+            <div class="config-row"><span class="config-key">CPU (cores)</span><span class="config-val">${sys.cpu_cores || '--'}</span></div>
+            <div class="config-row"><span class="config-key">RAM totale</span><span class="config-val">${sys.memory_total_mb ? sys.memory_total_mb + ' MB' : '--'}</span></div>
+            <div class="config-row"><span class="config-key">Processus</span><span class="config-val">${sys.process_count || '--'}</span></div>
+        </div>`;
+        document.getElementById('config-content').innerHTML = html;
+    }
+
+    // ── Data Fetching ──
+    let lastData = null;
+
+    async function fetchStatus() {
+        try {
+            const r = await fetch(API + '/status');
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            lastData = await r.json();
+            renderStatus(lastData);
+            renderAgent(lastData);
+            renderConfig(lastData);
+        } catch (e) {
+            if (!lastData) {
+                document.getElementById('status-content').innerHTML =
+                    `<div class="error-state"><div class="icon">!</div><div class="msg">Connexion impossible<br><small>${e.message}</small></div>
+                    <button class="btn btn-ghost" onclick="location.reload()">Réessayer</button></div>`;
             }
-        });
-    </script>
+        }
+    }
+
+    async function fetchLogs() {
+        try {
+            const r = await fetch(API + '/logs');
+            if (!r.ok) return;
+            const data = await r.json();
+            renderLogs(data.logs || []);
+        } catch (e) { /* silent */ }
+    }
+
+    async function checkUpdates() {
+        try {
+            const r = await fetch(API + '/update/status');
+            if (!r.ok) return;
+            const info = await r.json();
+            if (info.update_available) {
+                document.getElementById('update-section').innerHTML =
+                    `<div class="update-banner"><strong>Mise à jour disponible</strong> — v${info.current_version} → v${info.latest_version}
+                    <div style="margin-top:6px"><button class="btn btn-primary" onclick="installUpdate()">Installer</button></div></div>`;
+            }
+        } catch (e) { /* silent */ }
+    }
+
+    // ── Actions ──
+    window.openMainPWA = async function() {
+        try { await fetch(API + '/open-dashboard', { method: 'POST' }); } catch(e) {}
+        window.open('http://localhost:3000', '_blank');
+    };
+
+    window.reconnect = async function() {
+        document.getElementById('status-text').textContent = '...';
+        try {
+            await fetch(API + '/reconnect', { method: 'POST' });
+            setTimeout(fetchStatus, 2000);
+        } catch (e) { /* silent */ }
+    };
+
+    window.installUpdate = async function() {
+        document.getElementById('update-section').innerHTML =
+            '<div class="update-banner"><strong>Installation en cours...</strong></div>';
+        try {
+            await fetch(API + '/update/install', { method: 'POST' });
+            setTimeout(() => location.reload(), 3000);
+        } catch (e) {
+            document.getElementById('update-section').innerHTML =
+                '<div class="update-banner" style="border-color:#f38ba8"><strong>Échec de l\'installation</strong></div>';
+        }
+    };
+
+    window.openConfigFile = function() {
+        fetch(API + '/open-config', { method: 'POST' }).catch(() => {});
+    };
+
+    window.filterLogs = function(level, el) {
+        currentFilter = level;
+        document.querySelectorAll('.log-filter').forEach(f => f.classList.remove('active'));
+        el.classList.add('active');
+        fetchLogs();
+    };
+
+    // ── Init ──
+    fetchStatus();
+    checkUpdates();
+    fetchLogs();
+
+    setInterval(fetchStatus, 5000);
+    setInterval(fetchLogs, 5000);
+})();
+</script>
 </body>
 </html>
