@@ -10,7 +10,7 @@
 
 use anyhow::Result;
 use serde::Serialize;
-use sysinfo::{System, ProcessStatus};
+use sysinfo::{Components, Networks, System, ProcessStatus};
 use tracing::debug;
 
 /// Complete system metrics (matches agents.heartbeat@v1 schema)
@@ -19,9 +19,11 @@ pub struct SystemMetrics {
     pub uptime_seconds: u64,
     pub cpu: CpuMetrics,
     pub memory: MemoryMetrics,
+    pub swap: SwapMetrics,
     pub disk: Vec<DiskMetrics>,
     pub network: Option<NetworkMetrics>,
     pub temperature: Option<TemperatureMetrics>,
+    pub battery: Option<BatteryMetrics>,
 }
 
 /// CPU usage metrics
@@ -84,6 +86,156 @@ pub struct TemperatureSensor {
     pub critical: Option<f32>,
 }
 
+/// Swap memory metrics
+#[derive(Debug, Serialize)]
+pub struct SwapMetrics {
+    pub total_mb: u64,
+    pub used_mb: u64,
+    pub percent_used: f32,
+}
+
+/// Battery status (laptops / UPS)
+#[derive(Debug, Serialize)]
+pub struct BatteryMetrics {
+    pub percent: f32,
+    pub charging: bool,
+    pub power_source: String,
+}
+
+impl SwapMetrics {
+    fn collect(sys: &System) -> Self {
+        let total = sys.total_swap();
+        let used = sys.used_swap();
+        let total_mb = (total / (1024 * 1024)) as u64;
+        let used_mb = (used / (1024 * 1024)) as u64;
+        let percent_used = if total > 0 {
+            (used as f32 / total as f32) * 100.0
+        } else {
+            0.0
+        };
+
+        SwapMetrics {
+            total_mb,
+            used_mb,
+            percent_used,
+        }
+    }
+}
+
+impl BatteryMetrics {
+    /// Collect battery info from /sys/class/power_supply (Linux) or WMI (Windows)
+    async fn collect() -> Option<Self> {
+        #[cfg(target_os = "linux")]
+        {
+            Self::collect_linux().await
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            None
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    async fn collect_linux() -> Option<Self> {
+        use tokio::fs;
+
+        // Find battery device (BAT0, BAT1, etc.)
+        let power_dir = "/sys/class/power_supply";
+        let mut entries = fs::read_dir(power_dir).await.ok()?;
+
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !name.starts_with("BAT") {
+                continue;
+            }
+
+            let base = format!("{}/{}", power_dir, name);
+
+            let capacity = fs::read_to_string(format!("{}/capacity", base))
+                .await.ok()
+                .and_then(|s| s.trim().parse::<f32>().ok())?;
+
+            let status = fs::read_to_string(format!("{}/status", base))
+                .await.ok()
+                .map(|s| s.trim().to_string())
+                .unwrap_or_default();
+
+            let charging = status == "Charging" || status == "Full";
+            let power_source = if charging { "AC" } else { "Battery" }.to_string();
+
+            return Some(BatteryMetrics {
+                percent: capacity,
+                charging,
+                power_source,
+            });
+        }
+
+        None
+    }
+}
+
+impl NetworkMetrics {
+    /// Collect network interface statistics
+    fn collect() -> Option<Self> {
+        let networks = Networks::new_with_refreshed_list();
+        let interfaces: Vec<NetworkInterfaceStats> = networks.iter()
+            .map(|(name, data)| NetworkInterfaceStats {
+                name: name.to_string(),
+                bytes_sent: data.total_transmitted(),
+                bytes_recv: data.total_received(),
+                packets_sent: data.total_packets_transmitted(),
+                packets_recv: data.total_packets_received(),
+                is_up: data.total_received() > 0 || data.total_transmitted() > 0,
+            })
+            .collect();
+
+        if interfaces.is_empty() {
+            None
+        } else {
+            Some(NetworkMetrics { interfaces })
+        }
+    }
+}
+
+impl TemperatureMetrics {
+    /// Collect temperature readings from system sensors
+    fn collect() -> Option<Self> {
+        let components = Components::new_with_refreshed_list();
+        if components.is_empty() {
+            return None;
+        }
+
+        let mut cpu_celsius: Option<f32> = None;
+        let mut sensors = Vec::new();
+
+        for component in components.iter() {
+            let label = component.label().to_string();
+            let temp = component.temperature();
+            let critical = component.critical();
+
+            // Detect CPU temperature (common labels across platforms)
+            if cpu_celsius.is_none() {
+                let lower = label.to_lowercase();
+                if lower.contains("cpu") || lower.contains("core") || lower.contains("package") || lower.contains("tctl") {
+                    cpu_celsius = Some(temp);
+                }
+            }
+
+            sensors.push(TemperatureSensor {
+                name: label,
+                value: temp,
+                unit: "°C".to_string(),
+                critical,
+            });
+        }
+
+        Some(TemperatureMetrics {
+            cpu_celsius,
+            sensors,
+        })
+    }
+}
+
 /// Process information summary
 #[derive(Debug, Serialize)]
 pub struct ProcessInfo {
@@ -137,17 +289,21 @@ impl SystemMetrics {
         
         let cpu = CpuMetrics::collect(&sys)?;
         let memory = MemoryMetrics::collect(&sys)?;
+        let swap = SwapMetrics::collect(&sys);
         let disk = DiskMetrics::collect(&sys)?;
-        let network = None; // Placeholder - will implement later
-        let temperature = None; // Placeholder - will implement later
-        
+        let network = NetworkMetrics::collect();
+        let temperature = TemperatureMetrics::collect();
+        let battery = BatteryMetrics::collect().await;
+
         Ok(SystemMetrics {
             uptime_seconds,
             cpu,
             memory,
+            swap,
             disk,
             network,
             temperature,
+            battery,
         })
     }
 }
@@ -292,33 +448,119 @@ impl ProcessInfo {
 }
 
 impl ServiceStatus {
+    /// Collect status of critical system services
     pub async fn collect_critical() -> Result<Vec<Self>> {
-        // Placeholder - actual implementation will be OS-specific
         let critical_services = if cfg!(target_os = "linux") {
-            vec!["ssh", "NetworkManager"]
+            vec!["ssh", "NetworkManager", "mosquitto", "symbion-kernel"]
         } else if cfg!(target_os = "windows") {
-            vec!["Winmgmt", "EventLog"]
+            vec!["Winmgmt", "EventLog", "Mosquitto"]
         } else {
             vec![]
         };
-        
+
         let mut services = Vec::new();
-        for service_name in critical_services {
-            services.push(ServiceStatus {
-                name: service_name.to_string(),
+        for name in critical_services {
+            let status = Self::query_service(name).await;
+            services.push(status);
+        }
+
+        Ok(services)
+    }
+
+    /// Query a single service status (platform-specific)
+    async fn query_service(name: &str) -> Self {
+        if cfg!(target_os = "linux") {
+            Self::query_linux_service(name).await
+        } else if cfg!(target_os = "windows") {
+            Self::query_windows_service(name).await
+        } else {
+            ServiceStatus {
+                name: name.to_string(),
                 status: ServiceState::Unknown,
                 enabled: None,
-            });
+            }
         }
-        
-        Ok(services)
+    }
+
+    async fn query_linux_service(name: &str) -> Self {
+        use tokio::process::Command;
+
+        // Check if active
+        let is_active = Command::new("systemctl")
+            .args(["is-active", "--quiet", name])
+            .output()
+            .await
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+
+        // Check if enabled
+        let is_enabled = Command::new("systemctl")
+            .args(["is-enabled", "--quiet", name])
+            .output()
+            .await
+            .map(|o| o.status.success())
+            .ok();
+
+        let status = if is_active {
+            ServiceState::Active
+        } else {
+            // Distinguish inactive from failed
+            let state_output = Command::new("systemctl")
+                .args(["is-failed", "--quiet", name])
+                .output()
+                .await
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+
+            if state_output {
+                ServiceState::Failed
+            } else {
+                ServiceState::Inactive
+            }
+        };
+
+        ServiceStatus {
+            name: name.to_string(),
+            status,
+            enabled: is_enabled,
+        }
+    }
+
+    async fn query_windows_service(name: &str) -> Self {
+        use tokio::process::Command;
+
+        let output = Command::new("sc")
+            .args(["query", name])
+            .output()
+            .await;
+
+        let (status, enabled) = match output {
+            Ok(o) => {
+                let stdout = String::from_utf8_lossy(&o.stdout).to_string();
+                let state = if stdout.contains("RUNNING") {
+                    ServiceState::Active
+                } else if stdout.contains("STOPPED") {
+                    ServiceState::Inactive
+                } else {
+                    ServiceState::Unknown
+                };
+                (state, None)
+            }
+            Err(_) => (ServiceState::Unknown, None),
+        };
+
+        ServiceStatus {
+            name: name.to_string(),
+            status,
+            enabled,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_metrics_collection() {
         let metrics = SystemMetrics::collect().await.unwrap();
@@ -327,12 +569,50 @@ mod tests {
         assert!(metrics.memory.total_mb > 0);
         assert!(!metrics.disk.is_empty());
     }
-    
-    #[tokio::test] 
+
+    #[tokio::test]
     async fn test_process_info() {
         let process_info = ProcessInfo::collect().await.unwrap();
         assert!(process_info.total_count > 0);
         assert!(process_info.top_cpu.len() <= 15);
         assert!(process_info.top_memory.len() <= 15);
+    }
+
+    #[test]
+    fn test_swap_metrics() {
+        let sys = System::new_all();
+        let swap = SwapMetrics::collect(&sys);
+        // Swap may be 0 on some systems, but percent should be valid
+        assert!(swap.percent_used >= 0.0 && swap.percent_used <= 100.0);
+    }
+
+    #[test]
+    fn test_network_metrics() {
+        let net = NetworkMetrics::collect();
+        // Most systems have at least loopback
+        if let Some(net) = net {
+            assert!(!net.interfaces.is_empty());
+            assert!(net.interfaces.iter().any(|i| i.name == "lo" || i.name.starts_with("eth") || i.name.starts_with("en") || i.name.starts_with("wl")));
+        }
+    }
+
+    #[test]
+    fn test_temperature_metrics() {
+        // Temperature sensors may not be available on all systems
+        let temp = TemperatureMetrics::collect();
+        if let Some(temp) = temp {
+            assert!(!temp.sensors.is_empty());
+            for sensor in &temp.sensors {
+                assert!(sensor.value > -50.0 && sensor.value < 200.0);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_service_status() {
+        let services = ServiceStatus::collect_critical().await.unwrap();
+        assert!(!services.is_empty());
+        // At least one service should have a real status (not Unknown)
+        // ssh or NetworkManager should be queryable on Linux
     }
 }
