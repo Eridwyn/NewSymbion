@@ -133,9 +133,22 @@ impl CommandExecutor {
         }
     }
     
-    /// Kill process by PID and restart it by name
+    /// Kill process by PID and restart it by name.
+    /// The process_name is validated to prevent shell injection.
     pub async fn kill_and_restart(pid: u32, process_name: &str) -> Result<ExecutionResult> {
         let start_time = Instant::now();
+
+        // Validate process name against injection
+        if !Self::is_safe_process_name(process_name) {
+            return Ok(ExecutionResult {
+                success: false,
+                output: String::new(),
+                error: Some(format!("Invalid process name: {}", process_name)),
+                exit_code: Some(1),
+                execution_time_ms: start_time.elapsed().as_millis(),
+            });
+        }
+
         info!("Kill and restart: PID {} ({})", pid, process_name);
 
         // Kill the process
@@ -147,7 +160,7 @@ impl CommandExecutor {
         // Wait for process to fully terminate
         tokio::time::sleep(Duration::from_secs(1)).await;
 
-        // Attempt to restart using the process name
+        // Restart using the validated process name — pass as direct arg, not through shell
         let restart_result = if cfg!(target_os = "windows") {
             AsyncCommand::new("cmd")
                 .args(["/C", "start", "", process_name])
@@ -156,8 +169,8 @@ impl CommandExecutor {
                 .output()
                 .await
         } else {
-            AsyncCommand::new("bash")
-                .args(["-c", &format!("{} &", process_name)])
+            // Use direct exec instead of bash -c to avoid injection
+            AsyncCommand::new(process_name)
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .output()
@@ -208,6 +221,15 @@ impl CommandExecutor {
         Ok(processes)
     }
     
+    /// Validate a process name contains only safe characters (no shell injection).
+    fn is_safe_process_name(name: &str) -> bool {
+        !name.is_empty()
+            && name.len() <= 256
+            && name.chars().all(|c| {
+                c.is_alphanumeric() || matches!(c, '-' | '_' | '.' | '/' | '\\')
+            })
+    }
+
     // Platform-specific implementations
     
     async fn shutdown(delay_secs: u32) -> Result<String> {
@@ -619,9 +641,27 @@ mod tests {
         } else {
             CommandExecutor::execute_shell_command("sleep 10", 2).await.unwrap()
         };
-        
+
         // Command should timeout and fail
         assert!(!result.success);
         assert!(result.error.is_some());
+    }
+
+    #[test]
+    fn test_safe_process_name() {
+        assert!(CommandExecutor::is_safe_process_name("nginx"));
+        assert!(CommandExecutor::is_safe_process_name("my-app"));
+        assert!(CommandExecutor::is_safe_process_name("node_server"));
+        assert!(CommandExecutor::is_safe_process_name("/usr/bin/nginx"));
+        assert!(CommandExecutor::is_safe_process_name("app.exe"));
+    }
+
+    #[test]
+    fn test_unsafe_process_name() {
+        assert!(!CommandExecutor::is_safe_process_name(""));
+        assert!(!CommandExecutor::is_safe_process_name("rm -rf /"));
+        assert!(!CommandExecutor::is_safe_process_name("bash -c 'evil'"));
+        assert!(!CommandExecutor::is_safe_process_name("$(whoami)"));
+        assert!(!CommandExecutor::is_safe_process_name("app;rm -rf /"));
     }
 }
