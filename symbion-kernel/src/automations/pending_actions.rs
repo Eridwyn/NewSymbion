@@ -36,6 +36,8 @@ pub struct PendingAction {
 pub struct PendingActionRegistry {
     actions: Arc<RwLock<HashMap<String, PendingAction>>>,
     data_path: Option<PathBuf>,
+    /// SQLite database (None = JSON-only fallback mode)
+    db: std::sync::Mutex<Option<crate::database::SharedDatabase>>,
 }
 
 impl PendingActionRegistry {
@@ -45,10 +47,84 @@ impl PendingActionRegistry {
         let registry = Self {
             actions: Arc::new(RwLock::new(HashMap::new())),
             data_path,
+            db: std::sync::Mutex::new(None),
         };
 
         registry.load_from_disk();
         registry
+    }
+
+    /// Attach SQLite database and load/seed pending actions.
+    /// Uses interior mutability so it works on Arc<PendingActionRegistry>.
+    pub fn set_database(&self, db: crate::database::SharedDatabase) {
+        // Load from DB if it has data
+        match crate::database::pending_action_queries::count_pending_actions(&db) {
+            Ok(count) if count > 0 => {
+                match crate::database::pending_action_queries::list_pending_actions(&db) {
+                    Ok(rows) => {
+                        let mut actions = HashMap::new();
+                        for row in rows {
+                            let action: ActionDefinition = match serde_json::from_str(&row.action_json) {
+                                Ok(a) => a,
+                                Err(e) => {
+                                    eprintln!("[pending_actions] Failed to parse action JSON from DB: {}", e);
+                                    continue;
+                                }
+                            };
+                            let created_at = time::OffsetDateTime::parse(
+                                &row.created_at,
+                                &time::format_description::well_known::Rfc3339,
+                            ).unwrap_or_else(|_| OffsetDateTime::now_utc());
+
+                            let pending = PendingAction {
+                                validation_id: row.validation_id.clone(),
+                                automation_id: row.automation_id,
+                                automation_name: row.automation_name,
+                                action,
+                                action_index: row.action_index,
+                                trust_score: row.trust_score.map(|s| s as f32).unwrap_or(0.0),
+                                target_mode: row.target_mode,
+                                created_at,
+                            };
+                            actions.insert(row.validation_id, pending);
+                        }
+                        let loaded = actions.len();
+                        *self.actions.write() = actions;
+                        eprintln!("[pending_actions] Loaded {} pending actions from SQLite", loaded);
+                    }
+                    Err(e) => eprintln!("[pending_actions] Failed to load from SQLite: {}", e),
+                }
+            }
+            Ok(_) => {
+                // DB empty, seed from current in-memory actions (loaded from JSON)
+                let actions = self.actions.read();
+                if !actions.is_empty() {
+                    for (_, pa) in actions.iter() {
+                        let action_json = serde_json::to_string(&pa.action).unwrap_or_else(|_| "{}".to_string());
+                        let row = crate::database::pending_action_queries::PendingActionRow {
+                            validation_id: pa.validation_id.clone(),
+                            automation_id: pa.automation_id.clone(),
+                            automation_name: pa.automation_name.clone(),
+                            action_json,
+                            action_index: pa.action_index,
+                            trust_score: Some(pa.trust_score as f64),
+                            target_mode: pa.target_mode.clone(),
+                            created_at: pa.created_at.format(&time::format_description::well_known::Rfc3339).unwrap_or_default(),
+                        };
+                        if let Err(e) = crate::database::pending_action_queries::upsert_pending_action(&db, &row) {
+                            eprintln!("[pending_actions] Failed to seed to SQLite: {}", e);
+                        }
+                    }
+                    eprintln!("[pending_actions] Seeded {} pending actions to SQLite from JSON", actions.len());
+                }
+            }
+            Err(e) => eprintln!("[pending_actions] Failed to count in SQLite: {}", e),
+        }
+
+        // Store the DB handle
+        if let Ok(mut db_guard) = self.db.lock() {
+            *db_guard = Some(db);
+        }
     }
 
     /// Load pending actions from disk
@@ -77,8 +153,34 @@ impl PendingActionRegistry {
         }
     }
 
-    /// Save pending actions to disk (atomic: temp file → rename)
+    /// Save pending actions (SQLite primary + JSON fallback, atomic)
     fn save_to_disk(&self) {
+        // Try SQLite first: full replace all pending actions
+        if let Ok(db_guard) = self.db.lock() {
+            if let Some(ref db) = *db_guard {
+                let actions = self.actions.read();
+                // Delete all then re-insert (simple approach for small dataset)
+                let _ = crate::database::pending_action_queries::delete_all_pending_actions(db);
+                for (_, pa) in actions.iter() {
+                    let action_json = serde_json::to_string(&pa.action).unwrap_or_else(|_| "{}".to_string());
+                    let row = crate::database::pending_action_queries::PendingActionRow {
+                        validation_id: pa.validation_id.clone(),
+                        automation_id: pa.automation_id.clone(),
+                        automation_name: pa.automation_name.clone(),
+                        action_json,
+                        action_index: pa.action_index,
+                        trust_score: Some(pa.trust_score as f64),
+                        target_mode: pa.target_mode.clone(),
+                        created_at: pa.created_at.format(&time::format_description::well_known::Rfc3339).unwrap_or_default(),
+                    };
+                    if let Err(e) = crate::database::pending_action_queries::upsert_pending_action(db, &row) {
+                        eprintln!("[pending_actions] Failed to save to SQLite: {}", e);
+                    }
+                }
+            }
+        }
+
+        // JSON fallback (always write for backward compatibility during transition)
         let Some(path) = &self.data_path else { return };
 
         let json = {

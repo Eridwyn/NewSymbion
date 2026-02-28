@@ -149,6 +149,8 @@ pub struct ContextEngine {
     history_path: PathBuf,
     state_path: PathBuf,
     pending_change: Arc<RwLock<Option<PendingChange>>>,  // Hystérésis 120s
+    /// SQLite database (None = JSON-only fallback mode)
+    db: std::sync::Mutex<Option<crate::database::SharedDatabase>>,
 }
 
 impl ContextEngine {
@@ -219,6 +221,104 @@ impl ContextEngine {
             history_path,
             state_path,
             pending_change: Arc::new(RwLock::new(None)),
+            db: std::sync::Mutex::new(None),
+        }
+    }
+
+    /// Attach SQLite database and load data from DB if available.
+    /// Uses interior mutability so it works on Arc<ContextEngine>.
+    pub fn set_database(&self, db: crate::database::SharedDatabase) {
+        // Load history from DB if it has data
+        match crate::database::context_queries::count_history(&db) {
+            Ok(count) if count > 0 => {
+                match crate::database::context_queries::list_history(&db, 10000) {
+                    Ok(rows) => {
+                        let mut entries: Vec<ModeHistoryEntry> = rows.iter().rev().filter_map(|row| {
+                            let mode = Self::slug_to_mode(&row.mode);
+                            let timestamp = time::OffsetDateTime::parse(
+                                &row.timestamp,
+                                &time::format_description::well_known::Rfc3339,
+                            ).ok()?;
+                            Some(ModeHistoryEntry {
+                                mode,
+                                mode_slug: row.mode_slug.clone(),
+                                timestamp,
+                                reason: row.reason.clone().unwrap_or_default(),
+                                was_manual: row.was_manual,
+                            })
+                        }).collect();
+                        // Deduplicate: DB rows are newest-first, we reversed to oldest-first
+                        let loaded = entries.len();
+                        if let Ok(mut history) = self.history.lock() {
+                            *history = entries;
+                        }
+                        eprintln!("[context] Loaded {} history entries from SQLite", loaded);
+                    }
+                    Err(e) => eprintln!("[context] Failed to load history from SQLite: {}", e),
+                }
+            }
+            Ok(_) => {
+                // DB empty, seed from current in-memory history (loaded from JSON)
+                if let Ok(history) = self.history.lock() {
+                    if !history.is_empty() {
+                        let rows: Vec<crate::database::context_queries::ContextHistoryRow> = history.iter().map(|e| {
+                            crate::database::context_queries::ContextHistoryRow {
+                                mode: Self::mode_to_slug(e.mode),
+                                mode_slug: e.mode_slug.clone(),
+                                timestamp: e.timestamp.format(&time::format_description::well_known::Rfc3339).unwrap_or_default(),
+                                reason: Some(e.reason.clone()),
+                                was_manual: e.was_manual,
+                            }
+                        }).collect();
+                        for row in &rows {
+                            if let Err(e) = crate::database::context_queries::insert_history_entry(&db, row) {
+                                eprintln!("[context] Failed to seed history entry to SQLite: {}", e);
+                            }
+                        }
+                        eprintln!("[context] Seeded {} history entries to SQLite from JSON", rows.len());
+                    }
+                }
+            }
+            Err(e) => eprintln!("[context] Failed to count history in SQLite: {}", e),
+        }
+
+        // Load state from DB if it has data
+        match crate::database::context_queries::get_state(&db, "context_state_json") {
+            Ok(Some(json)) => {
+                match serde_json::from_str::<ContextState>(&json) {
+                    Ok(mut loaded_state) => {
+                        // Clear expired override
+                        if let Some(ref ov) = loaded_state.manual_override {
+                            if ov.until < OffsetDateTime::now_utc() {
+                                loaded_state.manual_override = None;
+                            }
+                        }
+                        if let Ok(mut state) = self.state.lock() {
+                            *state = loaded_state;
+                        }
+                        eprintln!("[context] Loaded state from SQLite");
+                    }
+                    Err(e) => eprintln!("[context] Failed to parse state from SQLite: {}", e),
+                }
+            }
+            Ok(None) => {
+                // DB empty, seed from current in-memory state
+                if let Ok(state) = self.state.lock() {
+                    if let Ok(json) = serde_json::to_string(&*state) {
+                        if let Err(e) = crate::database::context_queries::set_state(&db, "context_state_json", &json) {
+                            eprintln!("[context] Failed to seed state to SQLite: {}", e);
+                        } else {
+                            eprintln!("[context] Seeded state to SQLite from JSON");
+                        }
+                    }
+                }
+            }
+            Err(e) => eprintln!("[context] Failed to read state from SQLite: {}", e),
+        }
+
+        // Store the DB handle
+        if let Ok(mut db_guard) = self.db.lock() {
+            *db_guard = Some(db);
         }
     }
 
@@ -234,7 +334,7 @@ impl ContextEngine {
         }
     }
 
-    /// Persiste l'état actuel sur disque
+    /// Persiste l'état actuel (SQLite primary + JSON fallback)
     fn save_state(&self) {
         let state = match self.state.lock() {
             Ok(s) => s.clone(),
@@ -243,14 +343,30 @@ impl ContextEngine {
                 return;
             }
         };
-        match serde_json::to_string_pretty(&state) {
-            Ok(json) => {
-                if let Err(e) = std::fs::write(&self.state_path, json) {
-                    eprintln!("[context] Failed to save state: {}", e);
-                }
-            }
+
+        let json = match serde_json::to_string_pretty(&state) {
+            Ok(j) => j,
             Err(e) => {
                 eprintln!("[context] Failed to serialize state: {}", e);
+                return;
+            }
+        };
+
+        // Try SQLite first
+        let db_ok = if let Ok(db_guard) = self.db.lock() {
+            if let Some(ref db) = *db_guard {
+                crate::database::context_queries::set_state(db, "context_state_json", &json).is_ok()
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        // JSON fallback (always write for backward compatibility during transition)
+        if let Err(e) = std::fs::write(&self.state_path, &json) {
+            if !db_ok {
+                eprintln!("[context] Failed to save state to both SQLite and JSON: {}", e);
             }
         }
     }
@@ -482,23 +598,40 @@ impl ContextEngine {
             .unwrap_or_else(|| "veille".to_string())
     }
 
-    /// Ajoute une entrée à l'historique et sauvegarde
+    /// Ajoute une entrée à l'historique et sauvegarde (SQLite primary + JSON fallback)
     fn add_to_history(&self, mode: Mode, mode_slug: Option<String>, reason: String, was_manual: bool) {
         if let Ok(mut history) = self.history.lock() {
+            let timestamp = OffsetDateTime::now_utc();
             let entry = ModeHistoryEntry {
                 mode,
-                mode_slug,
-                timestamp: OffsetDateTime::now_utc(),
-                reason,
+                mode_slug: mode_slug.clone(),
+                timestamp,
+                reason: reason.clone(),
                 was_manual,
             };
 
             history.push(entry);
 
-            // Sauvegarder l'historique sur disque
+            // Try SQLite first
+            if let Ok(db_guard) = self.db.lock() {
+                if let Some(ref db) = *db_guard {
+                    let row = crate::database::context_queries::ContextHistoryRow {
+                        mode: Self::mode_to_slug(mode),
+                        mode_slug,
+                        timestamp: timestamp.format(&time::format_description::well_known::Rfc3339).unwrap_or_default(),
+                        reason: Some(reason),
+                        was_manual,
+                    };
+                    if let Err(e) = crate::database::context_queries::insert_history_entry(db, &row) {
+                        eprintln!("[context] Failed to insert history to SQLite: {}", e);
+                    }
+                }
+            }
+
+            // JSON fallback (always write for backward compatibility during transition)
             if let Ok(json) = serde_json::to_string_pretty(&*history) {
                 if let Err(e) = std::fs::write(&self.history_path, json) {
-                    eprintln!("[context] Failed to save history: {}", e);
+                    eprintln!("[context] Failed to save history to JSON: {}", e);
                 }
             }
         }

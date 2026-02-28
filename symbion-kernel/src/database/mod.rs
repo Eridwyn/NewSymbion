@@ -21,6 +21,10 @@ pub mod notification_queries;
 pub mod trust_queries;
 pub mod inference_queries;
 pub mod automation_rule_queries;
+pub mod context_queries;
+pub mod pattern_queries;
+pub mod pending_action_queries;
+pub mod sensor_meta_queries;
 
 use anyhow::{Context, Result};
 use parking_lot::Mutex;
