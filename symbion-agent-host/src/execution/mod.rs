@@ -2,10 +2,14 @@
 //!
 //! Handles secure execution of system commands:
 //! - Power management commands (shutdown, reboot, hibernate)
-//! - Process control (list, kill by PID)  
+//! - Process control (list, kill by PID)
 //! - Shell command execution with timeout
 //! - Service management (start/stop/status)
 //! - Cross-platform implementation
+//! - Trait-based handler system for extensible command dispatch
+
+pub mod handler;
+pub mod handlers;
 
 use anyhow::{Result, Context, anyhow};
 use serde::Serialize;
