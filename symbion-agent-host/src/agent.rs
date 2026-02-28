@@ -331,18 +331,7 @@ impl Agent {
 
     /// Send command response, truncating large outputs for MQTT transport
     async fn send_response(&self, mut response: CommandResponse) -> Result<()> {
-        const MAX_OUTPUT_SIZE: usize = 7000;
-
-        // Truncate large string outputs
-        if let Some(serde_json::Value::String(ref output_str)) = response.output {
-            if output_str.len() > MAX_OUTPUT_SIZE {
-                info!("Output too large ({} chars), truncating to {}", output_str.len(), MAX_OUTPUT_SIZE);
-                let mut truncated: String = output_str.chars().take(MAX_OUTPUT_SIZE).collect();
-                truncated.push_str("\n\n[OUTPUT TRUNCATED]");
-                response.output = Some(serde_json::Value::String(truncated));
-            }
-        }
-
+        truncate_output(&mut response);
         mqtt_client::publish_json(&self.mqtt_client, mqtt_client::TOPIC_RESPONSE, &response).await
     }
 
@@ -369,6 +358,71 @@ impl Agent {
             };
             api.update_status(mqtt_connected, system_status).await;
         }
+    }
+}
+
+/// Maximum output size for MQTT transport (bytes)
+const MAX_OUTPUT_SIZE: usize = 7000;
+
+/// Truncate large string outputs in a CommandResponse for MQTT transport
+fn truncate_output(response: &mut CommandResponse) {
+    if let Some(serde_json::Value::String(ref output_str)) = response.output {
+        if output_str.len() > MAX_OUTPUT_SIZE {
+            let mut truncated: String = output_str.chars().take(MAX_OUTPUT_SIZE).collect();
+            truncated.push_str("\n\n[OUTPUT TRUNCATED]");
+            response.output = Some(serde_json::Value::String(truncated));
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    fn make_response(output: Option<serde_json::Value>) -> CommandResponse {
+        CommandResponse {
+            command_id: "test".to_string(),
+            agent_id: "agent".to_string(),
+            status: "success".to_string(),
+            output,
+            error: None,
+            execution_time_ms: 0,
+            timestamp: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn test_truncate_small_output() {
+        let mut resp = make_response(Some(serde_json::Value::String("short".to_string())));
+        truncate_output(&mut resp);
+        assert_eq!(resp.output.unwrap().as_str().unwrap(), "short");
+    }
+
+    #[test]
+    fn test_truncate_large_output() {
+        let large = "x".repeat(10000);
+        let mut resp = make_response(Some(serde_json::Value::String(large)));
+        truncate_output(&mut resp);
+        let output = resp.output.unwrap();
+        let s = output.as_str().unwrap();
+        assert!(s.len() < 10000);
+        assert!(s.ends_with("[OUTPUT TRUNCATED]"));
+    }
+
+    #[test]
+    fn test_truncate_no_output() {
+        let mut resp = make_response(None);
+        truncate_output(&mut resp);
+        assert!(resp.output.is_none());
+    }
+
+    #[test]
+    fn test_truncate_json_output_untouched() {
+        // Non-string JSON values should not be truncated
+        let mut resp = make_response(Some(serde_json::json!({"key": "value"})));
+        truncate_output(&mut resp);
+        assert_eq!(resp.output.unwrap()["key"], "value");
     }
 }
 
