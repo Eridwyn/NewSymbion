@@ -104,12 +104,18 @@ async fn run_event_loop(
             Err(e) => {
                 connected.store(false, Ordering::Relaxed);
                 retry_count = retry_count.saturating_add(1);
-                let backoff_secs = 2u64.saturating_pow(retry_count.min(5));
-                error!("MQTT error (retry #{}, backoff {}s): {}", retry_count, backoff_secs, e);
-                tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
+                let delay = backoff_secs(retry_count);
+                error!("MQTT error (retry #{}, backoff {}s): {}", retry_count, delay, e);
+                tokio::time::sleep(Duration::from_secs(delay)).await;
             }
         }
     }
+}
+
+/// Calculate exponential backoff delay in seconds for a given retry count.
+/// Capped at 32 seconds (2^5).
+pub fn backoff_secs(retry_count: u32) -> u64 {
+    2u64.saturating_pow(retry_count.min(5))
 }
 
 /// Publish a JSON-serialized message to an MQTT topic.
@@ -125,4 +131,49 @@ pub async fn publish_json<T: serde::Serialize>(
         .await
         .with_context(|| format!("Failed to publish to {}", topic))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_backoff_exponential() {
+        assert_eq!(backoff_secs(1), 2);
+        assert_eq!(backoff_secs(2), 4);
+        assert_eq!(backoff_secs(3), 8);
+        assert_eq!(backoff_secs(4), 16);
+        assert_eq!(backoff_secs(5), 32);
+    }
+
+    #[test]
+    fn test_backoff_capped_at_32() {
+        assert_eq!(backoff_secs(6), 32);
+        assert_eq!(backoff_secs(10), 32);
+        assert_eq!(backoff_secs(100), 32);
+    }
+
+    #[test]
+    fn test_topic_constants() {
+        assert!(TOPIC_REGISTRATION.starts_with("symbion/agents/"));
+        assert!(TOPIC_HEARTBEAT.starts_with("symbion/agents/"));
+        assert!(TOPIC_COMMAND.starts_with("symbion/agents/"));
+        assert!(TOPIC_RESPONSE.starts_with("symbion/agents/"));
+        // All should have @v1 suffix
+        assert!(TOPIC_REGISTRATION.ends_with("@v1"));
+        assert!(TOPIC_HEARTBEAT.ends_with("@v1"));
+    }
+
+    #[test]
+    fn test_mqtt_config_debug() {
+        let config = MqttConfig {
+            broker_host: "localhost".to_string(),
+            broker_port: 1883,
+            client_id: "test-agent".to_string(),
+            keep_alive_secs: 30,
+        };
+        let debug = format!("{:?}", config);
+        assert!(debug.contains("localhost"));
+        assert!(debug.contains("1883"));
+    }
 }

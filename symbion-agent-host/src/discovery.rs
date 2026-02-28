@@ -286,4 +286,37 @@ mod tests {
         let expected = "a1b2c3d4e5f6";
         assert_eq!(mac.replace(":", ""), expected);
     }
+
+    #[tokio::test]
+    async fn test_system_info_fields_valid() {
+        let info = SystemInfo::discover().await.unwrap();
+        assert!(!info.agent_id.is_empty());
+        assert!(!info.hostname.is_empty());
+        assert!(!info.os.is_empty());
+        assert!(!info.architecture.is_empty());
+        // OS should be a known platform
+        assert!(
+            ["linux", "windows", "macos", "android"].iter()
+                .any(|os| info.os.to_lowercase().contains(os)),
+            "Unknown OS: {}",
+            info.os
+        );
+    }
+
+    #[test]
+    fn test_interface_classification_virtual() {
+        // Virtual interfaces (docker, veth, br) classify as Other
+        assert!(matches!(
+            NetworkInfo::classify_interface("docker0"),
+            InterfaceType::Other
+        ));
+        assert!(matches!(
+            NetworkInfo::classify_interface("veth12345"),
+            InterfaceType::Other
+        ));
+        assert!(matches!(
+            NetworkInfo::classify_interface("br-abcdef"),
+            InterfaceType::Other
+        ));
+    }
 }

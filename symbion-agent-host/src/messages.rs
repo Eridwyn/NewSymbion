@@ -79,3 +79,101 @@ pub struct ReceivedCommand {
     pub topic: String,
     pub payload: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_incoming_command_deserialize() {
+        let json = r#"{
+            "command_id": "cmd-001",
+            "agent_id": "agent-abc",
+            "command_type": "get_metrics",
+            "parameters": null,
+            "timestamp": "2026-02-28T12:00:00Z"
+        }"#;
+        let cmd: IncomingCommand = serde_json::from_str(json).unwrap();
+        assert_eq!(cmd.command_id, "cmd-001");
+        assert_eq!(cmd.command_type, "get_metrics");
+        assert!(cmd.parameters.is_none());
+        assert!(cmd.requester.is_none());
+    }
+
+    #[test]
+    fn test_incoming_command_with_parameters() {
+        let json = r#"{
+            "command_id": "cmd-002",
+            "agent_id": "agent-abc",
+            "command_type": "run_command",
+            "parameters": {"command": "ls -la", "timeout": 30},
+            "timestamp": "2026-02-28T12:00:00Z",
+            "requester": "admin"
+        }"#;
+        let cmd: IncomingCommand = serde_json::from_str(json).unwrap();
+        assert_eq!(cmd.command_type, "run_command");
+        let params = cmd.parameters.unwrap();
+        assert_eq!(params["command"].as_str().unwrap(), "ls -la");
+        assert_eq!(params["timeout"].as_u64().unwrap(), 30);
+        assert_eq!(cmd.requester.unwrap(), "admin");
+    }
+
+    #[test]
+    fn test_command_response_serialize() {
+        let response = CommandResponse {
+            command_id: "cmd-001".to_string(),
+            agent_id: "agent-abc".to_string(),
+            status: "success".to_string(),
+            output: Some(serde_json::json!({"message": "done"})),
+            error: None,
+            execution_time_ms: 42,
+            timestamp: Utc::now(),
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"status\":\"success\""));
+        assert!(json.contains("\"execution_time_ms\":42"));
+    }
+
+    #[test]
+    fn test_command_response_with_error() {
+        let response = CommandResponse {
+            command_id: "cmd-002".to_string(),
+            agent_id: "agent-abc".to_string(),
+            status: "error".to_string(),
+            output: None,
+            error: Some(ErrorInfo {
+                code: "TIMEOUT".to_string(),
+                message: "Command timed out".to_string(),
+            }),
+            execution_time_ms: 30000,
+            timestamp: Utc::now(),
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("TIMEOUT"));
+        assert!(json.contains("Command timed out"));
+    }
+
+    #[test]
+    fn test_error_info_serialize() {
+        let err = ErrorInfo {
+            code: "NOT_FOUND".to_string(),
+            message: "Resource not found".to_string(),
+        };
+        let json = serde_json::to_value(&err).unwrap();
+        assert_eq!(json["code"], "NOT_FOUND");
+        assert_eq!(json["message"], "Resource not found");
+    }
+
+    #[test]
+    fn test_command_info_serialize() {
+        let info = CommandInfo {
+            command_id: "cmd-123".to_string(),
+            command_type: "shutdown".to_string(),
+            status: "success".to_string(),
+            timestamp: Utc::now(),
+        };
+        let json = serde_json::to_value(&info).unwrap();
+        assert_eq!(json["command_type"], "shutdown");
+        assert!(json["timestamp"].is_string());
+    }
+}
