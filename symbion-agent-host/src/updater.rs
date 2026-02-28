@@ -11,11 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tracing::{info, error, warn};
 
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
-
-#[cfg(target_os = "windows")]
-const CREATE_NO_WINDOW: u32 = 0x08000000;
+use crate::windows_utils;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateInfo {
@@ -151,15 +147,11 @@ impl AgentUpdater {
 
         #[cfg(target_os = "windows")]
         {
-            // Get executable name
             let exe_name = "symbion-agent-host.exe";
 
-            // List all processes with same name
-            let mut cmd = std::process::Command::new("tasklist");
-            cmd.creation_flags(CREATE_NO_WINDOW);
-            cmd.args(&["/FI", &format!("IMAGENAME eq {}", exe_name), "/FO", "CSV", "/NH"]);
-
-            let output = cmd.output()?;
+            let output = windows_utils::silent_command("tasklist")
+                .args(["/FI", &format!("IMAGENAME eq {}", exe_name), "/FO", "CSV", "/NH"])
+                .output()?;
             let list = String::from_utf8_lossy(&output.stdout);
 
             for line in list.lines() {
@@ -168,10 +160,9 @@ impl AgentUpdater {
                     if let Ok(pid) = pid_str.parse::<u32>() {
                         if pid != current_pid {
                             info!("Killing other instance with PID {}", pid);
-                            let mut kill_cmd = std::process::Command::new("taskkill");
-                            kill_cmd.creation_flags(CREATE_NO_WINDOW);
-                            kill_cmd.args(&["/PID", &pid.to_string(), "/F"]);
-                            let _ = kill_cmd.output();
+                            let _ = windows_utils::silent_command("taskkill")
+                                .args(["/PID", &pid.to_string(), "/F"])
+                                .output();
                         }
                     }
                 }
@@ -180,11 +171,8 @@ impl AgentUpdater {
 
         #[cfg(unix)]
         {
-            // On Unix, use pkill but exclude current process
             let exe_name = "symbion-agent-host";
             warn!("Killing other {} instances (excluding PID {})", exe_name, current_pid);
-
-            // This will kill all except current process
             let _ = std::process::Command::new("pkill")
                 .arg(exe_name)
                 .output();
@@ -197,17 +185,8 @@ impl AgentUpdater {
     fn restart_agent(&self, exe_path: &PathBuf) -> Result<()> {
         info!("Launching updated agent at: {}", exe_path.display());
 
-        #[cfg(target_os = "windows")]
-        {
-            let mut cmd = std::process::Command::new(exe_path);
-            cmd.creation_flags(CREATE_NO_WINDOW);
-            cmd.spawn()?;
-        }
-
-        #[cfg(unix)]
-        {
-            std::process::Command::new(exe_path).spawn()?;
-        }
+        windows_utils::silent_command(exe_path.to_str().unwrap_or("symbion-agent-host"))
+            .spawn()?;
 
         // Exit current process to let new one take over
         std::process::exit(0);

@@ -66,9 +66,9 @@ impl SystemInfo {
             .await
             .context("Failed to discover network information")?;
 
-        let hostname = gethostname::gethostname()
-            .to_string_lossy()
-            .to_string();
+        let hostname = hostname::get()
+            .map(|h| h.to_string_lossy().to_string())
+            .unwrap_or_else(|_| "unknown".to_string());
 
         let os = std::env::consts::OS.to_string();
         let architecture = std::env::consts::ARCH.to_string();
