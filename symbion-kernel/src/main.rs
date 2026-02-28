@@ -311,12 +311,20 @@ async fn main() {
     let mode_registry = Arc::new(mode_registry);
     eprintln!("[kernel] initialized Mode Registry ({} modes)", mode_registry.count());
 
+    // === Phase 3: Wire context engine to SQLite ===
+    if let Some(ref db) = db {
+        context_engine.set_database(db.clone());
+    }
+
     // Context Intelligence Engine - Intelligent autonomous context adaptation
     let context_intelligence = Arc::new(crate::context_intelligence::ContextIntelligence::new(
         context_engine.clone(),
         agents.clone(),
         sensor_registry.clone(),
     ));
+    if let Some(ref db) = db {
+        context_intelligence.set_database(db.clone());
+    }
     // Initialize patterns from historical data
     context_intelligence.init_patterns_from_history();
     eprintln!("[kernel] initialized Context Intelligence Engine");
@@ -536,6 +544,9 @@ async fn main() {
 
     // Pending Action Registry for post-approval execution
     let pending_action_registry = Arc::new(crate::automations::PendingActionRegistry::new(Some(std::path::PathBuf::from("./data"))));
+    if let Some(ref db) = db {
+        pending_action_registry.set_database(db.clone());
+    }
     println!("[kernel] initialized Pending Action Registry");
 
     // Dynamic Plugin Registry - découverte automatique des plugins Unix sockets

@@ -386,8 +386,36 @@ impl SensorRegistry {
         }
     }
 
-    /// Save sensors registry to disk (JSON persistence)
+    /// Save sensors registry (SQLite primary + JSON fallback)
     fn save_to_disk(&self) -> Result<()> {
+        // Try SQLite first
+        if let Some(ref db) = self.db {
+            let sensors = self.sensors.read();
+            let rows: Vec<crate::database::sensor_meta_queries::SensorMetaRow> = sensors.values().map(|s| {
+                crate::database::sensor_meta_queries::SensorMetaRow {
+                    sensor_id: s.sensor_id.clone(),
+                    sensor_type: s.sensor_type.clone(),
+                    room_id: s.room_id.clone(),
+                    firmware_version: s.firmware_version.clone(),
+                    registered_at: s.registered_at.to_rfc3339(),
+                    last_seen: s.last_seen.to_rfc3339(),
+                    status: format!("{:?}", s.status).to_lowercase(),
+                    battery_pct: s.battery_pct.map(|b| b as f64),
+                    signal_rssi: s.signal_rssi.map(|r| r as f64),
+                    deleted_at: s.deleted_at.map(|ts| {
+                        chrono::DateTime::<Utc>::from_timestamp(ts, 0)
+                            .map(|dt| dt.to_rfc3339())
+                            .unwrap_or_default()
+                    }),
+                }
+            }).collect();
+            match crate::database::sensor_meta_queries::upsert_all_sensors(db, &rows) {
+                Ok(_) => {} // SQLite save succeeded, continue to JSON fallback
+                Err(e) => eprintln!("[sensors] SQLite metadata save failed: {}", e),
+            }
+        }
+
+        // JSON fallback (always write for backward compatibility during transition)
         let sensors = self.sensors.read();
         let json = serde_json::to_string_pretty(&*sensors)?;
         std::fs::write(&self.persistence_path, json)?;
@@ -463,18 +491,104 @@ impl SensorRegistry {
         insert_readings(db, &rows)
     }
 
-    /// Load registry from disk
+    /// Load registry from disk (SQLite primary for metadata + environments, JSON fallback)
     pub fn load_from_disk(&self) -> Result<()> {
-        // Load sensors metadata
-        if !Path::new(&self.persistence_path).exists() {
-            return Ok(()); // No file yet, skip
+        // Try SQLite first for sensor metadata
+        let loaded_from_db = if let Some(ref db) = self.db {
+            match crate::database::sensor_meta_queries::count_sensors(db) {
+                Ok(count) if count > 0 => {
+                    match crate::database::sensor_meta_queries::list_sensors(db) {
+                        Ok(rows) => {
+                            let mut sensors = HashMap::new();
+                            for row in rows {
+                                let registered_at = chrono::DateTime::parse_from_rfc3339(&row.registered_at)
+                                    .map(|dt| dt.with_timezone(&Utc))
+                                    .unwrap_or_else(|_| Utc::now());
+                                let last_seen = chrono::DateTime::parse_from_rfc3339(&row.last_seen)
+                                    .map(|dt| dt.with_timezone(&Utc))
+                                    .unwrap_or_else(|_| Utc::now());
+                                let status = match row.status.as_str() {
+                                    "online" => SensorStatus::Online,
+                                    "offline" => SensorStatus::Offline,
+                                    "maintenance" => SensorStatus::Maintenance,
+                                    "error" => SensorStatus::Error,
+                                    _ => SensorStatus::Offline,
+                                };
+                                let deleted_at = row.deleted_at.and_then(|ts_str| {
+                                    chrono::DateTime::parse_from_rfc3339(&ts_str)
+                                        .ok()
+                                        .map(|dt| dt.timestamp())
+                                });
+                                let sensor = Sensor {
+                                    sensor_id: row.sensor_id.clone(),
+                                    sensor_type: row.sensor_type,
+                                    room_id: row.room_id,
+                                    firmware_version: row.firmware_version,
+                                    registered_at,
+                                    last_seen,
+                                    status,
+                                    battery_pct: row.battery_pct.map(|b| b as u8),
+                                    signal_rssi: row.signal_rssi.map(|r| r as i16),
+                                    deleted_at,
+                                };
+                                sensors.insert(row.sensor_id, sensor);
+                            }
+                            let loaded = sensors.len();
+                            *self.sensors.write() = sensors;
+                            eprintln!("[sensors] loaded {} sensor metadata from SQLite", loaded);
+                            true
+                        }
+                        Err(e) => {
+                            eprintln!("[sensors] SQLite metadata load failed, falling back to JSON: {}", e);
+                            false
+                        }
+                    }
+                }
+                _ => false, // Empty or error, fall through to JSON
+            }
+        } else {
+            false
+        };
+
+        // JSON fallback for sensor metadata
+        if !loaded_from_db {
+            if !Path::new(&self.persistence_path).exists() {
+                return Ok(()); // No file yet, skip
+            }
+
+            let json = std::fs::read_to_string(&self.persistence_path)?;
+            let sensors: HashMap<String, Sensor> = serde_json::from_str(&json)?;
+
+            // Seed to SQLite if DB is available
+            if let Some(ref db) = self.db {
+                let rows: Vec<crate::database::sensor_meta_queries::SensorMetaRow> = sensors.values().map(|s| {
+                    crate::database::sensor_meta_queries::SensorMetaRow {
+                        sensor_id: s.sensor_id.clone(),
+                        sensor_type: s.sensor_type.clone(),
+                        room_id: s.room_id.clone(),
+                        firmware_version: s.firmware_version.clone(),
+                        registered_at: s.registered_at.to_rfc3339(),
+                        last_seen: s.last_seen.to_rfc3339(),
+                        status: format!("{:?}", s.status).to_lowercase(),
+                        battery_pct: s.battery_pct.map(|b| b as f64),
+                        signal_rssi: s.signal_rssi.map(|r| r as f64),
+                        deleted_at: s.deleted_at.map(|ts| {
+                            chrono::DateTime::<Utc>::from_timestamp(ts, 0)
+                                .map(|dt| dt.to_rfc3339())
+                                .unwrap_or_default()
+                        }),
+                    }
+                }).collect();
+                match crate::database::sensor_meta_queries::upsert_all_sensors(db, &rows) {
+                    Ok(n) => eprintln!("[sensors] seeded {} sensor metadata to SQLite from JSON", n),
+                    Err(e) => eprintln!("[sensors] failed to seed sensor metadata to SQLite: {}", e),
+                }
+            }
+
+            *self.sensors.write() = sensors.clone();
         }
 
-        let json = std::fs::read_to_string(&self.persistence_path)?;
-        let sensors: HashMap<String, Sensor> = serde_json::from_str(&json)?;
-
-        // Restore sensors
-        *self.sensors.write() = sensors.clone();
+        let sensors = self.sensors.read().clone();
 
         // Load environment histories if available
         self.load_environments_from_disk()?;

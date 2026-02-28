@@ -88,6 +88,9 @@ pub struct ContextIntelligence {
 
     // Shadow mode statistics (v2 stabilization)
     shadow_stats: RwLock<crate::intelligence::ShadowStats>,
+
+    /// SQLite database (None = JSON-only fallback mode)
+    db: std::sync::Mutex<Option<crate::database::SharedDatabase>>,
 }
 
 impl ContextIntelligence {
@@ -145,12 +148,80 @@ impl ContextIntelligence {
                 tracking_since: Some(OffsetDateTime::now_utc()),
                 ..Default::default()
             }),
+            db: std::sync::Mutex::new(None),
         }
     }
 
     /// Get shadow mode statistics (v1 vs v2 comparison)
     pub fn get_shadow_stats(&self) -> crate::intelligence::ShadowStats {
         self.shadow_stats.read().clone()
+    }
+
+    /// Attach SQLite database and load/seed patterns.
+    /// Uses interior mutability so it works on Arc<ContextIntelligence>.
+    pub fn set_database(&self, db: crate::database::SharedDatabase) {
+        // Load patterns from DB if it has data
+        match crate::database::pattern_queries::count_patterns(&db) {
+            Ok(count) if count > 0 => {
+                match crate::database::pattern_queries::list_patterns(&db) {
+                    Ok(rows) => {
+                        let patterns: Vec<LearnedPattern> = rows.into_iter().map(|r| {
+                            LearnedPattern {
+                                mode: r.mode,
+                                day_of_week: r.day_of_week,
+                                hour: r.hour,
+                                confidence: r.confidence,
+                                occurrences: r.occurrences,
+                                last_seen: time::OffsetDateTime::parse(
+                                    &r.last_seen,
+                                    &time::format_description::well_known::Rfc3339,
+                                ).unwrap_or_else(|_| OffsetDateTime::now_utc()),
+                                source: match r.source.as_str() {
+                                    "UserCorrection" => PatternSource::UserCorrection,
+                                    "Automation" => PatternSource::Automation,
+                                    _ => PatternSource::Historical,
+                                },
+                            }
+                        }).collect();
+                        let loaded = patterns.len();
+                        *self.learned_patterns.write() = patterns;
+                        eprintln!("[intelligence] Loaded {} patterns from SQLite", loaded);
+                    }
+                    Err(e) => eprintln!("[intelligence] Failed to load patterns from SQLite: {}", e),
+                }
+            }
+            Ok(_) => {
+                // DB empty, seed from current in-memory patterns (loaded from JSON)
+                let patterns = self.learned_patterns.read();
+                if !patterns.is_empty() {
+                    let rows: Vec<crate::database::pattern_queries::PatternRow> = patterns.iter().map(|p| {
+                        crate::database::pattern_queries::PatternRow {
+                            mode: p.mode.clone(),
+                            day_of_week: p.day_of_week,
+                            hour: p.hour,
+                            confidence: p.confidence,
+                            occurrences: p.occurrences,
+                            last_seen: p.last_seen.format(&time::format_description::well_known::Rfc3339).unwrap_or_default(),
+                            source: match &p.source {
+                                PatternSource::UserCorrection => "UserCorrection".to_string(),
+                                PatternSource::Automation => "Automation".to_string(),
+                                PatternSource::Historical => "Historical".to_string(),
+                            },
+                        }
+                    }).collect();
+                    match crate::database::pattern_queries::replace_all_patterns(&db, &rows) {
+                        Ok(n) => eprintln!("[intelligence] Seeded {} patterns to SQLite from JSON", n),
+                        Err(e) => eprintln!("[intelligence] Failed to seed patterns to SQLite: {}", e),
+                    }
+                }
+            }
+            Err(e) => eprintln!("[intelligence] Failed to count patterns in SQLite: {}", e),
+        }
+
+        // Store the DB handle
+        if let Ok(mut db_guard) = self.db.lock() {
+            *db_guard = Some(db);
+        }
     }
 
     /// Update shadow stats with a comparison result
@@ -313,22 +384,56 @@ impl ContextIntelligence {
         purged
     }
 
-    /// Save learned patterns to disk (with periodic purge)
+    /// Save learned patterns (SQLite primary + JSON fallback, with periodic purge)
     pub fn save_patterns(&self) {
-        // Purge dead patterns before saving (keeps JSON clean)
+        // Purge dead patterns before saving (keeps data clean)
         self.purge_dead_patterns();
 
         let patterns = self.learned_patterns.read();
-        let path = std::path::PathBuf::from("learned_patterns.json");
 
+        // Try SQLite first
+        let db_ok = if let Ok(db_guard) = self.db.lock() {
+            if let Some(ref db) = *db_guard {
+                let rows: Vec<crate::database::pattern_queries::PatternRow> = patterns.iter().map(|p| {
+                    crate::database::pattern_queries::PatternRow {
+                        mode: p.mode.clone(),
+                        day_of_week: p.day_of_week,
+                        hour: p.hour,
+                        confidence: p.confidence,
+                        occurrences: p.occurrences,
+                        last_seen: p.last_seen.format(&time::format_description::well_known::Rfc3339).unwrap_or_default(),
+                        source: match &p.source {
+                            PatternSource::UserCorrection => "UserCorrection".to_string(),
+                            PatternSource::Automation => "Automation".to_string(),
+                            PatternSource::Historical => "Historical".to_string(),
+                        },
+                    }
+                }).collect();
+                match crate::database::pattern_queries::replace_all_patterns(db, &rows) {
+                    Ok(_) => true,
+                    Err(e) => {
+                        eprintln!("[intelligence] Failed to save patterns to SQLite: {}", e);
+                        false
+                    }
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        // JSON fallback (always write for backward compatibility during transition)
+        let path = std::path::PathBuf::from("learned_patterns.json");
         match serde_json::to_string_pretty(&*patterns) {
             Ok(json) => {
                 if let Err(e) = std::fs::write(&path, &json) {
-                    eprintln!("[intelligence] Failed to save patterns (attempt 1): {}", e);
-                    // Retry once after 500ms
-                    std::thread::sleep(std::time::Duration::from_millis(500));
-                    if let Err(e2) = std::fs::write(&path, &json) {
-                        eprintln!("[intelligence] Failed to save patterns (attempt 2): {}", e2);
+                    if !db_ok {
+                        eprintln!("[intelligence] Failed to save patterns (attempt 1): {}", e);
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                        if let Err(e2) = std::fs::write(&path, &json) {
+                            eprintln!("[intelligence] Failed to save patterns (attempt 2): {}", e2);
+                        }
                     }
                 }
             }
