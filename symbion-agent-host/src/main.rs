@@ -1,4 +1,5 @@
 //! Symbion Agent Host - Multi-OS system agent for network control
+//!
 //! This agent provides remote system control capabilities to the Symbion kernel:
 //! - Auto-discovery and registration via MQTT
 //! - System metrics monitoring and reporting
@@ -8,9 +9,12 @@
 // Hide console window on Windows when using GUI mode
 #![cfg_attr(all(target_os = "windows", feature = "gui"), windows_subsystem = "windows")]
 
+mod agent;
 mod discovery;
 mod capabilities;
+mod messages;
 mod metrics;
+mod mqtt_client;
 mod execution;
 mod config;
 mod updater;
@@ -23,1062 +27,36 @@ mod windows_utils;
 mod gui;
 
 use anyhow::{Result, Context};
-use std::env;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use chrono::{DateTime, Utc};
-use discovery::SystemInfo;
-use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, QoS};
-use serde::{Deserialize, Serialize};
-use std::time::Duration;
-use tokio::time::interval;
-use tokio::sync::mpsc;
-use tracing::{info, error, debug, warn};
-// use uuid::Uuid; // Not needed currently
-
-/// Agent configuration
-#[derive(Debug, Clone)]
-struct AgentConfig {
-    mqtt_broker: String,
-    mqtt_port: u16,
-    mqtt_client_id: String,
-    heartbeat_interval_secs: u64,
-    registration_retry_secs: u64,
-}
-
-impl Default for AgentConfig {
-    fn default() -> Self {
-        Self {
-            mqtt_broker: "localhost".to_string(),
-            mqtt_port: 1883,
-            mqtt_client_id: "symbion-agent-unknown".to_string(),
-            heartbeat_interval_secs: 30,
-            registration_retry_secs: 10,
-        }
-    }
-}
-
-/// Agent registration message (matches agents.registration@v1 contract)
-#[derive(Debug, Serialize)]
-struct RegistrationMessage {
-    agent_id: String,
-    hostname: String,
-    os: String,
-    architecture: String,
-    capabilities: Vec<String>,
-    network: discovery::NetworkInfo,
-    version: String,
-    timestamp: DateTime<Utc>,
-}
-
-/// Agent heartbeat message (matches agents.heartbeat@v1 contract)
-#[derive(Debug, Serialize)]
-struct HeartbeatMessage {
-    agent_id: String,
-    status: String,
-    system: metrics::SystemMetrics,
-    processes: Option<metrics::ProcessInfo>,
-    services: Option<Vec<metrics::ServiceStatus>>,
-    last_command: Option<CommandInfo>,
-    timestamp: DateTime<Utc>,
-}
-
-/// Command information for heartbeat
-#[derive(Debug, Clone, Serialize)]
-struct CommandInfo {
-    command_id: String,
-    command_type: String,
-    status: String,
-    timestamp: DateTime<Utc>,
-}
-
-/// Incoming command from kernel (matches agents.command@v1 contract)
-#[derive(Debug, Deserialize)]
-struct IncomingCommand {
-    command_id: String,
-    agent_id: String,
-    command_type: String,
-    parameters: Option<serde_json::Value>,
-    timestamp: DateTime<Utc>,
-    requester: Option<String>,
-}
-
-/// Command response to kernel (matches agents.response@v1 contract)
-#[derive(Debug, Serialize)]
-struct CommandResponse {
-    command_id: String,
-    agent_id: String,
-    status: String,
-    output: Option<serde_json::Value>,
-    error: Option<ErrorInfo>,
-    execution_time_ms: u128,
-    timestamp: DateTime<Utc>,
-}
-
-/// Error information for failed commands
-#[derive(Debug, Serialize, Clone)]
-struct ErrorInfo {
-    code: String,
-    message: String,
-}
-
-/// Received command for internal processing
-#[derive(Debug, Clone)]
-struct ReceivedCommand {
-    topic: String,
-    payload: String,
-}
-
-/// Main agent state
-struct Agent {
-    config: AgentConfig,
-    system_info: SystemInfo,
-    mqtt_client: AsyncClient,
-    last_command: Option<CommandInfo>,
-    command_receiver: mpsc::Receiver<ReceivedCommand>,
-    local_api: Option<Arc<local_api::LocalApiServer>>,
-    system_tray: Option<system_tray::SystemTray>,
-    mqtt_connected: Arc<AtomicBool>,
-    reconnect_rx: Option<mpsc::Receiver<()>>,
-}
-
-impl Agent {
-    /// Create new agent instance with loaded configuration
-    async fn new_with_config(agent_config: config::AgentConfig) -> Result<Self> {
-        info!("Initializing Symbion Agent Host v{}", env!("CARGO_PKG_VERSION"));
-        
-        // Discover system information
-        let system_info = SystemInfo::discover().await
-            .context("Failed to discover system information")?;
-            
-        // Configure MQTT client from loaded config
-        let mut config = AgentConfig::default();
-        config.mqtt_broker = agent_config.mqtt.broker_host;
-        config.mqtt_port = agent_config.mqtt.broker_port;
-        config.mqtt_client_id = agent_config.mqtt.client_id
-            .unwrap_or_else(|| format!("symbion-agent-{}", system_info.agent_id));
-        
-        let mut mqtt_options = MqttOptions::new(
-            &config.mqtt_client_id,
-            &config.mqtt_broker,
-            config.mqtt_port
-        );
-        mqtt_options.set_keep_alive(Duration::from_secs(30));
-        mqtt_options.set_clean_session(true);
-        
-        let (mqtt_client, mut eventloop) = AsyncClient::new(mqtt_options, 10);
-
-        // Create command channel
-        let (command_sender, command_receiver) = mpsc::channel::<ReceivedCommand>(100);
-
-        // Clone mqtt_client for the event loop to re-subscribe after reconnection
-        let mqtt_client_for_loop = mqtt_client.clone();
-
-        // Shared MQTT connection state
-        let mqtt_connected = Arc::new(AtomicBool::new(false));
-        let mqtt_connected_clone = mqtt_connected.clone();
-
-        // Start MQTT event loop in background
-        tokio::spawn(async move {
-            let mut _is_subscribed = false;
-            let mut retry_count: u32 = 0;
-
-            loop {
-                match eventloop.poll().await {
-                    Ok(Event::Incoming(Incoming::ConnAck(_))) => {
-                        // Reconnected - resubscribe to command topic
-                        retry_count = 0; // Reset backoff on successful connection
-                        mqtt_connected_clone.store(true, Ordering::Relaxed);
-                        info!("🔄 MQTT connected/reconnected - subscribing to command topic...");
-                        if let Err(e) = mqtt_client_for_loop.subscribe("symbion/agents/command@v1", QoS::AtLeastOnce).await {
-                            error!("Failed to subscribe to command topic: {}", e);
-                            _is_subscribed = false;
-                        } else {
-                            info!("✅ Subscribed to symbion/agents/command@v1");
-                            _is_subscribed = true;
-                        }
-                    }
-                    Ok(Event::Incoming(Incoming::Publish(publish))) => {
-                        info!("📥 Received MQTT message on topic: {}", publish.topic);
-
-                        // Forward command messages to main loop
-                        if publish.topic == "symbion/agents/command@v1" {
-                            let payload = String::from_utf8_lossy(&publish.payload).to_string();
-                            info!("📋 Command payload: {}", payload);
-                            let command = ReceivedCommand {
-                                topic: publish.topic.clone(),
-                                payload,
-                            };
-
-                            if let Err(e) = command_sender.send(command).await {
-                                error!("Failed to forward command: {}", e);
-                            } else {
-                                info!("✅ Command forwarded to main loop");
-                            }
-                        }
-                    }
-                    Ok(_) => {}
-                    Err(e) => {
-                        mqtt_connected_clone.store(false, Ordering::Relaxed);
-                        retry_count = retry_count.saturating_add(1);
-                        let backoff_secs = 2u64.saturating_pow(retry_count.min(5)); // 2→4→8→16→32s
-                        error!("MQTT error (retry #{}, backoff {}s): {}", retry_count, backoff_secs, e);
-                        _is_subscribed = false;
-                        tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
-                    }
-                }
-            }
-        });
-        
-        info!("Agent initialized - ID: {}, Hostname: {}", 
-              system_info.agent_id, system_info.hostname);
-        
-        Ok(Agent {
-            config,
-            system_info,
-            mqtt_client,
-            last_command: None,
-            command_receiver,
-            local_api: None,
-            system_tray: None,
-            mqtt_connected,
-            reconnect_rx: None,
-        })
-    }
-    
-    /// Set local API server for status updates
-    fn set_local_api(&mut self, local_api: Arc<local_api::LocalApiServer>) {
-        self.local_api = Some(local_api);
-    }
-
-    /// Set reconnect receiver (from local API /reconnect endpoint)
-    fn set_reconnect_rx(&mut self, rx: mpsc::Receiver<()>) {
-        self.reconnect_rx = Some(rx);
-    }
-
-    /// Initialize system tray (optional)
-    fn init_system_tray(&mut self) -> Result<()> {
-        let mut tray = system_tray::SystemTray::new();
-        if let Err(e) = tray.initialize(&self.system_info.agent_id, &self.system_info.hostname) {
-            warn!("Failed to initialize system tray: {}", e);
-            warn!("Agent will continue without system tray - use http://localhost:9899 for dashboard");
-        } else {
-            info!("System tray initialized - click to open dashboard");
-            self.system_tray = Some(tray);
-        }
-        Ok(())
-    }
-    
-    /// Start agent main loop
-    async fn run(&mut self) -> Result<()> {
-        info!("Starting agent main loop...");
-
-        // Subscription to command topic is now handled automatically in MQTT event loop (on ConnAck)
-        // This ensures re-subscription after reconnections
-
-        // Initial registration
-        self.register().await?;
-
-        // Set up periodic tasks
-        let mut heartbeat_timer = interval(Duration::from_secs(self.config.heartbeat_interval_secs));
-        let mut registration_timer = interval(Duration::from_secs(300)); // Re-register every 5 minutes (reduced from 60s to avoid CMD windows)
-
-        // Take reconnect receiver for use in select! loop
-        let mut reconnect_rx = self.reconnect_rx.take();
-
-        loop {
-            tokio::select! {
-                _ = heartbeat_timer.tick() => {
-                    info!("⏰ Heartbeat timer ticked - sending heartbeat");
-                    if let Err(e) = self.send_heartbeat().await {
-                        error!("Failed to send heartbeat: {}", e);
-                    } else {
-                        info!("✅ Heartbeat sent successfully");
-                    }
-
-                    // Update local API status with real MQTT connection state
-                    let is_connected = self.mqtt_connected.load(Ordering::Relaxed);
-                    self.update_local_api_status(is_connected).await;
-                }
-
-                _ = registration_timer.tick() => {
-                    if let Err(e) = self.register().await {
-                        error!("Failed to re-register: {}", e);
-                    }
-                }
-
-                command = self.command_receiver.recv() => {
-                    match command {
-                        Some(cmd) => {
-                            info!("🎯 Processing received command from topic: {}", cmd.topic);
-                            if let Err(e) = self.process_command(cmd).await {
-                                error!("Failed to process command: {}", e);
-                            }
-                        }
-                        None => {
-                            warn!("Command channel closed");
-                            break Ok(());
-                        }
-                    }
-                }
-
-                _ = async {
-                    if let Some(ref mut rx) = reconnect_rx {
-                        rx.recv().await
-                    } else {
-                        std::future::pending::<Option<()>>().await
-                    }
-                } => {
-                    info!("Reconnect signal received from local API, forcing re-registration...");
-                    if let Err(e) = self.register().await {
-                        error!("Failed to re-register after reconnect signal: {}", e);
-                    } else {
-                        info!("Re-registration successful after reconnect signal");
-                    }
-                }
-            }
-        }
-    }
-    
-    /// Register agent with kernel
-    async fn register(&self) -> Result<()> {
-        let capabilities = self.get_capabilities().await;
-        
-        let registration = RegistrationMessage {
-            agent_id: self.system_info.agent_id.clone(),
-            hostname: self.system_info.hostname.clone(),
-            os: self.system_info.os.clone(),
-            architecture: self.system_info.architecture.clone(),
-            capabilities,
-            network: self.system_info.network.clone(),
-            version: "1.0.0".to_string(),
-            timestamp: Utc::now(),
-        };
-        
-        let payload = serde_json::to_string(&registration)
-            .context("Failed to serialize registration message")?;
-            
-        self.mqtt_client
-            .publish("symbion/agents/registration@v1", QoS::AtLeastOnce, false, payload)
-            .await
-            .context("Failed to publish registration")?;
-            
-        info!("Agent registered successfully");
-        Ok(())
-    }
-    
-    /// Send heartbeat with system metrics
-    async fn send_heartbeat(&self) -> Result<()> {
-        let system_metrics = metrics::SystemMetrics::collect().await
-            .context("Failed to collect system metrics")?;
-            
-        let process_info = metrics::ProcessInfo::collect().await.ok();
-        let services = metrics::ServiceStatus::collect_critical().await.ok();
-        
-        let heartbeat = HeartbeatMessage {
-            agent_id: self.system_info.agent_id.clone(),
-            status: "online".to_string(),
-            system: system_metrics,
-            processes: process_info,
-            services,
-            last_command: self.last_command.clone(),
-            timestamp: Utc::now(),
-        };
-        
-        let payload = serde_json::to_string(&heartbeat)
-            .context("Failed to serialize heartbeat message")?;
-            
-        info!("📤 Publishing heartbeat to MQTT...");
-        self.mqtt_client
-            .publish("symbion/agents/heartbeat@v1", QoS::AtLeastOnce, false, payload)
-            .await
-            .context("Failed to publish heartbeat")?;
-
-        info!("📡 Heartbeat published to MQTT successfully");
-        Ok(())
-    }
-    
-    /// Process incoming command from MQTT
-    async fn process_command(&mut self, cmd: ReceivedCommand) -> Result<()> {
-        let start_time = std::time::Instant::now();
-        
-        // Parse the incoming command
-        let incoming: IncomingCommand = serde_json::from_str(&cmd.payload)
-            .context("Failed to parse incoming command")?;
-            
-        // Filter commands - only process if intended for this agent
-        info!("🔍 Command check: incoming.agent_id='{}', this.agent_id='{}'", 
-              incoming.agent_id, self.system_info.agent_id);
-        if incoming.agent_id != self.system_info.agent_id {
-            info!("❌ Ignoring command {} for agent {} (this agent is {})", 
-                   incoming.command_id, incoming.agent_id, self.system_info.agent_id);
-            return Ok(());
-        }
-        
-        info!("Executing command: {} ({})", incoming.command_type, incoming.command_id);
-        
-        // Execute the command based on type
-        let (status, data, error) = match incoming.command_type.as_str() {
-            "shutdown" => self.execute_shutdown(&incoming).await,
-            "reboot" => self.execute_reboot(&incoming).await,
-            "hibernate" => self.execute_hibernate(&incoming).await,
-            "reconnect" => self.execute_reconnect(&incoming).await,
-            "kill_process" => self.execute_kill_process(&incoming).await,
-            "run_command" => self.execute_shell_command(&incoming).await,
-            "get_metrics" => self.execute_get_metrics(&incoming).await,
-            "list_processes" => self.execute_list_processes(&incoming).await,
-            _ => {
-                let err = ErrorInfo {
-                    code: "UNKNOWN_COMMAND".to_string(),
-                    message: format!("Unknown command type: {}", incoming.command_type),
-                };
-                ("error".to_string(), None, Some(err))
-            }
-        };
-        
-        // Update last command info
-        self.last_command = Some(CommandInfo {
-            command_id: incoming.command_id.clone(),
-            command_type: incoming.command_type.clone(),
-            status: status.clone(),
-            timestamp: Utc::now(),
-        });
-        
-        // Send response back to kernel
-        let execution_time = start_time.elapsed().as_millis();
-        let response = CommandResponse {
-            command_id: incoming.command_id,
-            agent_id: self.system_info.agent_id.clone(),
-            status,
-            output: data,
-            error,
-            execution_time_ms: execution_time,
-            timestamp: Utc::now(),
-        };
-        
-        // Limitation MQTT : tronquer l'output AVANT sérialisation si trop gros
-        const MAX_OUTPUT_SIZE: usize = 7000; // Laisser de la place pour le JSON structure
-        if let Some(serde_json::Value::String(ref output_str)) = response.output {
-            if output_str.len() > MAX_OUTPUT_SIZE {
-                info!("⚠️  Output too large ({} chars), truncating to {} chars", output_str.len(), MAX_OUTPUT_SIZE);
-                let mut truncated_output = output_str.chars().take(MAX_OUTPUT_SIZE).collect::<String>();
-                truncated_output.push_str("\n\n[OUTPUT TRUNCATED - Content was too large for MQTT transport]");
-                
-                let truncated_response = CommandResponse {
-                    command_id: response.command_id.clone(),
-                    agent_id: response.agent_id.clone(),
-                    status: response.status.clone(),
-                    output: Some(serde_json::Value::String(truncated_output)),
-                    error: response.error.clone(),
-                    execution_time_ms: response.execution_time_ms,
-                    timestamp: response.timestamp,
-                };
-                
-                let payload = serde_json::to_string(&truncated_response)
-                    .context("Failed to serialize truncated command response")?;
-                
-                info!("📤 Sending MQTT response: {} bytes", payload.len());
-                self.mqtt_client
-                    .publish("symbion/agents/response@v1", QoS::AtLeastOnce, false, payload)
-                    .await
-                    .context("Failed to publish command response")?;
-                info!("✅ MQTT response sent successfully");
-                    
-                return Ok(());
-            }
-        }
-
-        let payload = serde_json::to_string(&response)
-            .context("Failed to serialize command response")?;
-            
-        info!("📤 Sending MQTT response: {} bytes", payload.len());
-        self.mqtt_client
-            .publish("symbion/agents/response@v1", QoS::AtLeastOnce, false, payload)
-            .await
-            .context("Failed to publish command response")?;
-        info!("✅ MQTT response sent successfully");
-            
-        Ok(())
-    }
-    
-    /// Execute shutdown command
-    async fn execute_shutdown(&self, _cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
-        info!("Executing shutdown command...");
-        
-        match self.system_info.os.as_str() {
-            "windows" => {
-                // Try immediate shutdown with wininit.exe for maximum force
-                match windows_utils::silent_tokio_command("cmd")
-                    .args(&["/C", "shutdown /s /t 0 /f"])
-                    .output()
-                    .await
-                {
-                    Ok(output) => {
-                        if output.status.success() {
-                            info!("Shutdown command executed successfully");
-                            ("success".to_string(), Some(serde_json::json!({"message": "Shutdown initiated"})), None)
-                        } else {
-                            let stderr = String::from_utf8_lossy(&output.stderr);
-                            error!("Shutdown failed: {}", stderr);
-                            let err = ErrorInfo {
-                                code: "SHUTDOWN_FAILED".to_string(),
-                                message: format!("Command failed: {}", stderr),
-                            };
-                            ("error".to_string(), None, Some(err))
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to execute shutdown: {}", e);
-                        let err = ErrorInfo {
-                            code: "EXECUTION_ERROR".to_string(),
-                            message: format!("Failed to execute shutdown: {}", e),
-                        };
-                        ("error".to_string(), None, Some(err))
-                    }
-                }
-            }
-            "linux" => {
-                match tokio::process::Command::new("sudo")
-                    .args(&["shutdown", "-h", "+1", "Shutdown initiated by Symbion"])
-                    .output()
-                    .await
-                {
-                    Ok(output) => {
-                        if output.status.success() {
-                            info!("Shutdown command executed successfully");
-                            ("success".to_string(), Some(serde_json::json!({"message": "Shutdown initiated"})), None)
-                        } else {
-                            let stderr = String::from_utf8_lossy(&output.stderr);
-                            error!("Shutdown failed: {}", stderr);
-                            let err = ErrorInfo {
-                                code: "SHUTDOWN_FAILED".to_string(),
-                                message: format!("Command failed: {}", stderr),
-                            };
-                            ("error".to_string(), None, Some(err))
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to execute shutdown: {}", e);
-                        let err = ErrorInfo {
-                            code: "EXECUTION_ERROR".to_string(),
-                            message: format!("Failed to execute shutdown: {}", e),
-                        };
-                        ("error".to_string(), None, Some(err))
-                    }
-                }
-            }
-            _ => {
-                let err = ErrorInfo {
-                    code: "UNSUPPORTED_OS".to_string(),
-                    message: format!("Shutdown not supported on OS: {}", self.system_info.os),
-                };
-                ("error".to_string(), None, Some(err))
-            }
-        }
-    }
-    
-    /// Execute reboot command
-    async fn execute_reboot(&self, _cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
-        info!("Executing reboot command...");
-        
-        match self.system_info.os.as_str() {
-            "windows" => {
-                match windows_utils::silent_tokio_command("shutdown")
-                    .args(&["/r", "/t", "5", "/c", "Reboot initiated by Symbion"])
-                    .output()
-                    .await
-                {
-                    Ok(output) => {
-                        if output.status.success() {
-                            info!("Reboot command executed successfully");
-                            ("success".to_string(), Some(serde_json::json!({"message": "Reboot initiated"})), None)
-                        } else {
-                            let stderr = String::from_utf8_lossy(&output.stderr);
-                            error!("Reboot failed: {}", stderr);
-                            let err = ErrorInfo {
-                                code: "REBOOT_FAILED".to_string(),
-                                message: format!("Command failed: {}", stderr),
-                            };
-                            ("error".to_string(), None, Some(err))
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to execute reboot: {}", e);
-                        let err = ErrorInfo {
-                            code: "EXECUTION_ERROR".to_string(),
-                            message: format!("Failed to execute reboot: {}", e),
-                        };
-                        ("error".to_string(), None, Some(err))
-                    }
-                }
-            }
-            "linux" => {
-                match tokio::process::Command::new("sudo")
-                    .args(&["reboot"])
-                    .output()
-                    .await
-                {
-                    Ok(output) => {
-                        if output.status.success() {
-                            info!("Reboot command executed successfully");
-                            ("success".to_string(), Some(serde_json::json!({"message": "Reboot initiated"})), None)
-                        } else {
-                            let stderr = String::from_utf8_lossy(&output.stderr);
-                            error!("Reboot failed: {}", stderr);
-                            let err = ErrorInfo {
-                                code: "REBOOT_FAILED".to_string(),
-                                message: format!("Command failed: {}", stderr),
-                            };
-                            ("error".to_string(), None, Some(err))
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to execute reboot: {}", e);
-                        let err = ErrorInfo {
-                            code: "EXECUTION_ERROR".to_string(),
-                            message: format!("Failed to execute reboot: {}", e),
-                        };
-                        ("error".to_string(), None, Some(err))
-                    }
-                }
-            }
-            _ => {
-                let err = ErrorInfo {
-                    code: "UNSUPPORTED_OS".to_string(),
-                    message: format!("Reboot not supported on OS: {}", self.system_info.os),
-                };
-                ("error".to_string(), None, Some(err))
-            }
-        }
-    }
-    
-    /// Execute hibernate command  
-    async fn execute_hibernate(&self, _cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
-        info!("Executing hibernate command...");
-        
-        match self.system_info.os.as_str() {
-            "windows" => {
-                match windows_utils::silent_tokio_command("rundll32.exe")
-                    .args(&["powrprof.dll,SetSuspendState", "Hibernate"])
-                    .output()
-                    .await
-                {
-                    Ok(output) => {
-                        if output.status.success() {
-                            info!("Hibernate command executed successfully");
-                            ("success".to_string(), Some(serde_json::json!({"message": "Hibernate initiated"})), None)
-                        } else {
-                            let stderr = String::from_utf8_lossy(&output.stderr);
-                            error!("Hibernate failed: {}", stderr);
-                            let err = ErrorInfo {
-                                code: "HIBERNATE_FAILED".to_string(),
-                                message: format!("Command failed: {}", stderr),
-                            };
-                            ("error".to_string(), None, Some(err))
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to execute hibernate: {}", e);
-                        let err = ErrorInfo {
-                            code: "EXECUTION_ERROR".to_string(),
-                            message: format!("Failed to execute hibernate: {}", e),
-                        };
-                        ("error".to_string(), None, Some(err))
-                    }
-                }
-            }
-            "linux" => {
-                match tokio::process::Command::new("systemctl")
-                    .args(&["hibernate"])
-                    .output()
-                    .await
-                {
-                    Ok(output) => {
-                        if output.status.success() {
-                            info!("Hibernate command executed successfully");
-                            ("success".to_string(), Some(serde_json::json!({"message": "Hibernate initiated"})), None)
-                        } else {
-                            let stderr = String::from_utf8_lossy(&output.stderr);
-                            error!("Hibernate failed: {}", stderr);
-                            let err = ErrorInfo {
-                                code: "HIBERNATE_FAILED".to_string(),
-                                message: format!("Command failed: {}", stderr),
-                            };
-                            ("error".to_string(), None, Some(err))
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to execute hibernate: {}", e);
-                        let err = ErrorInfo {
-                            code: "EXECUTION_ERROR".to_string(),
-                            message: format!("Failed to execute hibernate: {}", e),
-                        };
-                        ("error".to_string(), None, Some(err))
-                    }
-                }
-            }
-            _ => {
-                let err = ErrorInfo {
-                    code: "UNSUPPORTED_OS".to_string(),
-                    message: format!("Hibernate not supported on OS: {}", self.system_info.os),
-                };
-                ("error".to_string(), None, Some(err))
-            }
-        }
-    }
-
-    /// Execute reconnect command - Force re-registration with kernel
-    async fn execute_reconnect(&self, _cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
-        info!("Executing reconnect command - forcing re-registration...");
-
-        // La reconnexion se fera automatiquement via le heartbeat suivant
-        // On retourne simplement un succès pour confirmer que la commande a été reçue
-        ("success".to_string(), Some(serde_json::json!({
-            "message": "Reconnect acknowledged - agent will re-register on next heartbeat"
-        })), None)
-    }
-
-    /// Execute kill process command
-    async fn execute_kill_process(&self, cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
-        info!("Executing kill process command...");
-        
-        let pid = match cmd.parameters.as_ref()
-            .and_then(|p| p.get("pid"))
-            .and_then(|p| p.as_u64()) {
-            Some(pid) => pid,
-            None => {
-                let err = ErrorInfo {
-                    code: "INVALID_PARAMETERS".to_string(),
-                    message: "Missing 'pid' parameter".to_string(),
-                };
-                return ("error".to_string(), None, Some(err));
-            }
-        };
-        
-        match self.system_info.os.as_str() {
-            "windows" => {
-                match windows_utils::silent_tokio_command("taskkill")
-                    .args(&["/PID", &pid.to_string(), "/F"])
-                    .output()
-                    .await
-                {
-                    Ok(output) => {
-                        if output.status.success() {
-                            info!("Process {} killed successfully", pid);
-                            ("success".to_string(), Some(serde_json::json!({"message": format!("Process {} killed", pid)})), None)
-                        } else {
-                            let stderr = String::from_utf8_lossy(&output.stderr);
-                            error!("Kill process failed: {}", stderr);
-                            let err = ErrorInfo {
-                                code: "KILL_FAILED".to_string(),
-                                message: format!("Command failed: {}", stderr),
-                            };
-                            ("error".to_string(), None, Some(err))
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to execute kill: {}", e);
-                        let err = ErrorInfo {
-                            code: "EXECUTION_ERROR".to_string(),
-                            message: format!("Failed to execute kill: {}", e),
-                        };
-                        ("error".to_string(), None, Some(err))
-                    }
-                }
-            }
-            "linux" => {
-                match tokio::process::Command::new("kill")
-                    .args(&["-9", &pid.to_string()])
-                    .output()
-                    .await
-                {
-                    Ok(output) => {
-                        if output.status.success() {
-                            info!("Process {} killed successfully", pid);
-                            ("success".to_string(), Some(serde_json::json!({"message": format!("Process {} killed", pid)})), None)
-                        } else {
-                            let stderr = String::from_utf8_lossy(&output.stderr);
-                            error!("Kill process failed: {}", stderr);
-                            let err = ErrorInfo {
-                                code: "KILL_FAILED".to_string(),
-                                message: format!("Command failed: {}", stderr),
-                            };
-                            ("error".to_string(), None, Some(err))
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to execute kill: {}", e);
-                        let err = ErrorInfo {
-                            code: "EXECUTION_ERROR".to_string(),
-                            message: format!("Failed to execute kill: {}", e),
-                        };
-                        ("error".to_string(), None, Some(err))
-                    }
-                }
-            }
-            _ => {
-                let err = ErrorInfo {
-                    code: "UNSUPPORTED_OS".to_string(),
-                    message: format!("Kill process not supported on OS: {}", self.system_info.os),
-                };
-                ("error".to_string(), None, Some(err))
-            }
-        }
-    }
-    
-    /// Execute shell command
-    async fn execute_shell_command(&self, cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
-        info!("Executing shell command...");
-        
-        let command = match cmd.parameters.as_ref()
-            .and_then(|p| p.get("command"))
-            .and_then(|p| p.as_str()) {
-            Some(command) => command,
-            None => {
-                let err = ErrorInfo {
-                    code: "INVALID_PARAMETERS".to_string(),
-                    message: "Missing 'command' parameter".to_string(),
-                };
-                return ("error".to_string(), None, Some(err));
-            }
-        };
-        
-        // Security check - only allow safe commands
-        let safe_commands = ["dir", "ls", "whoami", "hostname", "date", "uptime", "ps", "tasklist", "shutdown", "echo", "systemctl", "cat", "tail", "head", "pwd", "id", "ipconfig", "ifconfig", "powershell", "get-process", "netstat", "ping", "tracert", "nslookup"];
-        let is_safe = safe_commands.iter().any(|&safe_cmd| command.starts_with(safe_cmd));
-        
-        if !is_safe {
-            let err = ErrorInfo {
-                code: "UNSAFE_COMMAND".to_string(),
-                message: format!("Command not allowed: {}", command),
-            };
-            return ("error".to_string(), None, Some(err));
-        }
-        
-        match self.system_info.os.as_str() {
-            "windows" => {
-                match windows_utils::silent_tokio_command("cmd")
-                    .args(&["/C", command])
-                    .output()
-                    .await
-                {
-                    Ok(output) => {
-                        let stdout = String::from_utf8_lossy(&output.stdout);
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        
-                        if output.status.success() {
-                            info!("Shell command executed successfully");
-                            // Clean ANSI escape codes and all control characters from output to avoid JSON parsing errors
-                            let clean_stdout = stdout.chars()
-                                .filter(|c| c.is_ascii_graphic() || *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
-                                .collect::<String>();
-                            ("success".to_string(), Some(serde_json::Value::String(clean_stdout)), None)
-                        } else {
-                            error!("Shell command failed: {}", stderr);
-                            let err = ErrorInfo {
-                                code: "COMMAND_FAILED".to_string(),
-                                message: format!("Command failed with exit code: {:?}", output.status.code()),
-                            };
-                            // Clean ANSI escape codes from error output too
-                            let clean_stdout = stdout.chars()
-                                .filter(|c| c.is_ascii_graphic() || *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
-                                .collect::<String>();
-                            let clean_stderr = stderr.chars()
-                                .filter(|c| c.is_ascii_graphic() || *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
-                                .collect::<String>();
-                            ("error".to_string(), Some(serde_json::Value::String(format!("STDOUT:\n{}\n\nSTDERR:\n{}", clean_stdout, clean_stderr))), Some(err))
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to execute shell command: {}", e);
-                        let err = ErrorInfo {
-                            code: "EXECUTION_ERROR".to_string(),
-                            message: format!("Failed to execute command: {}", e),
-                        };
-                        ("error".to_string(), None, Some(err))
-                    }
-                }
-            }
-            "linux" => {
-                match tokio::process::Command::new("sh")
-                    .args(&["-c", command])
-                    .output()
-                    .await
-                {
-                    Ok(output) => {
-                        let stdout = String::from_utf8_lossy(&output.stdout);
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        
-                        if output.status.success() {
-                            info!("Shell command executed successfully");
-                            // Clean ANSI escape codes and all control characters from output to avoid JSON parsing errors
-                            let clean_stdout = stdout.chars()
-                                .filter(|c| c.is_ascii_graphic() || *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
-                                .collect::<String>();
-                            ("success".to_string(), Some(serde_json::Value::String(clean_stdout)), None)
-                        } else {
-                            error!("Shell command failed: {}", stderr);
-                            let err = ErrorInfo {
-                                code: "COMMAND_FAILED".to_string(),
-                                message: format!("Command failed with exit code: {:?}", output.status.code()),
-                            };
-                            // Clean ANSI escape codes from error output too
-                            let clean_stdout = stdout.chars()
-                                .filter(|c| c.is_ascii_graphic() || *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
-                                .collect::<String>();
-                            let clean_stderr = stderr.chars()
-                                .filter(|c| c.is_ascii_graphic() || *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
-                                .collect::<String>();
-                            ("error".to_string(), Some(serde_json::Value::String(format!("STDOUT:\n{}\n\nSTDERR:\n{}", clean_stdout, clean_stderr))), Some(err))
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to execute shell command: {}", e);
-                        let err = ErrorInfo {
-                            code: "EXECUTION_ERROR".to_string(),
-                            message: format!("Failed to execute command: {}", e),
-                        };
-                        ("error".to_string(), None, Some(err))
-                    }
-                }
-            }
-            _ => {
-                let err = ErrorInfo {
-                    code: "UNSUPPORTED_OS".to_string(),
-                    message: format!("Shell commands not supported on OS: {}", self.system_info.os),
-                };
-                ("error".to_string(), None, Some(err))
-            }
-        }
-    }
-    
-    /// Execute get metrics command
-    async fn execute_get_metrics(&self, _cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
-        info!("Collecting system metrics...");
-        
-        match metrics::SystemMetrics::collect().await {
-            Ok(system_metrics) => {
-                let process_info = metrics::ProcessInfo::collect().await.ok();
-                let services = metrics::ServiceStatus::collect_critical().await.ok();
-                
-                let metrics_data = serde_json::json!({
-                    "system": system_metrics,
-                    "processes": process_info,
-                    "services": services,
-                    "timestamp": Utc::now()
-                });
-                
-                ("success".to_string(), Some(metrics_data), None)
-            }
-            Err(e) => {
-                error!("Failed to collect metrics: {}", e);
-                let err = ErrorInfo {
-                    code: "METRICS_ERROR".to_string(),
-                    message: format!("Failed to collect metrics: {}", e),
-                };
-                ("error".to_string(), None, Some(err))
-            }
-        }
-    }
-    
-    /// Execute list processes command
-    async fn execute_list_processes(&self, _cmd: &IncomingCommand) -> (String, Option<serde_json::Value>, Option<ErrorInfo>) {
-        info!("Listing system processes...");
-        
-        match metrics::ProcessInfo::collect().await {
-            Ok(process_info) => {
-                let processes_data = serde_json::json!({
-                    "total_count": process_info.total_count,
-                    "running_count": process_info.running_count,
-                    "top_cpu": process_info.top_cpu,
-                    "top_memory": process_info.top_memory,
-                    "timestamp": Utc::now()
-                });
-                
-                ("success".to_string(), Some(processes_data), None)
-            }
-            Err(e) => {
-                error!("Failed to collect processes: {}", e);
-                let err = ErrorInfo {
-                    code: "PROCESSES_ERROR".to_string(),
-                    message: format!("Failed to collect processes: {}", e),
-                };
-                ("error".to_string(), None, Some(err))
-            }
-        }
-    }
-    
-    /// Get agent capabilities based on actual system detection
-    async fn get_capabilities(&self) -> Vec<String> {
-        debug!("Detecting actual system capabilities...");
-        
-        // Use the capability detector to get real capabilities
-        let detected_capabilities = capabilities::CapabilityDetector::get_available_capabilities().await;
-        
-        info!("Detected {} capabilities: {:?}", detected_capabilities.len(), detected_capabilities);
-        detected_capabilities
-    }
-    
-    /// Update local API status
-    async fn update_local_api_status(&self, mqtt_connected: bool) {
-        if let Some(ref local_api) = self.local_api {
-            // Collect current system metrics using the metrics module
-            let system_status = match metrics::SystemMetrics::collect().await {
-                Ok(metrics) => {
-                    // Get process count from ProcessInfo
-                    let process_count = if let Ok(process_info) = metrics::ProcessInfo::collect().await {
-                        process_info.total_count as u32
-                    } else {
-                        0
-                    };
-                    
-                    Some(local_api::SystemStatus {
-                        cpu_percent: metrics.cpu.percent as f64,
-                        memory_used_mb: metrics.memory.used_mb,
-                        memory_total_mb: metrics.memory.total_mb,
-                        process_count,
-                        load_average: Some(metrics.cpu.load_avg[0]),
-                    })
-                },
-                Err(_) => None,
-            };
-            
-            local_api.update_status(mqtt_connected, system_status).await;
-        }
-    }
-}
+use tracing::{info, error, warn};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize logging
-    tracing_subscriber::fmt()
-        .init();
+    tracing_subscriber::fmt().init();
 
-    info!("🤖 Symbion Agent Host v{} starting...", env!("CARGO_PKG_VERSION"));
-    
-    // Check if this is first-time setup
+    info!("Symbion Agent Host v{} starting...", env!("CARGO_PKG_VERSION"));
+
+    // First-time setup wizard
     if config::AgentConfig::is_first_time_setup() {
-        println!("🔧 First-time setup detected!");
-        println!("🚀 Starting interactive configuration wizard...");
-        
-        // Run the interactive CLI wizard
+        println!("First-time setup detected!");
+        println!("Starting interactive configuration wizard...");
+
         if let Err(e) = wizard::SetupWizard::run().await {
-            eprintln!("❌ Setup wizard failed: {}", e);
-            eprintln!("📝 Please create configuration manually at:");
+            eprintln!("Setup wizard failed: {}", e);
             if let Ok(config_path) = config::AgentConfig::config_file_path() {
-                eprintln!("   {}", config_path.display());
+                eprintln!("Please create configuration manually at: {}", config_path.display());
             }
             return Err(anyhow::anyhow!("Configuration setup failed"));
         }
-        
-        // Verify configuration was created
+
         if config::AgentConfig::is_first_time_setup() {
             return Err(anyhow::anyhow!("Configuration was not completed"));
         }
-        
-        println!("✅ Configuration completed! Starting agent...");
+
+        println!("Configuration completed! Starting agent...");
     }
-    
+
     // Load configuration
     let agent_config = config::AgentConfig::load().await
         .context("Failed to load agent configuration")?;
@@ -1088,99 +66,102 @@ async fn main() -> Result<()> {
 
     info!("Configuration loaded: MQTT broker at {}:{}",
           agent_config.mqtt.broker_host, agent_config.mqtt.broker_port);
-    
+
     // Check for updates if enabled
     if agent_config.update.auto_update {
-        info!("Auto-update enabled, checking for updates...");
-        let updater = updater::AgentUpdater::new(agent_config.clone());
-        match updater.check_update().await {
-            Ok(update_info) => {
-                if update_info.is_update_available {
-                    info!("Update available: {} -> {}", 
-                          update_info.current_version, update_info.latest_version);
-                    
-                    if update_info.is_critical {
-                        warn!("Critical update detected, performing automatic update...");
-                        if let Err(e) = updater.perform_update(&update_info).await {
-                            error!("Auto-update failed: {}", e);
-                        }
-                    }
-                } else {
-                    info!("Agent is up to date ({})", update_info.current_version);
-                }
-            }
-            Err(e) => {
-                warn!("Failed to check for updates: {}", e);
-            }
-        }
-        
-        // Start background update checker
-        let updater_clone = updater.clone();
-        tokio::spawn(async move {
-            if let Err(e) = updater_clone.schedule_check().await {
-                error!("Background update checker failed: {}", e);
-            }
-        });
+        run_update_check(&agent_config).await;
     }
-    
+
     // Start local API server
-    let system_info = SystemInfo::discover().await
+    let system_info = discovery::SystemInfo::discover().await
         .context("Failed to discover system info")?;
-    
+
     let (reconnect_tx, reconnect_rx) = tokio::sync::mpsc::channel::<()>(1);
     let local_api = Arc::new(local_api::LocalApiServer::new(
         system_info.agent_id.clone(),
         system_info.hostname.clone(),
         reconnect_tx,
     ));
-    
-    // Start API server in background
+
     let local_api_clone = local_api.clone();
     tokio::spawn(async move {
         if let Err(e) = local_api_clone.start().await {
             eprintln!("[local-api] Server failed: {}", e);
         }
     });
-    
-    // Discover system info early for GUI
-    let system_info_for_gui = SystemInfo::discover().await
+
+    // Discover system info for GUI
+    let system_info_for_gui = discovery::SystemInfo::discover().await
         .context("Failed to discover system info for GUI")?;
 
-    // Create and run agent
-    let mut agent = Agent::new_with_config(agent_config).await
+    // Create agent
+    let mut agent = agent::Agent::new_with_config(agent_config).await
         .context("Failed to create agent")?;
 
-    // Pass local API and reconnect channel to agent
     agent.set_local_api(local_api);
     agent.set_reconnect_rx(reconnect_rx);
 
     // Run with GUI or terminal mode
+    run_agent(agent, broker_host_for_gui, system_info_for_gui).await
+}
+
+/// Run update check and schedule background checker
+async fn run_update_check(agent_config: &config::AgentConfig) {
+    info!("Auto-update enabled, checking for updates...");
+    let updater = updater::AgentUpdater::new(agent_config.clone());
+
+    match updater.check_update().await {
+        Ok(update_info) => {
+            if update_info.is_update_available {
+                info!("Update available: {} -> {}",
+                      update_info.current_version, update_info.latest_version);
+                if update_info.is_critical {
+                    warn!("Critical update detected, performing automatic update...");
+                    if let Err(e) = updater.perform_update(&update_info).await {
+                        error!("Auto-update failed: {}", e);
+                    }
+                }
+            } else {
+                info!("Agent is up to date ({})", update_info.current_version);
+            }
+        }
+        Err(e) => {
+            warn!("Failed to check for updates: {}", e);
+        }
+    }
+
+    // Background update checker
+    let updater_clone = updater.clone();
+    tokio::spawn(async move {
+        if let Err(e) = updater_clone.schedule_check().await {
+            error!("Background update checker failed: {}", e);
+        }
+    });
+}
+
+/// Run agent in GUI or terminal mode based on platform and features
+async fn run_agent(
+    mut agent: agent::Agent,
+    broker_host_for_gui: String,
+    system_info_for_gui: discovery::SystemInfo,
+) -> Result<()> {
     #[cfg(feature = "gui")]
     {
-        // Check if GUI is available on Linux (must have non-empty DISPLAY or WAYLAND_DISPLAY)
+        // Check if GUI is available on Linux
         #[cfg(target_os = "linux")]
         let gui_available = {
-            std::env::var("DISPLAY")
-                .ok()
-                .filter(|s| !s.is_empty())
-                .is_some()
-            || std::env::var("WAYLAND_DISPLAY")
-                .ok()
-                .filter(|s| !s.is_empty())
-                .is_some()
+            std::env::var("DISPLAY").ok().filter(|s| !s.is_empty()).is_some()
+            || std::env::var("WAYLAND_DISPLAY").ok().filter(|s| !s.is_empty()).is_some()
         };
 
         #[cfg(not(target_os = "linux"))]
-        let gui_available = true; // Always available on Windows/macOS
+        let gui_available = true;
 
         if gui_available {
             info!("Starting in GUI mode with system tray");
 
-            // Platform-specific threading: Windows needs GUI on main thread
             #[cfg(target_os = "windows")]
             {
-                // Start agent MQTT loop in dedicated thread with its own tokio runtime
-                // (Windows GUI needs main thread for event loop)
                 std::thread::spawn(move || {
                     let runtime = tokio::runtime::Runtime::new().unwrap();
                     runtime.block_on(async move {
@@ -1190,52 +171,35 @@ async fn main() -> Result<()> {
                     });
                 });
 
-                // Run GUI on main thread (required for Windows message loop)
-                // This function never returns - it runs until user quits via system tray
-                // then terminates the process
                 let gui = gui::SymbionGui::new(broker_host_for_gui);
                 gui.run(system_info_for_gui.agent_id, system_info_for_gui.hostname);
-                // Never reached - gui.run() terminates process on exit
             }
 
             #[cfg(not(target_os = "windows"))]
             {
-                // On Linux/macOS with GUI: GUI in background, agent on main thread
                 let system_info_clone = system_info_for_gui.clone();
                 let broker_host_clone = broker_host_for_gui.clone();
 
                 std::thread::spawn(move || {
                     let gui = gui::SymbionGui::new(broker_host_clone);
-                    // gui.run() never returns - it will terminate the process
-                    // If it fails during init, it calls std::process::exit(1)
                     gui.run(system_info_clone.agent_id, system_info_clone.hostname);
                 });
 
-                // Run agent MQTT loop on main thread (critical - must not die)
-                agent.run().await
-                    .context("Agent execution failed")?;
+                agent.run().await.context("Agent execution failed")?;
             }
         } else {
-            info!("No graphical environment detected on Linux, starting in terminal mode");
-            info!("Tip: Compile with --no-default-features to disable GUI on headless systems");
-
-            // Initialize lightweight system tray notification (optional)
+            info!("No graphical environment detected, starting in terminal mode");
             let _ = agent.init_system_tray();
-
-            agent.run().await
-                .context("Agent execution failed")?;
+            agent.run().await.context("Agent execution failed")?;
         }
     }
 
     #[cfg(not(feature = "gui"))]
     {
+        let _ = (broker_host_for_gui, system_info_for_gui); // suppress unused warnings
         info!("Starting in terminal mode");
-
-        // Initialize lightweight system tray notification (optional)
         let _ = agent.init_system_tray();
-
-        agent.run().await
-            .context("Agent execution failed")?;
+        agent.run().await.context("Agent execution failed")?;
     }
 
     Ok(())
@@ -1243,8 +207,8 @@ async fn main() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    
+    use crate::discovery::SystemInfo;
+
     #[tokio::test]
     async fn test_system_discovery() {
         let system_info = SystemInfo::discover().await.unwrap();
