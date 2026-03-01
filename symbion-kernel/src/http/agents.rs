@@ -401,11 +401,13 @@ pub(super) async fn agent_kill_process_endpoint(
     tag = "Agents",
     security(("bearer_auth" = [])),
     params(
-        ("id" = String, Path, description = "Agent ID")
+        ("id" = String, Path, description = "Agent ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
     ),
     request_body = AgentCommandRequest,
     responses(
         (status = 200, description = "Command execution requested"),
+        (status = 400, description = "Command too long"),
         (status = 500, description = "Failed to send command")
     )
 )]
@@ -413,7 +415,14 @@ pub(super) async fn agent_command_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
     Json(req): Json<AgentCommandRequest>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    // P1: Validate command length (max 1000 chars)
+    if req.command.len() > 1000 {
+        return Err((StatusCode::BAD_REQUEST, Json(serde_json::json!({
+            "error": "Command too long (max 1000 characters)"
+        }))));
+    }
+
     let params = serde_json::json!({
         "command": req.command,
         "parameters": req.parameters
@@ -427,7 +436,9 @@ pub(super) async fn agent_command_endpoint(
         }))),
         Err(e) => {
             eprintln!("[http] failed to send command to agent {}: {}", id, e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
+                "error": format!("Failed to send command: {}", e)
+            }))))
         }
     }
 }
@@ -505,12 +516,13 @@ pub(super) async fn agent_commands_endpoint(
     tag = "Agents",
     security(("bearer_auth" = [])),
     params(
-        ("id" = String, Path, description = "Agent ID")
+        ("id" = String, Path, description = "Agent ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
     ),
     request_body = AgentCommandTrackingRequest,
     responses(
         (status = 200, description = "Command execution requested with tracking"),
-        (status = 400, description = "Bad request"),
+        (status = 400, description = "Bad request or command too long"),
         (status = 500, description = "Failed to send tracked command")
     )
 )]
@@ -518,11 +530,17 @@ pub(super) async fn agent_commands_post_endpoint(
     State(app): State<AppState>,
     Path(id): Path<String>,
     Json(req): Json<AgentCommandTrackingRequest>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     // Extract command from parameters for shell_command type
     if req.command_type == "shell_command" {
         if let Some(command) = req.parameters.get("command") {
-            if let Some(_command_str) = command.as_str() {
+            if let Some(command_str) = command.as_str() {
+                // P1: Validate command length (max 1000 chars)
+                if command_str.len() > 1000 {
+                    return Err((StatusCode::BAD_REQUEST, Json(serde_json::json!({
+                        "error": "Command too long (max 1000 characters)"
+                    }))));
+                }
                 match app.agents.send_command(&id, "run_command", Some(req.parameters)).await {
                     Ok(command_id) => Ok(Json(serde_json::json!({
                         "success": true,
@@ -531,14 +549,20 @@ pub(super) async fn agent_commands_post_endpoint(
                     }))),
                     Err(e) => {
                         eprintln!("[http] failed to send tracked command to agent {}: {}", id, e);
-                        Err(StatusCode::INTERNAL_SERVER_ERROR)
+                        Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
+                            "error": format!("Failed to send command: {}", e)
+                        }))))
                     }
                 }
             } else {
-                Err(StatusCode::BAD_REQUEST)
+                Err((StatusCode::BAD_REQUEST, Json(serde_json::json!({
+                    "error": "Parameter 'command' must be a string"
+                }))))
             }
         } else {
-            Err(StatusCode::BAD_REQUEST)
+            Err((StatusCode::BAD_REQUEST, Json(serde_json::json!({
+                "error": "Missing 'command' in parameters"
+            }))))
         }
     } else {
         // Handle other command types in the future
@@ -550,7 +574,9 @@ pub(super) async fn agent_commands_post_endpoint(
             }))),
             Err(e) => {
                 eprintln!("[http] failed to send tracked command to agent {}: {}", id, e);
-                Err(StatusCode::INTERNAL_SERVER_ERROR)
+                Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
+                    "error": format!("Failed to send command: {}", e)
+                }))))
             }
         }
     }

@@ -42,6 +42,14 @@ impl ProcessHandler {
             None => return CommandResult::error("INVALID_PARAMETERS", "Missing 'pid' parameter"),
         };
 
+        // Reject critical system PIDs (init, kernel threads)
+        if pid <= 10 {
+            return CommandResult::error(
+                "FORBIDDEN_PID",
+                format!("Cannot kill system-critical PID {} (PIDs 1-10 are protected)", pid),
+            );
+        }
+
         match CommandExecutor::kill_process(pid).await {
             Ok(result) if result.success => {
                 CommandResult::success(serde_json::json!({

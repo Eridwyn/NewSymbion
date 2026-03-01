@@ -185,24 +185,33 @@ class AgentsService extends LitElement {
     return await response.json()
   }
   
-  // ===== Command Execution Enhanced =====
-  
+  // ===== Command Execution Enhanced (CSRF protected) =====
+
   async executeCommand(agentId, command, timeout_secs = 30) {
-    return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/command`, {
+    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+    const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/command`
+    const response = await csrfService.fetchWithCsrf(url, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ command, timeout_secs })
     })
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    return await response.json()
   }
 
   async executeCommandWithTracking(agentId, command, timeout_secs = 30) {
-    // Use new command tracking API
-    return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/commands`, {
+    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+    const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/commands`
+    const response = await csrfService.fetchWithCsrf(url, {
       method: 'POST',
-      body: JSON.stringify({ 
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         command_type: 'shell_command',
         parameters: { command, timeout_secs }
       })
     })
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    return await response.json()
   }
 
   async getCommandStatus(commandId) {
@@ -210,9 +219,14 @@ class AgentsService extends LitElement {
   }
 
   async cancelCommand(commandId) {
-    return await this.apiService.request(`/commands/${encodeURIComponent(commandId)}/cancel`, {
-      method: 'POST'
+    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+    const url = `${API_BASE}/v1/commands/${encodeURIComponent(commandId)}/cancel`
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
     })
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    return await response.json()
   }
   
   // ===== Metrics =====

@@ -51,7 +51,8 @@ pub struct IncomingCommand {
     pub agent_id: String,
     pub command_type: String,
     pub parameters: Option<serde_json::Value>,
-    pub timestamp: DateTime<Utc>,
+    /// Accept any timestamp format (kernel uses `time` crate ISO 8601, agent uses chrono)
+    pub timestamp: String,
     pub requester: Option<String>,
 }
 

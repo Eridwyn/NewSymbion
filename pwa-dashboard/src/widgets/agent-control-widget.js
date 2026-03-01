@@ -862,25 +862,39 @@ class AgentControlWidget extends LitElement {
     this.requestUpdate()
   }
 
+  /** Format command output/error from JSON value to displayable string */
+  _formatOutput(value) {
+    if (!value) return ''
+    if (typeof value === 'string') return value
+    // JSON objects: extract stdout/message or pretty-print
+    if (typeof value === 'object') {
+      if (value.stdout) return value.stdout
+      if (value.message) return value.message
+      if (value.output) return value.output
+      return JSON.stringify(value, null, 2)
+    }
+    return String(value)
+  }
+
   async pollCommandStatus() {
     if (!this.currentCommandId) return
-    
+
     let attempts = 0
     const maxAttempts = 120 // 2 minutes max
-    
+
     const poll = async () => {
       try {
         const status = await this.agentsService.getCommandStatus(this.currentCommandId)
-        
+
         if (status.status === 'Completed') {
           this.commandOutput += `\n=== Command Completed ===\n`
-          this.commandOutput += status.output || 'No output\n'
+          this.commandOutput += this._formatOutput(status.output) || 'No output\n'
           this.currentCommandId = null
           this.requestUpdate()
           return
         } else if (status.status === 'Failed') {
           this.commandOutput += `\n=== Command Failed ===\n`
-          this.commandOutput += status.error || 'Unknown error\n'
+          this.commandOutput += this._formatOutput(status.error) || 'Unknown error\n'
           this.currentCommandId = null
           this.requestUpdate()
           return
@@ -889,18 +903,24 @@ class AgentControlWidget extends LitElement {
           this.currentCommandId = null
           this.requestUpdate()
           return
+        } else if (status.status === 'TimedOut') {
+          this.commandOutput += `\n=== Command Timed Out ===\n`
+          this.commandOutput += this._formatOutput(status.error) || 'No response from agent\n'
+          this.currentCommandId = null
+          this.requestUpdate()
+          return
         }
-        
+
         // Command still running, continue polling
         attempts++
         if (attempts < maxAttempts) {
           setTimeout(poll, 1000) // Poll every second
         } else {
-          this.commandOutput += `\n=== Command Timeout ===\n`
+          this.commandOutput += `\n=== Command Timeout (client) ===\n`
           this.currentCommandId = null
           this.requestUpdate()
         }
-        
+
       } catch (error) {
         console.warn('Failed to poll command status:', error)
         attempts++
@@ -913,7 +933,7 @@ class AgentControlWidget extends LitElement {
         }
       }
     }
-    
+
     // Start polling after 1 second
     setTimeout(poll, 1000)
   }
