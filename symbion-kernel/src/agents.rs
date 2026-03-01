@@ -49,19 +49,26 @@ pub enum CommandStatus {
 }
 
 // Structure pour les réponses des agents (agents.response@v1)
+// Uses serde(default) for optional fields to handle mismatches with agent format
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentResponse {
     pub command_id: String,
     pub agent_id: String,
     pub status: String, // "success", "error", "in_progress", "cancelled"
+    #[serde(default)]
     #[schema(value_type = Option<Object>)]
     pub output: Option<serde_json::Value>,
+    #[serde(default)]
     #[schema(value_type = Option<Object>)]
     pub error: Option<serde_json::Value>,
+    #[serde(default)]
     pub progress: Option<u32>,
+    #[serde(default)]
     #[schema(value_type = Option<Object>)]
     pub metadata: Option<serde_json::Value>,
-    pub timestamp: String,
+    /// Accepts any timestamp format (chrono DateTime or time crate ISO 8601)
+    #[serde(default)]
+    pub timestamp: serde_json::Value,
 }
 
 // Structures basées sur les contrats agents.registration@v1 et agents.heartbeat@v1
@@ -662,13 +669,32 @@ impl AgentRegistry {
         }
     }
 
-    /// Récupère l'état d'une commande
+    /// Récupère l'état d'une commande (auto-timeout après 30s si toujours Sent/Acknowledged)
     pub async fn get_command_status(&self, command_id: &str) -> Option<PendingCommand> {
-        println!("[debug] get_command_status called for command: {}", command_id);
+        // Check if command needs timeout first
+        {
+            let mut pending = self.pending_commands.write().await;
+            if let Some(command) = pending.get_mut(command_id) {
+                let elapsed = OffsetDateTime::now_utc() - command.timestamp;
+                let timeout_secs = command.timeout.as_secs() as i64;
+                match command.status {
+                    CommandStatus::Sent | CommandStatus::Acknowledged => {
+                        if elapsed.whole_seconds() > timeout_secs {
+                            command.status = CommandStatus::TimedOut;
+                            command.error = Some(serde_json::json!({
+                                "code": "TIMEOUT",
+                                "message": format!("Command timed out after {}s with no response", timeout_secs)
+                            }));
+                            println!("[agents] command {} timed out ({}s elapsed)", command_id, elapsed.whole_seconds());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
         let pending = self.pending_commands.read().await;
-        let result = pending.get(command_id).cloned();
-        println!("[debug] get_command_status result: {:?}", result.is_some());
-        result
+        pending.get(command_id).cloned()
     }
 
     /// Liste toutes les commandes en cours pour un agent

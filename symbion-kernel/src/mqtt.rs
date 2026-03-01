@@ -376,13 +376,18 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                 } else if p.topic == "symbion/agents/response@v1" {
                     if let Some(ref agent_registry) = agents {
                         if let Ok(txt) = String::from_utf8(p.payload.to_vec()) {
+                            println!("[kernel] received agent response MQTT: {}", &txt[..txt.len().min(200)]);
                             match serde_json::from_str::<AgentResponse>(&txt) {
                                 Ok(response) => {
+                                    println!("[kernel] parsed response for command {} — status: {}", response.command_id, response.status);
                                     if let Err(e) = agent_registry.handle_agent_response(response).await {
                                         eprintln!("[kernel] failed to handle agent response: {}", e);
                                     }
                                 }
-                                Err(e) => eprintln!("[kernel] agent response JSON invalide: {txt}, error: {}", e),
+                                Err(e) => {
+                                    eprintln!("[kernel] ❌ agent response deserialization failed: {}", e);
+                                    eprintln!("[kernel] ❌ raw payload (first 500 chars): {}", &txt[..txt.len().min(500)]);
+                                }
                             }
                         }
                     }
