@@ -94,7 +94,7 @@ impl SymbionGui {
         info!("Starting GUI event loop with embedded WebView");
 
         // Clone for closures
-        let broker_host = self.broker_host.clone();
+        let _broker_host = self.broker_host.clone();
         let state_clone = state.clone();
 
         // Run event loop
@@ -104,8 +104,8 @@ impl SymbionGui {
             // Handle tray icon events
             if let Ok(tray_event) = tray_channel.try_recv() {
                 match tray_event {
-                    tray_icon::TrayIconEvent::Click { button, .. } => {
-                        // Toggle window visibility on left click
+                    tray_icon::TrayIconEvent::DoubleClick { button, .. } => {
+                        // Toggle window visibility on double-click (standard Windows UX)
                         if button == tray_icon::MouseButton::Left {
                             let mut state = state_clone.lock().unwrap();
                             state.window_visible = !state.window_visible;
@@ -120,7 +120,7 @@ impl SymbionGui {
                         }
                     }
                     _ => {
-                        // Ignore all other events
+                        // Single click shows menu (default behavior)
                     }
                 }
             }
@@ -143,7 +143,7 @@ impl SymbionGui {
                     }
                 } else if menu_id == "open_pwa" {
                     // Open main PWA in browser
-                    let _ = windows_utils::open_url(&format!("http://{}:3001", broker_host));
+                    let _ = windows_utils::open_url("https://symbion.markcha.fr");
                 } else if menu_id == "open_config" {
                     let _ = windows_utils::open_config();
                 } else if menu_id == "check_updates" {
@@ -183,7 +183,7 @@ impl SymbionGui {
         menu.append(&toggle_item)?;
 
         let pwa_item = MenuItem::with_id(MenuId::new("open_pwa"),
-            &format!("Dashboard Principal ({}:3001)", self.broker_host), true, None);
+            "Dashboard Principal (symbion.markcha.fr)", true, None);
         menu.append(&pwa_item)?;
 
         menu.append(&PredefinedMenuItem::separator())?;
@@ -208,7 +208,6 @@ impl SymbionGui {
 
         let tray = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
-            .with_menu_on_left_click(false) // Left click = toggle dashboard, right click = menu
             .with_tooltip(format!("Symbion Agent - {}", hostname))
             .with_icon(icon)
             .build()?;

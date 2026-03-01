@@ -36,6 +36,7 @@ tracing-subscriber = "0.3"
 
 # Async utilities
 futures = "0.3"
+async-trait = "0.1"
 
 # Time handling
 chrono = { version = "0.4", features = ["serde"] }

@@ -50,13 +50,6 @@ pub struct SystemInfo {
     pub network: NetworkInfo,
 }
 
-/// Priority order for interface selection
-const INTERFACE_PRIORITY: &[&str] = &[
-    "eth", "en", "ens", "enp", "eno",  // Ethernet (Linux/macOS patterns)
-    "wlan", "wlp", "wlo", "wifi",     // WiFi
-    "br", "docker", "vir",            // Virtual (lower priority)
-];
-
 impl SystemInfo {
     /// Discover complete system information
     pub async fn discover() -> Result<Self> {
