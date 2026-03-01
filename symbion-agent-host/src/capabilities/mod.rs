@@ -8,7 +8,6 @@
 //! - File operations (future extension)
 
 use serde::{Deserialize, Serialize};
-use std::process::Command;
 use tracing::debug;
 
 use crate::windows_utils;
@@ -27,6 +26,7 @@ pub enum CapabilityType {
 
 /// Capability detection result
 #[derive(Debug)]
+#[allow(dead_code)] // reason used for debug logging context
 pub struct CapabilityInfo {
     pub capability_type: CapabilityType,
     pub available: bool,
@@ -202,66 +202,6 @@ impl CapabilityDetector {
         match windows_utils::silent_command(check_cmd).arg(command).output() {
             Ok(output) => output.status.success(),
             Err(_) => false,
-        }
-    }
-}
-
-/// Platform-specific capability implementations
-pub mod linux {
-    use super::*;
-    
-    /// Linux-specific power management
-    pub struct LinuxPower;
-    
-    impl LinuxPower {
-        pub async fn can_shutdown() -> bool {
-            // Check if user can run shutdown (usually requires sudo or user in power group)
-            let test = Command::new("systemctl")
-                .args(["--help"])
-                .output()
-;
-                
-            test.is_ok()
-        }
-        
-        pub async fn can_manage_services() -> bool {
-            CapabilityDetector::command_exists("systemctl").await
-        }
-    }
-}
-
-pub mod windows {
-    use super::*;
-    
-    /// Windows-specific power management
-    pub struct WindowsPower;
-    
-    impl WindowsPower {
-        pub async fn can_shutdown() -> bool {
-            // Windows shutdown command is usually available to all users
-            CapabilityDetector::command_exists("shutdown").await
-        }
-        
-        pub async fn can_manage_services() -> bool {
-            CapabilityDetector::command_exists("sc").await
-        }
-    }
-}
-
-pub mod android {
-    use super::*;
-    
-    /// Android-specific capabilities (Termux environment)
-    pub struct AndroidCapabilities;
-    
-    impl AndroidCapabilities {
-        pub async fn detect_termux_environment() -> bool {
-            std::env::var("PREFIX").unwrap_or_default().contains("termux")
-        }
-        
-        pub async fn can_control_processes() -> bool {
-            CapabilityDetector::command_exists("ps").await && 
-            CapabilityDetector::command_exists("kill").await
         }
     }
 }

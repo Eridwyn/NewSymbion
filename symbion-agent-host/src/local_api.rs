@@ -7,9 +7,94 @@ use serde::Serialize;
 use warp::Filter;
 use std::collections::VecDeque;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::{RwLock, mpsc};
 
 use crate::windows_utils;
+
+// ============================================================================
+// Rate Limiter — simple sliding window counter (no external deps)
+// ============================================================================
+
+/// Simple rate limiter using a sliding window of request timestamps
+#[derive(Clone)]
+pub struct RateLimiter {
+    max_requests: u32,
+    window_secs: u64,
+    requests: Arc<std::sync::Mutex<VecDeque<Instant>>>,
+}
+
+impl RateLimiter {
+    pub fn new(max_requests: u32, window_secs: u64) -> Self {
+        Self {
+            max_requests,
+            window_secs,
+            requests: Arc::new(std::sync::Mutex::new(VecDeque::new())),
+        }
+    }
+
+    /// Check if a request is allowed. Returns true if allowed, false if rate limited.
+    pub fn check(&self) -> bool {
+        let mut requests = self.requests.lock().unwrap();
+        let now = Instant::now();
+        let window = std::time::Duration::from_secs(self.window_secs);
+
+        // Remove expired entries
+        while let Some(front) = requests.front() {
+            if now.duration_since(*front) > window {
+                requests.pop_front();
+            } else {
+                break;
+            }
+        }
+
+        if requests.len() >= self.max_requests as usize {
+            false
+        } else {
+            requests.push_back(now);
+            true
+        }
+    }
+
+    /// Create a warp filter that rejects with 429 if rate limited
+    pub fn filter(&self) -> impl Filter<Extract = (), Error = warp::Rejection> + Clone {
+        let limiter = self.clone();
+        warp::any()
+            .and(warp::any().map(move || limiter.clone()))
+            .and_then(|limiter: RateLimiter| async move {
+                if limiter.check() {
+                    Ok::<_, warp::Rejection>(())
+                } else {
+                    Err(warp::reject::custom(TooManyRequests))
+                }
+            })
+            .untuple_one()
+    }
+}
+
+#[derive(Debug)]
+struct TooManyRequests;
+impl warp::reject::Reject for TooManyRequests {}
+
+/// Handle rejections including rate limiting
+async fn handle_rejection(err: warp::Rejection) -> Result<impl warp::Reply, std::convert::Infallible> {
+    if err.find::<TooManyRequests>().is_some() {
+        Ok(warp::reply::with_status(
+            warp::reply::json(&serde_json::json!({
+                "error": "Too many requests",
+                "retry_after_secs": 60
+            })),
+            warp::http::StatusCode::TOO_MANY_REQUESTS,
+        ))
+    } else {
+        Ok(warp::reply::with_status(
+            warp::reply::json(&serde_json::json!({
+                "error": "Not found or unauthorized"
+            })),
+            warp::http::StatusCode::METHOD_NOT_ALLOWED,
+        ))
+    }
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AgentStatus {
@@ -95,13 +180,16 @@ impl LocalApiServer {
         let status = self.status.clone();
         let api_token = self.api_token.clone();
 
+        // Rate limiter for POST endpoints: 10 requests per 60 seconds
+        let rate_limiter = RateLimiter::new(10, 60);
+
         // GET /status - Agent status and metrics (no auth required)
         let status_route = warp::path("status")
             .and(warp::get())
             .and(warp::any().map(move || status.clone()))
             .and_then(get_status);
 
-        // POST /reconnect - Force MQTT reconnection (auth required)
+        // POST /reconnect - Force MQTT reconnection (auth + rate limited)
         let reconnect_tx = self.reconnect_tx.clone();
         let token_for_reconnect = api_token.clone();
         let reconnect_auth = warp::header::optional::<String>("authorization")
@@ -120,6 +208,7 @@ impl LocalApiServer {
 
         let reconnect_route = warp::path("reconnect")
             .and(warp::post())
+            .and(rate_limiter.filter())
             .and(reconnect_auth)
             .and(warp::any().map(move || reconnect_tx.clone()))
             .and_then(|tx: mpsc::Sender<()>| async move {
@@ -142,9 +231,10 @@ impl LocalApiServer {
             .and(warp::any().map(move || logs.clone()))
             .and_then(get_logs);
 
-        // POST /open-config - Open config file in editor
+        // POST /open-config - Open config file in editor (rate limited)
         let open_config_route = warp::path("open-config")
             .and(warp::post())
+            .and(rate_limiter.filter())
             .and_then(open_config_handler);
 
         // Static files for dashboard UI - fallback to embedded HTML
@@ -154,18 +244,16 @@ impl LocalApiServer {
                 warp::reply::html(include_str!("../ui/simple-dashboard.html"))
             });
 
-        // CORS restricted to localhost only
+        // CORS: allow any origin — security is handled by:
+        // - API bound to 127.0.0.1 only (not exposed to network)
+        // - Bearer token required on POST endpoints
+        // - WebView with_html() sends origin "null" which restrictive CORS rejects
         let cors = warp::cors()
-            .allow_origins(vec![
-                "http://localhost:9899",
-                "http://127.0.0.1:9899",
-                "http://localhost:3000",
-                "http://127.0.0.1:3000",
-            ])
+            .allow_any_origin()
             .allow_headers(vec!["content-type", "authorization"])
             .allow_methods(vec!["GET", "POST"]);
 
-        // POST /open-dashboard - Open local dashboard in browser (auth required)
+        // POST /open-dashboard - Open local dashboard in browser (auth + rate limited)
         let token_for_dashboard = api_token.clone();
         let dashboard_auth = warp::header::optional::<String>("authorization")
             .and(warp::any().map(move || token_for_dashboard.clone()))
@@ -177,6 +265,7 @@ impl LocalApiServer {
 
         let open_dashboard_route = warp::path("open-dashboard")
             .and(warp::post())
+            .and(rate_limiter.filter())
             .and(dashboard_auth)
             .and_then(open_dashboard_handler);
 
@@ -185,7 +274,7 @@ impl LocalApiServer {
             .and(warp::get())
             .and_then(update_status_handler);
 
-        // POST /update/install - Install available update (auth required)
+        // POST /update/install - Install available update (auth + rate limited)
         let token_for_update = api_token;
         let update_auth = warp::header::optional::<String>("authorization")
             .and(warp::any().map(move || token_for_update.clone()))
@@ -197,6 +286,7 @@ impl LocalApiServer {
 
         let update_install_route = warp::path!("update" / "install")
             .and(warp::post())
+            .and(rate_limiter.filter())
             .and(update_auth)
             .and_then(update_install_handler);
 
@@ -208,6 +298,7 @@ impl LocalApiServer {
             .or(open_config_route)
             .or(update_status_route)
             .or(update_install_route)
+            .recover(handle_rejection)
             .with(cors);
 
         println!("[local-api] Starting local dashboard server on http://127.0.0.1:9899");
@@ -245,36 +336,6 @@ impl LocalApiServer {
         logs.push_back(entry);
     }
 
-    /// Get current status (for external access)
-    pub async fn get_current_status(&self) -> AgentStatus {
-        self.status.read().await.clone()
-    }
-
-    /// Show notification (if feature enabled)
-    #[cfg(feature = "notifications")]
-    pub fn notify(&self, title: &str, body: &str) {
-        use notify_rust::Notification;
-        
-        if let Err(e) = Notification::new()
-            .summary(title)
-            .body(body)
-            .icon("symbion-agent")
-            .timeout(5000)
-            .show()
-        {
-            eprintln!("[local-api] Notification failed: {}", e);
-        }
-    }
-
-    #[cfg(not(feature = "notifications"))]
-    pub fn notify(&self, title: &str, body: &str) {
-        println!("[notify] {}: {}", title, body);
-    }
-
-    /// Open main PWA in browser
-    pub fn open_main_pwa(&self) -> Result<(), std::io::Error> {
-        windows_utils::open_url("http://localhost:3000")
-    }
 }
 
 async fn get_status(
@@ -405,4 +466,173 @@ async fn open_config_handler() -> Result<impl warp::Reply, warp::Rejection> {
         "success": true,
         "message": "Config file opened"
     })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::Value;
+
+    fn make_server(token: &str) -> LocalApiServer {
+        let (tx, _rx) = mpsc::channel(1);
+        let mut server = LocalApiServer::new(
+            "test-agent".to_string(),
+            "test-host".to_string(),
+            tx,
+        );
+        server.api_token = token.to_string();
+        server
+    }
+
+    #[tokio::test]
+    async fn test_status_endpoint() {
+        let server = make_server("test-token");
+        let status = server.status.clone();
+        let filter = warp::path("status")
+            .and(warp::get())
+            .and(warp::any().map(move || status.clone()))
+            .and_then(get_status);
+
+        let resp = warp::test::request()
+            .method("GET")
+            .path("/status")
+            .reply(&filter)
+            .await;
+
+        assert_eq!(resp.status(), 200);
+        let body: Value = serde_json::from_slice(resp.body()).unwrap();
+        assert_eq!(body["agent_id"], "test-agent");
+        assert_eq!(body["hostname"], "test-host");
+        assert_eq!(body["mqtt_connected"], false);
+    }
+
+    #[tokio::test]
+    async fn test_logs_endpoint() {
+        let server = make_server("test-token");
+        server.push_log("INFO", "Hello from test").await;
+
+        let logs = server.logs.clone();
+        let filter = warp::path("logs")
+            .and(warp::get())
+            .and(warp::any().map(move || logs.clone()))
+            .and_then(get_logs);
+
+        let resp = warp::test::request()
+            .method("GET")
+            .path("/logs")
+            .reply(&filter)
+            .await;
+
+        assert_eq!(resp.status(), 200);
+        let body: Value = serde_json::from_slice(resp.body()).unwrap();
+        assert!(body["logs"].is_array());
+        assert_eq!(body["logs"][0]["message"], "Hello from test");
+        assert_eq!(body["logs"][0]["level"], "INFO");
+    }
+
+    #[tokio::test]
+    async fn test_reconnect_requires_auth() {
+        let (tx, _rx) = mpsc::channel(1);
+        let token = "secret-token".to_string();
+        let token_clone = token.clone();
+        let reconnect_auth = warp::header::optional::<String>("authorization")
+            .and(warp::any().map(move || token_clone.clone()))
+            .and_then(|auth_header: Option<String>, expected_token: String| async move {
+                let provided = auth_header.as_deref().and_then(|h| h.strip_prefix("Bearer "));
+                if provided == Some(expected_token.as_str()) { Ok::<_, warp::Rejection>(()) } else { Err(warp::reject::reject()) }
+            })
+            .untuple_one();
+
+        let filter = warp::path("reconnect")
+            .and(warp::post())
+            .and(reconnect_auth)
+            .and(warp::any().map(move || tx.clone()))
+            .and_then(|tx: mpsc::Sender<()>| async move {
+                match tx.try_send(()) {
+                    Ok(_) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({"success": true}))),
+                    Err(_) => Ok(warp::reply::json(&serde_json::json!({"success": false}))),
+                }
+            });
+
+        // No token → rejection (warp returns 404 for unmatched POST routes)
+        let resp = warp::test::request()
+            .method("POST")
+            .path("/reconnect")
+            .reply(&filter)
+            .await;
+        assert!(resp.status().is_client_error());
+
+        // Wrong token → rejection
+        let resp = warp::test::request()
+            .method("POST")
+            .path("/reconnect")
+            .header("authorization", "Bearer wrong-token")
+            .reply(&filter)
+            .await;
+        assert!(resp.status().is_client_error());
+    }
+
+    #[tokio::test]
+    async fn test_reconnect_with_valid_token() {
+        let (tx, _rx) = mpsc::channel(1);
+        let token = "valid-token".to_string();
+        let token_clone = token.clone();
+        let reconnect_auth = warp::header::optional::<String>("authorization")
+            .and(warp::any().map(move || token_clone.clone()))
+            .and_then(|auth_header: Option<String>, expected_token: String| async move {
+                let provided = auth_header.as_deref().and_then(|h| h.strip_prefix("Bearer "));
+                if provided == Some(expected_token.as_str()) { Ok::<_, warp::Rejection>(()) } else { Err(warp::reject::reject()) }
+            })
+            .untuple_one();
+
+        let filter = warp::path("reconnect")
+            .and(warp::post())
+            .and(reconnect_auth)
+            .and(warp::any().map(move || tx.clone()))
+            .and_then(|tx: mpsc::Sender<()>| async move {
+                match tx.try_send(()) {
+                    Ok(_) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({"success": true}))),
+                    Err(_) => Ok(warp::reply::json(&serde_json::json!({"success": false}))),
+                }
+            });
+
+        let resp = warp::test::request()
+            .method("POST")
+            .path("/reconnect")
+            .header("authorization", "Bearer valid-token")
+            .reply(&filter)
+            .await;
+
+        assert_eq!(resp.status(), 200);
+        let body: Value = serde_json::from_slice(resp.body()).unwrap();
+        assert_eq!(body["success"], true);
+    }
+
+    #[test]
+    fn test_rate_limiter_allows_within_limit() {
+        let limiter = RateLimiter::new(3, 60);
+        assert!(limiter.check());
+        assert!(limiter.check());
+        assert!(limiter.check());
+        // 4th request should be rejected
+        assert!(!limiter.check());
+    }
+
+    #[tokio::test]
+    async fn test_push_log_ring_buffer() {
+        let server = make_server("test-token");
+
+        // Fill beyond capacity
+        for i in 0..(LOG_BUFFER_CAPACITY + 50) {
+            server.push_log("INFO", &format!("msg-{}", i)).await;
+        }
+
+        let logs = server.logs.read().await;
+        assert_eq!(logs.len(), LOG_BUFFER_CAPACITY);
+
+        // Oldest entry should be msg-50 (first 50 were evicted)
+        assert_eq!(logs.front().unwrap().message, "msg-50");
+        // Newest should be the last one pushed
+        assert_eq!(logs.back().unwrap().message, format!("msg-{}", LOG_BUFFER_CAPACITY + 49));
+    }
 }

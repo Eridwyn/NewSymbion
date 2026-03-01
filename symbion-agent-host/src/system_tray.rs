@@ -5,8 +5,6 @@
 
 use tracing::info;
 
-use crate::windows_utils;
-
 pub struct SystemTray {
     agent_id: String,
     hostname: String,
@@ -79,7 +77,7 @@ Categories=System;Network;
 
         #[cfg(target_os = "windows")]
         {
-            windows_utils::silent_command("powershell")
+            crate::windows_utils::silent_command("powershell")
                 .args([
                     "-Command",
                     &format!(
@@ -103,23 +101,6 @@ Categories=System;Network;
         Ok(())
     }
 
-    pub fn show_dashboard_notification(&self) -> Result<(), Box<dyn std::error::Error>> {
-        self.show_notification(
-            "Symbion Agent",
-            &format!("Click here to open dashboard\nAgent: {}", self.hostname)
-        )?;
-
-        // Also open dashboard directly
-        Self::open_dashboard()?;
-
-        Ok(())
-    }
-
-    fn open_dashboard() -> Result<(), std::io::Error> {
-        windows_utils::open_url("http://localhost:9899")?;
-        info!("Opened dashboard at http://localhost:9899");
-        Ok(())
-    }
 }
 
 impl Default for SystemTray {

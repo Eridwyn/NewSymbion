@@ -12,7 +12,12 @@ use rumqttc::{AsyncClient, Event, EventLoop, Incoming, MqttOptions, QoS};
 use tokio::sync::mpsc;
 use tracing::{info, error};
 
+use tracing::warn;
+
 use crate::messages::ReceivedCommand;
+
+/// Maximum allowed command payload size (1 MB)
+const MAX_COMMAND_PAYLOAD: usize = 1_048_576;
 
 /// MQTT topic constants
 pub const TOPIC_REGISTRATION: &str = "symbion/agents/registration@v1";
@@ -90,6 +95,11 @@ async fn run_event_loop(
             }
             Ok(Event::Incoming(Incoming::Publish(publish))) => {
                 if publish.topic == TOPIC_COMMAND {
+                    if publish.payload.len() > MAX_COMMAND_PAYLOAD {
+                        warn!("Command payload too large: {} bytes (max {}), dropping",
+                            publish.payload.len(), MAX_COMMAND_PAYLOAD);
+                        continue;
+                    }
                     let payload = String::from_utf8_lossy(&publish.payload).to_string();
                     let command = ReceivedCommand {
                         topic: publish.topic.clone(),
@@ -162,6 +172,11 @@ mod tests {
         // All should have @v1 suffix
         assert!(TOPIC_REGISTRATION.ends_with("@v1"));
         assert!(TOPIC_HEARTBEAT.ends_with("@v1"));
+    }
+
+    #[test]
+    fn test_max_payload_constant() {
+        assert_eq!(MAX_COMMAND_PAYLOAD, 1_048_576); // 1 MB
     }
 
     #[test]

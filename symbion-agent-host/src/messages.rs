@@ -45,6 +45,7 @@ pub struct CommandInfo {
 
 /// Incoming command from kernel (matches agents.command@v1 contract)
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)] // Fields deserialized from kernel JSON
 pub struct IncomingCommand {
     pub command_id: String,
     pub agent_id: String,
@@ -75,6 +76,7 @@ pub struct ErrorInfo {
 
 /// Received command for internal processing (from MQTT event loop to agent)
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // topic used for routing in future extensions
 pub struct ReceivedCommand {
     pub topic: String,
     pub payload: String,

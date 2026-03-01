@@ -21,6 +21,7 @@ mod updater;
 mod wizard;
 mod local_api;
 mod system_tray;
+mod transport;
 mod windows_utils;
 
 #[cfg(feature = "gui")]

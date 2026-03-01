@@ -660,7 +660,7 @@
     // ── Actions ──
     window.openMainPWA = async function() {
         try { await fetch(API + '/open-dashboard', { method: 'POST' }); } catch(e) {}
-        window.open('http://localhost:3000', '_blank');
+        window.open('https://symbion.markcha.fr', '_blank');
     };
 
     window.reconnect = async function() {
