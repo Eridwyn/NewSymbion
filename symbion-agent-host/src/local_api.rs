@@ -54,7 +54,7 @@ pub struct LocalApiServer {
     status: Arc<RwLock<AgentStatus>>,
     logs: Arc<RwLock<VecDeque<LogEntry>>>,
     reconnect_tx: mpsc::Sender<()>,
-    api_token: Option<String>,
+    api_token: String,
 }
 
 impl LocalApiServer {
@@ -69,9 +69,18 @@ impl LocalApiServer {
             system: None,
         };
 
-        // Read optional API token from env
-        let api_token = std::env::var("SYMBION_AGENT_API_TOKEN").ok()
-            .filter(|t| !t.is_empty());
+        // API token is mandatory for POST endpoints security
+        // If not set via env, generate a random one and log it
+        let api_token = match std::env::var("SYMBION_AGENT_API_TOKEN").ok().filter(|t| !t.is_empty()) {
+            Some(token) => token,
+            None => {
+                let generated = uuid::Uuid::new_v4().to_string();
+                eprintln!("[local-api] WARNING: SYMBION_AGENT_API_TOKEN not set");
+                eprintln!("[local-api] Generated API token for this session: {}", generated);
+                eprintln!("[local-api] Set SYMBION_AGENT_API_TOKEN env var to persist it");
+                generated
+            }
+        };
 
         Self {
             status: Arc::new(RwLock::new(initial_status)),
@@ -97,19 +106,14 @@ impl LocalApiServer {
         let token_for_reconnect = api_token.clone();
         let reconnect_auth = warp::header::optional::<String>("authorization")
             .and(warp::any().map(move || token_for_reconnect.clone()))
-            .and_then(|auth_header: Option<String>, expected_token: Option<String>| async move {
-                match expected_token {
-                    None => Ok::<_, warp::Rejection>(()),
-                    Some(expected) => {
-                        let provided = auth_header
-                            .as_deref()
-                            .and_then(|h| h.strip_prefix("Bearer "));
-                        if provided == Some(&expected) {
-                            Ok(())
-                        } else {
-                            Err(warp::reject::reject())
-                        }
-                    }
+            .and_then(|auth_header: Option<String>, expected_token: String| async move {
+                let provided = auth_header
+                    .as_deref()
+                    .and_then(|h| h.strip_prefix("Bearer "));
+                if provided == Some(expected_token.as_str()) {
+                    Ok::<_, warp::Rejection>(())
+                } else {
+                    Err(warp::reject::reject())
                 }
             })
             .untuple_one();
@@ -150,24 +154,24 @@ impl LocalApiServer {
                 warp::reply::html(include_str!("../ui/simple-dashboard.html"))
             });
 
-        // CORS for local development
+        // CORS restricted to localhost only
         let cors = warp::cors()
-            .allow_any_origin()
-            .allow_headers(vec!["content-type"])
+            .allow_origins(vec![
+                "http://localhost:9899",
+                "http://127.0.0.1:9899",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+            ])
+            .allow_headers(vec!["content-type", "authorization"])
             .allow_methods(vec!["GET", "POST"]);
 
         // POST /open-dashboard - Open local dashboard in browser (auth required)
         let token_for_dashboard = api_token.clone();
         let dashboard_auth = warp::header::optional::<String>("authorization")
             .and(warp::any().map(move || token_for_dashboard.clone()))
-            .and_then(|auth_header: Option<String>, expected_token: Option<String>| async move {
-                match expected_token {
-                    None => Ok::<_, warp::Rejection>(()),
-                    Some(expected) => {
-                        let provided = auth_header.as_deref().and_then(|h| h.strip_prefix("Bearer "));
-                        if provided == Some(&expected) { Ok(()) } else { Err(warp::reject::reject()) }
-                    }
-                }
+            .and_then(|auth_header: Option<String>, expected_token: String| async move {
+                let provided = auth_header.as_deref().and_then(|h| h.strip_prefix("Bearer "));
+                if provided == Some(expected_token.as_str()) { Ok::<_, warp::Rejection>(()) } else { Err(warp::reject::reject()) }
             })
             .untuple_one();
 
@@ -185,14 +189,9 @@ impl LocalApiServer {
         let token_for_update = api_token;
         let update_auth = warp::header::optional::<String>("authorization")
             .and(warp::any().map(move || token_for_update.clone()))
-            .and_then(|auth_header: Option<String>, expected_token: Option<String>| async move {
-                match expected_token {
-                    None => Ok::<_, warp::Rejection>(()),
-                    Some(expected) => {
-                        let provided = auth_header.as_deref().and_then(|h| h.strip_prefix("Bearer "));
-                        if provided == Some(&expected) { Ok(()) } else { Err(warp::reject::reject()) }
-                    }
-                }
+            .and_then(|auth_header: Option<String>, expected_token: String| async move {
+                let provided = auth_header.as_deref().and_then(|h| h.strip_prefix("Bearer "));
+                if provided == Some(expected_token.as_str()) { Ok::<_, warp::Rejection>(()) } else { Err(warp::reject::reject()) }
             })
             .untuple_one();
 

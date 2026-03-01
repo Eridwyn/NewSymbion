@@ -527,9 +527,7 @@ impl ServiceStatus {
     }
 
     async fn query_windows_service(name: &str) -> Self {
-        use tokio::process::Command;
-
-        let output = Command::new("sc")
+        let output = crate::windows_utils::silent_tokio_command("sc")
             .args(["query", name])
             .output()
             .await;

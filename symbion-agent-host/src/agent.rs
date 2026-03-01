@@ -477,18 +477,44 @@ async fn shutdown_signal() {
     #[cfg(unix)]
     {
         use tokio::signal::unix::{signal, SignalKind};
-        let mut sigterm = signal(SignalKind::terminate())
-            .expect("failed to register SIGTERM handler");
-        let mut sigint = signal(SignalKind::interrupt())
-            .expect("failed to register SIGINT handler");
-        tokio::select! {
-            _ = sigterm.recv() => info!("Received SIGTERM"),
-            _ = sigint.recv() => info!("Received SIGINT"),
+        let sigterm = signal(SignalKind::terminate());
+        let sigint = signal(SignalKind::interrupt());
+
+        match (sigterm, sigint) {
+            (Ok(mut term), Ok(mut int)) => {
+                tokio::select! {
+                    _ = term.recv() => info!("Received SIGTERM"),
+                    _ = int.recv() => info!("Received SIGINT"),
+                }
+            }
+            (Ok(mut term), Err(e)) => {
+                warn!("Failed to register SIGINT handler: {}, using SIGTERM only", e);
+                term.recv().await;
+                info!("Received SIGTERM");
+            }
+            (Err(e), Ok(mut int)) => {
+                warn!("Failed to register SIGTERM handler: {}, using SIGINT only", e);
+                int.recv().await;
+                info!("Received SIGINT");
+            }
+            (Err(e1), Err(e2)) => {
+                error!("Failed to register signal handlers: SIGTERM={}, SIGINT={}", e1, e2);
+                error!("Falling back to ctrl_c handler");
+                if let Err(e) = tokio::signal::ctrl_c().await {
+                    error!("ctrl_c handler also failed: {} — agent will run until killed", e);
+                    std::future::pending::<()>().await;
+                }
+            }
         }
     }
     #[cfg(not(unix))]
     {
-        tokio::signal::ctrl_c().await.expect("failed to register Ctrl+C handler");
-        info!("Received Ctrl+C");
+        match tokio::signal::ctrl_c().await {
+            Ok(()) => info!("Received Ctrl+C"),
+            Err(e) => {
+                error!("Failed to register Ctrl+C handler: {} — agent will run until killed", e);
+                std::future::pending::<()>().await;
+            }
+        }
     }
 }

@@ -208,6 +208,7 @@ impl SymbionGui {
 
         let tray = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
+            .with_menu_on_left_click(false) // Left click = toggle dashboard, right click = menu
             .with_tooltip(format!("Symbion Agent - {}", hostname))
             .with_icon(icon)
             .build()?;
@@ -215,93 +216,17 @@ impl SymbionGui {
         Ok(tray)
     }
 
-    /// Generate a programmatic Symbion "S" icon (32x32 RGBA)
+    /// Load Symbion logo from embedded PNG asset and resize to 32x32 RGBA
     fn generate_icon() -> Result<tray_icon::Icon, Box<dyn std::error::Error>> {
-        const SIZE: usize = 32;
-        let mut rgba = vec![0u8; SIZE * SIZE * 4];
+        const ICON_SIZE: u32 = 32;
+        let png_bytes = include_bytes!("../assets/tray-icon.png");
 
-        // Symbion purple: #cba6f7 = (203, 166, 247)
-        let fg: [u8; 3] = [203, 166, 247];
-        // Darker background: #313244 = (49, 50, 68)
-        let bg: [u8; 3] = [49, 50, 68];
+        let img = image::load_from_memory(png_bytes)?
+            .resize_exact(ICON_SIZE, ICON_SIZE, image::imageops::FilterType::Lanczos3)
+            .into_rgba8();
 
-        // Helper to set a pixel
-        let set = |buf: &mut Vec<u8>, x: usize, y: usize, r: u8, g: u8, b: u8, a: u8| {
-            if x < SIZE && y < SIZE {
-                let idx = (y * SIZE + x) * 4;
-                buf[idx] = r;
-                buf[idx + 1] = g;
-                buf[idx + 2] = b;
-                buf[idx + 3] = a;
-            }
-        };
-
-        // Draw rounded rectangle background
-        for y in 0..SIZE {
-            for x in 0..SIZE {
-                // Corner radius of 6
-                let in_rect = {
-                    let r = 6i32;
-                    let xi = x as i32;
-                    let yi = y as i32;
-                    let s = SIZE as i32;
-                    if xi < r && yi < r {
-                        (xi - r) * (xi - r) + (yi - r) * (yi - r) <= r * r
-                    } else if xi >= s - r && yi < r {
-                        (xi - (s - r - 1)) * (xi - (s - r - 1)) + (yi - r) * (yi - r) <= r * r
-                    } else if xi < r && yi >= s - r {
-                        (xi - r) * (xi - r) + (yi - (s - r - 1)) * (yi - (s - r - 1)) <= r * r
-                    } else if xi >= s - r && yi >= s - r {
-                        (xi - (s - r - 1)) * (xi - (s - r - 1)) + (yi - (s - r - 1)) * (yi - (s - r - 1)) <= r * r
-                    } else {
-                        true
-                    }
-                };
-
-                if in_rect {
-                    set(&mut rgba, x, y, bg[0], bg[1], bg[2], 255);
-                }
-            }
-        }
-
-        // Draw a stylized "S" letter using horizontal strokes
-        // The S is drawn in the region ~(8..24, 5..27)
-        let draw_hline = |buf: &mut Vec<u8>, y: usize, x1: usize, x2: usize| {
-            for x in x1..=x2 {
-                set(buf, x, y, fg[0], fg[1], fg[2], 255);
-                // Anti-aliasing: also draw with reduced opacity on neighbors for thickness
-                if y + 1 < SIZE { set(buf, x, y + 1, fg[0], fg[1], fg[2], 200); }
-            }
-        };
-
-        let draw_vline = |buf: &mut Vec<u8>, x: usize, y1: usize, y2: usize| {
-            for y in y1..=y2 {
-                set(buf, x, y, fg[0], fg[1], fg[2], 255);
-                if x + 1 < SIZE { set(buf, x + 1, y, fg[0], fg[1], fg[2], 200); }
-            }
-        };
-
-        // Top horizontal bar of S
-        draw_hline(&mut rgba, 7, 10, 22);
-        draw_hline(&mut rgba, 8, 10, 22);
-
-        // Left vertical bar (top half)
-        draw_vline(&mut rgba, 10, 7, 14);
-        draw_vline(&mut rgba, 11, 7, 14);
-
-        // Middle horizontal bar
-        draw_hline(&mut rgba, 14, 10, 22);
-        draw_hline(&mut rgba, 15, 10, 22);
-
-        // Right vertical bar (bottom half)
-        draw_vline(&mut rgba, 21, 15, 23);
-        draw_vline(&mut rgba, 22, 15, 23);
-
-        // Bottom horizontal bar of S
-        draw_hline(&mut rgba, 23, 10, 22);
-        draw_hline(&mut rgba, 24, 10, 22);
-
-        let icon = tray_icon::Icon::from_rgba(rgba, SIZE as u32, SIZE as u32)?;
+        let rgba = img.into_raw();
+        let icon = tray_icon::Icon::from_rgba(rgba, ICON_SIZE, ICON_SIZE)?;
         Ok(icon)
     }
 }
