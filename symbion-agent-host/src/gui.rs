@@ -1,9 +1,10 @@
 //! Cross-platform GUI implementation with system tray and embedded webview
 //!
 //! Provides a native application with:
+//! - Borderless window with custom title bar and window controls
 //! - System tray icon with context menu
-//! - Embedded WebView for local dashboard (toggle with left-click)
-//! - No terminal window (windowless background service)
+//! - Embedded WebView for local dashboard (toggle with double-click)
+//! - IPC bridge for drag, resize, minimize, maximize, close
 
 #![cfg(feature = "gui")]
 
@@ -14,11 +15,11 @@ use tray_icon::{
 use tao::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoopBuilder},
-    window::WindowBuilder,
+    window::{WindowBuilder, ResizeDirection},
     dpi::LogicalSize,
 };
 use wry::WebViewBuilder;
-use tracing::{info, error};
+use tracing::{info, error, debug};
 use std::sync::{Arc, Mutex};
 
 use crate::windows_utils;
@@ -44,24 +45,79 @@ impl SymbionGui {
         // Create event loop for GUI with window support
         let event_loop = EventLoopBuilder::new().build();
 
-        // Create hidden window for WebView — compact, app-like size
-        let window = WindowBuilder::new()
-            .with_title(format!("Symbion Agent - {}", hostname))
-            .with_inner_size(LogicalSize::new(420.0, 650.0))
-            .with_resizable(true)
-            .with_visible(false) // Start hidden
-            .build(&event_loop)
-            .expect("Failed to create window");
+        // Create borderless window — custom title bar handled in HTML/CSS
+        let window = Arc::new(
+            WindowBuilder::new()
+                .with_title(format!("Symbion Agent - {}", hostname))
+                .with_inner_size(LogicalSize::new(420.0, 680.0))
+                .with_resizable(true)
+                .with_visible(false)
+                .with_decorations(false)
+                .with_transparent(true)
+                .build(&event_loop)
+                .expect("Failed to create window")
+        );
 
-        // Create WebView with embedded dashboard HTML
+        // Shared state — created before WebView so IPC handler can access it
+        let state = Arc::new(Mutex::new(AppState {
+            window_visible: false,
+        }));
+
+        // Clone references for IPC handler
+        let window_for_ipc = window.clone();
+        let state_for_ipc = state.clone();
+
+        // Create WebView with embedded dashboard HTML and IPC handler
         let dashboard_html = include_str!("../ui/simple-dashboard.html");
         let _webview = WebViewBuilder::new()
             .with_html(dashboard_html)
             .with_transparent(true)
-            .build(&window)
+            .with_ipc_handler(move |request| {
+                let body = request.body();
+                match body.as_str() {
+                    "drag" => {
+                        let _ = window_for_ipc.drag_window();
+                    }
+                    "minimize" => {
+                        window_for_ipc.set_minimized(true);
+                    }
+                    "maximize" => {
+                        let is_max = window_for_ipc.is_maximized();
+                        window_for_ipc.set_maximized(!is_max);
+                    }
+                    "close" => {
+                        window_for_ipc.set_visible(false);
+                        if let Ok(mut s) = state_for_ipc.lock() {
+                            s.window_visible = false;
+                        }
+                        info!("Dashboard window hidden via custom close button");
+                    }
+                    cmd if cmd.starts_with("resize:") => {
+                        let dir = &cmd[7..];
+                        let direction = match dir {
+                            "North" => Some(ResizeDirection::North),
+                            "South" => Some(ResizeDirection::South),
+                            "East" => Some(ResizeDirection::East),
+                            "West" => Some(ResizeDirection::West),
+                            "NorthEast" => Some(ResizeDirection::NorthEast),
+                            "NorthWest" => Some(ResizeDirection::NorthWest),
+                            "SouthEast" => Some(ResizeDirection::SouthEast),
+                            "SouthWest" => Some(ResizeDirection::SouthWest),
+                            _ => None,
+                        };
+                        if let Some(d) = direction {
+                            let _ = window_for_ipc.drag_resize_window(d);
+                        }
+                    }
+                    _ => {
+                        debug!("Unknown IPC message: {}", body);
+                    }
+                }
+            })
+            .build(&*window)
             .expect("Failed to build WebView");
 
-        info!("WebView created with embedded dashboard");
+        info!("WebView created with borderless embedded dashboard");
 
         // Create system tray icon
         let tray_menu = match self.create_tray_menu() {
@@ -82,16 +138,11 @@ impl SymbionGui {
 
         info!("System tray created successfully");
 
-        // App state for window visibility toggle
-        let state = Arc::new(Mutex::new(AppState {
-            window_visible: false,
-        }));
-
         // Handle menu events
         let menu_channel = MenuEvent::receiver();
         let tray_channel = TrayIconEvent::receiver();
 
-        info!("Starting GUI event loop with embedded WebView");
+        info!("Starting GUI event loop with borderless WebView");
 
         // Clone for closures
         let _broker_host = self.broker_host.clone();
@@ -105,7 +156,6 @@ impl SymbionGui {
             if let Ok(tray_event) = tray_channel.try_recv() {
                 match tray_event {
                     tray_icon::TrayIconEvent::DoubleClick { button, .. } => {
-                        // Toggle window visibility on double-click (standard Windows UX)
                         if button == tray_icon::MouseButton::Left {
                             let mut state = state_clone.lock().unwrap();
                             state.window_visible = !state.window_visible;
@@ -119,9 +169,7 @@ impl SymbionGui {
                             }
                         }
                     }
-                    _ => {
-                        // Single click shows menu (default behavior)
-                    }
+                    _ => {}
                 }
             }
 
@@ -134,7 +182,6 @@ impl SymbionGui {
                     info!("Quit requested from tray menu");
                     *control_flow = ControlFlow::Exit;
                 } else if menu_id == "toggle_dashboard" {
-                    // Toggle window
                     let mut state = state_clone.lock().unwrap();
                     state.window_visible = !state.window_visible;
                     window.set_visible(state.window_visible);
@@ -142,12 +189,10 @@ impl SymbionGui {
                         window.set_focus();
                     }
                 } else if menu_id == "open_pwa" {
-                    // Open main PWA in browser
                     let _ = windows_utils::open_url("https://symbion.markcha.fr");
                 } else if menu_id == "open_config" {
                     let _ = windows_utils::open_config();
                 } else if menu_id == "check_updates" {
-                    // Open dashboard on status tab to show update info
                     let mut state = state_clone.lock().unwrap();
                     state.window_visible = true;
                     window.set_visible(true);
@@ -162,7 +207,6 @@ impl SymbionGui {
                     event: WindowEvent::CloseRequested,
                     ..
                 } => {
-                    // Hide window instead of closing
                     window.set_visible(false);
                     let mut state = state_clone.lock().unwrap();
                     state.window_visible = false;

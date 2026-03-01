@@ -8,9 +8,9 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         ::-webkit-scrollbar { display: none; }
         html, body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-            background: #1e1e2e;
-            color: #cdd6f4;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
+            background: transparent;
+            color: #f8f9fa;
             height: 100%;
             overflow: hidden;
             scrollbar-width: none;
@@ -22,7 +22,108 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
+            background: #0a0a0b;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5),
+                        0 0 0 1px rgba(255, 255, 255, 0.04);
+            position: relative;
         }
+
+        /* ── Bioluminescent ambient glow ── */
+        .app::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            border-radius: 10px;
+            background:
+                radial-gradient(400px 300px at 10% 0%, rgba(203, 166, 247, 0.06), transparent 60%),
+                radial-gradient(300px 250px at 90% 100%, rgba(203, 166, 247, 0.03), transparent 50%);
+            animation: ambientBreathe 10s ease-in-out infinite;
+        }
+        @keyframes ambientBreathe { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+        .app > * { position: relative; z-index: 1; }
+
+        /* ── Resize Handles ── */
+        .resize-handle { position: fixed; z-index: 9999; }
+        .resize-n { top: 0; left: 8px; right: 8px; height: 4px; cursor: n-resize; }
+        .resize-s { bottom: 0; left: 8px; right: 8px; height: 4px; cursor: s-resize; }
+        .resize-e { right: 0; top: 8px; bottom: 8px; width: 4px; cursor: e-resize; }
+        .resize-w { left: 0; top: 8px; bottom: 8px; width: 4px; cursor: w-resize; }
+        .resize-ne { top: 0; right: 0; width: 8px; height: 8px; cursor: ne-resize; }
+        .resize-nw { top: 0; left: 0; width: 8px; height: 8px; cursor: nw-resize; }
+        .resize-se { bottom: 0; right: 0; width: 8px; height: 8px; cursor: se-resize; }
+        .resize-sw { bottom: 0; left: 0; width: 8px; height: 8px; cursor: sw-resize; }
+
+        /* ── Custom Window Title Bar ── */
+        .window-titlebar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 32px;
+            padding: 0 4px 0 12px;
+            background: rgba(14, 14, 19, 0.95);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            flex-shrink: 0;
+        }
+        .titlebar-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .titlebar-icon {
+            width: 18px;
+            height: 18px;
+            background: linear-gradient(135deg, #cba6f7 0%, #9d7cd8 100%);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 800;
+            color: #0a0a0b;
+            flex-shrink: 0;
+        }
+        .titlebar-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: rgba(248, 249, 250, 0.5);
+            letter-spacing: 0.02em;
+        }
+        .titlebar-controls {
+            display: flex;
+            align-items: center;
+            gap: 0;
+        }
+        .titlebar-btn {
+            width: 36px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            color: rgba(248, 249, 250, 0.5);
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+            padding: 0;
+            font-size: 0;
+        }
+        .titlebar-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(248, 249, 250, 0.9);
+        }
+        .titlebar-btn.close:hover {
+            background: #e81123;
+            color: #fff;
+        }
+        .titlebar-btn svg { pointer-events: none; }
 
         /* ── Header ── */
         .header {
@@ -30,8 +131,10 @@
             align-items: center;
             justify-content: space-between;
             padding: 12px 16px;
-            background: #181825;
-            border-bottom: 1px solid #313244;
+            background: rgba(19, 20, 26, 0.95);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         }
         .header-left {
             display: flex;
@@ -41,11 +144,18 @@
         .header-logo {
             font-size: 16px;
             font-weight: 700;
-            color: #cba6f7;
+            background: linear-gradient(135deg, #cba6f7 0%, #e0b3ff 50%, #cba6f7 100%);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradientShift 6s ease infinite;
+            filter: drop-shadow(0 0 12px rgba(203, 166, 247, 0.3));
         }
+        @keyframes gradientShift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
         .header-host {
             font-size: 12px;
-            color: #6c7086;
+            color: #94a3b8;
         }
         .header-right {
             display: flex;
@@ -57,9 +167,10 @@
             align-items: center;
             gap: 5px;
             font-size: 11px;
-            padding: 3px 8px;
+            padding: 3px 10px;
             border-radius: 10px;
-            background: #313244;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.06);
         }
         .status-badge.online { color: #a6e3a1; }
         .status-badge.offline { color: #f38ba8; }
@@ -74,8 +185,8 @@
         /* ── Tabs ── */
         .tabs {
             display: flex;
-            background: #181825;
-            border-bottom: 1px solid #313244;
+            background: rgba(19, 20, 26, 0.98);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         }
         .tab {
             flex: 1;
@@ -83,12 +194,12 @@
             text-align: center;
             font-size: 12px;
             font-weight: 500;
-            color: #6c7086;
+            color: #94a3b8;
             cursor: pointer;
             border-bottom: 2px solid transparent;
             transition: color .15s, border-color .15s;
         }
-        .tab:hover { color: #bac2de; }
+        .tab:hover { color: #cbd5e1; }
         .tab.active {
             color: #cba6f7;
             border-bottom-color: #cba6f7;
@@ -99,22 +210,24 @@
             flex: 1;
             overflow-y: auto;
             scrollbar-width: none;
+            background: rgba(10, 10, 11, 0.5);
         }
         .panel { display: none; padding: 14px 16px; }
         .panel.active { display: block; }
 
-        /* ── Status panel ── */
+        /* ── Section Titles ── */
         .section-title {
             font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: .6px;
-            color: #6c7086;
+            color: #94a3b8;
             margin-bottom: 8px;
             margin-top: 14px;
         }
         .section-title:first-child { margin-top: 0; }
 
+        /* ── Metrics ── */
         .metric-row {
             display: flex;
             justify-content: space-between;
@@ -123,31 +236,29 @@
         }
         .metric-label {
             font-size: 13px;
-            color: #a6adc8;
+            color: #cbd5e1;
         }
         .metric-value {
             font-size: 13px;
             font-weight: 600;
             font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
-            color: #cdd6f4;
+            color: #f8f9fa;
         }
 
-        /* Progress bars */
-        .bar-container {
-            margin: 4px 0 8px;
-        }
+        /* ── Progress Bars ── */
+        .bar-container { margin: 4px 0 8px; }
         .bar-header {
             display: flex;
             justify-content: space-between;
             font-size: 12px;
             margin-bottom: 4px;
         }
-        .bar-header .label { color: #a6adc8; }
-        .bar-header .value { color: #cdd6f4; font-family: 'SF Mono', monospace; font-weight: 600; }
+        .bar-header .label { color: #cbd5e1; }
+        .bar-header .value { color: #f8f9fa; font-family: 'SF Mono', monospace; font-weight: 600; }
         .bar-track {
             width: 100%;
             height: 6px;
-            background: #313244;
+            background: rgba(255, 255, 255, 0.06);
             border-radius: 3px;
             overflow: hidden;
         }
@@ -156,14 +267,14 @@
             border-radius: 3px;
             transition: width .5s ease;
         }
-        .bar-fill.cpu { background: #89b4fa; }
-        .bar-fill.mem { background: #a6e3a1; }
-        .bar-fill.disk { background: #f9e2af; }
-        .bar-fill.swap { background: #cba6f7; }
-        .bar-fill.warn { background: #fab387; }
-        .bar-fill.crit { background: #f38ba8; }
+        .bar-fill.cpu { background: #89b4fa; box-shadow: 0 0 8px rgba(137, 180, 250, 0.3); }
+        .bar-fill.mem { background: #a6e3a1; box-shadow: 0 0 8px rgba(166, 227, 161, 0.3); }
+        .bar-fill.disk { background: #f9e2af; box-shadow: 0 0 8px rgba(249, 226, 175, 0.3); }
+        .bar-fill.swap { background: #cba6f7; box-shadow: 0 0 8px rgba(203, 166, 247, 0.3); }
+        .bar-fill.warn { background: #fab387; box-shadow: 0 0 8px rgba(250, 179, 135, 0.3); }
+        .bar-fill.crit { background: #f38ba8; box-shadow: 0 0 8px rgba(243, 139, 168, 0.3); }
 
-        /* Info grid */
+        /* ── Info Grid ── */
         .info-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -171,13 +282,16 @@
             margin-top: 8px;
         }
         .info-card {
-            background: #313244;
-            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
             padding: 10px 12px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
         }
         .info-card .card-label {
             font-size: 10px;
-            color: #6c7086;
+            color: #94a3b8;
             text-transform: uppercase;
             letter-spacing: .5px;
         }
@@ -186,14 +300,18 @@
             font-weight: 600;
             margin-top: 2px;
             font-family: 'SF Mono', monospace;
+            color: #f8f9fa;
         }
 
-        /* ── Agents panel ── */
+        /* ── Agent Cards ── */
         .agent-card {
-            background: #313244;
-            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
             padding: 12px;
             margin-bottom: 8px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
         }
         .agent-card-header {
             display: flex;
@@ -210,14 +328,14 @@
             padding: 2px 8px;
             border-radius: 8px;
         }
-        .agent-status.online { background: rgba(166,227,161,.15); color: #a6e3a1; }
-        .agent-status.offline { background: rgba(243,139,168,.15); color: #f38ba8; }
+        .agent-status.online { background: rgba(166,227,161,.1); color: #a6e3a1; border: 1px solid rgba(166,227,161,.15); }
+        .agent-status.offline { background: rgba(243,139,168,.1); color: #f38ba8; border: 1px solid rgba(243,139,168,.15); }
         .agent-detail {
             font-size: 12px;
-            color: #6c7086;
+            color: #94a3b8;
         }
 
-        /* ── Logs panel ── */
+        /* ── Logs ── */
         .log-controls {
             display: flex;
             gap: 6px;
@@ -227,21 +345,26 @@
             font-size: 11px;
             padding: 3px 10px;
             border-radius: 10px;
-            border: 1px solid #313244;
+            border: 1px solid rgba(255, 255, 255, 0.08);
             background: transparent;
-            color: #6c7086;
+            color: #94a3b8;
             cursor: pointer;
+            transition: background .15s, color .15s, border-color .15s;
+        }
+        .log-filter:hover {
+            background: rgba(255, 255, 255, 0.04);
+            color: #cbd5e1;
         }
         .log-filter.active {
-            background: #313244;
-            color: #cdd6f4;
-            border-color: #45475a;
+            background: rgba(203, 166, 247, 0.1);
+            color: #cba6f7;
+            border-color: rgba(203, 166, 247, 0.2);
         }
         .log-list {
             font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
             font-size: 11px;
             line-height: 1.6;
-            max-height: calc(100vh - 180px);
+            max-height: calc(100vh - 200px);
             overflow-y: auto;
             scrollbar-width: none;
         }
@@ -250,23 +373,23 @@
             display: flex;
             gap: 6px;
         }
-        .log-time { color: #585b70; min-width: 65px; }
-        .log-level {
-            min-width: 40px;
-            font-weight: 600;
-        }
-        .log-level.INFO { color: #6c7086; }
+        .log-time { color: #475569; min-width: 65px; }
+        .log-level { min-width: 40px; font-weight: 600; }
+        .log-level.INFO { color: #94a3b8; }
         .log-level.WARN { color: #f9e2af; }
         .log-level.ERROR { color: #f38ba8; }
-        .log-level.DEBUG { color: #585b70; }
-        .log-msg { color: #bac2de; word-break: break-all; }
+        .log-level.DEBUG { color: #475569; }
+        .log-msg { color: #cbd5e1; word-break: break-all; }
 
-        /* ── Config panel ── */
+        /* ── Config Panel ── */
         .config-group {
-            background: #313244;
-            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
             padding: 12px;
             margin-bottom: 10px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
         }
         .config-group-title {
             font-size: 12px;
@@ -280,75 +403,112 @@
             padding: 5px 0;
             font-size: 12px;
         }
-        .config-key { color: #6c7086; }
-        .config-val { color: #cdd6f4; font-family: 'SF Mono', monospace; }
+        .config-key { color: #94a3b8; }
+        .config-val { color: #f8f9fa; font-family: 'SF Mono', monospace; }
 
-        /* Buttons */
+        /* ── Buttons ── */
         .btn {
             padding: 7px 14px;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 12px;
             font-weight: 500;
             font-family: inherit;
-            transition: opacity .15s;
-            color: #cdd6f4;
+            transition: opacity .15s, box-shadow .15s;
+            color: #f8f9fa;
         }
         .btn:hover { opacity: .85; }
         .btn:active { opacity: .7; }
-        .btn-primary { background: #cba6f7; color: #1e1e2e; }
-        .btn-ghost {
-            background: #313244;
-            border: 1px solid #45475a;
+        .btn-primary {
+            background: linear-gradient(135deg, #cba6f7, #9d7cd8);
+            color: #0a0a0b;
+            box-shadow: 0 0 15px rgba(203, 166, 247, 0.2);
         }
+        .btn-primary:hover { box-shadow: 0 0 20px rgba(203, 166, 247, 0.35); }
+        .btn-ghost {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .btn-ghost:hover { background: rgba(255, 255, 255, 0.08); }
         .btn-row {
             display: flex;
             gap: 8px;
             margin-top: 12px;
         }
 
-        /* Update banner */
+        /* ── Update Banner ── */
         .update-banner {
-            background: #313244;
+            background: rgba(203, 166, 247, 0.05);
+            border: 1px solid rgba(203, 166, 247, 0.15);
             border-left: 3px solid #cba6f7;
-            border-radius: 6px;
+            border-radius: 8px;
             padding: 10px 12px;
             margin-bottom: 12px;
             font-size: 12px;
         }
         .update-banner strong { color: #cba6f7; }
 
-        /* Error state */
+        /* ── Error & Loading States ── */
         .error-state {
             text-align: center;
             padding: 40px 20px;
-            color: #6c7086;
+            color: #94a3b8;
         }
         .error-state .icon { font-size: 32px; margin-bottom: 12px; }
         .error-state .msg { font-size: 13px; margin-bottom: 16px; }
 
-        /* Loading */
         .loading {
             text-align: center;
             padding: 40px;
-            color: #6c7086;
+            color: #94a3b8;
             font-size: 13px;
         }
 
-        /* Footer */
+        /* ── Footer ── */
         .footer {
             padding: 6px 16px;
             text-align: center;
             font-size: 10px;
-            color: #45475a;
-            background: #181825;
-            border-top: 1px solid #313244;
+            color: #475569;
+            background: rgba(19, 20, 26, 0.95);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
         }
     </style>
 </head>
 <body>
 <div class="app">
+    <!-- Resize Handles -->
+    <div class="resize-handle resize-n" data-dir="North"></div>
+    <div class="resize-handle resize-s" data-dir="South"></div>
+    <div class="resize-handle resize-e" data-dir="East"></div>
+    <div class="resize-handle resize-w" data-dir="West"></div>
+    <div class="resize-handle resize-ne" data-dir="NorthEast"></div>
+    <div class="resize-handle resize-nw" data-dir="NorthWest"></div>
+    <div class="resize-handle resize-se" data-dir="SouthEast"></div>
+    <div class="resize-handle resize-sw" data-dir="SouthWest"></div>
+
+    <!-- Custom Window Title Bar -->
+    <div class="window-titlebar" id="titlebar">
+        <div class="titlebar-left">
+            <span class="titlebar-icon">S</span>
+            <span class="titlebar-title">Symbion Agent</span>
+        </div>
+        <div class="titlebar-controls">
+            <button class="titlebar-btn minimize" onclick="ipcMinimize()" title="Minimiser">
+                <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
+            </button>
+            <button class="titlebar-btn maximize" onclick="ipcMaximize()" title="Maximiser">
+                <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+            </button>
+            <button class="titlebar-btn close" onclick="ipcClose()" title="Fermer">
+                <svg width="10" height="10" viewBox="0 0 10 10"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.2"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.2"/></svg>
+            </button>
+        </div>
+    </div>
+
     <!-- Header -->
     <div class="header">
         <div class="header-left">
@@ -431,11 +591,45 @@
     let currentFilter = 'all';
     let logsAutoScroll = true;
 
+    // ── IPC Bridge for Borderless Window Controls ──
+    function ipcSend(msg) {
+        if (window.ipc && window.ipc.postMessage) {
+            window.ipc.postMessage(msg);
+        }
+    }
+
+    window.ipcMinimize = function() { ipcSend('minimize'); };
+    window.ipcMaximize = function() { ipcSend('maximize'); };
+    window.ipcClose = function() { ipcSend('close'); };
+
+    // Title bar drag
+    var titlebar = document.getElementById('titlebar');
+    titlebar.addEventListener('mousedown', function(e) {
+        if (e.button !== 0) return;
+        if (e.target.closest('.titlebar-controls')) return;
+        ipcSend('drag');
+    });
+
+    // Double-click titlebar to toggle maximize
+    titlebar.addEventListener('dblclick', function(e) {
+        if (e.target.closest('.titlebar-controls')) return;
+        ipcSend('maximize');
+    });
+
+    // Resize handles
+    document.querySelectorAll('.resize-handle').forEach(function(handle) {
+        handle.addEventListener('mousedown', function(e) {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            ipcSend('resize:' + handle.dataset.dir);
+        });
+    });
+
     // ── Tab Navigation ──
-    document.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+            document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
             tab.classList.add('active');
             document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
         });
@@ -444,9 +638,9 @@
     // ── Formatters ──
     function fmtUptime(s) {
         if (!s) return '0s';
-        const d = Math.floor(s / 86400);
-        const h = Math.floor((s % 86400) / 3600);
-        const m = Math.floor((s % 3600) / 60);
+        var d = Math.floor(s / 86400);
+        var h = Math.floor((s % 86400) / 3600);
+        var m = Math.floor((s % 3600) / 60);
         if (d > 0) return d + 'j ' + h + 'h';
         if (h > 0) return h + 'h ' + m + 'm';
         return m + 'm ' + (s % 60) + 's';
@@ -467,41 +661,36 @@
     }
 
     function makeBar(label, pct, baseClass) {
-        const cls = barClass(pct) || baseClass;
-        return `<div class="bar-container">
-            <div class="bar-header">
-                <span class="label">${label}</span>
-                <span class="value">${pct.toFixed(1)}%</span>
-            </div>
-            <div class="bar-track"><div class="bar-fill ${cls}" style="width:${Math.min(pct,100)}%"></div></div>
-        </div>`;
+        var cls = barClass(pct) || baseClass;
+        return '<div class="bar-container">' +
+            '<div class="bar-header">' +
+                '<span class="label">' + label + '</span>' +
+                '<span class="value">' + pct.toFixed(1) + '%</span>' +
+            '</div>' +
+            '<div class="bar-track"><div class="bar-fill ' + cls + '" style="width:' + Math.min(pct, 100) + '%"></div></div>' +
+        '</div>';
     }
 
     // ── Status Panel ──
     function renderStatus(d) {
-        const sys = d.system || {};
-        const cpuPct = sys.cpu_percent != null ? sys.cpu_percent : 0;
-        const memPct = sys.memory_total_mb > 0 ? (sys.memory_used_mb / sys.memory_total_mb * 100) : 0;
+        var sys = d.system || {};
+        var cpuPct = sys.cpu_percent != null ? sys.cpu_percent : 0;
+        var memPct = sys.memory_total_mb > 0 ? (sys.memory_used_mb / sys.memory_total_mb * 100) : 0;
 
-        let html = '';
-
-        // Bars
+        var html = '';
         html += makeBar('CPU', cpuPct, 'cpu');
         html += makeBar('RAM', memPct, 'mem');
 
-        // Disk
         if (sys.disk_used_gb != null && sys.disk_total_gb > 0) {
-            const diskPct = sys.disk_used_gb / sys.disk_total_gb * 100;
+            var diskPct = sys.disk_used_gb / sys.disk_total_gb * 100;
             html += makeBar('Disque', diskPct, 'disk');
         }
 
-        // Swap
         if (sys.swap_used_mb != null && sys.swap_total_mb > 0) {
-            const swapPct = sys.swap_used_mb / sys.swap_total_mb * 100;
+            var swapPct = sys.swap_used_mb / sys.swap_total_mb * 100;
             html += makeBar('Swap', swapPct, 'swap');
         }
 
-        // Info cards
         html += '<div class="info-grid">';
         html += infoCard('CPU', cpuPct.toFixed(1) + '%');
         html += infoCard('RAM', sys.memory_used_mb ? (sys.memory_used_mb + '/' + sys.memory_total_mb + ' MB') : '--');
@@ -524,10 +713,9 @@
 
         document.getElementById('status-content').innerHTML = html;
 
-        // Header
         document.getElementById('hostname').textContent = d.hostname || '--';
-        const badge = document.getElementById('status-badge');
-        const stxt = document.getElementById('status-text');
+        var badge = document.getElementById('status-badge');
+        var stxt = document.getElementById('status-text');
         if (d.mqtt_connected) {
             badge.className = 'status-badge online';
             stxt.textContent = 'MQTT';
@@ -536,28 +724,27 @@
             stxt.textContent = 'Offline';
         }
 
-        // Footer
         document.getElementById('footer-version').textContent = 'Symbion Agent v' + (d.version || '?');
         document.getElementById('footer-uptime').textContent = fmtUptime(d.uptime_seconds);
     }
 
     function infoCard(label, value) {
-        return `<div class="info-card"><div class="card-label">${label}</div><div class="card-value">${value}</div></div>`;
+        return '<div class="info-card"><div class="card-label">' + label + '</div><div class="card-value">' + value + '</div></div>';
     }
 
     // ── Agents Panel ──
     function renderAgent(d) {
-        const sys = d.system || {};
-        let html = `<div class="agent-card">
-            <div class="agent-card-header">
-                <span class="agent-name">${d.hostname || 'Unknown'}</span>
-                <span class="agent-status ${d.mqtt_connected ? 'online' : 'offline'}">${d.mqtt_connected ? 'En ligne' : 'Hors ligne'}</span>
-            </div>
-            <div class="agent-detail">ID: ${d.agent_id || '--'}</div>
-            <div class="agent-detail">Version: ${d.version || '--'}</div>
-            <div class="agent-detail">Uptime: ${fmtUptime(d.uptime_seconds)}</div>
-            <div class="agent-detail">CPU: ${sys.cpu_percent != null ? sys.cpu_percent.toFixed(1) + '%' : '--'} · RAM: ${sys.memory_used_mb || '--'} MB</div>
-        </div>`;
+        var sys = d.system || {};
+        var html = '<div class="agent-card">' +
+            '<div class="agent-card-header">' +
+                '<span class="agent-name">' + (d.hostname || 'Unknown') + '</span>' +
+                '<span class="agent-status ' + (d.mqtt_connected ? 'online' : 'offline') + '">' + (d.mqtt_connected ? 'En ligne' : 'Hors ligne') + '</span>' +
+            '</div>' +
+            '<div class="agent-detail">ID: ' + (d.agent_id || '--') + '</div>' +
+            '<div class="agent-detail">Version: ' + (d.version || '--') + '</div>' +
+            '<div class="agent-detail">Uptime: ' + fmtUptime(d.uptime_seconds) + '</div>' +
+            '<div class="agent-detail">CPU: ' + (sys.cpu_percent != null ? sys.cpu_percent.toFixed(1) + '%' : '--') + ' · RAM: ' + (sys.memory_used_mb || '--') + ' MB</div>' +
+        '</div>';
         document.getElementById('agents-content').innerHTML = html;
     }
 
@@ -567,17 +754,18 @@
             document.getElementById('log-list').innerHTML = '<div class="loading">Aucun log</div>';
             return;
         }
-        const list = document.getElementById('log-list');
-        let html = '';
-        for (const log of logs) {
-            const level = log.level || 'INFO';
+        var list = document.getElementById('log-list');
+        var html = '';
+        for (var i = 0; i < logs.length; i++) {
+            var log = logs[i];
+            var level = log.level || 'INFO';
             if (currentFilter !== 'all' && level !== currentFilter) continue;
-            const time = log.timestamp ? log.timestamp.substring(11, 19) : '--:--:--';
-            html += `<div class="log-entry">
-                <span class="log-time">${time}</span>
-                <span class="log-level ${level}">${level}</span>
-                <span class="log-msg">${escapeHtml(log.message || '')}</span>
-            </div>`;
+            var time = log.timestamp ? log.timestamp.substring(11, 19) : '--:--:--';
+            html += '<div class="log-entry">' +
+                '<span class="log-time">' + time + '</span>' +
+                '<span class="log-level ' + level + '">' + level + '</span>' +
+                '<span class="log-msg">' + escapeHtml(log.message || '') + '</span>' +
+            '</div>';
         }
         list.innerHTML = html || '<div class="loading">Aucun log pour ce filtre</div>';
         if (logsAutoScroll) {
@@ -586,41 +774,41 @@
     }
 
     function escapeHtml(s) {
-        const d = document.createElement('div');
+        var d = document.createElement('div');
         d.textContent = s;
         return d.innerHTML;
     }
 
     // ── Config Panel ──
     function renderConfig(d) {
-        const sys = d.system || {};
-        let html = '';
-        html += `<div class="config-group">
-            <div class="config-group-title">Agent</div>
-            <div class="config-row"><span class="config-key">Agent ID</span><span class="config-val">${d.agent_id || '--'}</span></div>
-            <div class="config-row"><span class="config-key">Version</span><span class="config-val">${d.version || '--'}</span></div>
-            <div class="config-row"><span class="config-key">Hostname</span><span class="config-val">${d.hostname || '--'}</span></div>
-        </div>`;
-        html += `<div class="config-group">
-            <div class="config-group-title">Connexion</div>
-            <div class="config-row"><span class="config-key">MQTT</span><span class="config-val">${d.mqtt_connected ? 'Connecté' : 'Déconnecté'}</span></div>
-            <div class="config-row"><span class="config-key">Dernier heartbeat</span><span class="config-val">${d.last_heartbeat ? d.last_heartbeat.substring(11, 19) : '--'}</span></div>
-        </div>`;
-        html += `<div class="config-group">
-            <div class="config-group-title">Système</div>
-            <div class="config-row"><span class="config-key">CPU (cores)</span><span class="config-val">${sys.cpu_cores || '--'}</span></div>
-            <div class="config-row"><span class="config-key">RAM totale</span><span class="config-val">${sys.memory_total_mb ? sys.memory_total_mb + ' MB' : '--'}</span></div>
-            <div class="config-row"><span class="config-key">Processus</span><span class="config-val">${sys.process_count || '--'}</span></div>
-        </div>`;
+        var sys = d.system || {};
+        var html = '';
+        html += '<div class="config-group">' +
+            '<div class="config-group-title">Agent</div>' +
+            '<div class="config-row"><span class="config-key">Agent ID</span><span class="config-val">' + (d.agent_id || '--') + '</span></div>' +
+            '<div class="config-row"><span class="config-key">Version</span><span class="config-val">' + (d.version || '--') + '</span></div>' +
+            '<div class="config-row"><span class="config-key">Hostname</span><span class="config-val">' + (d.hostname || '--') + '</span></div>' +
+        '</div>';
+        html += '<div class="config-group">' +
+            '<div class="config-group-title">Connexion</div>' +
+            '<div class="config-row"><span class="config-key">MQTT</span><span class="config-val">' + (d.mqtt_connected ? 'Connecté' : 'Déconnecté') + '</span></div>' +
+            '<div class="config-row"><span class="config-key">Dernier heartbeat</span><span class="config-val">' + (d.last_heartbeat ? d.last_heartbeat.substring(11, 19) : '--') + '</span></div>' +
+        '</div>';
+        html += '<div class="config-group">' +
+            '<div class="config-group-title">Système</div>' +
+            '<div class="config-row"><span class="config-key">CPU (cores)</span><span class="config-val">' + (sys.cpu_cores || '--') + '</span></div>' +
+            '<div class="config-row"><span class="config-key">RAM totale</span><span class="config-val">' + (sys.memory_total_mb ? sys.memory_total_mb + ' MB' : '--') + '</span></div>' +
+            '<div class="config-row"><span class="config-key">Processus</span><span class="config-val">' + (sys.process_count || '--') + '</span></div>' +
+        '</div>';
         document.getElementById('config-content').innerHTML = html;
     }
 
     // ── Data Fetching ──
-    let lastData = null;
+    var lastData = null;
 
     async function fetchStatus() {
         try {
-            const r = await fetch(API + '/status');
+            var r = await fetch(API + '/status');
             if (!r.ok) throw new Error('HTTP ' + r.status);
             lastData = await r.json();
             renderStatus(lastData);
@@ -629,30 +817,30 @@
         } catch (e) {
             if (!lastData) {
                 document.getElementById('status-content').innerHTML =
-                    `<div class="error-state"><div class="icon">!</div><div class="msg">Connexion impossible<br><small>${e.message}</small></div>
-                    <button class="btn btn-ghost" onclick="location.reload()">Réessayer</button></div>`;
+                    '<div class="error-state"><div class="icon">!</div><div class="msg">Connexion impossible<br><small>' + e.message + '</small></div>' +
+                    '<button class="btn btn-ghost" onclick="location.reload()">Réessayer</button></div>';
             }
         }
     }
 
     async function fetchLogs() {
         try {
-            const r = await fetch(API + '/logs');
+            var r = await fetch(API + '/logs');
             if (!r.ok) return;
-            const data = await r.json();
+            var data = await r.json();
             renderLogs(data.logs || []);
         } catch (e) { /* silent */ }
     }
 
     async function checkUpdates() {
         try {
-            const r = await fetch(API + '/update/status');
+            var r = await fetch(API + '/update/status');
             if (!r.ok) return;
-            const info = await r.json();
+            var info = await r.json();
             if (info.update_available) {
                 document.getElementById('update-section').innerHTML =
-                    `<div class="update-banner"><strong>Mise à jour disponible</strong> — v${info.current_version} → v${info.latest_version}
-                    <div style="margin-top:6px"><button class="btn btn-primary" onclick="installUpdate()">Installer</button></div></div>`;
+                    '<div class="update-banner"><strong>Mise à jour disponible</strong> — v' + info.current_version + ' → v' + info.latest_version +
+                    '<div style="margin-top:6px"><button class="btn btn-primary" onclick="installUpdate()">Installer</button></div></div>';
             }
         } catch (e) { /* silent */ }
     }
@@ -676,7 +864,7 @@
             '<div class="update-banner"><strong>Installation en cours...</strong></div>';
         try {
             await fetch(API + '/update/install', { method: 'POST' });
-            setTimeout(() => location.reload(), 3000);
+            setTimeout(function() { location.reload(); }, 3000);
         } catch (e) {
             document.getElementById('update-section').innerHTML =
                 '<div class="update-banner" style="border-color:#f38ba8"><strong>Échec de l\'installation</strong></div>';
@@ -684,12 +872,12 @@
     };
 
     window.openConfigFile = function() {
-        fetch(API + '/open-config', { method: 'POST' }).catch(() => {});
+        fetch(API + '/open-config', { method: 'POST' }).catch(function() {});
     };
 
     window.filterLogs = function(level, el) {
         currentFilter = level;
-        document.querySelectorAll('.log-filter').forEach(f => f.classList.remove('active'));
+        document.querySelectorAll('.log-filter').forEach(function(f) { f.classList.remove('active'); });
         el.classList.add('active');
         fetchLogs();
     };
