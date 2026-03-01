@@ -18,6 +18,30 @@ use std::time::{Duration, Instant};
 use tokio::process::Command as AsyncCommand;
 use tracing::{info, debug};
 
+/// Create an async command, hiding console window on Windows
+fn create_async_command(program: &str) -> AsyncCommand {
+    #[cfg(target_os = "windows")]
+    {
+        crate::windows_utils::silent_tokio_command(program)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        AsyncCommand::new(program)
+    }
+}
+
+/// Create a sync command, hiding console window on Windows
+fn create_command(program: &str) -> std::process::Command {
+    #[cfg(target_os = "windows")]
+    {
+        crate::windows_utils::silent_command(program)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::process::Command::new(program)
+    }
+}
+
 /// Command execution result
 #[derive(Debug, Serialize)]
 pub struct ExecutionResult {
@@ -166,7 +190,7 @@ impl CommandExecutor {
 
         // Restart using the validated process name — pass as direct arg, not through shell
         let restart_result = if cfg!(target_os = "windows") {
-            AsyncCommand::new("cmd")
+            create_async_command("cmd")
                 .args(["/C", "start", "", process_name])
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
@@ -174,7 +198,7 @@ impl CommandExecutor {
                 .await
         } else {
             // Use direct exec instead of bash -c to avoid injection
-            AsyncCommand::new(process_name)
+            create_async_command(process_name)
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .output()
@@ -238,7 +262,7 @@ impl CommandExecutor {
     
     async fn shutdown(delay_secs: u32) -> Result<String> {
         if cfg!(target_os = "linux") {
-            let output = AsyncCommand::new("sudo")
+            let output = create_async_command("sudo")
                 .args(["shutdown", "-h", &format!("+{}", delay_secs / 60)])
                 .output()
                 .await
@@ -250,7 +274,7 @@ impl CommandExecutor {
                 Err(anyhow!("Shutdown failed: {}", String::from_utf8_lossy(&output.stderr)))
             }
         } else if cfg!(target_os = "windows") {
-            let output = AsyncCommand::new("shutdown")
+            let output = create_async_command("shutdown")
                 .args(["/s", "/t", &delay_secs.to_string()])
                 .output()
                 .await
@@ -268,7 +292,7 @@ impl CommandExecutor {
     
     async fn reboot(delay_secs: u32) -> Result<String> {
         if cfg!(target_os = "linux") {
-            let output = AsyncCommand::new("sudo")
+            let output = create_async_command("sudo")
                 .args(["reboot"])
                 .output()
                 .await
@@ -280,7 +304,7 @@ impl CommandExecutor {
                 Err(anyhow!("Reboot failed: {}", String::from_utf8_lossy(&output.stderr)))
             }
         } else if cfg!(target_os = "windows") {
-            let output = AsyncCommand::new("shutdown")
+            let output = create_async_command("shutdown")
                 .args(["/r", "/t", &delay_secs.to_string()])
                 .output()
                 .await
@@ -298,7 +322,7 @@ impl CommandExecutor {
     
     async fn hibernate() -> Result<String> {
         if cfg!(target_os = "linux") {
-            let output = AsyncCommand::new("sudo")
+            let output = create_async_command("sudo")
                 .args(["systemctl", "hibernate"])
                 .output()
                 .await
@@ -310,7 +334,7 @@ impl CommandExecutor {
                 Err(anyhow!("Hibernate failed: {}", String::from_utf8_lossy(&output.stderr)))
             }
         } else if cfg!(target_os = "windows") {
-            let output = AsyncCommand::new("shutdown")
+            let output = create_async_command("shutdown")
                 .args(["/h"])
                 .output()
                 .await
@@ -327,7 +351,7 @@ impl CommandExecutor {
     }
     
     async fn execute_unix_command(command: &str, timeout_secs: u32) -> Result<(String, i32)> {
-        let child = AsyncCommand::new("bash")
+        let child = create_async_command("bash")
             .arg("-c")
             .arg(command)
             .stdout(Stdio::piped())
@@ -357,7 +381,7 @@ impl CommandExecutor {
             Err(_) => {
                 // Timeout — kill the orphaned child process by PID
                 if let Some(pid) = child_pid {
-                    let _ = std::process::Command::new("kill")
+                    let _ = create_command("kill")
                         .args(["-9", &pid.to_string()])
                         .output();
                 }
@@ -367,7 +391,7 @@ impl CommandExecutor {
     }
     
     async fn execute_windows_command(command: &str, timeout_secs: u32) -> Result<(String, i32)> {
-        let child = AsyncCommand::new("cmd")
+        let child = create_async_command("cmd")
             .args(["/C", command])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -396,7 +420,7 @@ impl CommandExecutor {
             Err(_) => {
                 // Timeout — kill the orphaned child process by PID
                 if let Some(pid) = child_pid {
-                    let _ = std::process::Command::new("taskkill")
+                    let _ = create_command("taskkill")
                         .args(["/PID", &pid.to_string(), "/F"])
                         .output();
                 }
@@ -406,7 +430,7 @@ impl CommandExecutor {
     }
     
     async fn kill_process_unix(pid: u32) -> Result<String> {
-        let output = AsyncCommand::new("kill")
+        let output = create_async_command("kill")
             .arg(pid.to_string())
             .output()
             .await
@@ -420,7 +444,7 @@ impl CommandExecutor {
     }
     
     async fn kill_process_windows(pid: u32) -> Result<String> {
-        let output = AsyncCommand::new("taskkill")
+        let output = create_async_command("taskkill")
             .args(["/PID", &pid.to_string(), "/F"])
             .output()
             .await
@@ -488,7 +512,7 @@ impl ServiceManager {
         let start_time = Instant::now();
 
         let output = if cfg!(target_os = "linux") {
-            AsyncCommand::new("sudo")
+            create_async_command("sudo")
                 .args(["systemctl", action, service_name])
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
@@ -505,7 +529,7 @@ impl ServiceManager {
                 }
                 _ => return Err(anyhow!("Unknown action: {}", action)),
             };
-            AsyncCommand::new("sc")
+            create_async_command("sc")
                 .args([sc_action, service_name])
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
@@ -513,7 +537,7 @@ impl ServiceManager {
                 .await
                 .context(format!("Failed to {} service {}", action, service_name))?
         } else if cfg!(target_os = "macos") {
-            AsyncCommand::new("sudo")
+            create_async_command("sudo")
                 .args(["launchctl", action, service_name])
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
@@ -539,7 +563,7 @@ impl ServiceManager {
 
     async fn windows_restart(service_name: &str, start_time: Instant) -> Result<ExecutionResult> {
         let cmd = format!("net stop \"{}\" && net start \"{}\"", service_name, service_name);
-        let output = AsyncCommand::new("cmd")
+        let output = create_async_command("cmd")
             .args(["/C", &cmd])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -561,7 +585,7 @@ impl ServiceManager {
     }
 
     async fn linux_status(service_name: &str) -> Result<ServiceStatus> {
-        let output = AsyncCommand::new("systemctl")
+        let output = create_async_command("systemctl")
             .args(["is-active", service_name])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -578,7 +602,7 @@ impl ServiceManager {
     }
 
     async fn windows_status(service_name: &str) -> Result<ServiceStatus> {
-        let output = AsyncCommand::new("sc")
+        let output = create_async_command("sc")
             .args(["query", service_name])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -597,7 +621,7 @@ impl ServiceManager {
     }
 
     async fn macos_status(service_name: &str) -> Result<ServiceStatus> {
-        let output = AsyncCommand::new("launchctl")
+        let output = create_async_command("launchctl")
             .args(["list", service_name])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

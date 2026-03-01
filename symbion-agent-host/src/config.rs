@@ -102,18 +102,35 @@ impl Default for AgentConfig {
 
 impl AgentConfig {
     /// Load config from OS-specific location
+    /// Falls back to default config with warning if file is corrupted
     pub async fn load() -> Result<Self> {
         let config_path = Self::config_file_path()?;
-        
+
         if config_path.exists() {
-            let content = tokio::fs::read_to_string(&config_path).await?;
-            let mut config: AgentConfig = toml::from_str(&content)?;
-            
+            let content = match tokio::fs::read_to_string(&config_path).await {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("[config] WARNING: Failed to read config file: {}", e);
+                    eprintln!("[config] Using default configuration");
+                    return Ok(Self::default());
+                }
+            };
+
+            let mut config: AgentConfig = match toml::from_str(&content) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("[config] WARNING: Config file is corrupted: {}", e);
+                    eprintln!("[config] Path: {}", config_path.display());
+                    eprintln!("[config] Using default configuration — fix or delete the file to resolve");
+                    return Ok(Self::default());
+                }
+            };
+
             // Load password from secure keyring if enabled
             if config.elevation.store_credentials {
                 config.elevation.cached_password = Self::load_password().ok();
             }
-            
+
             Ok(config)
         } else {
             // First time setup - return default config
