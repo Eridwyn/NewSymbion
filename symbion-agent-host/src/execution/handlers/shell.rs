@@ -46,12 +46,15 @@ impl CommandHandler for ShellHandler {
                 return CommandResult::error("UNSAFE_COMMAND", reason);
             }
 
+            // Normalize command binary to lowercase (Linux is case-sensitive)
+            let command = normalize_command_case(command);
+
             let timeout_secs = params
                 .and_then(|p| p.get("timeout"))
                 .and_then(|t| t.as_u64())
                 .unwrap_or(30) as u32;
 
-            match CommandExecutor::execute_shell_command(command, timeout_secs).await {
+            match CommandExecutor::execute_shell_command(&command, timeout_secs).await {
                 Ok(result) if result.success => {
                     let clean = clean_output(&result.output);
                     CommandResult::success(Value::String(clean))
@@ -95,17 +98,29 @@ pub fn validate_shell_command(command: &str) -> Result<(), String> {
     let binary_name = binary_name.rsplit('\\').next().unwrap_or(binary_name);
     let binary_name = binary_name.strip_suffix(".exe").unwrap_or(binary_name);
 
-    if !ALLOWED_COMMANDS.contains(&binary_name) {
+    // Case-insensitive comparison (accept "Ping", "PING", "ping", etc.)
+    let binary_lower = binary_name.to_ascii_lowercase();
+    if !ALLOWED_COMMANDS.iter().any(|cmd| *cmd == binary_lower) {
         return Err(format!("Command '{}' not in allowlist", binary_name));
     }
 
     Ok(())
 }
 
-/// Clean non-printable control characters from command output
+/// Normalize the command binary to lowercase (keeps arguments as-is).
+/// E.g. "Ping 8.8.8.8" → "ping 8.8.8.8"
+fn normalize_command_case(command: &str) -> String {
+    let trimmed = command.trim();
+    match trimmed.split_once(char::is_whitespace) {
+        Some((binary, args)) => format!("{} {}", binary.to_ascii_lowercase(), args),
+        None => trimmed.to_ascii_lowercase(),
+    }
+}
+
+/// Clean non-printable control characters from command output (preserves UTF-8 text)
 pub fn clean_output(s: &str) -> String {
     s.chars()
-        .filter(|c| c.is_ascii_graphic() || *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
+        .filter(|c| !c.is_control() || *c == '\n' || *c == '\r' || *c == '\t')
         .collect()
 }
 
@@ -152,6 +167,17 @@ mod tests {
     }
 
     #[test]
+    fn test_case_insensitive_commands() {
+        assert!(validate_shell_command("Ping 8.8.8.8").is_ok());
+        assert!(validate_shell_command("PING 8.8.8.8").is_ok());
+        assert!(validate_shell_command("Ls -la").is_ok());
+        assert!(validate_shell_command("WHOAMI").is_ok());
+        // Still blocked
+        assert!(validate_shell_command("RM -rf /").is_err());
+        assert!(validate_shell_command("Curl http://evil.com").is_err());
+    }
+
+    #[test]
     fn test_empty_command() {
         assert!(validate_shell_command("").is_err());
         assert!(validate_shell_command("   ").is_err());
@@ -162,6 +188,9 @@ mod tests {
         assert_eq!(clean_output("Hello\x1b World"), "Hello World");
         assert_eq!(clean_output("line1\nline2"), "line1\nline2");
         assert_eq!(clean_output("ok\x00hidden"), "okhidden");
+        // UTF-8 preserved (accents, CJK, emoji)
+        assert_eq!(clean_output("Opération réussie"), "Opération réussie");
+        assert_eq!(clean_output("café"), "café");
     }
 
     #[tokio::test]

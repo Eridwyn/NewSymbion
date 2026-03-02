@@ -8,6 +8,7 @@
 import { LitElement } from 'lit'
 import { ApiService } from './api-service.js'
 import csrfService from './csrf-service.js'
+import authService from './auth-service.js'
 
 class AgentsService extends LitElement {
   static properties = {
@@ -215,7 +216,18 @@ class AgentsService extends LitElement {
   }
 
   async getCommandStatus(commandId) {
-    return await this.apiService.request(`/commands/${encodeURIComponent(commandId)}/status`)
+    // Direct fetch with auth (bypass apiService to avoid null reference during polling)
+    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+    const url = `${API_BASE}/v1/commands/${encodeURIComponent(commandId)}/status`
+
+    const headers = { 'Content-Type': 'application/json' }
+    if (authService.isAuthenticated()) {
+      headers['Authorization'] = `Bearer ${authService.getToken()}`
+    }
+
+    const response = await fetch(url, { headers })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    return await response.json()
   }
 
   async cancelCommand(commandId) {

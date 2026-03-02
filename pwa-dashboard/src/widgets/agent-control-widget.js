@@ -894,6 +894,9 @@ class AgentControlWidget extends LitElement {
           return
         } else if (status.status === 'Failed') {
           this.commandOutput += `\n=== Command Failed ===\n`
+          if (status.output) {
+            this.commandOutput += this._formatOutput(status.output) + '\n'
+          }
           this.commandOutput += this._formatOutput(status.error) || 'Unknown error\n'
           this.currentCommandId = null
           this.requestUpdate()
@@ -922,12 +925,12 @@ class AgentControlWidget extends LitElement {
         }
 
       } catch (error) {
-        console.warn('Failed to poll command status:', error)
+        console.error('[agent-control] Poll error:', error.message || error)
         attempts++
         if (attempts < maxAttempts) {
           setTimeout(poll, 2000) // Retry after 2s on error
         } else {
-          this.commandOutput += `\nFailed to get command status\n`
+          this.commandOutput += `\nFailed to get command status: ${error.message}\n`
           this.currentCommandId = null
           this.requestUpdate()
         }
