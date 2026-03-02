@@ -165,3 +165,165 @@ impl Config {
         Ok(config)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[allow(unused_imports)]
+    use std::io::Write;
+
+    #[test]
+    fn test_polling_config_default() {
+        let config = PollingConfig::default();
+        assert_eq!(config.presence_seconds, 15);
+        assert_eq!(config.connection_seconds, 30);
+        assert_eq!(config.downloads_seconds, 30);
+        assert_eq!(config.devices_seconds, 120);
+    }
+
+    #[test]
+    fn test_default_functions() {
+        // Test all 11 default functions
+        assert_eq!(default_freebox_url(), "http://mafreebox.freebox.fr");
+        assert_eq!(default_app_id(), "symbion.freebox");
+        assert_eq!(default_mqtt_host(), "127.0.0.1");
+        assert_eq!(default_mqtt_port(), 1883);
+        assert_eq!(default_mqtt_client_id(), "symbion-plugin-freebox");
+        assert_eq!(default_mqtt_prefix(), "symbion/freebox");
+        assert_eq!(default_socket_path(), "/run/symbion-plugins/freebox.sock");
+        assert_eq!(default_device_type(), "unknown");
+        assert_eq!(default_presence_interval(), 15);
+        assert_eq!(default_connection_interval(), 30);
+        assert_eq!(default_downloads_interval(), 30);
+        assert_eq!(default_devices_interval(), 120);
+    }
+
+    #[test]
+    fn test_config_load_valid() {
+        let toml_content = r#"
+[freebox]
+api_url = "http://192.168.1.254"
+app_id = "test.app"
+app_token = "test-token-12345"
+
+[mqtt]
+host = "192.168.1.1"
+port = 1883
+client_id = "test-client"
+topic_prefix = "test/freebox"
+
+[http]
+socket_path = "/tmp/freebox.sock"
+
+[polling]
+presence_seconds = 10
+connection_seconds = 20
+downloads_seconds = 25
+devices_seconds = 100
+
+[devices.phone]
+freebox_name = "iPhone"
+device_type = "phone"
+friendly_name = "Mon iPhone"
+"#;
+
+        let dir = std::env::temp_dir().join("symbion-freebox-test-valid");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("config.toml");
+        std::fs::write(&path, toml_content).unwrap();
+
+        let config = Config::load(path.to_str().unwrap()).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // Verify Freebox config
+        assert_eq!(config.freebox.api_url, "http://192.168.1.254");
+        assert_eq!(config.freebox.app_id, "test.app");
+        assert_eq!(config.freebox.app_token, "test-token-12345");
+
+        // Verify MQTT config
+        assert_eq!(config.mqtt.host, "192.168.1.1");
+        assert_eq!(config.mqtt.port, 1883);
+        assert_eq!(config.mqtt.client_id, "test-client");
+        assert_eq!(config.mqtt.topic_prefix, "test/freebox");
+
+        // Verify HTTP config
+        assert_eq!(config.http.socket_path, "/tmp/freebox.sock");
+
+        // Verify polling config
+        assert_eq!(config.polling.presence_seconds, 10);
+        assert_eq!(config.polling.connection_seconds, 20);
+        assert_eq!(config.polling.downloads_seconds, 25);
+        assert_eq!(config.polling.devices_seconds, 100);
+
+        // Verify device config
+        assert_eq!(config.devices.len(), 1);
+        let device = config.devices.get("phone").unwrap();
+        assert_eq!(device.freebox_name, "iPhone");
+        assert_eq!(device.device_type, "phone");
+        assert_eq!(device.friendly_name, Some("Mon iPhone".to_string()));
+    }
+
+    #[test]
+    fn test_config_serialization_roundtrip() {
+        // Create a config with all fields
+        let mut devices = HashMap::new();
+        devices.insert(
+            "laptop".to_string(),
+            DeviceConfig {
+                freebox_name: "MacBook".to_string(),
+                device_type: "laptop".to_string(),
+                friendly_name: Some("Mon MacBook".to_string()),
+            },
+        );
+
+        let original = Config {
+            freebox: FreeboxConfig {
+                api_url: "http://test.local".to_string(),
+                app_id: "test.app".to_string(),
+                app_token: "secret-token".to_string(),
+            },
+            mqtt: MqttConfig {
+                host: "mqtt.local".to_string(),
+                port: 8883,
+                client_id: "test-id".to_string(),
+                topic_prefix: "test/prefix".to_string(),
+            },
+            http: HttpConfig {
+                socket_path: "/tmp/test.sock".to_string(),
+            },
+            devices,
+            polling: PollingConfig {
+                presence_seconds: 5,
+                connection_seconds: 10,
+                downloads_seconds: 15,
+                devices_seconds: 60,
+            },
+        };
+
+        // Serialize to TOML
+        let toml_str = toml::to_string(&original).unwrap();
+
+        // Deserialize back
+        let deserialized: Config = toml::from_str(&toml_str).unwrap();
+
+        // Verify all fields match
+        assert_eq!(deserialized.freebox.api_url, original.freebox.api_url);
+        assert_eq!(deserialized.freebox.app_id, original.freebox.app_id);
+        assert_eq!(deserialized.freebox.app_token, original.freebox.app_token);
+        assert_eq!(deserialized.mqtt.host, original.mqtt.host);
+        assert_eq!(deserialized.mqtt.port, original.mqtt.port);
+        assert_eq!(deserialized.mqtt.client_id, original.mqtt.client_id);
+        assert_eq!(deserialized.mqtt.topic_prefix, original.mqtt.topic_prefix);
+        assert_eq!(deserialized.http.socket_path, original.http.socket_path);
+        assert_eq!(deserialized.polling.presence_seconds, original.polling.presence_seconds);
+        assert_eq!(deserialized.polling.connection_seconds, original.polling.connection_seconds);
+        assert_eq!(deserialized.polling.downloads_seconds, original.polling.downloads_seconds);
+        assert_eq!(deserialized.polling.devices_seconds, original.polling.devices_seconds);
+        assert_eq!(deserialized.devices.len(), 1);
+
+        let device = deserialized.devices.get("laptop").unwrap();
+        assert_eq!(device.freebox_name, "MacBook");
+        assert_eq!(device.device_type, "laptop");
+        assert_eq!(device.friendly_name, Some("Mon MacBook".to_string()));
+    }
+}

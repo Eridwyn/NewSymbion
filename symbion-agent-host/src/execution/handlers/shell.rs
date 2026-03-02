@@ -209,4 +209,55 @@ mod tests {
         assert_eq!(result.status, "error");
         assert_eq!(result.error.unwrap().code, "UNSAFE_COMMAND");
     }
+
+    #[test]
+    fn test_windows_path_prefix_stripped() {
+        assert!(validate_shell_command("C:\\Windows\\System32\\ping.exe 8.8.8.8").is_ok());
+        assert!(validate_shell_command("C:\\Windows\\System32\\ipconfig.exe").is_ok());
+        assert!(validate_shell_command("C:\\Windows\\System32\\rm.exe -rf /").is_err());
+    }
+
+    #[test]
+    fn test_command_with_multiple_spaces() {
+        assert!(validate_shell_command("  ls   -la   /tmp  ").is_ok());
+        assert!(validate_shell_command("  ping   8.8.8.8  ").is_ok());
+    }
+
+    #[test]
+    fn test_normalize_command_case_with_path() {
+        assert_eq!(normalize_command_case("/usr/bin/PING 8.8.8.8"), "/usr/bin/ping 8.8.8.8");
+        assert_eq!(normalize_command_case("Ls -la"), "ls -la");
+        assert_eq!(normalize_command_case("WHOAMI"), "whoami");
+    }
+
+    #[test]
+    fn test_normalize_preserves_arguments_case() {
+        assert_eq!(
+            normalize_command_case("Echo Hello World"),
+            "echo Hello World"
+        );
+        assert_eq!(
+            normalize_command_case("Ping MyHost.local"),
+            "ping MyHost.local"
+        );
+    }
+
+    #[test]
+    fn test_newline_injection_blocked() {
+        assert!(validate_shell_command("ls\nrm -rf /").is_err());
+        assert!(validate_shell_command("ls\r\nrm -rf /").is_err());
+    }
+
+    #[test]
+    fn test_process_substitution_blocked() {
+        assert!(validate_shell_command("cat <(echo test)").is_err());
+        assert!(validate_shell_command("diff <(ls) >(cat)").is_err());
+    }
+
+    #[test]
+    fn test_clean_output_preserves_cjk() {
+        assert_eq!(clean_output("你好世界"), "你好世界");
+        assert_eq!(clean_output("日本語テスト"), "日本語テスト");
+        assert_eq!(clean_output("🚀 Deployed"), "🚀 Deployed");
+    }
 }

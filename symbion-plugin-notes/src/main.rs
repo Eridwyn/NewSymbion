@@ -1122,3 +1122,261 @@ async fn process_command(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_event_message_new() {
+        let payload = serde_json::json!({"test": "data"});
+        let event = EventMessage::new("test_event", payload.clone());
+
+        assert_eq!(event.spec_version, "1.0");
+        assert_eq!(event.plugin_id, "notes");
+        assert_eq!(event.event_type, "test_event");
+        assert_eq!(event.payload, payload);
+        assert!(!event.timestamp.is_empty());
+        // Verify timestamp is valid RFC3339
+        assert!(event.timestamp.contains('T'));
+        assert!(event.timestamp.contains('Z') || event.timestamp.contains('+'));
+    }
+
+    #[test]
+    fn test_action_status_serialization() {
+        let success = serde_json::to_string(&ActionStatus::Success).unwrap();
+        assert_eq!(success, "\"success\"");
+
+        let error = serde_json::to_string(&ActionStatus::Error).unwrap();
+        assert_eq!(error, "\"error\"");
+
+        let rejected = serde_json::to_string(&ActionStatus::Rejected).unwrap();
+        assert_eq!(rejected, "\"rejected\"");
+    }
+
+    #[test]
+    fn test_note_storage_create_and_list() {
+        let dir = std::env::temp_dir().join(format!("symbion-notes-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("notes.json");
+
+        let storage = NotesStorage::new(&path).unwrap();
+
+        let content = NoteContent {
+            content: "Test note".to_string(),
+            urgent: Some(false),
+            context: Some("test".to_string()),
+            tags: Some(vec!["testing".to_string()]),
+            status: Some("pending".to_string()),
+        };
+
+        let note = storage.create_note(content).unwrap();
+        assert!(!note.id.is_empty());
+        assert_eq!(note.data.content, "Test note");
+
+        let notes = storage.list_notes(None);
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].id, note.id);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_note_storage_delete() {
+        let dir = std::env::temp_dir().join(format!("symbion-notes-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("notes.json");
+
+        let storage = NotesStorage::new(&path).unwrap();
+
+        let content = NoteContent {
+            content: "To delete".to_string(),
+            urgent: None,
+            context: None,
+            tags: None,
+            status: None,
+        };
+
+        let note = storage.create_note(content).unwrap();
+        let note_id = note.id.clone();
+
+        let deleted = storage.delete_note(&note_id).unwrap();
+        assert!(deleted);
+
+        let notes = storage.list_notes(None);
+        assert_eq!(notes.len(), 0);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_note_storage_update() {
+        let dir = std::env::temp_dir().join(format!("symbion-notes-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("notes.json");
+
+        let storage = NotesStorage::new(&path).unwrap();
+
+        let content = NoteContent {
+            content: "Original content".to_string(),
+            urgent: None,
+            context: None,
+            tags: None,
+            status: None,
+        };
+
+        let note = storage.create_note(content).unwrap();
+        let note_id = note.id.clone();
+
+        let new_content = NoteContent {
+            content: "Updated content".to_string(),
+            urgent: Some(true),
+            context: Some("work".to_string()),
+            tags: Some(vec!["updated".to_string()]),
+            status: Some("done".to_string()),
+        };
+
+        let updated = storage.update_note(&note_id, new_content).unwrap();
+        assert!(updated.is_some());
+
+        let updated_note = updated.unwrap();
+        assert_eq!(updated_note.data.content, "Updated content");
+        assert_eq!(updated_note.data.urgent, Some(true));
+        assert_eq!(updated_note.data.context, Some("work".to_string()));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_note_storage_delete_nonexistent() {
+        let dir = std::env::temp_dir().join(format!("symbion-notes-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("notes.json");
+
+        let storage = NotesStorage::new(&path).unwrap();
+
+        let random_id = uuid::Uuid::new_v4().to_string();
+        let deleted = storage.delete_note(&random_id).unwrap();
+        assert!(!deleted);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_tag_normalization() {
+        let dir = std::env::temp_dir().join(format!("symbion-notes-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("notes.json");
+
+        let storage = NotesStorage::new(&path).unwrap();
+
+        let content = NoteContent {
+            content: "Test tags".to_string(),
+            urgent: None,
+            context: None,
+            tags: Some(vec!["Todo".to_string(), "URGENT".to_string(), "Work".to_string()]),
+            status: None,
+        };
+
+        let note = storage.create_note(content).unwrap();
+        assert_eq!(note.data.tags, Some(vec!["todo".to_string(), "urgent".to_string(), "work".to_string()]));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_filter_by_tag() {
+        let dir = std::env::temp_dir().join(format!("symbion-notes-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("notes.json");
+
+        let storage = NotesStorage::new(&path).unwrap();
+
+        let content1 = NoteContent {
+            content: "Work note".to_string(),
+            urgent: None,
+            context: None,
+            tags: Some(vec!["work".to_string()]),
+            status: None,
+        };
+
+        let content2 = NoteContent {
+            content: "Personal note".to_string(),
+            urgent: None,
+            context: None,
+            tags: Some(vec!["personal".to_string()]),
+            status: None,
+        };
+
+        storage.create_note(content1).unwrap();
+        storage.create_note(content2).unwrap();
+
+        let mut filters = HashMap::new();
+        filters.insert("tags".to_string(), serde_json::json!(["work"]));
+
+        let notes = storage.list_notes(Some(filters));
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].data.content, "Work note");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_filter_by_urgent() {
+        let dir = std::env::temp_dir().join(format!("symbion-notes-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("notes.json");
+
+        let storage = NotesStorage::new(&path).unwrap();
+
+        let content1 = NoteContent {
+            content: "Urgent note".to_string(),
+            urgent: Some(true),
+            context: None,
+            tags: None,
+            status: None,
+        };
+
+        let content2 = NoteContent {
+            content: "Normal note".to_string(),
+            urgent: Some(false),
+            context: None,
+            tags: None,
+            status: None,
+        };
+
+        storage.create_note(content1).unwrap();
+        storage.create_note(content2).unwrap();
+
+        let mut filters = HashMap::new();
+        filters.insert("urgent".to_string(), serde_json::json!(true));
+
+        let notes = storage.list_notes(Some(filters));
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].data.content, "Urgent note");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_note_command_deserialize() {
+        let json = r#"{
+            "action": "create",
+            "request_id": "test-123",
+            "note": {
+                "content": "Test note"
+            }
+        }"#;
+
+        let command: NoteCommand = serde_json::from_str(json).unwrap();
+
+        match command {
+            NoteCommand::Create { request_id, note } => {
+                assert_eq!(request_id, "test-123");
+                assert_eq!(note.content, "Test note");
+            }
+            _ => panic!("Expected Create variant"),
+        }
+    }
+}

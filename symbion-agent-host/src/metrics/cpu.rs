@@ -34,3 +34,34 @@ impl CpuMetrics {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cpu_metrics_collect() {
+        let mut sys = System::new();
+        sys.refresh_cpu();
+        // Need a small delay for CPU usage to register
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        sys.refresh_cpu();
+
+        let metrics = CpuMetrics::collect(&sys).unwrap();
+        assert!(metrics.percent >= 0.0);
+        assert!(metrics.percent <= 100.0);
+        assert!(metrics.core_count > 0);
+    }
+
+    #[test]
+    fn test_cpu_metrics_serialization() {
+        let metrics = CpuMetrics {
+            percent: 42.5,
+            load_avg: [1.0, 0.5, 0.25],
+            core_count: 8,
+        };
+        let json = serde_json::to_string(&metrics).unwrap();
+        assert!(json.contains("42.5"));
+        assert!(json.contains("\"core_count\":8"));
+    }
+}

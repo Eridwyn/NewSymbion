@@ -190,4 +190,86 @@ mod tests {
         assert_eq!(err.status, "error");
         assert_eq!(err.error.unwrap().code, "FAIL");
     }
+
+    #[test]
+    fn test_success_result_has_data() {
+        let data = serde_json::json!({"key": "value", "count": 42});
+        let result = CommandResult::success(data.clone());
+        assert_eq!(result.status, "success");
+        assert_eq!(result.data.unwrap(), data);
+        assert!(result.error.is_none());
+    }
+
+    #[test]
+    fn test_error_result_has_code_and_message() {
+        let result = CommandResult::error("NOT_FOUND", "Resource not found");
+        assert_eq!(result.status, "error");
+        assert!(result.data.is_none());
+        let err = result.error.unwrap();
+        assert_eq!(err.code, "NOT_FOUND");
+        assert_eq!(err.message, "Resource not found");
+    }
+
+    #[test]
+    fn test_error_with_data_has_both() {
+        let data = serde_json::json!("partial output");
+        let result = CommandResult::error_with_data("CMD_FAILED", "Exit code 1", data.clone());
+        assert_eq!(result.status, "error");
+        assert_eq!(result.data.unwrap(), data);
+        let err = result.error.unwrap();
+        assert_eq!(err.code, "CMD_FAILED");
+        assert_eq!(err.message, "Exit code 1");
+    }
+
+    #[test]
+    fn test_registry_command_types_listing() {
+        let mut registry = CommandRegistry::new();
+        registry.register(Box::new(EchoHandler));
+        let types = registry.command_types();
+        assert!(types.contains(&"echo"));
+        assert_eq!(types.len(), 1);
+    }
+
+    #[test]
+    fn test_registry_empty_has_no_types() {
+        let registry = CommandRegistry::new();
+        assert!(registry.command_types().is_empty());
+    }
+
+    struct MultiHandler;
+
+    impl CommandHandler for MultiHandler {
+        fn command_types(&self) -> &[&str] {
+            &["cmd_a", "cmd_b"]
+        }
+
+        fn execute<'a>(
+            &'a self,
+            command_type: &'a str,
+            _params: Option<&'a Value>,
+        ) -> Pin<Box<dyn Future<Output = CommandResult> + Send + 'a>> {
+            Box::pin(async move {
+                CommandResult::success(serde_json::json!({ "handled": command_type }))
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn test_registry_multi_type_handler() {
+        let mut registry = CommandRegistry::new();
+        registry.register(Box::new(MultiHandler));
+
+        let types = registry.command_types();
+        assert!(types.contains(&"cmd_a"));
+        assert!(types.contains(&"cmd_b"));
+        assert_eq!(types.len(), 2);
+
+        let result_a = registry.execute("cmd_a", None).await.unwrap();
+        assert_eq!(result_a.status, "success");
+        assert_eq!(result_a.data.unwrap()["handled"], "cmd_a");
+
+        let result_b = registry.execute("cmd_b", None).await.unwrap();
+        assert_eq!(result_b.status, "success");
+        assert_eq!(result_b.data.unwrap()["handled"], "cmd_b");
+    }
 }
