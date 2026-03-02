@@ -1,7 +1,7 @@
 # Roadmap Technique - NewSymbion
 
-**Version** : 2026-03 (Post Audit + Sprint P0/P1/P2/P3 + Sprint 5/5 K3+K4+K8 + Sprint 7 SQLite + Sprint 8 Agent v2)
-**Statut** : Fondations complètes, Agent Host v2 (9 phases), 100% persistance SQLite
+**Version** : 2026-03 (Post Audit + Sprint P0/P1/P2/P3 + Sprint 5/5 K3+K4+K8 + Sprint 7 SQLite + Sprint 8 Agent v2 + Sprint 9 Tests)
+**Statut** : Fondations complètes, Agent Host v2 (9 phases), 100% persistance SQLite, couverture tests renforcée
 **Dernière mise à jour** : 2 Mars 2026
 **Score global** : 4.8/5
 
@@ -15,16 +15,16 @@
 |-----------|---------|----:|----------|-------|------:|
 | **symbion-kernel** | Rust | ~46,800 | 102 | 4.8/5 | 405 |
 | **pwa-dashboard** | JS (Lit) | ~36,400 | 75 | 4.5/5 | 744 |
-| **symbion-agent-host** | Rust | ~5,980 | 34 | 4.5/5 | 69 |
-| **Plugins** (5) | Rust | ~4,960 | 14 | 4.8/5 | 0 |
+| **symbion-agent-host** | Rust | ~6,440 | 34 | 4.5/5 | 107 |
+| **Plugins** (5) | Rust | ~5,580 | 14 | 4.8/5 | 28 |
 | **Infra** (scripts/CI) | Bash/YAML | ~2,960 | 24 | 3.5/5 | - |
-| **Total** | | **~97,100** | **249** | **4.7/5** | **1,218** |
+| **Total** | | **~98,200** | **249** | **4.7/5** | **1,284** |
 
 ### Chiffres Clés
 
 | Métrique | Valeur |
 |----------|--------|
-| Unit Tests | 1,218 (405 kernel + 744 PWA + 69 agent) |
+| Unit Tests | 1,284 (405 kernel + 744 PWA + 107 agent + 28 plugins) |
 | API Routes (http/) | 150+ endpoints across 7 modules + plugins |
 | MQTT Topics | 10 subscriptions |
 | Automations actives | 16 (+ intelligence-managed) |
@@ -177,10 +177,10 @@
 | Plugin | LOC | Rôle |
 |--------|----:|------|
 | **symbion-plugin-sensors** | 821 | ESP32 BME280 monitoring |
-| **symbion-plugin-notes** | 1,119 | Mémoire externe (markdown + tags) |
-| **symbion-plugin-ssl** | 1,601 | Monitoring certificats multi-domaines |
-| **symbion-plugin-freebox** | 1,104 | LAN discovery, présence, internet status |
-| **symbion-plugin-common** | 255 | Shared utilities |
+| **symbion-plugin-notes** | 1,381 | Mémoire externe (markdown + tags) |
+| **symbion-plugin-ssl** | 1,797 | Monitoring certificats multi-domaines |
+| **symbion-plugin-freebox** | 1,267 | LAN discovery, présence, internet status |
+| **symbion-plugin-common** | 313 | Shared utilities |
 
 ---
 
@@ -256,13 +256,13 @@
 - ~~Monitoring enrichi : 8 catégories (CPU, RAM, disk, network, thermal, battery, processes, services)~~ ✅
 - ~~GUI borderless + glassmorphic + IPC handler~~ ✅
 - ~~Pipeline commandes à distance PWA → Kernel → Agent → Response~~ ✅
-- ~~Tests : 5 → 69 (objectif 50+ atteint)~~ ✅
+- ~~Tests : 5 → 107 (Sprint 8: 5→69, Sprint 9: 69→107)~~ ✅
 - Plugin system agent-side, event bus interne
 - Capabilities v2 : file transfer, screenshots, log streaming, scheduled tasks
 - Sécurité avancée : mutual TLS, command signing, watchdog
 - Cross-platform : macOS complet, ARM/Raspberry Pi
 
-**Fichiers** : 34 `.rs` (5,984 LOC), `agent.rs` (559), `local_api.rs` (637), `gui.rs` (281), `execution/` (10 fichiers), `metrics/` (8 fichiers)
+**Fichiers** : 34 `.rs` (6,438 LOC), `agent.rs` (559), `local_api.rs` (637), `gui.rs` (281), `execution/` (10 fichiers), `metrics/` (8 fichiers)
 
 ### F2 — Digital Hygiene ⚪ 0%
 **Effort estimé** : 9 jours
@@ -885,9 +885,9 @@
 - [x] Battery status (laptops) intégré dans thermal
 - [x] Services status (systemctl/sc query, `metrics/services.rs`, 137 LOC)
 
-**Phase 4 — Test coverage** (commits `df03195`, `e3c815f`)
-- [x] Tests : 5 → 69 (1,280% augmentation)
-- [x] Couverture : tous les handlers, metrics, capabilities, transport, updater
+**Phase 4 — Test coverage** (commits `df03195`, `e3c815f`, `57a77db`)
+- [x] Tests : 5 → 107 (Sprint 8: 5→69, Sprint 9: 69→107, +38 tests)
+- [x] Couverture : tous les handlers, metrics, capabilities, transport, updater, config, discovery, local_api
 - [x] 0 warnings en build release
 
 **Phase 5 — GUI borderless + theme glassmorphic** (commit `6d1e543`)
@@ -913,7 +913,7 @@
 - [x] PWA affiche output + error sur commandes échouées
 - [x] `CAP_NET_RAW` dans systemd service pour ping
 
-**Fichiers** : 34 fichiers `.rs` (5,984 LOC), 3 fichiers UI, `gui.rs` (281), `agent.rs` (559), `local_api.rs` (637)
+**Fichiers** : 34 fichiers `.rs` (6,438 LOC), 3 fichiers UI, `gui.rs` (281), `agent.rs` (559), `local_api.rs` (637)
 
 #### Restant (Sprint 8 suite) ⚪
 
@@ -943,7 +943,32 @@
 - [ ] Android/Termux amélioré (battery, notifications)
 - [ ] ARM support (Raspberry Pi)
 
-### Sprint 9+ (Long terme) — Features
+### Sprint 9 — Couverture Tests ✅ TERMINÉ (2 Mars 2026)
+**Objectif** : Stabiliser couverture tests avant nouvelles features
+
+**Commit `57a77db` — Agent-host 69→107, Plugins 0→28**
+
+**Agent-host (+38 tests)** :
+- [x] `execution/handler.rs` : +7 tests (CommandResult helpers, registry dispatch, multi-type handler)
+- [x] `execution/handlers/service.rs` : +5 tests (path traversal, command injection, long name, command_types)
+- [x] `execution/handlers/shell.rs` : +7 tests (Windows path, spaces, CJK, newline/process substitution injection)
+- [x] `metrics/cpu.rs` : +2 tests (collect, JSON serialization)
+- [x] `metrics/disk.rs` : +3 tests (non-empty, valid values, serialization)
+- [x] `discovery.rs` : +6 tests (wireless/ethernet variants, MAC priority selection, serialization)
+- [x] `config.rs` : +4 tests (UpdateChannel, password skip, zeroize drop, TOML roundtrip)
+- [x] `local_api.rs` : +5 tests (rate limiter, AgentStatus, mqtt tracking, LogEntry)
+
+**Plugins (+28 tests)** :
+- [x] `symbion-plugin-ssl` : +9 tests (defaults, serde defaults, config load/validation, domain port)
+- [x] `symbion-plugin-notes` : +10 tests (EventMessage, ActionStatus, CRUD, tag normalization, filters)
+- [x] `symbion-plugin-common` : +5 tests (registration serialization, builder, defaults, response)
+- [x] `symbion-plugin-freebox` : +4 tests (PollingConfig defaults, all 11 default functions, config load, roundtrip)
+
+**Bilan** : Tests Rust workspace 474 → 540 (+66), Total projet 1,218 → 1,284
+
+---
+
+### Sprint 10+ (Long terme) — Features
 - [ ] F3 Intentions Log (type déjà défini)
 - [ ] F2 Digital Hygiene (activity tracking + burnout)
 - [ ] F5 Light Actuator (bridge hardware Tuya)
@@ -983,4 +1008,5 @@ AUTOMATION ENGINE (automations/) — Trigger → Condition → Action
 
 **Document Maintenu Par** : Claude Code + Mark
 **Git Branch** : master
-**Agent Host** : v1.2.6 (69 tests, 34 fichiers, 5,984 LOC)
+**Agent Host** : v1.2.6 (107 tests, 34 fichiers, 6,438 LOC)
+**Plugins** : 28 tests (ssl 9 + notes 10 + common 5 + freebox 4)
