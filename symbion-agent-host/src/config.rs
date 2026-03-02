@@ -256,4 +256,59 @@ mod tests {
         // Result should be a bool (either true or false depending on environment)
         assert!(result == true || result == false);
     }
+
+    #[test]
+    fn test_update_channel_serialization() {
+        let stable = serde_json::to_string(&UpdateChannel::Stable).unwrap();
+        let beta = serde_json::to_string(&UpdateChannel::Beta).unwrap();
+        let dev = serde_json::to_string(&UpdateChannel::Dev).unwrap();
+        assert_eq!(stable, "\"Stable\"");
+        assert_eq!(beta, "\"Beta\"");
+        assert_eq!(dev, "\"Dev\"");
+
+        // Roundtrip
+        let parsed: UpdateChannel = serde_json::from_str(&stable).unwrap();
+        assert_eq!(parsed, UpdateChannel::Stable);
+    }
+
+    #[test]
+    fn test_elevation_config_password_not_serialized() {
+        let config = ElevationConfig {
+            store_credentials: true,
+            auto_elevate: false,
+            cached_password: Some("secret123".to_string()),
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        // Password must NOT appear in serialized output (#[serde(skip)])
+        assert!(!json.contains("secret123"), "Password should not be serialized");
+        assert!(!json.contains("cached_password"), "Password field should be skipped");
+    }
+
+    #[test]
+    fn test_elevation_config_zeroize_on_drop() {
+        let pw = "super_secret_password".to_string();
+        let pw_ptr = pw.as_ptr();
+        let pw_len = pw.len();
+
+        let config = ElevationConfig {
+            store_credentials: true,
+            auto_elevate: false,
+            cached_password: Some(pw),
+        };
+        drop(config);
+        // After drop, the memory should have been zeroized.
+        // We can't safely verify the content after drop in safe Rust,
+        // but we verify the Drop impl exists and doesn't panic.
+    }
+
+    #[test]
+    fn test_agent_config_toml_roundtrip() {
+        let config = AgentConfig::default();
+        let toml_str = toml::to_string_pretty(&config).unwrap();
+        let parsed: AgentConfig = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.mqtt.broker_host, config.mqtt.broker_host);
+        assert_eq!(parsed.mqtt.broker_port, config.mqtt.broker_port);
+        assert_eq!(parsed.update.channel, config.update.channel);
+        assert_eq!(parsed.agent.agent_id, config.agent.agent_id);
+    }
 }

@@ -116,3 +116,142 @@ impl Config {
         Ok(config)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[allow(unused_imports)]
+    use std::io::Write;
+
+    #[test]
+    fn test_default_warning_days() {
+        assert_eq!(default_warning_days(), 30);
+    }
+
+    #[test]
+    fn test_default_critical_days() {
+        assert_eq!(default_critical_days(), 14);
+    }
+
+    #[test]
+    fn test_alert_config_default() {
+        // AlertConfig derives Default (zero-init), serde defaults only apply during deserialization
+        let config = AlertConfig::default();
+        assert_eq!(config.warning_days, 0);
+        assert_eq!(config.critical_days, 0);
+    }
+
+    #[test]
+    fn test_alert_config_serde_defaults() {
+        // When deserialized from empty TOML, serde uses the default_* functions
+        let config: AlertConfig = toml::from_str("").unwrap();
+        assert_eq!(config.warning_days, 30);
+        assert_eq!(config.critical_days, 14);
+    }
+
+    #[test]
+    fn test_default_ssl_seconds() {
+        assert_eq!(default_ssl_seconds(), 3600);
+    }
+
+    #[test]
+    fn test_default_online_seconds() {
+        assert_eq!(default_online_seconds(), 60);
+    }
+
+    #[test]
+    fn test_config_load_valid_toml() {
+        let toml_content = r#"
+[mqtt]
+host = "localhost"
+port = 1883
+client_id = "test-client"
+
+[http]
+socket_path = "/tmp/test.sock"
+
+[polling]
+ssl_seconds = 7200
+online_seconds = 120
+
+[alerts]
+warning_days = 45
+critical_days = 21
+
+[domains.example]
+hostname = "www.example.com"
+port = 443
+label = "Example Site"
+check_http = true
+"#;
+
+        let dir = std::env::temp_dir().join("symbion-ssl-test-valid");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("config.toml");
+        std::fs::write(&path, toml_content).unwrap();
+
+        let config = Config::load(path.to_str().unwrap()).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // Verify MQTT config
+        assert_eq!(config.mqtt.host, "localhost");
+        assert_eq!(config.mqtt.port, 1883);
+        assert_eq!(config.mqtt.client_id, "test-client");
+
+        // Verify HTTP config
+        assert_eq!(config.http.socket_path, "/tmp/test.sock");
+
+        // Verify polling config
+        assert_eq!(config.polling.ssl_seconds, 7200);
+        assert_eq!(config.polling.online_seconds, 120);
+
+        // Verify alerts config
+        assert_eq!(config.alerts.warning_days, 45);
+        assert_eq!(config.alerts.critical_days, 21);
+
+        // Verify domain config
+        assert_eq!(config.domains.len(), 1);
+        let domain = config.domains.get("example").unwrap();
+        assert_eq!(domain.hostname, "www.example.com");
+        assert_eq!(domain.port, 443);
+        assert_eq!(domain.label, Some("Example Site".to_string()));
+        assert!(domain.check_http);
+    }
+
+    #[test]
+    fn test_config_load_empty_domains_fails() {
+        let toml_content = r#"
+[mqtt]
+host = "localhost"
+port = 1883
+
+[http]
+socket_path = "/tmp/test.sock"
+
+[polling]
+ssl_seconds = 3600
+online_seconds = 60
+
+[alerts]
+warning_days = 30
+critical_days = 14
+
+[domains]
+"#;
+
+        let dir = std::env::temp_dir().join("symbion-ssl-test-empty");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("config.toml");
+        std::fs::write(&path, toml_content).unwrap();
+
+        let result = Config::load(path.to_str().unwrap());
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("No domains configured"));
+    }
+
+    #[test]
+    fn test_domain_config_default_port() {
+        assert_eq!(default_port(), 443);
+    }
+}

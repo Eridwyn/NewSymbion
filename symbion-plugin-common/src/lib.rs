@@ -247,9 +247,67 @@ mod tests {
         let router = Router::new()
             .route("/health", get(|| async { Json(json!({"status": "ok"})) }));
 
-        let server = PluginHttpServer::new("/tmp/test-plugin.sock", router);
+        let _server = PluginHttpServer::new("/tmp/test-plugin.sock", router);
 
         // Would serve here in real test
-        // server.serve().await.unwrap();
+        // _server.serve().await.unwrap();
+    }
+
+    #[test]
+    fn test_plugin_registration_serialization() {
+        let registration = PluginRegistration {
+            name: "test-plugin".to_string(),
+            socket_path: "/tmp/test.sock".to_string(),
+            routes: vec!["/test".to_string(), "/test/status".to_string()],
+            version: Some("1.0.0".to_string()),
+            description: Some("A test plugin".to_string()),
+        };
+
+        let json = serde_json::to_string(&registration).unwrap();
+        let deserialized: PluginRegistration = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.name, "test-plugin");
+        assert_eq!(deserialized.socket_path, "/tmp/test.sock");
+        assert_eq!(deserialized.routes.len(), 2);
+        assert_eq!(deserialized.version, Some("1.0.0".to_string()));
+        assert_eq!(deserialized.description, Some("A test plugin".to_string()));
+    }
+
+    #[test]
+    fn test_plugin_registration_builder() {
+        let builder = PluginRegistrationBuilder::new("notifications", "/tmp/notifications.sock")
+            .route("/notifications")
+            .route("/notifications/send")
+            .version("2.1.0")
+            .description("Push notifications plugin");
+
+        assert_eq!(builder.plugin_name, "notifications");
+        assert_eq!(builder.socket_path, "/tmp/notifications.sock");
+        assert_eq!(builder.routes.len(), 2);
+        assert_eq!(builder.version, Some("2.1.0".to_string()));
+        assert_eq!(builder.description, Some("Push notifications plugin".to_string()));
+    }
+
+    #[test]
+    fn test_plugin_registration_builder_defaults() {
+        let builder = PluginRegistrationBuilder::new("test", "/tmp/test.sock");
+
+        assert_eq!(builder.kernel_url, "https://localhost:8443");
+        assert_eq!(builder.routes.len(), 0);
+        assert_eq!(builder.version, None);
+        assert_eq!(builder.description, None);
+    }
+
+    #[test]
+    fn test_plugin_registration_response_deserialize() {
+        let json = r#"{
+            "status": "success",
+            "message": "Plugin registered successfully"
+        }"#;
+
+        let response: PluginRegistrationResponse = serde_json::from_str(json).unwrap();
+
+        assert_eq!(response.status, "success");
+        assert_eq!(response.message, "Plugin registered successfully");
     }
 }

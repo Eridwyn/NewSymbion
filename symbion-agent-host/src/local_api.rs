@@ -635,4 +635,61 @@ mod tests {
         // Newest should be the last one pushed
         assert_eq!(logs.back().unwrap().message, format!("msg-{}", LOG_BUFFER_CAPACITY + 49));
     }
+
+    #[test]
+    fn test_rate_limiter_blocks_after_max() {
+        let limiter = RateLimiter::new(2, 60);
+        assert!(limiter.check()); // 1
+        assert!(limiter.check()); // 2
+        assert!(!limiter.check()); // 3 → blocked
+        assert!(!limiter.check()); // 4 → still blocked
+    }
+
+    #[test]
+    fn test_rate_limiter_window_single_request() {
+        let limiter = RateLimiter::new(1, 60);
+        assert!(limiter.check()); // 1st → ok
+        assert!(!limiter.check()); // 2nd → blocked
+    }
+
+    #[test]
+    fn test_agent_status_serialization() {
+        let status = AgentStatus {
+            agent_id: "test-123".to_string(),
+            hostname: "my-host".to_string(),
+            version: "1.2.6".to_string(),
+            uptime_seconds: 3600,
+            mqtt_connected: true,
+            last_heartbeat: Some("2026-03-02T12:00:00Z".to_string()),
+            system: None,
+        };
+        let json = serde_json::to_string(&status).unwrap();
+        let parsed: Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["agent_id"], "test-123");
+        assert_eq!(parsed["uptime_seconds"], 3600);
+        assert_eq!(parsed["mqtt_connected"], true);
+    }
+
+    #[tokio::test]
+    async fn test_update_status_tracks_mqtt() {
+        let server = make_server("tok");
+        server.update_status(true, None).await;
+        let status = server.status.read().await;
+        assert!(status.mqtt_connected);
+        assert!(status.last_heartbeat.is_some());
+        assert!(status.uptime_seconds > 0);
+    }
+
+    #[test]
+    fn test_log_entry_serialization() {
+        let entry = LogEntry {
+            level: "ERROR".to_string(),
+            message: "Something failed".to_string(),
+            timestamp: "2026-03-02T12:00:00Z".to_string(),
+        };
+        let json = serde_json::to_string(&entry).unwrap();
+        let parsed: Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["level"], "ERROR");
+        assert_eq!(parsed["message"], "Something failed");
+    }
 }

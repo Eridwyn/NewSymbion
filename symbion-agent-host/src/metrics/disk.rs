@@ -52,3 +52,45 @@ impl DiskMetrics {
         Ok(disk_metrics)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_disk_metrics_collect_non_empty() {
+        let sys = System::new();
+        let disks = DiskMetrics::collect(&sys).unwrap();
+        assert!(!disks.is_empty(), "Should return at least one disk (or fallback)");
+    }
+
+    #[test]
+    fn test_disk_metrics_valid_values() {
+        let sys = System::new();
+        let disks = DiskMetrics::collect(&sys).unwrap();
+        for disk in &disks {
+            assert!(disk.total_gb >= 0.0, "Total GB should be non-negative");
+            assert!(disk.used_gb >= 0.0, "Used GB should be non-negative");
+            assert!(disk.free_gb >= 0.0, "Free GB should be non-negative");
+            assert!(disk.percent_used >= 0.0 && disk.percent_used <= 100.0,
+                "Percent used should be 0-100, got {}", disk.percent_used);
+        }
+    }
+
+    #[test]
+    fn test_disk_metrics_serialization() {
+        let metric = DiskMetrics {
+            path: "/".to_string(),
+            total_gb: 500.0,
+            used_gb: 250.0,
+            free_gb: 250.0,
+            percent_used: 50.0,
+        };
+        let json = serde_json::to_string(&metric).unwrap();
+        assert!(json.contains("\"/\""));
+        assert!(json.contains("500"));
+        let deserialized: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized["path"], "/");
+        assert_eq!(deserialized["percent_used"], 50.0);
+    }
+}

