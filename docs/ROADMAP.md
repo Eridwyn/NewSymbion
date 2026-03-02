@@ -1,8 +1,8 @@
 # Roadmap Technique - NewSymbion
 
-**Version** : 2026-02 (Post Audit + Sprint P0/P1/P2/P3 + Sprint 5/5 K3+K4+K8 + Sprint 7 SQLite)
-**Statut** : Fondations complètes, 100% persistance SQLite, 29 P0/P1 + 47 P2 + 46 P3 corrigées, 3 faux positifs
-**Dernière mise à jour** : 28 Février 2026
+**Version** : 2026-03 (Post Audit + Sprint P0/P1/P2/P3 + Sprint 5/5 K3+K4+K8 + Sprint 7 SQLite + Sprint 8 Agent v2)
+**Statut** : Fondations complètes, Agent Host v2 (9 phases), 100% persistance SQLite
+**Dernière mise à jour** : 2 Mars 2026
 **Score global** : 4.8/5
 
 ---
@@ -13,18 +13,18 @@
 
 | Composant | Langage | LOC | Fichiers | Score | Tests |
 |-----------|---------|----:|----------|-------|------:|
-| **symbion-kernel** | Rust | ~46,700 | 102 | 4.8/5 | 401 |
-| **pwa-dashboard** | JS (Lit) | ~35,200 | 75 | 4.5/5 | 744 |
-| **symbion-agent-host** | Rust | ~4,650 | 13 | 4/5 | 5 |
+| **symbion-kernel** | Rust | ~46,800 | 102 | 4.8/5 | 405 |
+| **pwa-dashboard** | JS (Lit) | ~36,400 | 75 | 4.5/5 | 744 |
+| **symbion-agent-host** | Rust | ~5,980 | 34 | 4.5/5 | 69 |
 | **Plugins** (5) | Rust | ~4,960 | 14 | 4.8/5 | 0 |
-| **Infra** (scripts/CI) | Bash/YAML | ~2,960 | 16 | 3.5/5 | - |
-| **Total** | | **~94,470** | **220** | **4.6/5** | **1,150** |
+| **Infra** (scripts/CI) | Bash/YAML | ~2,960 | 24 | 3.5/5 | - |
+| **Total** | | **~97,100** | **249** | **4.7/5** | **1,218** |
 
 ### Chiffres Clés
 
 | Métrique | Valeur |
 |----------|--------|
-| Unit Tests | 1,150 (401 kernel + 744 PWA + 5 agent) |
+| Unit Tests | 1,218 (405 kernel + 744 PWA + 69 agent) |
 | API Routes (http/) | 150+ endpoints across 7 modules + plugins |
 | MQTT Topics | 10 subscriptions |
 | Automations actives | 16 (+ intelligence-managed) |
@@ -248,18 +248,21 @@
 
 ## Features Planifiées (Non Implémentées)
 
-### AV2 — Agent Host v2 ⚪ 0%
-**Effort estimé** : 15-20 jours (multi-sprint)
+### AV2 — Agent Host v2 🟡 65%
+**Sprint 8 en cours** — 9 phases complétées (v1.2.6)
 
-- Refonte architecture : plugin system + event bus interne
-- Split `main.rs` monolithique (1,242 LOC → modules)
-- Monitoring enrichi : GPU, battery, disk I/O, températures par core
-- Nouvelles capabilities : file transfer, screenshots, log streaming, scheduled tasks
-- Sécurité : mutual TLS, command signing, watchdog process
-- Tests : 5 → 50+ (objectif 4.5+/5)
+- ~~Refonte architecture : split main.rs 1,242 → 220 LOC, 15 modules~~ ✅
+- ~~Trait-based command system (6 handlers, whitelist, PID blacklist)~~ ✅
+- ~~Monitoring enrichi : 8 catégories (CPU, RAM, disk, network, thermal, battery, processes, services)~~ ✅
+- ~~GUI borderless + glassmorphic + IPC handler~~ ✅
+- ~~Pipeline commandes à distance PWA → Kernel → Agent → Response~~ ✅
+- ~~Tests : 5 → 69 (objectif 50+ atteint)~~ ✅
+- Plugin system agent-side, event bus interne
+- Capabilities v2 : file transfer, screenshots, log streaming, scheduled tasks
+- Sécurité avancée : mutual TLS, command signing, watchdog
 - Cross-platform : macOS complet, ARM/Raspberry Pi
 
-**Fichiers actuels** : `main.rs` (1,242 LOC), `discovery.rs`, `metrics/mod.rs`, `capabilities/mod.rs`, `execution/mod.rs`, `config.rs`, `local_api.rs`, `wizard.rs`, `updater.rs`
+**Fichiers** : 34 `.rs` (5,984 LOC), `agent.rs` (559), `local_api.rs` (637), `gui.rs` (281), `execution/` (10 fichiers), `metrics/` (8 fichiers)
 
 ### F2 — Digital Hygiene ⚪ 0%
 **Effort estimé** : 9 jours
@@ -295,7 +298,7 @@
 | Intelligence Engine | 4.7/5 | ~~2~~ | ~~2~~ | ~~21~~ | ~~13~~ | 0 | 0 |
 | Decision + Automation | 4.8/5 | ~~1~~ | ~~4~~ | ~~10~~ | ~~9~~ | 0 | 0 |
 | Plugins (5) | 4.9/5 | ~~1~~ | ~~2~~ | ~~5~~ | ~~3~~ | 0 | 0 |
-| Agent Host | 4.5/5 | ~~4~~ | ~~6~~ | ~~7~~ | 0 | 0 | 0 |
+| Agent Host | 4.5/5 | ~~4~~ | ~~6~~ | ~~7~~ | ~~0~~ | 0 | 0 |
 | PWA Dashboard | 4.3/5 | ~~3~~ | ~~2~~ | ~~11~~ | ~~8~~ | 0 | 0 |
 | Infrastructure | 4.3/5 | ~~0~~ | ~~1~~ | ~~10~~ | ~~4~~ | 0 | 0 |
 | **Total** | **4.7/5** | **~~11~~** | **~~18~~** | **~~67~~** | **~~45~~** | **0** | **0** |
@@ -858,20 +861,70 @@
 
 ## Phase Active
 
-### Sprint 8 — Agent Host v2
+### Sprint 8 — Agent Host v2 🟡 65%
 **Objectif** : Refonte du symbion-agent-host (4/5 → 4.5+/5)
+**Résultat** : 9 phases complétées, score 4/5 → 4.5/5, version v1.2.6
+
+#### Complété (9 phases, 1-2 Mars 2026) ✅
+
+**Phase 1 — Architecture modulaire** (commit `35d3402`)
+- [x] Split `main.rs` monolithique : 1,242 → 220 LOC (82% réduction)
+- [x] Extraction `agent.rs` (559 LOC) — boucle principale, heartbeat, commandes
+- [x] Extraction `messages.rs` (182 LOC) — types CommandResponse, IncomingCommand
+- [x] Extraction `mqtt_client.rs` (194 LOC) — MQTT client, topics, publish
+
+**Phase 2 — Trait-based Command System** (commit `4984248`)
+- [x] Trait `CommandHandler` + `CommandRegistry` (`execution/handler.rs`, 193 LOC)
+- [x] 6 handlers spécialisés : shell, process, power, service, metrics, mod
+- [x] `ShellHandler` avec whitelist 28 commandes + blocage métacaractères
+- [x] `ProcessHandler` avec blacklist PID 1-10
+
+**Phase 3 — Monitoring enrichi** (commit `3ae1cb3`)
+- [x] Split metrics en 8 modules : cpu, memory, disk, network, processes, services, thermal, mod
+- [x] Température CPU/GPU par capteur (`metrics/thermal.rs`, 131 LOC)
+- [x] Battery status (laptops) intégré dans thermal
+- [x] Services status (systemctl/sc query, `metrics/services.rs`, 137 LOC)
+
+**Phase 4 — Test coverage** (commits `df03195`, `e3c815f`)
+- [x] Tests : 5 → 69 (1,280% augmentation)
+- [x] Couverture : tous les handlers, metrics, capabilities, transport, updater
+- [x] 0 warnings en build release
+
+**Phase 5 — GUI borderless + theme glassmorphic** (commit `6d1e543`)
+- [x] Fenêtre borderless `with_decorations(false)` (`gui.rs`)
+- [x] IPC handler (drag, minimize, maximize, close, resize 8 directions)
+- [x] Theme glassmorphic aligné PWA (fond sombre, glass surfaces, glow purple)
+- [x] Titlebar custom avec boutons fenêtre
+- [x] Dashboard HTML enrichi (`ui/simple-dashboard.html`, 895 LOC)
+
+**Phase 6 — Sécurité commandes à distance** (commit `361ee4b`)
+- [x] CSRF protection sur routes POST commandes (kernel `http/mod.rs`)
+- [x] Validation longueur commande (max 1000 chars, kernel `http/agents.rs`)
+- [x] Auto-timeout commandes pendantes 30s (kernel `agents.rs`)
+- [x] `send_error_response_from_raw()` — réponse erreur même si JSON parse échoue
+- [x] `AgentResponse` robuste avec `#[serde(default)]` pour champs optionnels
+- [x] Pipeline complet PWA → Kernel MQTT → Agent → Response → PWA polling
+
+**Phase 7 — Correctifs polling + whitelist** (2 Mars 2026)
+- [x] `getCommandStatus()` PWA : fetch direct avec JWT (fix apiService null)
+- [x] Whitelist case-insensitive (`Ping` → `ping` accepté)
+- [x] Normalisation binaire (`Ping 8.8.8.8` → `ping 8.8.8.8`)
+- [x] `clean_output()` préserve UTF-8 (accents, caractères non-ASCII)
+- [x] PWA affiche output + error sur commandes échouées
+- [x] `CAP_NET_RAW` dans systemd service pour ping
+
+**Fichiers** : 34 fichiers `.rs` (5,984 LOC), 3 fichiers UI, `gui.rs` (281), `agent.rs` (559), `local_api.rs` (637)
+
+#### Restant (Sprint 8 suite) ⚪
 
 **Architecture**
 - [ ] Plugin system agent-side (trait `AgentPlugin`)
-- [ ] Event bus interne (au lieu du monolithe main.rs 1242 LOC)
-- [ ] Split main.rs en modules (mqtt, heartbeat, commands, lifecycle)
+- [ ] Event bus interne
 
 **Monitoring enrichi**
 - [ ] GPU metrics (NVIDIA via nvidia-smi, AMD via rocm-smi)
-- [ ] Battery status (laptops/portables)
-- [ ] Température CPU/GPU détaillée (par core)
-- [ ] Monitoring réseau avancé (latence, débit temps réel)
 - [ ] Disk I/O metrics (read/write throughput)
+- [ ] Monitoring réseau avancé (latence, débit temps réel)
 
 **Capabilities v2**
 - [ ] File transfer agent↔kernel (petit fichiers, configs)
@@ -880,11 +933,10 @@
 - [ ] Scheduled tasks agent-side (cron local)
 - [ ] Log streaming (journalctl/Event Viewer → kernel)
 
-**Sécurité & Fiabilité**
+**Sécurité avancée**
 - [ ] Mutual TLS agent↔broker (certificats client)
 - [ ] Command signing (vérification signature kernel)
 - [ ] Watchdog process (redémarrage auto si crash)
-- [ ] Tests unitaires (objectif 50+ tests, actuellement 5)
 
 **Cross-platform**
 - [ ] macOS support complet (launchd, pmset)
@@ -914,7 +966,7 @@ SESSION MANAGER (sessions.rs) — Hysteresis 4 couches
 DECISION ENGINE (decision/) — Guards → Trust → Threshold
     ↓  Impact: Low(0.3) | Medium(0.5) | High(0.7) | VeryHigh(0.9)
 AUTOMATION ENGINE (automations/) — Trigger → Condition → Action
-    ↓  19 automations actives, scheduler cron-like
+    ↓  16 automations actives, scheduler cron-like
 ```
 
 ---
@@ -931,3 +983,4 @@ AUTOMATION ENGINE (automations/) — Trigger → Condition → Action
 
 **Document Maintenu Par** : Claude Code + Mark
 **Git Branch** : master
+**Agent Host** : v1.2.6 (69 tests, 34 fichiers, 5,984 LOC)
