@@ -125,6 +125,12 @@ pub struct AgentSystemMetrics {
     pub disk: Option<Vec<AgentDiskMetrics>>,
     pub network: Option<AgentNetworkMetrics>,
     pub temperature: Option<AgentTemperatureMetrics>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gpu: Option<AgentGpuMetrics>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disk_io: Option<AgentDiskIoMetrics>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub network_advanced: Option<AgentNetworkAdvancedMetrics>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -178,6 +184,52 @@ pub struct AgentTemperatureSensor {
     pub value: f32,
     pub unit: String,
     pub critical: Option<f32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct AgentGpuMetrics {
+    pub gpus: Vec<AgentGpuInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct AgentGpuInfo {
+    pub name: String,
+    pub vendor: String,
+    pub temperature_celsius: Option<f32>,
+    pub utilization_percent: Option<f32>,
+    pub memory_used_mb: Option<u64>,
+    pub memory_total_mb: Option<u64>,
+    pub fan_speed_percent: Option<f32>,
+    pub power_watts: Option<f32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct AgentDiskIoMetrics {
+    pub disks: Vec<AgentDiskIoInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct AgentDiskIoInfo {
+    pub device: String,
+    pub read_bytes_per_sec: u64,
+    pub write_bytes_per_sec: u64,
+    pub read_iops: u64,
+    pub write_iops: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct AgentNetworkAdvancedMetrics {
+    pub gateway_latency_ms: Option<f64>,
+    pub dns_latency_ms: Option<f64>,
+    pub active_connections: Option<u32>,
+    pub interfaces: Option<Vec<AgentInterfaceBandwidth>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct AgentInterfaceBandwidth {
+    pub name: String,
+    pub rx_bytes_per_sec: u64,
+    pub tx_bytes_per_sec: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -481,7 +533,29 @@ impl AgentRegistry {
 
                 agent.status.status = msg.status.clone();
                 agent.status.last_heartbeat = Some(now);
-                agent.status.system = Some(msg.system);
+
+                // Merge enriched metrics: keep previous values if new heartbeat doesn't include them
+                if let Some(ref mut existing) = agent.status.system {
+                    if msg.system.gpu.is_some() {
+                        existing.gpu = msg.system.gpu;
+                    }
+                    if msg.system.disk_io.is_some() {
+                        existing.disk_io = msg.system.disk_io;
+                    }
+                    if msg.system.network_advanced.is_some() {
+                        existing.network_advanced = msg.system.network_advanced;
+                    }
+                    // Always update core metrics
+                    existing.uptime_seconds = msg.system.uptime_seconds;
+                    existing.cpu = msg.system.cpu;
+                    existing.memory = msg.system.memory;
+                    existing.disk = msg.system.disk;
+                    existing.network = msg.system.network;
+                    existing.temperature = msg.system.temperature;
+                } else {
+                    agent.status.system = Some(msg.system);
+                }
+
                 agent.status.processes = msg.processes;
                 agent.status.services = msg.services;
                 agent.last_seen = now;
