@@ -225,12 +225,11 @@ async fn get_interface_bandwidth() -> Vec<InterfaceBandwidth> {
 #[cfg(target_os = "windows")]
 async fn get_gateway_latency_windows() -> Option<f64> {
     use std::time::Duration;
-    use tokio::process::Command;
 
     // Step 1: Detect gateway IP via `route print 0.0.0.0`
     let route_output = tokio::time::timeout(
         Duration::from_secs(3),
-        Command::new("cmd")
+        crate::windows_utils::silent_tokio_command("cmd")
             .args(["/C", "route print 0.0.0.0"])
             .output(),
     )
@@ -245,7 +244,7 @@ async fn get_gateway_latency_windows() -> Option<f64> {
     // Step 2: Ping the gateway
     let ping_output = tokio::time::timeout(
         Duration::from_secs(3),
-        Command::new("ping")
+        crate::windows_utils::silent_tokio_command("ping")
             .args(["-n", "1", "-w", "2000", &gateway_ip])
             .output(),
     )
@@ -290,11 +289,10 @@ async fn get_dns_latency_windows() -> Option<f64> {
 #[cfg(target_os = "windows")]
 async fn count_active_connections_windows() -> Option<u32> {
     use std::time::Duration;
-    use tokio::process::Command;
 
     let output = tokio::time::timeout(
         Duration::from_secs(3),
-        Command::new("cmd")
+        crate::windows_utils::silent_tokio_command("cmd")
             .args(["/C", r#"netstat -an | find /c "ESTABLISHED""#])
             .output(),
     )
@@ -319,13 +317,12 @@ async fn count_active_connections_windows() -> Option<u32> {
 async fn get_interface_bandwidth_windows() -> Vec<InterfaceBandwidth> {
     use std::collections::HashMap;
     use std::time::Duration;
-    use tokio::process::Command;
 
     let ps_script = r#"Get-Counter '\Network Interface(*)\Bytes Received/sec','\Network Interface(*)\Bytes Sent/sec' -SampleInterval 1 -MaxSamples 1 | ForEach-Object { $_.CounterSamples | ForEach-Object { '{0}|{1}' -f $_.Path,$_.CookedValue } }"#;
 
     let output = match tokio::time::timeout(
         Duration::from_secs(3),
-        Command::new("powershell")
+        crate::windows_utils::silent_tokio_command("powershell")
             .args(["-NoProfile", "-NonInteractive", "-Command", ps_script])
             .output(),
     )

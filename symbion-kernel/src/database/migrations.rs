@@ -16,6 +16,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (1, include_str!("sql/v001_initial.sql")),
     (2, include_str!("sql/v002_remaining_tables.sql")),
     (3, include_str!("sql/v003_remaining_json.sql")),
+    (4, include_str!("sql/v004_command_history.sql")),
 ];
 
 /// Ensure schema_version table exists, then apply pending migrations.
@@ -73,7 +74,7 @@ mod tests {
         let version: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 3);
+        assert_eq!(version, 4);
 
         // Verify v1 tables
         let count: i64 = conn
@@ -112,6 +113,12 @@ mod tests {
                 .unwrap();
             assert_eq!(count, 0, "Table {} should be empty", table);
         }
+
+        // Verify v4 tables
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM command_history", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0, "Table command_history should be empty");
     }
 
     #[test]
@@ -124,6 +131,6 @@ mod tests {
         let version: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 3);
+        assert_eq!(version, 4);
     }
 }

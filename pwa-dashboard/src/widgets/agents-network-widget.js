@@ -603,6 +603,11 @@ class AgentsNetworkWidget extends LitElement {
             <span class="status-dot ${agent.status}"></span>
             ${agent.status}
           </div>
+          ${agent.health_score != null ? html`
+            <span style="font-size: var(--text-xs, 0.75rem); font-weight: 600; padding: 2px 8px; border-radius: var(--radius-sm); background: ${agent.health_score >= 80 ? 'rgba(34,197,94,0.2)' : agent.health_score >= 50 ? 'rgba(245,158,11,0.2)' : 'rgba(239,68,68,0.2)'}; color: ${agent.health_score >= 80 ? '#22c55e' : agent.health_score >= 50 ? '#f59e0b' : '#ef4444'}">
+              ${agent.health_score}%
+            </span>
+          ` : ''}
         </div>
 
         <div class="agent-meta">

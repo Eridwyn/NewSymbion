@@ -25,6 +25,7 @@ pub mod context_queries;
 pub mod pattern_queries;
 pub mod pending_action_queries;
 pub mod sensor_meta_queries;
+pub mod command_history_queries;
 
 use anyhow::{Context, Result};
 use parking_lot::Mutex;

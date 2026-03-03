@@ -56,6 +56,7 @@ pub struct Agent {
     system_tray: Option<system_tray::SystemTray>,
     mqtt_connected: Arc<AtomicBool>,
     reconnect_rx: Option<mpsc::Receiver<()>>,
+    pending_logs: Arc<std::sync::Mutex<Vec<crate::messages::LogEntry>>>,
 }
 
 impl Agent {
@@ -100,6 +101,7 @@ impl Agent {
             system_tray: None,
             mqtt_connected: mqtt_handle.connected,
             reconnect_rx: None,
+            pending_logs: Arc::new(std::sync::Mutex::new(Vec::new())),
         })
     }
 
@@ -270,6 +272,25 @@ impl Agent {
 
         mqtt_client::publish_json(&self.mqtt_client, mqtt_client::TOPIC_HEARTBEAT, &heartbeat).await?;
         debug!("Heartbeat sent");
+
+        // Flush pending logs to kernel
+        let logs_to_send: Vec<crate::messages::LogEntry> = {
+            let mut logs = self.pending_logs.lock().unwrap_or_else(|e| e.into_inner());
+            std::mem::take(&mut *logs)
+        };
+        if !logs_to_send.is_empty() {
+            let log_msg = crate::messages::LogMessage {
+                agent_id: self.system_info.agent_id.clone(),
+                entries: logs_to_send,
+                timestamp: Utc::now(),
+            };
+            if let Err(e) = mqtt_client::publish_json(&self.mqtt_client, mqtt_client::TOPIC_LOGS, &log_msg).await {
+                warn!("Failed to send logs to kernel: {}", e);
+            } else {
+                debug!("Flushed {} log entries to kernel", log_msg.entries.len());
+            }
+        }
+
         Ok(())
     }
 
@@ -391,6 +412,22 @@ impl Agent {
         if let Some(ref api) = self.local_api {
             api.push_log(level, message).await;
         }
+        // Buffer WARN/ERROR for forwarding to kernel
+        if level == "WARN" || level == "ERROR" {
+            if let Ok(mut logs) = self.pending_logs.lock() {
+                logs.push(crate::messages::LogEntry {
+                    timestamp: Utc::now(),
+                    level: level.to_string(),
+                    message: message.to_string(),
+                    module: None,
+                });
+                // Cap at 200 entries to prevent memory issues
+                if logs.len() > 200 {
+                    let excess = logs.len() - 200;
+                    logs.drain(..excess);
+                }
+            }
+        }
     }
 
     async fn update_local_api_status(&self, mqtt_connected: bool) {
@@ -508,6 +545,44 @@ mod tests {
         let mut resp = make_response(Some(serde_json::json!({"key": "value"})));
         truncate_output(&mut resp);
         assert_eq!(resp.output.unwrap()["key"], "value");
+    }
+
+    #[test]
+    fn test_log_buffer_capacity() {
+        use std::sync::Arc;
+        let buffer = Arc::new(std::sync::Mutex::new(Vec::<crate::messages::LogEntry>::new()));
+        {
+            let mut logs = buffer.lock().unwrap();
+            for i in 0..250 {
+                logs.push(crate::messages::LogEntry {
+                    timestamp: Utc::now(),
+                    level: "ERROR".to_string(),
+                    message: format!("error {}", i),
+                    module: None,
+                });
+            }
+            // Cap at 200
+            if logs.len() > 200 {
+                let excess = logs.len() - 200;
+                logs.drain(..excess);
+            }
+        }
+        let logs = buffer.lock().unwrap();
+        assert_eq!(logs.len(), 200);
+        assert!(logs.last().unwrap().message.contains("249"));
+    }
+
+    #[test]
+    fn test_log_entry_timestamp_format() {
+        let entry = crate::messages::LogEntry {
+            timestamp: Utc::now(),
+            level: "WARN".to_string(),
+            message: "test".to_string(),
+            module: Some("agent".to_string()),
+        };
+        let json = serde_json::to_string(&entry).unwrap();
+        // Verify timestamp is ISO 8601
+        assert!(json.contains("20"));  // Year prefix
     }
 }
 

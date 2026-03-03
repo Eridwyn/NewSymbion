@@ -250,6 +250,36 @@ class AgentsService extends LitElement {
     return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/metrics`)
   }
 
+  // ===== Services =====
+
+  async getAgentServices(agentId) {
+    return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/services`)
+  }
+
+  async controlService(agentId, serviceName, action) {
+    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+    const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/services/${encodeURIComponent(serviceName)}/${encodeURIComponent(action)}`
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    return await response.json()
+  }
+
+  // ===== Command History =====
+
+  async getCommandHistory(agentId, limit = 50, offset = 0) {
+    return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/commands/history?limit=${limit}&offset=${offset}`)
+  }
+
+  // ===== Agent Logs =====
+
+  async getAgentLogs(agentId, level = null) {
+    const query = level ? `?level=${encodeURIComponent(level)}` : ''
+    return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/logs${query}`)
+  }
+
   // ===== Latest Agent Version (cached 5 min) =====
 
   async getLatestAgentVersion() {

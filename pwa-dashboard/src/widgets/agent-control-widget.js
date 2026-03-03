@@ -1,12 +1,13 @@
 /**
  * Widget Agent Control - Contrôle détaillé d'un agent système
  * 
- * Modal avec 5 tabs pour contrôle complet:
- * - System: Power management, infos système
+ * Modal avec 6 tabs pour contrôle complet:
+ * - System: Power management, infos système, health score
  * - Processes: Liste processus + kill
- * - Metrics: CPU, RAM, disque temps réel 
- * - Commands: Exécution commandes shell
+ * - Metrics: CPU, RAM, disque temps réel
+ * - Commands: Exécution commandes shell + historique
  * - Services: Gestion services système
+ * - Logs: Streaming logs agent (WARN/ERROR)
  */
 
 import { LitElement, html, css } from 'lit'
@@ -29,7 +30,11 @@ class AgentControlWidget extends LitElement {
     commandOutput: { type: String },
     commandInput: { type: String },
     currentCommandId: { type: String },
-    latestVersion: { type: String }
+    latestVersion: { type: String },
+    services: { type: Array },
+    commandHistory: { type: Array },
+    agentLogs: { type: Array },
+    logLevelFilter: { type: String }
   }
 
   static styles = [sharedAnimations, overlayStyles, statusBadgeStyles, widgetSectionStyles, css`
@@ -677,6 +682,10 @@ class AgentControlWidget extends LitElement {
     this.currentCommandId = null
     this.agentsService = null
     this.latestVersion = null
+    this.services = []
+    this.commandHistory = []
+    this.agentLogs = []
+    this.logLevelFilter = null
   }
 
   connectedCallback() {
@@ -780,6 +789,15 @@ class AgentControlWidget extends LitElement {
       case 'metrics':
         await this.loadMetrics()
         break
+      case 'services':
+        await this.loadServices()
+        break
+      case 'commands':
+        await this.loadCommandHistory()
+        break
+      case 'logs':
+        await this.loadAgentLogs()
+        break
     }
   }
 
@@ -834,6 +852,50 @@ class AgentControlWidget extends LitElement {
     } finally {
       this.loading = false
       this.refreshing = false
+    }
+  }
+
+  async loadServices() {
+    try {
+      this.loading = true
+      const result = await this.agentsService.getAgentServices(this.agentId)
+      this.services = result?.services || []
+    } catch (error) {
+      console.error('Failed to load services:', error)
+    } finally {
+      this.loading = false
+    }
+  }
+
+  async loadCommandHistory() {
+    try {
+      const result = await this.agentsService.getCommandHistory(this.agentId, 20, 0)
+      this.commandHistory = result?.history || []
+    } catch (error) {
+      console.error('Failed to load command history:', error)
+    }
+  }
+
+  async loadAgentLogs() {
+    try {
+      this.loading = true
+      const result = await this.agentsService.getAgentLogs(this.agentId, this.logLevelFilter)
+      this.agentLogs = result?.logs || []
+    } catch (error) {
+      console.error('Failed to load agent logs:', error)
+    } finally {
+      this.loading = false
+    }
+  }
+
+  async controlService(serviceName, action) {
+    try {
+      await this.agentsService.controlService(this.agentId, serviceName, action)
+      // Reload services after action
+      setTimeout(() => this.loadServices(), 2000)
+    } catch (error) {
+      console.error(`Failed to ${action} service ${serviceName}:`, error)
+      alert(`Failed to ${action} service: ${error.message}`)
     }
   }
 
@@ -1110,6 +1172,20 @@ class AgentControlWidget extends LitElement {
           </button>
         </div>
       </div>
+
+      ${this.agent.health_score != null ? html`
+        <div class="section">
+          <div class="section-title">💓 Health Score</div>
+          <div class="info-grid">
+            <div class="info-card" style="grid-column: span 2;">
+              <div class="info-label">Overall Health</div>
+              <div class="info-value" style="font-size: var(--text-2xl, 1.5rem); color: ${this.agent.health_score >= 80 ? '#22c55e' : this.agent.health_score >= 50 ? '#f59e0b' : '#ef4444'}">
+                ${this.agent.health_score}/100
+              </div>
+            </div>
+          </div>
+        </div>
+      ` : ''}
 
       <div class="section">
         <div class="section-title">📊 System Information</div>
@@ -1447,7 +1523,7 @@ class AgentControlWidget extends LitElement {
           <div class="command-output">${this.commandOutput}</div>
           ${this.currentCommandId ? html`
             <div class="command-actions ac-cmd-actions">
-              <button 
+              <button
                 class="power-btn danger ac-cmd-cancel"
                 @click="${this.cancelCurrentCommand}">
                 ⏹️ Cancel Command
@@ -1459,17 +1535,124 @@ class AgentControlWidget extends LitElement {
           ` : ''}
         </div>
       </div>
+
+      <div class="section">
+        <div class="section-title">📋 Command History
+          <button class="power-btn" style="padding: 2px 8px; font-size: var(--text-xs, 0.75rem); margin-left: 8px;"
+            @click="${() => this.loadCommandHistory()}">🔄</button>
+        </div>
+        ${this.commandHistory.length === 0
+          ? html`<div class="error-state">No command history yet</div>`
+          : html`
+            <div style="overflow-x: auto;">
+              <table class="ac-table">
+                <thead>
+                  <tr><th>Time</th><th>Type</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  ${this.commandHistory.slice(0, 10).map(cmd => html`
+                    <tr>
+                      <td style="font-size: var(--text-xs, 0.75rem); opacity: 0.7">${cmd.created_at?.substring(11, 19) || ''}</td>
+                      <td>${cmd.command_type}</td>
+                      <td>
+                        <span class="status-badge ${cmd.status === 'Completed' ? 'online' : cmd.status === 'Failed' ? 'offline' : 'unknown'}">
+                          ${cmd.status}
+                        </span>
+                      </td>
+                    </tr>
+                  `)}
+                </tbody>
+              </table>
+            </div>
+          `
+        }
+      </div>
     `
   }
 
   renderServicesTab() {
+    const isOnline = this.agent && this.agent.status === 'online'
+
+    if (!this.services || this.services.length === 0) {
+      return html`
+        <div class="section">
+          <div class="section-title">🔧 Services Management</div>
+          <div class="error-state">
+            ${this.loading ? 'Loading services...' : 'No services data available'}
+            <br><small>Services are reported via agent heartbeat</small>
+          </div>
+        </div>
+      `
+    }
+
     return html`
       <div class="section">
-        <div class="section-title">🔧 Services Management</div>
-        <div class="error-state">
-          🚧 Services management coming soon!<br>
-          <small>This feature will allow you to start/stop/restart system services</small>
+        <div class="section-title">🔧 Services (${this.services.length})</div>
+        <div style="overflow-x: auto;">
+          <table class="ac-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${this.services.map(svc => html`
+                <tr>
+                  <td>${svc.name}</td>
+                  <td>
+                    <span class="status-badge ${svc.status === 'active' || svc.status === 'running' ? 'online' : svc.status === 'failed' ? 'offline' : 'unknown'}">
+                      ${svc.status}
+                    </span>
+                  </td>
+                  <td>
+                    <div style="display: flex; gap: 4px;">
+                      <button class="power-btn ac-power-btn-green" style="padding: 4px 8px; font-size: var(--text-xs, 0.75rem);"
+                        ?disabled="${!isOnline}" @click="${() => this.controlService(svc.name, 'start')}">Start</button>
+                      <button class="power-btn danger" style="padding: 4px 8px; font-size: var(--text-xs, 0.75rem);"
+                        ?disabled="${!isOnline}" @click="${() => this.controlService(svc.name, 'stop')}">Stop</button>
+                      <button class="power-btn warning" style="padding: 4px 8px; font-size: var(--text-xs, 0.75rem);"
+                        ?disabled="${!isOnline}" @click="${() => this.controlService(svc.name, 'restart')}">Restart</button>
+                    </div>
+                  </td>
+                </tr>
+              `)}
+            </tbody>
+          </table>
         </div>
+      </div>
+    `
+  }
+
+  renderLogsTab() {
+    return html`
+      <div class="section">
+        <div class="section-title">📜 Agent Logs</div>
+        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <button class="power-btn ${!this.logLevelFilter ? 'ac-power-btn-blue' : ''}" style="padding: 4px 12px; font-size: var(--text-xs, 0.75rem);"
+            @click="${() => { this.logLevelFilter = null; this.loadAgentLogs() }}">All</button>
+          <button class="power-btn ${this.logLevelFilter === 'WARN' ? 'warning' : ''}" style="padding: 4px 12px; font-size: var(--text-xs, 0.75rem);"
+            @click="${() => { this.logLevelFilter = 'WARN'; this.loadAgentLogs() }}">WARN</button>
+          <button class="power-btn ${this.logLevelFilter === 'ERROR' ? 'danger' : ''}" style="padding: 4px 12px; font-size: var(--text-xs, 0.75rem);"
+            @click="${() => { this.logLevelFilter = 'ERROR'; this.loadAgentLogs() }}">ERROR</button>
+          <button class="power-btn" style="padding: 4px 12px; font-size: var(--text-xs, 0.75rem); margin-left: auto;"
+            @click="${() => this.loadAgentLogs()}">🔄 Refresh</button>
+        </div>
+        ${this.agentLogs.length === 0
+          ? html`<div class="error-state">${this.loading ? 'Loading logs...' : 'No logs available'}</div>`
+          : html`
+            <div class="command-output" style="max-height: 400px; overflow-y: auto; font-size: var(--text-xs, 0.75rem);">
+              ${this.agentLogs.map(log => html`
+                <div style="margin-bottom: 4px; color: ${log.level === 'ERROR' ? '#ef4444' : log.level === 'WARN' ? '#f59e0b' : '#e5e5e5'}">
+                  <span style="opacity: 0.6">${log.timestamp?.substring(11, 19) || ''}</span>
+                  [${log.level}] ${log.message}
+                  ${log.module ? html`<span style="opacity: 0.4"> (${log.module})</span>` : ''}
+                </div>
+              `)}
+            </div>
+          `
+        }
       </div>
     `
   }
@@ -1550,10 +1733,15 @@ class AgentControlWidget extends LitElement {
             @click="${() => this.switchTab('commands')}">
             💻 Commands
           </button>
-          <button 
+          <button
             class="tab-btn ${this.currentTab === 'services' ? 'active' : ''}"
             @click="${() => this.switchTab('services')}">
             🔧 Services
+          </button>
+          <button
+            class="tab-btn ${this.currentTab === 'logs' ? 'active' : ''}"
+            @click="${() => this.switchTab('logs')}">
+            📜 Logs
           </button>
         </div>
 
@@ -1572,6 +1760,9 @@ class AgentControlWidget extends LitElement {
           </div>
           <div class="tab-panel ${this.currentTab === 'services' ? 'active' : ''}">
             ${this.renderServicesTab()}
+          </div>
+          <div class="tab-panel ${this.currentTab === 'logs' ? 'active' : ''}">
+            ${this.renderLogsTab()}
           </div>
         </div>
       </div>
