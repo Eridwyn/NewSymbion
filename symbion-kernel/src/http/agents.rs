@@ -87,11 +87,24 @@ pub(super) async fn list_agents_endpoint(State(app): State<AppState>) -> Json<Ve
     Json(list)
 }
 
-/// GET /v1/agents/latest-version -- Return the latest expected agent version.
-pub(super) async fn agents_latest_version() -> Json<serde_json::Value> {
+/// GET /v1/agents/latest-version -- Return the highest version reported by connected agents.
+pub(super) async fn agents_latest_version(State(app): State<AppState>) -> Json<serde_json::Value> {
+    let agents = app.agents.list_agents().await;
+    let latest = agents.values()
+        .filter(|a| a.deleted_at.is_none())
+        .filter_map(|a| a.version.as_deref())
+        .max_by(|a, b| version_cmp(a, b));
     Json(serde_json::json!({
-        "version": env!("CARGO_PKG_VERSION")
+        "version": latest
     }))
+}
+
+/// Compare two semver-like version strings (e.g. "1.2.7" vs "1.2.10").
+fn version_cmp(a: &str, b: &str) -> std::cmp::Ordering {
+    let parse = |s: &str| -> Vec<u64> {
+        s.split('.').filter_map(|p| p.parse().ok()).collect()
+    };
+    parse(a).cmp(&parse(b))
 }
 
 /// GET /v1/agents/{id} -- Return full details of a single agent by ID.
