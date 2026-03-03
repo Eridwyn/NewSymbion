@@ -67,10 +67,10 @@ impl SymbionGui {
         let window_for_ipc = window.clone();
         let state_for_ipc = state.clone();
 
-        // Create WebView with embedded dashboard HTML and IPC handler
-        let dashboard_html = include_str!("../ui/simple-dashboard.html");
+        // Create WebView pointing to local API server (avoids NavigateToString
+        // issues on Windows and gives a proper HTTP origin for fetch/localStorage)
         let _webview = WebViewBuilder::new()
-            .with_html(dashboard_html)
+            .with_url("http://127.0.0.1:9899/")
             .with_transparent(true)
             .with_ipc_handler(move |request| {
                 let body = request.body();

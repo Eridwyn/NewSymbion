@@ -682,7 +682,8 @@
 (function() {
     'use strict';
 
-    const API = 'http://localhost:9899';
+    // Use relative URLs when served from local API, absolute for file:// or data: origins
+    const API = (location.protocol === 'http:' || location.protocol === 'https:') ? '' : 'http://127.0.0.1:9899';
     let currentFilter = 'all';
     let logsAutoScroll = true;
 
