@@ -5,7 +5,7 @@ use serde::Serialize;
 use sysinfo::System;
 
 /// Disk usage metrics per filesystem
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct DiskMetrics {
     pub path: String,
     pub total_gb: f64,

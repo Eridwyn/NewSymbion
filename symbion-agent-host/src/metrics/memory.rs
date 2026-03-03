@@ -5,7 +5,7 @@ use serde::Serialize;
 use sysinfo::System;
 
 /// Memory usage metrics
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MemoryMetrics {
     pub total_mb: u64,
     pub used_mb: u64,
@@ -39,7 +39,7 @@ impl MemoryMetrics {
 }
 
 /// Swap memory metrics
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SwapMetrics {
     pub total_mb: u64,
     pub used_mb: u64,

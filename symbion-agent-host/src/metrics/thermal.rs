@@ -4,14 +4,14 @@ use serde::Serialize;
 use sysinfo::Components;
 
 /// Temperature sensor readings
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TemperatureMetrics {
     pub cpu_celsius: Option<f32>,
     pub sensors: Vec<TemperatureSensor>,
 }
 
 /// Individual temperature sensor
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TemperatureSensor {
     pub name: String,
     pub value: f32,
@@ -57,7 +57,7 @@ impl TemperatureMetrics {
 }
 
 /// Battery status (laptops / UPS)
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct BatteryMetrics {
     pub percent: f32,
     pub charging: bool,

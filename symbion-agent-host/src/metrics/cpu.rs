@@ -5,7 +5,7 @@ use serde::Serialize;
 use sysinfo::System;
 
 /// CPU usage metrics
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct CpuMetrics {
     pub percent: f32,
     pub load_avg: [f64; 3],  // [1min, 5min, 15min]
