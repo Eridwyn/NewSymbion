@@ -464,6 +464,62 @@ class AgentControlWidget extends LitElement {
     .progress-fill.cpu { background: linear-gradient(90deg, #22c55e, var(--context-primary, #00d4aa), #007acc); }
     .progress-fill.memory { background: linear-gradient(90deg, #3b82f6, var(--context-primary, #00d4aa), #8b5cf6); }
     .progress-fill.disk { background: linear-gradient(90deg, #f59e0b, #fbbf24, #ef4444); }
+    .progress-fill.gpu { background: linear-gradient(90deg, #10b981, #06b6d4, #8b5cf6); }
+    .progress-fill.gpu-mem { background: linear-gradient(90deg, #6366f1, #a78bfa, #c084fc); }
+
+    .io-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .io-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px;
+      border-radius: var(--radius-sm);
+      background: var(--surface-glass);
+    }
+
+    .io-stat-label {
+      font-size: 10px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .io-stat-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .net-stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .net-stat-row:last-child {
+      border-bottom: none;
+    }
+
+    .net-stat-label {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .net-stat-value {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+    }
 
     .command-section {
       display: flex;
@@ -862,6 +918,14 @@ class AgentControlWidget extends LitElement {
     this.requestUpdate()
   }
 
+  /** Format bytes to human-readable (KB, MB, GB) */
+  _formatBytes(bytes) {
+    if (bytes == null || bytes === 0) return '0 B'
+    const units = ['B', 'KB', 'MB', 'GB']
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+    return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`
+  }
+
   /** Format command output/error from JSON value to displayable string */
   _formatOutput(value) {
     if (!value) return ''
@@ -1225,6 +1289,105 @@ class AgentControlWidget extends LitElement {
           </div>
         </div>
       </div>
+
+      ${this.metrics.gpu?.gpus?.length ? html`
+        <div class="section">
+          <div class="section-title">🎮 GPU</div>
+          <div class="metrics-grid">
+            ${this.metrics.gpu.gpus.map(gpu => html`
+              <div class="metric-card">
+                <div class="metric-label">${gpu.name || 'GPU'}</div>
+                ${gpu.utilization_percent != null ? html`
+                  <div class="metric-value">${gpu.utilization_percent.toFixed(0)}%</div>
+                  <div class="progress-bar">
+                    <div class="progress-fill gpu" style="width: ${gpu.utilization_percent}%"></div>
+                  </div>
+                ` : html`
+                  <div class="metric-value">N/A</div>
+                `}
+                <div class="ac-meta-hint">${gpu.vendor || 'unknown'}</div>
+              </div>
+              ${gpu.memory_total_mb ? html`
+                <div class="metric-card">
+                  <div class="metric-label">VRAM</div>
+                  <div class="metric-value">${((gpu.memory_used_mb || 0) / 1024).toFixed(1)} / ${(gpu.memory_total_mb / 1024).toFixed(1)} GB</div>
+                  <div class="progress-bar">
+                    <div class="progress-fill gpu-mem" style="width: ${((gpu.memory_used_mb || 0) / gpu.memory_total_mb * 100)}%"></div>
+                  </div>
+                  ${gpu.temperature_celsius != null ? html`
+                    <div class="ac-meta-hint">🌡️ ${gpu.temperature_celsius.toFixed(0)}°C${gpu.power_watts != null ? ` · ⚡ ${gpu.power_watts.toFixed(0)}W` : ''}</div>
+                  ` : ''}
+                </div>
+              ` : ''}
+            `)}
+          </div>
+        </div>
+      ` : ''}
+
+      ${this.metrics.disk_io?.disks?.length ? html`
+        <div class="section">
+          <div class="section-title">💾 Disk I/O</div>
+          <div class="metrics-grid">
+            ${this.metrics.disk_io.disks.map(d => html`
+              <div class="metric-card">
+                <div class="metric-label">${d.device}</div>
+                <div class="io-stats">
+                  <div class="io-stat">
+                    <span class="io-stat-label">⬇ Read</span>
+                    <span class="io-stat-value">${this._formatBytes(d.read_bytes_per_sec)}/s</span>
+                  </div>
+                  <div class="io-stat">
+                    <span class="io-stat-label">⬆ Write</span>
+                    <span class="io-stat-value">${this._formatBytes(d.write_bytes_per_sec)}/s</span>
+                  </div>
+                  <div class="io-stat">
+                    <span class="io-stat-label">Read IOPS</span>
+                    <span class="io-stat-value">${d.read_iops}</span>
+                  </div>
+                  <div class="io-stat">
+                    <span class="io-stat-label">Write IOPS</span>
+                    <span class="io-stat-value">${d.write_iops}</span>
+                  </div>
+                </div>
+              </div>
+            `)}
+          </div>
+        </div>
+      ` : ''}
+
+      ${this.metrics.network_advanced ? html`
+        <div class="section">
+          <div class="section-title">🌐 Network</div>
+          <div class="metric-card">
+            ${this.metrics.network_advanced.gateway_latency_ms != null ? html`
+              <div class="net-stat-row">
+                <span class="net-stat-label">Gateway Latency</span>
+                <span class="net-stat-value">${this.metrics.network_advanced.gateway_latency_ms.toFixed(1)} ms</span>
+              </div>
+            ` : ''}
+            ${this.metrics.network_advanced.dns_latency_ms != null ? html`
+              <div class="net-stat-row">
+                <span class="net-stat-label">DNS Latency</span>
+                <span class="net-stat-value">${this.metrics.network_advanced.dns_latency_ms.toFixed(1)} ms</span>
+              </div>
+            ` : ''}
+            ${this.metrics.network_advanced.active_connections != null ? html`
+              <div class="net-stat-row">
+                <span class="net-stat-label">Active Connections</span>
+                <span class="net-stat-value">${this.metrics.network_advanced.active_connections}</span>
+              </div>
+            ` : ''}
+            ${this.metrics.network_advanced.interfaces?.length ? html`
+              ${this.metrics.network_advanced.interfaces.map(iface => html`
+                <div class="net-stat-row">
+                  <span class="net-stat-label">${iface.name}</span>
+                  <span class="net-stat-value">⬇ ${this._formatBytes(iface.rx_bytes_per_sec)}/s · ⬆ ${this._formatBytes(iface.tx_bytes_per_sec)}/s</span>
+                </div>
+              `)}
+            ` : ''}
+          </div>
+        </div>
+      ` : ''}
     `
   }
 
