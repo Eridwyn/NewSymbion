@@ -83,6 +83,23 @@ pub struct ReceivedCommand {
     pub payload: String,
 }
 
+/// Log entry forwarded from agent to kernel
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LogEntry {
+    pub timestamp: DateTime<Utc>,
+    pub level: String,     // WARN, ERROR
+    pub message: String,
+    pub module: Option<String>,
+}
+
+/// Batch of log entries sent to kernel via MQTT
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LogMessage {
+    pub agent_id: String,
+    pub entries: Vec<LogEntry>,
+    pub timestamp: DateTime<Utc>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -178,5 +195,51 @@ mod tests {
         let json = serde_json::to_value(&info).unwrap();
         assert_eq!(json["command_type"], "shutdown");
         assert!(json["timestamp"].is_string());
+    }
+
+    #[test]
+    fn test_log_entry_serialization() {
+        let entry = LogEntry {
+            timestamp: Utc::now(),
+            level: "ERROR".to_string(),
+            message: "disk full".to_string(),
+            module: Some("metrics".to_string()),
+        };
+        let json = serde_json::to_string(&entry).unwrap();
+        assert!(json.contains("ERROR"));
+        assert!(json.contains("disk full"));
+        let parsed: LogEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.level, "ERROR");
+    }
+
+    #[test]
+    fn test_log_message_serialization() {
+        let msg = LogMessage {
+            agent_id: "test-agent".to_string(),
+            entries: vec![
+                LogEntry {
+                    timestamp: Utc::now(),
+                    level: "WARN".to_string(),
+                    message: "high cpu".to_string(),
+                    module: None,
+                },
+            ],
+            timestamp: Utc::now(),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("test-agent"));
+        assert!(json.contains("high cpu"));
+    }
+
+    #[test]
+    fn test_log_message_empty_entries() {
+        let msg = LogMessage {
+            agent_id: "agent-x".to_string(),
+            entries: vec![],
+            timestamp: Utc::now(),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        let parsed: LogMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.entries.len(), 0);
     }
 }

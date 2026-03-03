@@ -1,5 +1,5 @@
 use super::AppState;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::Deserialize;
@@ -25,6 +25,7 @@ pub(crate) struct AgentView {
     uptime_seconds: Option<u64>,
     cpu_percent: Option<f32>,
     memory_percent: Option<f32>,
+    health_score: Option<u8>,
 }
 
 /// Request body for sending a shell command to an agent.
@@ -68,6 +69,7 @@ pub(super) fn agent_to_view(agent: &crate::agents::Agent) -> AgentView {
         uptime_seconds: agent.status.system.as_ref().map(|s| s.uptime_seconds),
         cpu_percent: agent.status.system.as_ref().map(|s| s.cpu.percent),
         memory_percent: agent.status.system.as_ref().map(|s| s.memory.percent_used),
+        health_score: agent.status.health_score,
     }
 }
 
@@ -884,4 +886,123 @@ pub(super) async fn get_plugin_systemctl_status(
         "status": status,
         "is_active": is_active
     })))
+}
+
+// =============== SERVICES / LOGS / HISTORY ENDPOINTS ===============
+
+/// Query parameters for command history pagination.
+#[derive(Deserialize)]
+pub(crate) struct HistoryQuery {
+    #[serde(default = "default_limit")]
+    limit: i64,
+    #[serde(default)]
+    offset: i64,
+}
+fn default_limit() -> i64 { 50 }
+
+/// Query parameters for agent logs filtering.
+#[derive(Deserialize)]
+pub(crate) struct LogsQuery {
+    level: Option<String>,
+}
+
+/// GET /v1/agents/{id}/services -- Return services from latest heartbeat data.
+pub(super) async fn agent_services_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match app.agents.get_agent(&id).await {
+        Some(agent) => {
+            let services = agent.status.services.unwrap_or_default();
+            Ok(Json(serde_json::json!({
+                "agent_id": id,
+                "services": services
+            })))
+        }
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+/// POST /v1/agents/{id}/services/{name}/{action} -- Control a service on the agent.
+pub(super) async fn agent_service_control_endpoint(
+    State(app): State<AppState>,
+    Path((id, service_name, action)): Path<(String, String, String)>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let command_type = match action.as_str() {
+        "start" => "service_start",
+        "stop" => "service_stop",
+        "restart" => "service_restart",
+        _ => return Err((StatusCode::BAD_REQUEST, Json(serde_json::json!({
+            "error": format!("Invalid action '{}'. Use start, stop, or restart.", action)
+        })))),
+    };
+
+    let params = serde_json::json!({ "service_name": service_name });
+    match app.agents.send_command(&id, command_type, Some(params)).await {
+        Ok(command_id) => Ok(Json(serde_json::json!({
+            "success": true,
+            "command_id": command_id,
+            "message": format!("Service {} {} command sent", service_name, action)
+        }))),
+        Err(e) => {
+            eprintln!("[http] failed to send service control to agent {}: {}", id, e);
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
+                "error": format!("Failed to send command: {}", e)
+            }))))
+        }
+    }
+}
+
+/// GET /v1/agents/{id}/commands/history -- Return command history from SQLite.
+pub(super) async fn agent_command_history_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+    Query(params): Query<HistoryQuery>,
+) -> Json<serde_json::Value> {
+    let history = app.agents.get_command_history(&id, params.limit, params.offset);
+    let entries: Vec<serde_json::Value> = history.iter().map(|h| {
+        serde_json::json!({
+            "command_id": h.command_id,
+            "agent_id": h.agent_id,
+            "command_type": h.command_type,
+            "parameters": h.parameters_json.as_deref().and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok()),
+            "status": h.status,
+            "output": h.output_json.as_deref().and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok()),
+            "error": h.error_json.as_deref().and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok()),
+            "timeout_seconds": h.timeout_seconds,
+            "created_at": h.created_at,
+            "updated_at": h.updated_at,
+            "completed_at": h.completed_at,
+        })
+    }).collect();
+
+    Json(serde_json::json!({
+        "agent_id": id,
+        "history": entries,
+        "limit": params.limit,
+        "offset": params.offset,
+    }))
+}
+
+/// GET /v1/agents/{id}/logs -- Return agent logs from in-memory ring buffer.
+pub(super) async fn agent_logs_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+    Query(params): Query<LogsQuery>,
+) -> Json<serde_json::Value> {
+    let logs = app.agents.get_agent_logs(&id, params.level.as_deref()).await;
+    let entries: Vec<serde_json::Value> = logs.iter().map(|l| {
+        serde_json::json!({
+            "timestamp": l.timestamp,
+            "level": l.level,
+            "message": l.message,
+            "module": l.module,
+        })
+    }).collect();
+
+    Json(serde_json::json!({
+        "agent_id": id,
+        "logs": entries,
+        "count": entries.len(),
+    }))
 }

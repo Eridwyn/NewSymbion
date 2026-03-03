@@ -143,7 +143,6 @@ impl DiskIoMetrics {
     #[cfg(target_os = "windows")]
     pub async fn collect() -> Option<Self> {
         use std::time::Duration;
-        use tokio::process::Command;
 
         debug!("Collecting disk I/O metrics (Windows)...");
 
@@ -151,7 +150,7 @@ impl DiskIoMetrics {
 
         let output = tokio::time::timeout(
             Duration::from_secs(3),
-            Command::new("powershell")
+            crate::windows_utils::silent_tokio_command("powershell")
                 .args(["-NoProfile", "-NonInteractive", "-Command", ps_script])
                 .output(),
         )

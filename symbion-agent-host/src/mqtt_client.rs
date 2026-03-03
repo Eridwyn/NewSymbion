@@ -24,6 +24,7 @@ pub const TOPIC_REGISTRATION: &str = "symbion/agents/registration@v1";
 pub const TOPIC_HEARTBEAT: &str = "symbion/agents/heartbeat@v1";
 pub const TOPIC_COMMAND: &str = "symbion/agents/command@v1";
 pub const TOPIC_RESPONSE: &str = "symbion/agents/response@v1";
+pub const TOPIC_LOGS: &str = "symbion/agents/logs@v1";
 
 /// MQTT connection configuration
 #[derive(Debug, Clone)]
@@ -169,9 +170,11 @@ mod tests {
         assert!(TOPIC_HEARTBEAT.starts_with("symbion/agents/"));
         assert!(TOPIC_COMMAND.starts_with("symbion/agents/"));
         assert!(TOPIC_RESPONSE.starts_with("symbion/agents/"));
+        assert!(TOPIC_LOGS.starts_with("symbion/agents/"));
         // All should have @v1 suffix
         assert!(TOPIC_REGISTRATION.ends_with("@v1"));
         assert!(TOPIC_HEARTBEAT.ends_with("@v1"));
+        assert!(TOPIC_LOGS.ends_with("@v1"));
     }
 
     #[test]

@@ -55,12 +55,11 @@ impl GpuMetrics {
 
     /// Collect NVIDIA GPU metrics via nvidia-smi
     async fn collect_nvidia() -> Option<Vec<GpuInfo>> {
-        use tokio::process::Command;
         use std::time::Duration;
 
         let output = tokio::time::timeout(
             Duration::from_secs(3),
-            Command::new("nvidia-smi")
+            crate::windows_utils::silent_tokio_command("nvidia-smi")
                 .args([
                     "--query-gpu=name,temperature.gpu,utilization.gpu,memory.used,memory.total,fan.speed,power.draw",
                     "--format=csv,noheader,nounits",

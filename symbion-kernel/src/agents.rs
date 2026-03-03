@@ -9,7 +9,7 @@
  */
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use time::OffsetDateTime;
 use tokio::sync::RwLock;
 use std::sync::Arc;
@@ -115,6 +115,12 @@ pub struct AgentStatus {
     pub system: Option<AgentSystemMetrics>,
     pub processes: Option<AgentProcesses>,
     pub services: Option<Vec<AgentService>>,
+    /// Health score 0-100 (computed by watchdog every 60s)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub health_score: Option<u8>,
+    /// Detailed health score breakdown
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub health_details: Option<HealthScoreDetails>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -318,6 +324,47 @@ pub struct AgentLastCommand {
     pub timestamp: String,
 }
 
+// ========== Health Score (Watchdog B1) ==========
+
+/// Detailed breakdown of an agent's health score (0-100).
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct HealthScoreDetails {
+    pub heartbeat_score: u8,  // 0-25: regularity of heartbeats (jitter)
+    pub command_score: u8,    // 0-25: success/failure ratio
+    pub resource_score: u8,   // 0-25: CPU<90%, mem<95%, disk<95%
+    pub uptime_score: u8,     // 0-25: online and stable
+}
+
+/// Internal tracking for health score computation.
+#[derive(Debug, Default)]
+struct AgentHealthTracking {
+    /// Recent heartbeat interval timestamps (ring buffer, max 10)
+    heartbeat_timestamps: VecDeque<OffsetDateTime>,
+    /// Command success/failure counters
+    commands_success: u32,
+    commands_failed: u32,
+}
+
+// ========== Agent Logs (Log Streaming B2) ==========
+
+/// Log entry received from an agent via MQTT.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct AgentLogEntry {
+    pub timestamp: String,
+    pub level: String,
+    pub message: String,
+    pub module: Option<String>,
+}
+
+/// MQTT payload for agent log forwarding.
+#[derive(Debug, Deserialize)]
+pub struct AgentLogMessage {
+    pub agent_id: String,
+    pub entries: Vec<AgentLogEntry>,
+    #[allow(dead_code)]
+    pub timestamp: String,
+}
+
 pub type AgentsMap = HashMap<String, Agent>;
 
 pub struct AgentRegistry {
@@ -330,6 +377,10 @@ pub struct AgentRegistry {
     automation_dispatcher: Arc<tokio::sync::RwLock<Option<crate::automations::EventDispatcher>>>,
     /// SQLite database (None = JSON-only fallback mode)
     db: Option<crate::database::SharedDatabase>,
+    /// Health tracking data per agent (for watchdog score computation)
+    health_tracking: Arc<RwLock<HashMap<String, AgentHealthTracking>>>,
+    /// Agent logs ring buffer (max 100 entries per agent)
+    agent_logs: Arc<RwLock<HashMap<String, VecDeque<AgentLogEntry>>>>,
 }
 
 impl AgentRegistry {
@@ -342,6 +393,8 @@ impl AgentRegistry {
             dirty: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             automation_dispatcher: Arc::new(tokio::sync::RwLock::new(None)),
             db: None,
+            health_tracking: Arc::new(RwLock::new(HashMap::new())),
+            agent_logs: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -357,7 +410,7 @@ impl AgentRegistry {
                 let network: AgentNetwork = serde_json::from_str(&row.network_json)
                     .unwrap_or_else(|_| AgentNetwork { primary_mac: String::new(), interfaces: vec![] });
                 let status: AgentStatus = serde_json::from_str(&row.status_json)
-                    .unwrap_or_else(|_| AgentStatus { status: "unknown".to_string(), last_heartbeat: None, system: None, processes: None, services: None });
+                    .unwrap_or_else(|_| AgentStatus { status: "unknown".to_string(), last_heartbeat: None, system: None, processes: None, services: None, health_score: None, health_details: None });
                 let last_seen = OffsetDateTime::parse(&row.last_seen,
                     &time::format_description::well_known::Rfc3339).unwrap_or_else(|_| OffsetDateTime::now_utc());
                 let registration_time = OffsetDateTime::parse(&row.registration_time,
@@ -491,6 +544,8 @@ impl AgentRegistry {
                 system: None,
                 processes: None,
                 services: None,
+                health_score: None,
+                health_details: None,
             },
             last_seen: now,
             registration_time: now,
@@ -563,6 +618,16 @@ impl AgentRegistry {
             } else {
                 println!("[agents] ❌ received heartbeat from UNKNOWN agent {} - not registered!", msg.agent_id);
                 return Ok(());
+            }
+        }
+
+        // Track heartbeat timestamp for health score computation
+        {
+            let mut tracking = self.health_tracking.write().await;
+            let entry = tracking.entry(msg.agent_id.clone()).or_default();
+            entry.heartbeat_timestamps.push_back(now);
+            if entry.heartbeat_timestamps.len() > 10 {
+                entry.heartbeat_timestamps.pop_front();
             }
         }
 
@@ -699,7 +764,30 @@ impl AgentRegistry {
             
             mqtt_client.publish(topic, rumqttc::QoS::AtLeastOnce, false, payload).await?;
             println!("[agents] sent command {} to agent {}: {}", command_id, agent_id, command_type);
-            
+
+            // Dual-write to SQLite command history
+            if let Some(ref db) = self.db {
+                let now_str = OffsetDateTime::now_utc()
+                    .format(&time::format_description::well_known::Rfc3339)
+                    .unwrap_or_default();
+                let row = crate::database::command_history_queries::CommandHistoryRow {
+                    command_id: command_id.clone(),
+                    agent_id: agent_id.to_string(),
+                    command_type: command_type.to_string(),
+                    parameters_json: parameters.as_ref().map(|p| p.to_string()),
+                    status: "Sent".to_string(),
+                    output_json: None,
+                    error_json: None,
+                    timeout_seconds: 30,
+                    created_at: now_str.clone(),
+                    updated_at: now_str,
+                    completed_at: None,
+                };
+                if let Err(e) = crate::database::command_history_queries::insert_command(db, &row) {
+                    eprintln!("[agents] command history insert failed (non-fatal): {}", e);
+                }
+            }
+
             Ok(command_id)
         } else {
             Err(anyhow::anyhow!("MQTT client not configured"))
@@ -803,10 +891,43 @@ impl AgentRegistry {
             command.error = response.error;
             
             println!("[agents] updated command {} status: {:?}", response.command_id, command.status);
-            
-            // Si commande terminée, on pourrait la supprimer après un délai
-            // ou la garder pour historique selon les besoins
-            
+
+            // Track command stats for health score
+            let is_success = matches!(command.status, CommandStatus::Completed);
+            let is_failure = matches!(command.status, CommandStatus::Failed | CommandStatus::TimedOut);
+            let agent_id_clone = command.agent_id.clone();
+            if is_success || is_failure {
+                let mut tracking = self.health_tracking.write().await;
+                let entry = tracking.entry(agent_id_clone).or_default();
+                if is_success {
+                    entry.commands_success += 1;
+                } else {
+                    entry.commands_failed += 1;
+                }
+            }
+
+            // Dual-write status update to SQLite
+            if let Some(ref db) = self.db {
+                let status_str = format!("{:?}", command.status);
+                let output_str = command.output.as_ref().map(|v| v.to_string());
+                let error_str = command.error.as_ref().map(|v| v.to_string());
+                let completed_at = match command.status {
+                    CommandStatus::Completed | CommandStatus::Failed | CommandStatus::Cancelled | CommandStatus::TimedOut => {
+                        Some(OffsetDateTime::now_utc()
+                            .format(&time::format_description::well_known::Rfc3339)
+                            .unwrap_or_default())
+                    }
+                    _ => None,
+                };
+                if let Err(e) = crate::database::command_history_queries::update_command_status(
+                    db, &response.command_id, &status_str,
+                    output_str.as_deref(), error_str.as_deref(),
+                    completed_at.as_deref(),
+                ) {
+                    eprintln!("[agents] command history update failed (non-fatal): {}", e);
+                }
+            }
+
             Ok(())
         } else {
             // Commande inconnue, peut-être déjà supprimée ou timeout
@@ -893,6 +1014,132 @@ impl AgentRegistry {
         Ok(())
     }
 
+    // ========== Agent Logs (Log Streaming B2) ==========
+
+    /// Store log entries from an agent (ring buffer, max 100 per agent).
+    pub async fn store_agent_logs(&self, agent_id: &str, entries: Vec<AgentLogEntry>) {
+        let mut logs_map = self.agent_logs.write().await;
+        let buffer = logs_map.entry(agent_id.to_string()).or_insert_with(|| VecDeque::with_capacity(100));
+        for entry in entries {
+            if buffer.len() >= 100 {
+                buffer.pop_front();
+            }
+            buffer.push_back(entry);
+        }
+    }
+
+    /// Retrieve log entries for an agent, optionally filtered by level.
+    pub async fn get_agent_logs(&self, agent_id: &str, level_filter: Option<&str>) -> Vec<AgentLogEntry> {
+        let logs_map = self.agent_logs.read().await;
+        match logs_map.get(agent_id) {
+            Some(buffer) => {
+                if let Some(level) = level_filter {
+                    let level_upper = level.to_uppercase();
+                    buffer.iter()
+                        .filter(|e| e.level.to_uppercase() == level_upper)
+                        .cloned()
+                        .collect()
+                } else {
+                    buffer.iter().cloned().collect()
+                }
+            }
+            None => vec![],
+        }
+    }
+
+    // ========== Command History (A2) ==========
+
+    /// Get command history from SQLite for an agent.
+    pub fn get_command_history(&self, agent_id: &str, limit: i64, offset: i64) -> Vec<crate::database::command_history_queries::CommandHistoryRow> {
+        if let Some(ref db) = self.db {
+            crate::database::command_history_queries::get_agent_history(db, agent_id, limit, offset)
+                .unwrap_or_default()
+        } else {
+            vec![]
+        }
+    }
+
+    /// Cleanup old command history entries (>30 days).
+    pub fn cleanup_command_history(&self) {
+        if let Some(ref db) = self.db {
+            match crate::database::command_history_queries::cleanup_old_entries(db, 30) {
+                Ok(n) if n > 0 => println!("[agents] cleaned up {} old command history entries", n),
+                Err(e) => eprintln!("[agents] command history cleanup failed: {}", e),
+                _ => {}
+            }
+        }
+    }
+
+    // ========== Health Score (Watchdog B1) ==========
+
+    /// Compute and update health scores for all agents.
+    pub async fn compute_health_scores(&self) {
+        let tracking = self.health_tracking.read().await;
+        let mut agents_map = self.agents.write().await;
+
+        for (agent_id, agent) in agents_map.iter_mut() {
+            if agent.deleted_at.is_some() {
+                continue;
+            }
+
+            let track = tracking.get(agent_id);
+
+            // uptime_score (0-25): online + recent heartbeat = 25, offline = 0
+            let uptime_score = if agent.status.status == "online" {
+                if let Some(hb) = agent.status.last_heartbeat {
+                    let age = (OffsetDateTime::now_utc() - hb).whole_seconds();
+                    if age < 120 { 25 } else if age < 300 { 15 } else { 5 }
+                } else {
+                    10
+                }
+            } else {
+                0
+            };
+
+            // heartbeat_score (0-25): std dev of intervals, jitter < 5s = 25
+            let heartbeat_score = if let Some(t) = track {
+                compute_heartbeat_score(&t.heartbeat_timestamps)
+            } else {
+                if agent.status.status == "online" { 15 } else { 0 }
+            };
+
+            // command_score (0-25): success ratio. No commands = 25 (healthy)
+            let command_score = if let Some(t) = track {
+                let total = t.commands_success + t.commands_failed;
+                if total == 0 {
+                    25
+                } else {
+                    let ratio = t.commands_success as f32 / total as f32;
+                    (ratio * 25.0) as u8
+                }
+            } else {
+                25
+            };
+
+            // resource_score (0-25): deduct for high resource usage
+            let resource_score = if let Some(ref sys) = agent.status.system {
+                let mut score: i8 = 25;
+                if sys.cpu.percent > 90.0 { score -= 10; }
+                if sys.memory.percent_used > 95.0 { score -= 10; }
+                if let Some(ref disks) = sys.disk {
+                    if disks.iter().any(|d| d.percent_used > 95.0) { score -= 5; }
+                }
+                score.max(0) as u8
+            } else {
+                if agent.status.status == "online" { 20 } else { 0 }
+            };
+
+            let total = uptime_score + heartbeat_score + command_score + resource_score;
+            agent.status.health_score = Some(total);
+            agent.status.health_details = Some(HealthScoreDetails {
+                heartbeat_score,
+                command_score,
+                resource_score,
+                uptime_score,
+            });
+        }
+    }
+
     /// Lance une tâche périodique de sauvegarde débounced (toutes les 5 min si dirty)
     pub fn start_periodic_save(registry: SharedAgentRegistry) {
         tokio::spawn(async move {
@@ -947,6 +1194,9 @@ impl AgentRegistry {
                     registry.mark_agent_offline(&agent_id).await;
                 }
 
+                // Compute health scores every tick (60s)
+                registry.compute_health_scores().await;
+
                 // Purge des agents soft-deleted après 7 jours (toutes les heures = 60 ticks)
                 if purge_counter >= 60 {
                     purge_counter = 0;
@@ -954,6 +1204,8 @@ impl AgentRegistry {
                     if purged > 0 {
                         println!("[agents] purged {} agents older than 7 days", purged);
                     }
+                    // Also cleanup old command history (30 day retention)
+                    registry.cleanup_command_history();
                 }
 
                 // Sauvegarder les changements SANS tenir de lock
@@ -963,6 +1215,36 @@ impl AgentRegistry {
             }
         });
     }
+}
+
+/// Compute heartbeat regularity score from timestamps (0-25).
+/// Expected interval is ~30s. Jitter < 5s = 25, > 30s = 0.
+fn compute_heartbeat_score(timestamps: &VecDeque<OffsetDateTime>) -> u8 {
+    if timestamps.len() < 2 {
+        return 15; // Not enough data, assume moderate
+    }
+
+    let ts_vec: Vec<&OffsetDateTime> = timestamps.iter().collect();
+    let intervals: Vec<f64> = ts_vec.windows(2)
+        .map(|w| (*w[1] - *w[0]).whole_seconds() as f64)
+        .collect();
+
+    if intervals.is_empty() {
+        return 15;
+    }
+
+    let mean = intervals.iter().sum::<f64>() / intervals.len() as f64;
+    let variance = intervals.iter()
+        .map(|&x| (x - mean).powi(2))
+        .sum::<f64>() / intervals.len() as f64;
+    let std_dev = variance.sqrt();
+
+    // Jitter is the std deviation from expected 30s interval
+    if std_dev < 5.0 { 25 }
+    else if std_dev < 10.0 { 20 }
+    else if std_dev < 20.0 { 15 }
+    else if std_dev < 30.0 { 10 }
+    else { 0 }
 }
 
 pub type SharedAgentRegistry = Arc<AgentRegistry>;

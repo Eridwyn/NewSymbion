@@ -142,6 +142,10 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
             if let Err(e) = client.subscribe("symbion/agents/wake@v1", QoS::AtLeastOnce).await {
                 eprintln!("[kernel] subscribe agents wake failed: {e:?}");
             }
+            // Log streaming from agents
+            if let Err(e) = client.subscribe("symbion/agents/logs@v1", QoS::AtLeastOnce).await {
+                eprintln!("[kernel] subscribe agents logs failed: {e:?}");
+            }
         }
 
         // F1: S'abonner aux événements sensors si registry disponible
@@ -388,6 +392,20 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                                     eprintln!("[kernel] ❌ agent response deserialization failed: {}", e);
                                     eprintln!("[kernel] ❌ raw payload (first 500 chars): {}", &txt[..txt.len().min(500)]);
                                 }
+                            }
+                        }
+                    }
+                } else if p.topic == "symbion/agents/logs@v1" {
+                    // Agent log streaming
+                    if let Some(ref agent_registry) = agents {
+                        if let Ok(txt) = String::from_utf8(p.payload.to_vec()) {
+                            match serde_json::from_str::<crate::agents::AgentLogMessage>(&txt) {
+                                Ok(log_msg) => {
+                                    let count = log_msg.entries.len();
+                                    agent_registry.store_agent_logs(&log_msg.agent_id, log_msg.entries).await;
+                                    println!("[kernel] stored {} log entries from agent {}", count, log_msg.agent_id);
+                                }
+                                Err(e) => eprintln!("[kernel] agent logs JSON invalide: {}, error: {}", &txt[..txt.len().min(200)], e),
                             }
                         }
                     }
