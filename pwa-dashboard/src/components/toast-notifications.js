@@ -24,15 +24,14 @@ class ToastNotifications extends LitElement {
     .toast {
       pointer-events: auto;
       background: linear-gradient(135deg,
-        rgba(19, 20, 26, 0.95) 0%,
-        rgba(10, 10, 11, 0.98) 100%);
+        var(--app-page-bg-a) 0%,
+        var(--app-page-bg-b) 100%);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
       border-radius: var(--radius-lg, 12px);
       padding: var(--space-4, 1rem);
       border: 1px solid var(--border-medium);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
-                  0 0 0 1px var(--surface-glass);
+      box-shadow: var(--shadow-xl);
       animation: slideIn 0.3s ease-out;
       transition: all var(--duration-base) var(--ease-out);
     }
