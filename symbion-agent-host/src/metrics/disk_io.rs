@@ -139,11 +139,150 @@ impl DiskIoMetrics {
         }
     }
 
-    /// Non-Linux: disk I/O collection not yet implemented.
-    #[cfg(not(target_os = "linux"))]
+    /// Windows: collect disk I/O metrics via PowerShell Get-Counter.
+    #[cfg(target_os = "windows")]
+    pub async fn collect() -> Option<Self> {
+        use std::time::Duration;
+        use tokio::process::Command;
+
+        debug!("Collecting disk I/O metrics (Windows)...");
+
+        let ps_script = r#"Get-Counter '\PhysicalDisk(*)\Disk Read Bytes/sec','\PhysicalDisk(*)\Disk Write Bytes/sec','\PhysicalDisk(*)\Disk Reads/sec','\PhysicalDisk(*)\Disk Writes/sec' -SampleInterval 1 -MaxSamples 1 | ForEach-Object { $_.CounterSamples | ForEach-Object { '{0}|{1}' -f $_.Path,$_.CookedValue } }"#;
+
+        let output = tokio::time::timeout(
+            Duration::from_secs(3),
+            Command::new("powershell")
+                .args(["-NoProfile", "-NonInteractive", "-Command", ps_script])
+                .output(),
+        )
+        .await
+        .ok()?
+        .ok()?;
+
+        if !output.status.success() {
+            debug!("PowerShell Get-Counter failed: {}", output.status);
+            return None;
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let disks = parse_windows_disk_counters(&stdout);
+
+        debug!("Disk I/O (Windows): {} devices collected", disks.len());
+
+        if disks.is_empty() {
+            None
+        } else {
+            Some(DiskIoMetrics { disks })
+        }
+    }
+
+    /// Other platforms: disk I/O collection not yet implemented.
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
     pub async fn collect() -> Option<Self> {
         None
     }
+}
+
+// ---------------------------------------------------------------------------
+// Windows parse helpers
+// ---------------------------------------------------------------------------
+
+/// Parse PowerShell Get-Counter output lines for disk I/O metrics.
+///
+/// Each line has the format:
+///   \\server\physicaldisk(N X:)\counter name|value
+///
+/// The disk instance looks like "0 c:" or "_total".
+/// We skip the "_total" aggregate instance.
+#[cfg(target_os = "windows")]
+fn parse_windows_disk_counters(output: &str) -> Vec<DiskIoInfo> {
+    use std::collections::HashMap;
+
+    // Accumulate per-disk values
+    struct DiskAccum {
+        read_bytes_per_sec: u64,
+        write_bytes_per_sec: u64,
+        read_iops: u64,
+        write_iops: u64,
+    }
+
+    let mut map: HashMap<String, DiskAccum> = HashMap::new();
+
+    for line in output.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        // Split on '|' to get path and value
+        let Some((path, value_str)) = line.rsplit_once('|') else {
+            continue;
+        };
+
+        let value: f64 = match value_str.trim().parse() {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        let path_lower = path.to_lowercase();
+
+        // Skip _total aggregate
+        if path_lower.contains("(_total)") {
+            continue;
+        }
+
+        // Extract disk instance name from path, e.g. "0 c:" from "physicaldisk(0 c:)"
+        let disk_name = match extract_counter_instance(&path_lower, "physicaldisk") {
+            Some(name) => name,
+            None => continue,
+        };
+
+        let entry = map.entry(disk_name).or_insert(DiskAccum {
+            read_bytes_per_sec: 0,
+            write_bytes_per_sec: 0,
+            read_iops: 0,
+            write_iops: 0,
+        });
+
+        if path_lower.contains("disk read bytes/sec") {
+            entry.read_bytes_per_sec = value as u64;
+        } else if path_lower.contains("disk write bytes/sec") {
+            entry.write_bytes_per_sec = value as u64;
+        } else if path_lower.contains("disk reads/sec") {
+            entry.read_iops = value as u64;
+        } else if path_lower.contains("disk writes/sec") {
+            entry.write_iops = value as u64;
+        }
+    }
+
+    map.into_iter()
+        .map(|(device, accum)| DiskIoInfo {
+            device,
+            read_bytes_per_sec: accum.read_bytes_per_sec,
+            write_bytes_per_sec: accum.write_bytes_per_sec,
+            read_iops: accum.read_iops,
+            write_iops: accum.write_iops,
+        })
+        .collect()
+}
+
+/// Extract the instance name from a performance counter path.
+///
+/// Given a path like `\\server\physicaldisk(0 c:)\disk read bytes/sec`
+/// and object_name `"physicaldisk"`, returns `Some("0 c:")`.
+#[cfg(target_os = "windows")]
+fn extract_counter_instance(path: &str, object_name: &str) -> Option<String> {
+    let obj_pos = path.find(object_name)?;
+    let after_obj = &path[obj_pos + object_name.len()..];
+    if !after_obj.starts_with('(') {
+        return None;
+    }
+    let end = after_obj.find(')')?;
+    let instance = &after_obj[1..end];
+    if instance.is_empty() {
+        return None;
+    }
+    Some(instance.to_string())
 }
 
 #[cfg(test)]

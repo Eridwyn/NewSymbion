@@ -21,6 +21,7 @@ pub(crate) struct AgentView {
     status: String,
     last_seen: String,
     registration_time: String,
+    version: Option<String>,
     uptime_seconds: Option<u64>,
     cpu_percent: Option<f32>,
     memory_percent: Option<f32>,
@@ -63,6 +64,7 @@ pub(super) fn agent_to_view(agent: &crate::agents::Agent) -> AgentView {
         status: agent.status.status.clone(),
         last_seen: agent.last_seen.format(&Rfc3339).unwrap_or_default(),
         registration_time: agent.registration_time.format(&Rfc3339).unwrap_or_default(),
+        version: agent.version.clone(),
         uptime_seconds: agent.status.system.as_ref().map(|s| s.uptime_seconds),
         cpu_percent: agent.status.system.as_ref().map(|s| s.cpu.percent),
         memory_percent: agent.status.system.as_ref().map(|s| s.memory.percent_used),
@@ -83,6 +85,13 @@ pub(super) async fn list_agents_endpoint(State(app): State<AppState>) -> Json<Ve
     let agents = app.agents.list_agents().await;
     let list: Vec<AgentView> = agents.values().map(agent_to_view).collect();
     Json(list)
+}
+
+/// GET /v1/agents/latest-version -- Return the latest expected agent version.
+pub(super) async fn agents_latest_version() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "version": env!("CARGO_PKG_VERSION")
+    }))
 }
 
 /// GET /v1/agents/{id} -- Return full details of a single agent by ID.

@@ -22,7 +22,8 @@ class AgentsNetworkWidget extends LitElement {
     loading: { type: Boolean },
     error: { type: String },
     viewMode: { type: String }, // 'grid' or 'list'
-    selectedAgent: { type: Object }
+    selectedAgent: { type: Object },
+    latestVersion: { type: String }
   }
   
   static styles = [sharedAnimations, widgetHeaderStyles, statusDotStyles, statusBadgeStyles, emptyStateStyles, css`
@@ -216,6 +217,21 @@ class AgentsNetworkWidget extends LitElement {
     .meta-value {
       color: var(--color-dark-text-secondary, #cbd5e1);
       font-family: 'Monaco', 'Consolas', monospace;
+      font-size: var(--text-xs, 0.75rem);
+    }
+
+    .version-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .version-outdated {
+      color: var(--warning-color, #f59e0b);
+    }
+
+    .version-outdated-icon {
+      cursor: help;
       font-size: var(--text-xs, 0.75rem);
     }
 
@@ -413,6 +429,7 @@ class AgentsNetworkWidget extends LitElement {
     this.viewMode = 'grid'
     this.selectedAgent = null
     this.agentsService = null
+    this.latestVersion = null
   }
 
   connectedCallback() {
@@ -444,8 +461,12 @@ class AgentsNetworkWidget extends LitElement {
     try {
       this.loading = true
       this.error = null
-      const agents = await this.agentsService.getAgents()
+      const [agents, latestVer] = await Promise.all([
+        this.agentsService.getAgents(),
+        this.agentsService.getLatestAgentVersion()
+      ])
       this.agents = Array.isArray(agents) ? agents : []
+      if (latestVer) this.latestVersion = latestVer
     } catch (error) {
       console.error('Failed to load agents:', error)
       this.error = `Failed to load agents: ${error.message}`
@@ -601,6 +622,16 @@ class AgentsNetworkWidget extends LitElement {
             <span class="meta-label">Agent ID</span>
             <span class="meta-value">${agent.agent_id}</span>
           </div>
+          ${agent.version ? html`
+            <div class="meta-item">
+              <span class="meta-label">Version</span>
+              <span class="meta-value version-badge ${this.latestVersion && agent.version !== this.latestVersion ? 'version-outdated' : ''}">
+                ${agent.version}${this.latestVersion && agent.version !== this.latestVersion ? html`
+                  <span class="version-outdated-icon" title="Update available (latest: ${this.latestVersion})">&#9888;</span>
+                ` : ''}
+              </span>
+            </div>
+          ` : ''}
         </div>
 
         <div class="agent-actions">
