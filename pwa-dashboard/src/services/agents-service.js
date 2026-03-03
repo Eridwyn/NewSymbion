@@ -23,6 +23,9 @@ class AgentsService extends LitElement {
     this.apiService = null
     // [P0-5] Store handler reference for cleanup
     this._statusChangeHandler = null
+    // Cache for latest agent version (refreshed every 5 min)
+    this._latestVersionCache = null
+    this._latestVersionCacheTime = 0
   }
 
   connectedCallback() {
@@ -242,9 +245,28 @@ class AgentsService extends LitElement {
   }
   
   // ===== Metrics =====
-  
+
   async getAgentMetrics(agentId) {
     return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/metrics`)
+  }
+
+  // ===== Latest Agent Version (cached 5 min) =====
+
+  async getLatestAgentVersion() {
+    const now = Date.now()
+    const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+    if (this._latestVersionCache && (now - this._latestVersionCacheTime) < CACHE_TTL) {
+      return this._latestVersionCache
+    }
+    try {
+      const result = await this.apiService.request('/agents/latest-version')
+      this._latestVersionCache = result.version || null
+      this._latestVersionCacheTime = now
+      return this._latestVersionCache
+    } catch (error) {
+      console.error('[agents-service] Failed to fetch latest agent version:', error)
+      return this._latestVersionCache // Return stale cache on error
+    }
   }
 
   // ===== Agent Reconnection =====

@@ -28,7 +28,8 @@ class AgentControlWidget extends LitElement {
     metrics: { type: Object },
     commandOutput: { type: String },
     commandInput: { type: String },
-    currentCommandId: { type: String }
+    currentCommandId: { type: String },
+    latestVersion: { type: String }
   }
 
   static styles = [sharedAnimations, overlayStyles, statusBadgeStyles, widgetSectionStyles, css`
@@ -624,6 +625,8 @@ class AgentControlWidget extends LitElement {
     .ac-error-text { font-size: var(--text-lg); opacity: 0.8; text-align: center; }
     .ac-error-hint { opacity: 0.6; }
     .ac-error-close-btn { margin-top: 2rem; padding: 0.8rem 1.5rem; background: var(--surface-glass-strong); border: 1px solid var(--border-hover); border-radius: var(--radius-base); color: var(--color-dark-text-primary, #f8f9fa); cursor: pointer; font-size: 0.95em; }
+    .ac-version-outdated { color: var(--warning-color, #f59e0b); }
+    .ac-version-icon { cursor: help; margin-left: 4px; }
 
     /* Responsive */
     @media (max-width: 768px) {
@@ -673,6 +676,7 @@ class AgentControlWidget extends LitElement {
     this.commandInput = ''
     this.currentCommandId = null
     this.agentsService = null
+    this.latestVersion = null
   }
 
   connectedCallback() {
@@ -720,6 +724,10 @@ class AgentControlWidget extends LitElement {
     this.currentTab = 'system'
     
     if (this.agent) {
+      // Fetch latest version in background (cached, non-blocking)
+      this.agentsService?.getLatestAgentVersion?.().then(v => {
+        if (v) this.latestVersion = v
+      })
       await this.loadTabData()
       this.startRefreshInterval()
     } else {
@@ -1130,6 +1138,14 @@ class AgentControlWidget extends LitElement {
             <div class="info-label">Last Seen</div>
             <div class="info-value">${this.agentsService?.formatLastSeen(this.agent) || 'Unknown'}</div>
           </div>
+          ${this.agent.version ? html`
+            <div class="info-card">
+              <div class="info-label">Version</div>
+              <div class="info-value ${this.latestVersion && this.agent.version !== this.latestVersion ? 'ac-version-outdated' : ''}">
+                ${this.agent.version}${this.latestVersion && this.agent.version !== this.latestVersion ? html`<span class="ac-version-icon" title="Update available (latest: ${this.latestVersion})">&#9888;</span>` : ''}
+              </div>
+            </div>
+          ` : ''}
         </div>
       </div>
 

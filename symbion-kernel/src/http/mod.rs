@@ -308,6 +308,7 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/plugins", get(crate::plugin_proxy::handle_list_plugins))
         .route("/v1/plugins/{name}/status", get(agents::get_plugin_systemctl_status))
         .route("/agents", get(agents::list_agents_endpoint))
+        .route("/agents/latest-version", get(agents::agents_latest_version))
         .route("/agents/{id}", get(agents::get_agent_endpoint))
         .route("/agents/{id}/processes", get(agents::agent_processes_endpoint))
         .route("/agents/{id}/metrics", get(agents::agent_metrics_endpoint))
