@@ -4,7 +4,10 @@
 //! - CPU usage and load averages
 //! - Memory usage statistics
 //! - Disk usage for mounted filesystems
+//! - Disk I/O throughput
 //! - Network interface statistics
+//! - Advanced network metrics (latency, bandwidth, connections)
+//! - GPU metrics (NVIDIA, AMD)
 //! - Temperature and battery monitoring
 //! - Process information and top consumers
 //! - System service status
@@ -12,18 +15,24 @@
 mod cpu;
 mod memory;
 mod disk;
+mod disk_io;
 mod network;
+mod network_advanced;
 mod thermal;
 mod processes;
+mod gpu;
 mod services;
 
 pub use cpu::CpuMetrics;
 pub use memory::{MemoryMetrics, SwapMetrics};
 pub use disk::DiskMetrics;
+pub use disk_io::DiskIoMetrics;
 pub use network::NetworkMetrics;
+pub use network_advanced::NetworkAdvancedMetrics;
 pub use thermal::{TemperatureMetrics, BatteryMetrics};
 pub use processes::ProcessInfo;
 pub use services::ServiceStatus;
+pub use gpu::GpuMetrics;
 
 use anyhow::Result;
 use serde::Serialize;
@@ -41,6 +50,12 @@ pub struct SystemMetrics {
     pub network: Option<NetworkMetrics>,
     pub temperature: Option<TemperatureMetrics>,
     pub battery: Option<BatteryMetrics>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gpu: Option<GpuMetrics>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disk_io: Option<DiskIoMetrics>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub network_advanced: Option<NetworkAdvancedMetrics>,
 }
 
 impl SystemMetrics {
@@ -64,6 +79,9 @@ impl SystemMetrics {
         let network = NetworkMetrics::collect();
         let temperature = TemperatureMetrics::collect();
         let battery = BatteryMetrics::collect().await;
+        let gpu = GpuMetrics::collect().await;
+        let disk_io = DiskIoMetrics::collect().await;
+        let network_advanced = NetworkAdvancedMetrics::collect().await;
 
         Ok(SystemMetrics {
             uptime_seconds,
@@ -74,6 +92,9 @@ impl SystemMetrics {
             network,
             temperature,
             battery,
+            gpu,
+            disk_io,
+            network_advanced,
         })
     }
 }
