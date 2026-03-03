@@ -444,7 +444,7 @@ class NotificationCenter extends LitElement {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          background: var(--surface-glass-strong, rgba(0, 0, 0, 0.3));
+          background: var(--surface-glass-strong);
         }
         .notif-title {
           font-size: 1rem;
