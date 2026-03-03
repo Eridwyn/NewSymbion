@@ -40,7 +40,7 @@ use sysinfo::System;
 use tracing::debug;
 
 /// Complete system metrics (matches agents.heartbeat@v1 schema)
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SystemMetrics {
     pub uptime_seconds: u64,
     pub cpu: CpuMetrics,

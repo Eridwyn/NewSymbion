@@ -4,13 +4,13 @@ use serde::Serialize;
 use sysinfo::Networks;
 
 /// Network interface statistics
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct NetworkMetrics {
     pub interfaces: Vec<NetworkInterfaceStats>,
 }
 
 /// Per-interface network statistics
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct NetworkInterfaceStats {
     pub name: String,
     pub bytes_sent: u64,
