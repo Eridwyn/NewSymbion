@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::discovery;
 use crate::metrics;
+use crate::watchdog;
 
 /// Agent registration message (matches agents.registration@v1 contract)
 #[derive(Debug, Serialize)]
@@ -31,6 +32,10 @@ pub struct HeartbeatMessage {
     pub processes: Option<metrics::ProcessInfo>,
     pub services: Option<Vec<metrics::ServiceStatus>>,
     pub last_command: Option<CommandInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub watchdog: Option<watchdog::WatchdogReport>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_data: Option<std::collections::HashMap<String, serde_json::Value>>,
     pub timestamp: DateTime<Utc>,
 }
 
@@ -87,9 +92,13 @@ pub struct ReceivedCommand {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogEntry {
     pub timestamp: DateTime<Utc>,
-    pub level: String,     // WARN, ERROR
+    pub level: String,     // WARN, ERROR, CRITICAL, etc.
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub module: Option<String>,
+    /// Source of the log: "agent" (default), "os_journal", "event_viewer"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 /// Batch of log entries sent to kernel via MQTT
@@ -204,6 +213,7 @@ mod tests {
             level: "ERROR".to_string(),
             message: "disk full".to_string(),
             module: Some("metrics".to_string()),
+            source: None,
         };
         let json = serde_json::to_string(&entry).unwrap();
         assert!(json.contains("ERROR"));
@@ -222,6 +232,7 @@ mod tests {
                     level: "WARN".to_string(),
                     message: "high cpu".to_string(),
                     module: None,
+                    source: None,
                 },
             ],
             timestamp: Utc::now(),

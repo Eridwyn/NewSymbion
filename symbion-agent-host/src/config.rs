@@ -12,12 +12,19 @@ use keyring::Entry;
 use std::path::PathBuf;
 use zeroize::Zeroize;
 
+use crate::log_collector::LogConfig;
+use crate::watchdog::WatchdogConfig;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
     pub mqtt: MqttConfig,
-    pub elevation: ElevationConfig,  
+    pub elevation: ElevationConfig,
     pub update: UpdateConfig,
     pub agent: AgentInfo,
+    #[serde(default)]
+    pub watchdog: WatchdogConfig,
+    #[serde(default)]
+    pub logging: LogConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,6 +103,8 @@ impl Default for AgentConfig {
                     }),
                 version: env!("CARGO_PKG_VERSION").to_string(),
             },
+            watchdog: WatchdogConfig::default(),
+            logging: LogConfig::default(),
         }
     }
 }

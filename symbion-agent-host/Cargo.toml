@@ -1,6 +1,6 @@
 [package]
 name = "symbion-agent-host"
-version = "2.0.3"
+version = "2.5.0"
 edition = "2021"
 description = "Multi-OS system agent for Symbion network control"
 authors = ["Symbion Team"]
@@ -60,6 +60,8 @@ rpassword = "7.3"
 zeroize = "1.7"
 toml = "0.8"
 dirs = "5.0"
+base64 = "0.22"
+sha2 = "0.10"
 
 
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -82,7 +84,7 @@ self-replace = "1.3"  # Safe executable replacement for auto-update
 # Default features: GUI enabled by default
 # NOTE: On Linux headless/terminal environments, GUI will auto-fallback to terminal mode
 #       To permanently disable GUI, compile with: cargo build --release --no-default-features
-default = ["gui"]
+default = ["gui", "notifications"]
 # Feature flags for different capabilities
 power-management = []
 service-control = []

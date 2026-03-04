@@ -22,6 +22,7 @@ pub enum CapabilityType {
     SystemMetrics,
     ServiceManagement,
     FileOperations,
+    Notifications,
 }
 
 /// Capability detection result
@@ -49,7 +50,8 @@ impl CapabilityDetector {
         capabilities.push(Self::detect_system_metrics().await);
         capabilities.push(Self::detect_service_management().await);
         capabilities.push(Self::detect_file_operations().await);
-        
+        capabilities.push(Self::detect_notifications().await);
+
         let available_count = capabilities.iter().filter(|c| c.available).count();
         debug!("Detected {}/{} capabilities available", available_count, capabilities.len());
         
@@ -68,6 +70,7 @@ impl CapabilityDetector {
                 CapabilityType::SystemMetrics => "system_metrics",
                 CapabilityType::ServiceManagement => "service_management",
                 CapabilityType::FileOperations => "file_operations",
+                CapabilityType::Notifications => "notifications",
             })
             .map(String::from)
             .collect()
@@ -183,15 +186,30 @@ impl CapabilityDetector {
         }
     }
     
-    /// File operations (future feature)
+    /// File operations (file transfer over MQTT)
     async fn detect_file_operations() -> CapabilityInfo {
         CapabilityInfo {
             capability_type: CapabilityType::FileOperations,
-            available: false,
-            reason: Some("File operations not implemented yet".to_string()),
+            available: true,
+            reason: None,
         }
     }
     
+    /// Detect notification capability (compile-time feature check)
+    async fn detect_notifications() -> CapabilityInfo {
+        let available = cfg!(feature = "notifications");
+        let reason = if !available {
+            Some("Notifications feature not compiled".to_string())
+        } else {
+            None
+        };
+        CapabilityInfo {
+            capability_type: CapabilityType::Notifications,
+            available,
+            reason,
+        }
+    }
+
     /// Check if a command exists in PATH
     async fn command_exists(command: &str) -> bool {
         #[cfg(target_os = "windows")]

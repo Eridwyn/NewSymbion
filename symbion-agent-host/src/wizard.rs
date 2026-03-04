@@ -40,6 +40,8 @@ impl SetupWizard {
             elevation: elevation_config,
             update: update_config,
             agent: agent_config,
+            watchdog: Default::default(),
+            logging: Default::default(),
         };
         
         // Display summary and confirm

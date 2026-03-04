@@ -21,6 +21,8 @@ mod network_advanced;
 mod thermal;
 mod processes;
 mod gpu;
+pub mod gpu_macos;
+pub mod disk_io_macos;
 mod services;
 
 pub use cpu::CpuMetrics;
