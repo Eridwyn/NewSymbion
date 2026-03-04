@@ -19,19 +19,8 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            name: linux-x64
-            extension: ''
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            name: windows-x64
-            extension: '.exe'
-
-    runs-on: ${{ matrix.os }}
+    # Kernel is a Linux systemd service — no Windows/macOS targets
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
@@ -39,73 +28,44 @@ jobs:
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
-      with:
-        targets: ${{ matrix.target }}
 
     - name: Cache Rust dependencies
       uses: Swatinem/rust-cache@v2
 
-    - name: Install system dependencies (Linux)
-      if: matrix.os == 'ubuntu-latest'
+    - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y pkg-config libssl-dev
 
     - name: Run tests
-      if: matrix.os == 'ubuntu-latest'
       run: |
-        cargo test -p symbion-kernel --target ${{ matrix.target }}
+        cargo test -p symbion-kernel
 
     - name: Build kernel binary
       run: |
-        cargo build --release -p symbion-kernel --target ${{ matrix.target }}
+        cargo build --release -p symbion-kernel
 
-    - name: Prepare binary with version (Linux/macOS)
-      if: matrix.os != 'windows-latest'
+    - name: Prepare binary with version
       run: |
         mkdir -p artifacts
         VERSION="${{ github.ref_name }}"
         if [ -z "$VERSION" ] || [ "$VERSION" = "master" ]; then
           VERSION="dev-$(git rev-parse --short HEAD)"
         fi
-        cp target/${{ matrix.target }}/release/symbion-kernel${{ matrix.extension }} "artifacts/symbion-kernel-${{ matrix.name }}-${VERSION}${{ matrix.extension }}"
-        cp target/${{ matrix.target }}/release/symbion-kernel${{ matrix.extension }} "artifacts/symbion-kernel-${{ matrix.name }}-latest${{ matrix.extension }}"
+        cp target/release/symbion-kernel "artifacts/symbion-kernel-linux-x64-${VERSION}"
+        cp target/release/symbion-kernel "artifacts/symbion-kernel-linux-x64-latest"
         chmod +x artifacts/*
 
-    - name: Prepare binary with version (Windows)
-      if: matrix.os == 'windows-latest'
-      shell: pwsh
-      run: |
-        New-Item -ItemType Directory -Path artifacts -Force
-        $VERSION = "${{ github.ref_name }}"
-        if ([string]::IsNullOrEmpty($VERSION) -or $VERSION -eq "master") {
-          $VERSION = "dev-$(git rev-parse --short HEAD)"
-        }
-        Copy-Item "target/${{ matrix.target }}/release/symbion-kernel${{ matrix.extension }}" "artifacts/symbion-kernel-${{ matrix.name }}-${VERSION}${{ matrix.extension }}"
-        Copy-Item "target/${{ matrix.target }}/release/symbion-kernel${{ matrix.extension }}" "artifacts/symbion-kernel-${{ matrix.name }}-latest${{ matrix.extension }}"
-
-    - name: Generate checksums (Linux/macOS)
-      if: matrix.os != 'windows-latest'
+    - name: Generate checksums
       run: |
         cd artifacts
-        sha256sum * > checksums-${{ matrix.name }}.sha256
+        sha256sum * > checksums.sha256
         ls -la
-
-    - name: Generate checksums (Windows)
-      if: matrix.os == 'windows-latest'
-      shell: pwsh
-      run: |
-        cd artifacts
-        Get-ChildItem -File | ForEach-Object {
-          $hash = (Get-FileHash -Path $_.Name -Algorithm SHA256).Hash
-          "$hash  $($_.Name)" | Out-File -Append -Encoding UTF8 checksums-${{ matrix.name }}.sha256
-        }
-        Get-ChildItem
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: symbion-kernel-${{ matrix.name }}
+        name: symbion-kernel-linux-x64
         path: artifacts/
         retention-days: 7
 
@@ -128,13 +88,8 @@ jobs:
     - name: Prepare release assets
       run: |
         mkdir -p release-assets
-        # Flatten all artifacts into single directory
         find artifacts/ -type f -exec cp {} release-assets/ \;
         ls -la release-assets/
-
-        # Combine checksums from all platforms
-        cat release-assets/checksums-*.sha256 > release-assets/checksums.sha256 || true
-        rm -f release-assets/checksums-*.sha256 || true
 
     - name: Get version
       id: get_version
@@ -160,32 +115,17 @@ jobs:
 
           ## 📥 Installation
 
-          ### 🐧 Linux (Automated Deployment)
+          ### Automated Deployment
           ```bash
           curl -sSL https://raw.githubusercontent.com/${{ github.repository }}/master/scripts/deploy-kernel.sh | bash -s ${{ steps.get_version.outputs.version }}
           ```
 
-          ### 🪟 Windows (Automated Deployment)
-          ```powershell
-          # Run PowerShell as Administrator
-          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/${{ github.repository }}/master/scripts/Deploy-SymbionKernel.ps1" -OutFile "Deploy-SymbionKernel.ps1"
-          .\Deploy-SymbionKernel.ps1 -Version "${{ steps.get_version.outputs.version }}"
-          ```
-
           ### Manual Installation
-
-          **Linux:**
           ```bash
           wget https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/symbion-kernel-linux-x64-${{ steps.get_version.outputs.version }}
           chmod +x symbion-kernel-linux-x64-${{ steps.get_version.outputs.version }}
           sudo cp symbion-kernel-linux-x64-${{ steps.get_version.outputs.version }} /opt/symbion/symbion-kernel
           sudo systemctl restart symbion-kernel
-          ```
-
-          **Windows:**
-          ```powershell
-          Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/symbion-kernel-windows-x64-${{ steps.get_version.outputs.version }}.exe" -OutFile "C:\Symbion\symbion-kernel.exe"
-          Restart-Service SymbionKernel
           ```
 
           ## ✅ Verification
@@ -194,7 +134,6 @@ jobs:
           ```
 
           ## 🔄 Rollback
-          If issues occur, rollback to previous version:
           ```bash
           sudo systemctl stop symbion-kernel
           sudo cp /opt/symbion/symbion-kernel.backup /opt/symbion/symbion-kernel
