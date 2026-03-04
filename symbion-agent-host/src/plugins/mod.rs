@@ -7,6 +7,7 @@ pub mod trait_def;
 pub mod registry;
 pub mod activity_tracker;
 
+#[allow(unused_imports)] // Public API for external plugin consumers
 pub use trait_def::AgentPlugin;
 pub use registry::AgentPluginRegistry;
 pub use activity_tracker::ActivityTracker;

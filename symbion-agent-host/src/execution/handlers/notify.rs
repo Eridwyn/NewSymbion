@@ -77,7 +77,7 @@ fn show_notification(title: &str, body: &str, urgency: &str, timeout_ms: u64) ->
     match Notification::new()
         .summary(title)
         .body(body)
-        .urgency(notify_urgency)
+        .hint(notify_rust::Hint::Urgency(notify_urgency))
         .timeout(notify_rust::Timeout::Milliseconds(timeout_ms as u32))
         .show()
     {
