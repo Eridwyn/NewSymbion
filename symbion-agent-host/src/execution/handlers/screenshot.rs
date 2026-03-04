@@ -146,8 +146,12 @@ async fn capture_screenshot(dest: &std::path::Path) -> anyhow::Result<()> {
             dest_str.replace('\\', "\\\\")
         );
 
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
         let output = tokio::process::Command::new("powershell")
-            .args(["-Command", &script])
+            .args(["-NonInteractive", "-WindowStyle", "Hidden", "-Command", &script])
+            .creation_flags(CREATE_NO_WINDOW)
             .output()
             .await?;
 
