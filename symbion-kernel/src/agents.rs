@@ -121,6 +121,12 @@ pub struct AgentStatus {
     /// Detailed health score breakdown
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub health_details: Option<HealthScoreDetails>,
+    /// Agent-side watchdog report (v2.5+)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub watchdog: Option<AgentWatchdogReport>,
+    /// Plugin data from agent plugins (v2.5+)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_data: Option<HashMap<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -310,6 +316,12 @@ pub struct AgentHeartbeatMessage {
     pub services: Option<Vec<AgentService>>,
     #[allow(dead_code)] // MQTT contract: required for deserialization
     pub last_command: Option<AgentLastCommand>,
+    /// Agent-side watchdog report (v2.5+)
+    #[serde(default)]
+    pub watchdog: Option<AgentWatchdogReport>,
+    /// Plugin data from agent plugins (v2.5+)
+    #[serde(default)]
+    pub plugin_data: Option<HashMap<String, serde_json::Value>>,
     #[allow(dead_code)] // MQTT contract: required for deserialization
     pub timestamp: String,
 }
@@ -345,6 +357,18 @@ struct AgentHealthTracking {
     commands_failed: u32,
 }
 
+// ========== Agent Watchdog Report (v2.5+) ==========
+
+/// Watchdog subsystem health report from agent-host v2.5+.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct AgentWatchdogReport {
+    pub status: String,
+    pub mqtt_status: String,
+    pub metrics_status: String,
+    pub heartbeat_status: String,
+    pub recovery_attempts: u32,
+}
+
 // ========== Agent Logs (Log Streaming B2) ==========
 
 /// Log entry received from an agent via MQTT.
@@ -354,6 +378,9 @@ pub struct AgentLogEntry {
     pub level: String,
     pub message: String,
     pub module: Option<String>,
+    /// Log source: "agent", "os_journal", "event_viewer" (v2.5+)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 /// MQTT payload for agent log forwarding.
@@ -410,7 +437,7 @@ impl AgentRegistry {
                 let network: AgentNetwork = serde_json::from_str(&row.network_json)
                     .unwrap_or_else(|_| AgentNetwork { primary_mac: String::new(), interfaces: vec![] });
                 let status: AgentStatus = serde_json::from_str(&row.status_json)
-                    .unwrap_or_else(|_| AgentStatus { status: "unknown".to_string(), last_heartbeat: None, system: None, processes: None, services: None, health_score: None, health_details: None });
+                    .unwrap_or_else(|_| AgentStatus { status: "unknown".to_string(), last_heartbeat: None, system: None, processes: None, services: None, health_score: None, health_details: None, watchdog: None, plugin_data: None });
                 let last_seen = OffsetDateTime::parse(&row.last_seen,
                     &time::format_description::well_known::Rfc3339).unwrap_or_else(|_| OffsetDateTime::now_utc());
                 let registration_time = OffsetDateTime::parse(&row.registration_time,
@@ -546,6 +573,8 @@ impl AgentRegistry {
                 services: None,
                 health_score: None,
                 health_details: None,
+                watchdog: None,
+                plugin_data: None,
             },
             last_seen: now,
             registration_time: now,
@@ -613,6 +642,26 @@ impl AgentRegistry {
 
                 agent.status.processes = msg.processes;
                 agent.status.services = msg.services;
+
+                // Store v2.5 watchdog report
+                if msg.watchdog.is_some() {
+                    agent.status.watchdog = msg.watchdog;
+                }
+
+                // Store v2.5 plugin data (merge to keep previous values)
+                if let Some(new_pd) = msg.plugin_data {
+                    match &mut agent.status.plugin_data {
+                        Some(existing) => {
+                            for (k, v) in new_pd {
+                                existing.insert(k, v);
+                            }
+                        }
+                        None => {
+                            agent.status.plugin_data = Some(new_pd);
+                        }
+                    }
+                }
+
                 agent.last_seen = now;
                 println!("[agents] agent {} updated - last_seen: {}", msg.agent_id, now);
             } else {

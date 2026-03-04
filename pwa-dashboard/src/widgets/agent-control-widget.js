@@ -1,13 +1,17 @@
 /**
  * Widget Agent Control - Contrôle détaillé d'un agent système
- * 
- * Modal avec 6 tabs pour contrôle complet:
+ *
+ * Modal avec 10 tabs pour contrôle complet:
  * - System: Power management, infos système, health score
  * - Processes: Liste processus + kill
  * - Metrics: CPU, RAM, disque temps réel
  * - Commands: Exécution commandes shell + historique
  * - Services: Gestion services système
  * - Logs: Streaming logs agent (WARN/ERROR)
+ * - Watchdog: État watchdog agent (v2.5+)
+ * - Scheduler: Tâches planifiées (create/delete/list)
+ * - Plugins: Données plugins + notifications agent
+ * - Screenshot: Capture d'écran distante
  */
 
 import { LitElement, html, css } from 'lit'
@@ -34,7 +38,11 @@ class AgentControlWidget extends LitElement {
     services: { type: Array },
     commandHistory: { type: Array },
     agentLogs: { type: Array },
-    logLevelFilter: { type: String }
+    logLevelFilter: { type: String },
+    watchdogData: { type: Object },
+    pluginData: { type: Object },
+    scheduledTasks: { type: Object },
+    screenshotStatus: { type: String }
   }
 
   static styles = [sharedAnimations, overlayStyles, statusBadgeStyles, widgetSectionStyles, css`
@@ -686,6 +694,12 @@ class AgentControlWidget extends LitElement {
     this.commandHistory = []
     this.agentLogs = []
     this.logLevelFilter = null
+    this.watchdogData = null
+    this.pluginData = null
+    this.scheduledTasks = null
+    this.screenshotStatus = null
+    this.scheduledTaskForm = { name: '', commandType: 'shell', scheduleType: 'once', schedule: '', parameters: '{}' }
+    this.notifyForm = { title: '', body: '', urgency: 'normal' }
   }
 
   connectedCallback() {
@@ -798,6 +812,18 @@ class AgentControlWidget extends LitElement {
       case 'logs':
         await this.loadAgentLogs()
         break
+      case 'watchdog':
+        await this.loadWatchdog()
+        break
+      case 'scheduler':
+        await this.loadScheduledTasks()
+        break
+      case 'plugins':
+        await this.loadPlugins()
+        break
+      case 'screenshot':
+        // No data to preload — tab is action-driven
+        break
     }
   }
 
@@ -885,6 +911,102 @@ class AgentControlWidget extends LitElement {
       console.error('Failed to load agent logs:', error)
     } finally {
       this.loading = false
+    }
+  }
+
+  async loadWatchdog() {
+    try {
+      this.loading = true
+      this.watchdogData = await this.agentsService.getAgentWatchdog(this.agentId)
+    } catch (error) {
+      console.error('Failed to load watchdog:', error)
+      this.watchdogData = null
+    } finally {
+      this.loading = false
+    }
+  }
+
+  async loadPlugins() {
+    try {
+      this.loading = true
+      this.pluginData = await this.agentsService.getAgentPlugins(this.agentId)
+    } catch (error) {
+      console.error('Failed to load plugins:', error)
+      this.pluginData = null
+    } finally {
+      this.loading = false
+    }
+  }
+
+  async loadScheduledTasks() {
+    try {
+      this.loading = true
+      this.scheduledTasks = await this.agentsService.getScheduledTasks(this.agentId)
+    } catch (error) {
+      console.error('Failed to load scheduled tasks:', error)
+      this.scheduledTasks = null
+    } finally {
+      this.loading = false
+    }
+  }
+
+  async sendNotification() {
+    if (!this.notifyForm.title.trim()) return
+    try {
+      await this.agentsService.notifyAgent(
+        this.agentId,
+        this.notifyForm.title,
+        this.notifyForm.body,
+        this.notifyForm.urgency
+      )
+      this.notifyForm = { title: '', body: '', urgency: 'normal' }
+      this.requestUpdate()
+      alert('Notification sent to agent')
+    } catch (error) {
+      console.error('Failed to send notification:', error)
+      alert(`Failed to send notification: ${error.message}`)
+    }
+  }
+
+  async takeScreenshot() {
+    try {
+      this.screenshotStatus = 'capturing'
+      this.requestUpdate()
+      const result = await this.agentsService.takeScreenshot(this.agentId, true)
+      this.screenshotStatus = result?.command_id ? `sent:${result.command_id}` : 'sent'
+      this.requestUpdate()
+    } catch (error) {
+      console.error('Failed to take screenshot:', error)
+      this.screenshotStatus = `error:${error.message}`
+      this.requestUpdate()
+    }
+  }
+
+  async createScheduledTask() {
+    const f = this.scheduledTaskForm
+    if (!f.name.trim() || !f.schedule.trim()) return
+    try {
+      let params = {}
+      try { params = JSON.parse(f.parameters) } catch { /* empty */ }
+      await this.agentsService.createScheduledTask(
+        this.agentId, f.name, f.commandType, f.schedule, params
+      )
+      this.scheduledTaskForm = { name: '', commandType: 'shell', scheduleType: 'once', schedule: '', parameters: '{}' }
+      await this.loadScheduledTasks()
+    } catch (error) {
+      console.error('Failed to create scheduled task:', error)
+      alert(`Failed to create task: ${error.message}`)
+    }
+  }
+
+  async deleteScheduledTask(taskName) {
+    if (!confirm(`Delete scheduled task "${taskName}"?`)) return
+    try {
+      await this.agentsService.deleteScheduledTask(this.agentId, taskName)
+      await this.loadScheduledTasks()
+    } catch (error) {
+      console.error('Failed to delete scheduled task:', error)
+      alert(`Failed to delete task: ${error.message}`)
     }
   }
 
@@ -1366,7 +1488,7 @@ class AgentControlWidget extends LitElement {
             </div>
             ${this.metrics.disk?.[0] ? html`
               <div class="ac-meta-hint">
-                ${this.metrics.disk[0].path}: ${this.metrics.disk[0].used_gb}/${this.metrics.disk[0].total_gb} GB
+                ${this.metrics.disk[0].path}: ${this.metrics.disk[0].used_gb?.toFixed(1)} / ${this.metrics.disk[0].total_gb?.toFixed(1)} GB
               </div>
             ` : ''}
           </div>
@@ -1420,29 +1542,36 @@ class AgentControlWidget extends LitElement {
         <div class="section">
           <div class="section-title">💾 Disk I/O</div>
           <div class="metrics-grid">
-            ${this.metrics.disk_io.disks.map(d => html`
-              <div class="metric-card">
-                <div class="metric-label">${d.device}</div>
-                <div class="io-stats">
-                  <div class="io-stat">
-                    <span class="io-stat-label">⬇ Read</span>
-                    <span class="io-stat-value">${this._formatBytes(d.read_bytes_per_sec)}/s</span>
-                  </div>
-                  <div class="io-stat">
-                    <span class="io-stat-label">⬆ Write</span>
-                    <span class="io-stat-value">${this._formatBytes(d.write_bytes_per_sec)}/s</span>
-                  </div>
-                  <div class="io-stat">
-                    <span class="io-stat-label">Read IOPS</span>
-                    <span class="io-stat-value">${d.read_iops}</span>
-                  </div>
-                  <div class="io-stat">
-                    <span class="io-stat-label">Write IOPS</span>
-                    <span class="io-stat-value">${d.write_iops}</span>
-                  </div>
+            ${this.metrics.disk_io.disks.map(d => {
+              const isIdle = !d.read_bytes_per_sec && !d.write_bytes_per_sec && !d.read_iops && !d.write_iops
+              return html`
+                <div class="metric-card">
+                  <div class="metric-label">${d.device}</div>
+                  ${isIdle ? html`
+                    <div class="ac-meta-hint" style="text-align: center; padding: 8px 0; opacity: 0.5;">Idle</div>
+                  ` : html`
+                    <div class="io-stats">
+                      <div class="io-stat">
+                        <span class="io-stat-label">⬇ Read</span>
+                        <span class="io-stat-value">${this._formatBytes(d.read_bytes_per_sec)}/s</span>
+                      </div>
+                      <div class="io-stat">
+                        <span class="io-stat-label">⬆ Write</span>
+                        <span class="io-stat-value">${this._formatBytes(d.write_bytes_per_sec)}/s</span>
+                      </div>
+                      <div class="io-stat">
+                        <span class="io-stat-label">Read IOPS</span>
+                        <span class="io-stat-value">${d.read_iops}</span>
+                      </div>
+                      <div class="io-stat">
+                        <span class="io-stat-label">Write IOPS</span>
+                        <span class="io-stat-value">${d.write_iops}</span>
+                      </div>
+                    </div>
+                  `}
                 </div>
-              </div>
-            `)}
+              `
+            })}
           </div>
         </div>
       ` : ''}
@@ -1640,7 +1769,7 @@ class AgentControlWidget extends LitElement {
             @click="${() => this.loadAgentLogs()}">🔄 Refresh</button>
         </div>
         ${this.agentLogs.length === 0
-          ? html`<div class="error-state">${this.loading ? 'Loading logs...' : 'No logs available'}</div>`
+          ? html`<div class="error-state">${this.loading ? 'Loading logs...' : 'No logs available'}<br><small>Only WARN/ERROR logs are collected by default</small></div>`
           : html`
             <div class="command-output" style="max-height: 400px; overflow-y: auto; font-size: var(--text-xs, 0.75rem);">
               ${this.agentLogs.map(log => html`
@@ -1653,6 +1782,337 @@ class AgentControlWidget extends LitElement {
             </div>
           `
         }
+      </div>
+    `
+  }
+
+  renderWatchdogTab() {
+    if (this.loading) {
+      return html`<div class="loading-state">Loading watchdog data...</div>`
+    }
+
+    if (!this.watchdogData) {
+      return html`
+        <div class="section">
+          <div class="section-title">🛡️ Watchdog Status</div>
+          <div class="error-state">
+            No watchdog data available
+            <br><small>Watchdog data is reported via agent heartbeat (v2.5+)</small>
+          </div>
+        </div>
+      `
+    }
+
+    const resp = this.watchdogData
+    const wd = resp.watchdog
+    const componentStatus = (s) => s === 'healthy' || s === 'ok' ? '#22c55e' : s === 'degraded' ? '#f59e0b' : '#ef4444'
+
+    if (!wd) {
+      return html`
+        <div class="section">
+          <div class="section-title">🛡️ Watchdog Status</div>
+          <div class="error-state">
+            No watchdog report from agent
+            <br><small>Agent may be running a version older than v2.5</small>
+          </div>
+        </div>
+        ${resp.health_score != null ? html`
+          <div class="section">
+            <div class="section-title">💓 Health Score</div>
+            <div class="info-grid">
+              <div class="info-card" style="grid-column: span 2;">
+                <div class="info-label">Score</div>
+                <div class="info-value" style="font-size: var(--text-2xl, 1.5rem); color: ${resp.health_score >= 80 ? '#22c55e' : resp.health_score >= 50 ? '#f59e0b' : '#ef4444'}">
+                  ${resp.health_score}/100
+                </div>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+      `
+    }
+
+    const statusColor = wd.status === 'healthy' ? '#22c55e' : wd.status === 'degraded' ? '#f59e0b' : '#ef4444'
+
+    return html`
+      <div class="section">
+        <div class="section-title">🛡️ Watchdog Status
+          <button class="power-btn" style="padding: 2px 8px; font-size: var(--text-xs, 0.75rem); margin-left: 8px;"
+            @click="${() => this.loadWatchdog()}">🔄</button>
+        </div>
+        <div class="info-grid">
+          <div class="info-card" style="grid-column: span 2;">
+            <div class="info-label">Overall Status</div>
+            <div class="info-value" style="font-size: var(--text-xl, 1.25rem); color: ${statusColor}">
+              ${wd.status?.toUpperCase() || 'UNKNOWN'}
+            </div>
+          </div>
+          <div class="info-card">
+            <div class="info-label">MQTT</div>
+            <div class="info-value" style="color: ${componentStatus(wd.mqtt_status)}">${wd.mqtt_status || 'N/A'}</div>
+          </div>
+          <div class="info-card">
+            <div class="info-label">Metrics</div>
+            <div class="info-value" style="color: ${componentStatus(wd.metrics_status)}">${wd.metrics_status || 'N/A'}</div>
+          </div>
+          <div class="info-card">
+            <div class="info-label">Heartbeat</div>
+            <div class="info-value" style="color: ${componentStatus(wd.heartbeat_status)}">${wd.heartbeat_status || 'N/A'}</div>
+          </div>
+          <div class="info-card">
+            <div class="info-label">Recovery Attempts</div>
+            <div class="info-value">${wd.recovery_attempts ?? 0}</div>
+          </div>
+        </div>
+      </div>
+
+      ${resp.health_score != null ? html`
+        <div class="section">
+          <div class="section-title">💓 Health Score</div>
+          <div class="info-grid">
+            <div class="info-card" style="grid-column: span 2;">
+              <div class="info-label">Score</div>
+              <div class="info-value" style="font-size: var(--text-2xl, 1.5rem); color: ${resp.health_score >= 80 ? '#22c55e' : resp.health_score >= 50 ? '#f59e0b' : '#ef4444'}">
+                ${resp.health_score}/100
+              </div>
+            </div>
+            ${resp.health_details ? html`
+              <div class="info-card">
+                <div class="info-label">Heartbeat</div>
+                <div class="info-value">${resp.health_details.heartbeat_score}/25</div>
+              </div>
+              <div class="info-card">
+                <div class="info-label">Resources</div>
+                <div class="info-value">${resp.health_details.resource_score}/25</div>
+              </div>
+              <div class="info-card">
+                <div class="info-label">Uptime</div>
+                <div class="info-value">${resp.health_details.uptime_score}/25</div>
+              </div>
+              <div class="info-card">
+                <div class="info-label">Commands</div>
+                <div class="info-value">${resp.health_details.command_score}/25</div>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      ` : ''}
+    `
+  }
+
+  renderSchedulerTab() {
+    const isOnline = this.agent && this.agent.status === 'online'
+
+    return html`
+      <div class="section">
+        <div class="section-title">📅 Create Scheduled Task</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; gap: 8px;">
+            <input type="text" class="command-field" placeholder="Task name"
+              style="flex: 1;"
+              .value="${this.scheduledTaskForm.name}"
+              @input="${(e) => { this.scheduledTaskForm = {...this.scheduledTaskForm, name: e.target.value}; this.requestUpdate() }}" />
+            <select class="command-field" style="flex: 0 0 auto; width: 120px; background: rgba(0,0,0,0.3); color: #e5e5e5; border: 1px solid var(--ctx-border); border-radius: 6px; padding: 4px 8px;"
+              @change="${(e) => { this.scheduledTaskForm = {...this.scheduledTaskForm, commandType: e.target.value}; this.requestUpdate() }}">
+              <option value="shell" ?selected="${this.scheduledTaskForm.commandType === 'shell'}">Shell</option>
+              <option value="reboot" ?selected="${this.scheduledTaskForm.commandType === 'reboot'}">Reboot</option>
+              <option value="shutdown" ?selected="${this.scheduledTaskForm.commandType === 'shutdown'}">Shutdown</option>
+            </select>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" class="command-field" placeholder="Schedule (cron: '0 2 * * *' or interval: '30m')"
+              style="flex: 1;"
+              .value="${this.scheduledTaskForm.schedule}"
+              @input="${(e) => { this.scheduledTaskForm = {...this.scheduledTaskForm, schedule: e.target.value}; this.requestUpdate() }}" />
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" class="command-field" placeholder='Parameters JSON (e.g. {"cmd": "apt update"})'
+              style="flex: 1;"
+              .value="${this.scheduledTaskForm.parameters}"
+              @input="${(e) => { this.scheduledTaskForm = {...this.scheduledTaskForm, parameters: e.target.value}; this.requestUpdate() }}" />
+            <button class="execute-btn" ?disabled="${!isOnline || !this.scheduledTaskForm.name.trim()}"
+              @click="${() => this.createScheduledTask()}">
+              ➕ Create
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">📋 Scheduled Tasks
+          <button class="power-btn" style="padding: 2px 8px; font-size: var(--text-xs, 0.75rem); margin-left: 8px;"
+            @click="${() => this.loadScheduledTasks()}">🔄</button>
+        </div>
+        ${this.loading
+          ? html`<div class="loading-state">Loading tasks...</div>`
+          : !this.scheduledTasks || (Array.isArray(this.scheduledTasks) && this.scheduledTasks.length === 0)
+            ? html`<div class="error-state">No scheduled tasks<br><small>Tasks are managed on the agent via command pipeline</small></div>`
+            : html`
+              <div style="overflow-x: auto;">
+                <table class="ac-table">
+                  <thead>
+                    <tr><th>Name</th><th>Schedule</th><th>Type</th><th>Actions</th></tr>
+                  </thead>
+                  <tbody>
+                    ${(Array.isArray(this.scheduledTasks) ? this.scheduledTasks : []).map(task => html`
+                      <tr>
+                        <td>${task.name || task.task_name || 'unnamed'}</td>
+                        <td style="font-size: var(--text-xs, 0.75rem);">${task.schedule || ''}</td>
+                        <td>${task.command_type || task.type || ''}</td>
+                        <td>
+                          <button class="power-btn danger" style="padding: 4px 8px; font-size: var(--text-xs, 0.75rem);"
+                            ?disabled="${!isOnline}"
+                            @click="${() => this.deleteScheduledTask(task.name || task.task_name)}">
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    `)}
+                  </tbody>
+                </table>
+              </div>
+            `
+        }
+      </div>
+    `
+  }
+
+  renderPluginsTab() {
+    if (this.loading) {
+      return html`<div class="loading-state">Loading plugins data...</div>`
+    }
+
+    const isOnline = this.agent && this.agent.status === 'online'
+    // API returns {agent_id, plugin_data: {...}} — unwrap
+    const plugins = this.pluginData?.plugin_data || this.pluginData
+
+    if (!plugins || Object.keys(plugins).length === 0) {
+      return html`
+        <div class="section">
+          <div class="section-title">🔌 Plugins Data</div>
+          <div class="error-state">
+            No plugin data available
+            <br><small>Plugin data is reported via agent heartbeat (v2.5+)</small>
+          </div>
+        </div>
+      `
+    }
+
+    return html`
+      ${plugins.activity_tracker ? html`
+        <div class="section">
+          <div class="section-title">🖱️ Activity Tracker
+            <button class="power-btn" style="padding: 2px 8px; font-size: var(--text-xs, 0.75rem); margin-left: 8px;"
+              @click="${() => this.loadPlugins()}">🔄</button>
+          </div>
+          <div class="info-grid">
+            <div class="info-card">
+              <div class="info-label">Status</div>
+              <div class="info-value">
+                <span class="status-badge ${plugins.activity_tracker.is_idle ? 'offline' : 'online'}">
+                  ${plugins.activity_tracker.is_idle ? 'Idle' : 'Active'}
+                </span>
+              </div>
+            </div>
+            <div class="info-card">
+              <div class="info-label">Idle Time</div>
+              <div class="info-value">${Math.round((plugins.activity_tracker.idle_secs || 0) / 60)}m</div>
+            </div>
+            ${plugins.activity_tracker.active_window ? html`
+              <div class="info-card" style="grid-column: span 2;">
+                <div class="info-label">Active Window</div>
+                <div class="info-value" style="font-size: var(--text-xs, 0.75rem);">${plugins.activity_tracker.active_window}</div>
+              </div>
+            ` : ''}
+            ${plugins.activity_tracker.total_active_secs != null ? html`
+              <div class="info-card">
+                <div class="info-label">Total Active Today</div>
+                <div class="info-value">${Math.round(plugins.activity_tracker.total_active_secs / 3600)}h ${Math.round((plugins.activity_tracker.total_active_secs % 3600) / 60)}m</div>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      ` : ''}
+
+      ${Object.entries(plugins).filter(([k]) => k !== 'activity_tracker').map(([pluginId, data]) => html`
+        <div class="section">
+          <div class="section-title">🔌 ${pluginId}</div>
+          <div class="command-output" style="max-height: 200px; overflow-y: auto; font-size: var(--text-xs, 0.75rem);">
+            ${JSON.stringify(data, null, 2)}
+          </div>
+        </div>
+      `)}
+
+      ${isOnline ? html`
+        <div class="section">
+          <div class="section-title">📤 Send Notification to Agent</div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; gap: 8px;">
+              <input type="text" class="command-field" placeholder="Title"
+                style="flex: 1;"
+                .value="${this.notifyForm.title}"
+                @input="${(e) => { this.notifyForm = {...this.notifyForm, title: e.target.value}; this.requestUpdate() }}" />
+              <select class="command-field" style="flex: 0 0 auto; width: 100px; background: rgba(0,0,0,0.3); color: #e5e5e5; border: 1px solid var(--ctx-border); border-radius: 6px; padding: 4px 8px;"
+                @change="${(e) => { this.notifyForm = {...this.notifyForm, urgency: e.target.value}; this.requestUpdate() }}">
+                <option value="low">Low</option>
+                <option value="normal" selected>Normal</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" class="command-field" placeholder="Message body"
+                style="flex: 1;"
+                .value="${this.notifyForm.body}"
+                @input="${(e) => { this.notifyForm = {...this.notifyForm, body: e.target.value}; this.requestUpdate() }}" />
+              <button class="execute-btn" ?disabled="${!this.notifyForm.title.trim()}"
+                @click="${() => this.sendNotification()}">
+                📤 Send
+              </button>
+            </div>
+          </div>
+        </div>
+      ` : ''}
+    `
+  }
+
+  renderScreenshotTab() {
+    const isOnline = this.agent && this.agent.status === 'online'
+
+    return html`
+      <div class="section">
+        <div class="section-title">📸 Remote Screenshot</div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px;">
+          <div style="font-size: var(--text-4xl, 2.25rem);">📸</div>
+          <p style="text-align: center; opacity: 0.7; font-size: var(--text-sm, 0.875rem);">
+            Request a screenshot from the remote agent.<br>
+            The agent will be notified before capture.
+          </p>
+          <button class="execute-btn" style="padding: 12px 32px; font-size: var(--text-base, 1rem);"
+            ?disabled="${!isOnline || this.screenshotStatus === 'capturing'}"
+            @click="${() => this.takeScreenshot()}">
+            ${this.screenshotStatus === 'capturing' ? 'Capturing...' : 'Take Screenshot'}
+          </button>
+          ${this.screenshotStatus && this.screenshotStatus !== 'capturing' ? html`
+            <div style="text-align: center; font-size: var(--text-sm, 0.875rem);">
+              ${this.screenshotStatus.startsWith('sent') ? html`
+                <span style="color: #22c55e;">Screenshot command sent</span>
+                ${this.screenshotStatus.includes(':') ? html`
+                  <br><small style="opacity: 0.5;">Command ID: ${this.screenshotStatus.split(':')[1]}</small>
+                ` : ''}
+              ` : this.screenshotStatus.startsWith('error') ? html`
+                <span style="color: #ef4444;">Error: ${this.screenshotStatus.split(':').slice(1).join(':')}</span>
+              ` : ''}
+            </div>
+          ` : ''}
+        </div>
+      </div>
+      <div class="section" style="opacity: 0.6;">
+        <div class="section-title">ℹ️ Privacy Notice</div>
+        <p style="font-size: var(--text-xs, 0.75rem); margin: 0;">
+          Screenshots are captured on the remote agent machine. The agent displays a notification
+          before capture to inform the user. Screenshots are stored locally on the agent and
+          are not automatically transferred.
+        </p>
       </div>
     `
   }
@@ -1743,6 +2203,26 @@ class AgentControlWidget extends LitElement {
             @click="${() => this.switchTab('logs')}">
             📜 Logs
           </button>
+          <button
+            class="tab-btn ${this.currentTab === 'watchdog' ? 'active' : ''}"
+            @click="${() => this.switchTab('watchdog')}">
+            🛡️ Watchdog
+          </button>
+          <button
+            class="tab-btn ${this.currentTab === 'scheduler' ? 'active' : ''}"
+            @click="${() => this.switchTab('scheduler')}">
+            📅 Scheduler
+          </button>
+          <button
+            class="tab-btn ${this.currentTab === 'plugins' ? 'active' : ''}"
+            @click="${() => this.switchTab('plugins')}">
+            🔌 Plugins
+          </button>
+          <button
+            class="tab-btn ${this.currentTab === 'screenshot' ? 'active' : ''}"
+            @click="${() => this.switchTab('screenshot')}">
+            📸 Screenshot
+          </button>
         </div>
 
         <div class="modal-content">
@@ -1763,6 +2243,18 @@ class AgentControlWidget extends LitElement {
           </div>
           <div class="tab-panel ${this.currentTab === 'logs' ? 'active' : ''}">
             ${this.renderLogsTab()}
+          </div>
+          <div class="tab-panel ${this.currentTab === 'watchdog' ? 'active' : ''}">
+            ${this.renderWatchdogTab()}
+          </div>
+          <div class="tab-panel ${this.currentTab === 'scheduler' ? 'active' : ''}">
+            ${this.renderSchedulerTab()}
+          </div>
+          <div class="tab-panel ${this.currentTab === 'plugins' ? 'active' : ''}">
+            ${this.renderPluginsTab()}
+          </div>
+          <div class="tab-panel ${this.currentTab === 'screenshot' ? 'active' : ''}">
+            ${this.renderScreenshotTab()}
           </div>
         </div>
       </div>

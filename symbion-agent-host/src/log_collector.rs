@@ -60,7 +60,7 @@ impl std::fmt::Display for LogLevel {
 /// Log collector configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogConfig {
-    /// Minimum level to collect (default: WARN for backward compat)
+    /// Minimum level to collect (default: INFO)
     #[serde(default = "default_min_level")]
     pub min_level: LogLevel,
     /// Levels that trigger immediate publish (no waiting for heartbeat flush)
@@ -77,7 +77,7 @@ pub struct LogConfig {
     pub os_log_services: Vec<String>,
 }
 
-fn default_min_level() -> LogLevel { LogLevel::Warn }
+fn default_min_level() -> LogLevel { LogLevel::Info }
 fn default_immediate_levels() -> Vec<LogLevel> { vec![LogLevel::Error, LogLevel::Critical] }
 fn default_max_buffer() -> usize { 200 }
 fn default_os_services() -> Vec<String> { vec!["symbion-agent-host".to_string()] }
