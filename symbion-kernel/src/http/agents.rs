@@ -1159,6 +1159,7 @@ pub(super) async fn agent_screenshot_endpoint(
     Json(body): Json<AgentScreenshotRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let params = serde_json::json!({
+        "allow_screenshots": true,
         "notify_before": body.notify_before.unwrap_or(true),
     });
     match app.agents.send_command(&id, "screenshot", Some(params)).await {
