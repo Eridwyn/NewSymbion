@@ -4,7 +4,6 @@
 //! Persistence via JSON file in config directory.
 //! Dispatches via the existing CommandRegistry.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;

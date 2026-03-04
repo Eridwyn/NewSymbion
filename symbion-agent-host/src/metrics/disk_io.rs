@@ -1,7 +1,8 @@
 //! Disk I/O throughput metrics
 
-use serde::{Deserialize, Serialize};
+#[allow(unused_imports)] // Used inside #[cfg(target_os)] blocks
 use tracing::debug;
+use serde::{Deserialize, Serialize};
 
 /// Disk I/O metrics for all block devices
 #[derive(Debug, Clone, Serialize, Deserialize)]
