@@ -19,6 +19,11 @@ export default defineConfig(({ mode }) => {
   // Load env vars
   const env = loadEnv(mode, process.cwd(), '')
 
+  // TLS certificates for dev server (optional — not needed for production build)
+  const certKeyPath = path.resolve(__dirname, '../symbion-kernel/certs/key-mkcert.pem')
+  const certPath = path.resolve(__dirname, '../symbion-kernel/certs/cert-mkcert.pem')
+  const certsExist = fs.existsSync(certKeyPath) && fs.existsSync(certPath)
+
   return {
   plugins: [
     VitePWA({
@@ -77,11 +82,10 @@ export default defineConfig(({ mode }) => {
     })
   ],
   server: {
-    https: {
-      // Utiliser les certificats mkcert de confiance
-      key: fs.readFileSync(path.resolve(__dirname, '../symbion-kernel/certs/key-mkcert.pem')),
-      cert: fs.readFileSync(path.resolve(__dirname, '../symbion-kernel/certs/cert-mkcert.pem')),
-    },
+    https: certsExist ? {
+      key: fs.readFileSync(certKeyPath),
+      cert: fs.readFileSync(certPath),
+    } : undefined,
     host: '0.0.0.0',  // Permet connexions externes (mobile, LAN)
     port: 3000,
     hmr: {

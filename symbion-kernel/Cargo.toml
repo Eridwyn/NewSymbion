@@ -42,7 +42,10 @@ webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"]
 webauthn-rs-proto = "0.5"  # Protocol types for WebAuthn
 
 # F4: Notifications (Firebase FCM + SMTP)
-reqwest = { version = "0.12", features = ["json"] }  # HTTP client for FCM API
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# Cross-platform: vendor OpenSSL for webauthn-rs attestation (avoids system OpenSSL on Windows CI)
+openssl = { version = "0.10", features = ["vendored"] }
 
 # Dynamic Plugin Routing (Unix Socket Reverse Proxy)
 hyper = "1.0"
