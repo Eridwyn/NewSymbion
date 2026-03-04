@@ -1,8 +1,8 @@
 # Roadmap Technique - NewSymbion
 
-**Version** : 2026-03 (Post Audit + Sprint P0/P1/P2/P3 + Sprint 5/5 K3+K4+K8 + Sprint 7 SQLite + Sprint 8 Agent v2 + Sprint 9 Tests)
-**Statut** : Fondations complètes, Agent Host v2 (9 phases), 100% persistance SQLite, couverture tests renforcée
-**Dernière mise à jour** : 2 Mars 2026
+**Version** : 2026-03 (Post Audit + Sprint P0/P1/P2/P3 + Sprint 5/5 K3+K4+K8 + Sprint 7 SQLite + Sprint 8-9 Agent v2 + Sprint 10-14 Agent v2.5)
+**Statut** : Fondations complètes, Agent Host v2.5.0 (8 features, 5 sprints), 100% persistance SQLite, couverture tests renforcée
+**Dernière mise à jour** : 4 Mars 2026
 **Score global** : 4.8/5
 
 ---
@@ -15,22 +15,22 @@
 |-----------|---------|----:|----------|-------|------:|
 | **symbion-kernel** | Rust | ~46,800 | 102 | 4.8/5 | 405 |
 | **pwa-dashboard** | JS (Lit) | ~36,400 | 75 | 4.5/5 | 744 |
-| **symbion-agent-host** | Rust | ~6,440 | 34 | 4.5/5 | 107 |
+| **symbion-agent-host** | Rust | ~11,200 | 47 | 4.7/5 | 218 |
 | **Plugins** (5) | Rust | ~5,580 | 14 | 4.8/5 | 28 |
 | **Infra** (scripts/CI) | Bash/YAML | ~2,960 | 24 | 3.5/5 | - |
-| **Total** | | **~98,200** | **249** | **4.7/5** | **1,284** |
+| **Total** | | **~103,000** | **262** | **4.7/5** | **1,395** |
 
 ### Chiffres Clés
 
 | Métrique | Valeur |
 |----------|--------|
-| Unit Tests | 1,284 (405 kernel + 744 PWA + 107 agent + 28 plugins) |
+| Unit Tests | 1,395 (405 kernel + 744 PWA + 218 agent + 28 plugins) |
 | API Routes (http/) | 150+ endpoints across 7 modules + plugins |
 | MQTT Topics | 10 subscriptions |
 | Automations actives | 16 (+ intelligence-managed) |
 | Modes contextuels | 4 système + custom |
 | Intelligence Samples | 34 (apprentissage continu) |
-| **SQLite Database** | **21 tables, 3 migrations, 13 query modules, 107 fonctions** |
+| **SQLite Database** | **21 tables, 5 migrations, 13 query modules, 107 fonctions** |
 | Data files (JSON) | Fallback uniquement (SQLite primaire) |
 | **Issues audit** | **116 identifiées — 29 P0/P1 + 47 P2 + 46 P3 corrigées, 3 faux positifs, 0 différées** |
 | **OpenAPI/Swagger** | 109 paths, 184 schemas, Swagger UI `/swagger-ui/` |
@@ -246,23 +246,29 @@
 
 ---
 
-## Features Planifiées (Non Implémentées)
-
-### AV2 — Agent Host v2 🟡 65%
-**Sprint 8 en cours** — 9 phases complétées (v1.2.6)
+### AV2 — Agent Host v2.5.0 🟢 100%
+**Complété** : 4 Mars 2026 — Sprint 8-14 (v1.0 → v2.5.0)
 
 - ~~Refonte architecture : split main.rs 1,242 → 220 LOC, 15 modules~~ ✅
 - ~~Trait-based command system (6 handlers, whitelist, PID blacklist)~~ ✅
 - ~~Monitoring enrichi : 8 catégories (CPU, RAM, disk, network, thermal, battery, processes, services)~~ ✅
 - ~~GUI borderless + glassmorphic + IPC handler~~ ✅
 - ~~Pipeline commandes à distance PWA → Kernel → Agent → Response~~ ✅
-- ~~Tests : 5 → 107 (Sprint 8: 5→69, Sprint 9: 69→107)~~ ✅
-- Plugin system agent-side, event bus interne
-- Capabilities v2 : file transfer, screenshots, log streaming, scheduled tasks
-- Sécurité avancée : mutual TLS, command signing, watchdog
-- Cross-platform : macOS complet, ARM/Raspberry Pi
+- ~~Tests : 5 → 218 (Sprint 8: 5→69, Sprint 9: 69→107, Sprint 10-14: 107→218)~~ ✅
+- ~~Internal Watchdog (self-healing, MQTT liveness, metrics health)~~ ✅
+- ~~Log Streaming Enhancement (configurable levels, immediate publish ERROR, OS log capture)~~ ✅
+- ~~OS Notifications (notify-rust, feature-gated)~~ ✅
+- ~~Scheduled Tasks (Once/Interval/Daily/Weekly, JSON persistence, 15s tick)~~ ✅
+- ~~File Transfer over MQTT (500KB chunks, base64, SHA-256 integrity, 50MB max)~~ ✅
+- ~~Agent Plugin System (trait AgentPlugin, ActivityTracker built-in)~~ ✅
+- ~~Screenshot capture (privacy-first, cross-platform, notification before capture)~~ ✅
+- ~~macOS/ARM support (launchd plist, gpu_macos via ioreg, disk_io_macos via iostat)~~ ✅
 
-**Fichiers** : 34 `.rs` (6,438 LOC), `agent.rs` (559), `local_api.rs` (637), `gui.rs` (281), `execution/` (10 fichiers), `metrics/` (8 fichiers)
+**Fichiers** : 47 `.rs` (~11,200 LOC), `agent.rs` (559), `local_api.rs` (637), `gui.rs` (281), `execution/` (16 fichiers), `metrics/` (12 fichiers), `plugins/` (4 fichiers)
+
+---
+
+## Features Planifiées (Non Implémentées)
 
 ### F2 — Digital Hygiene ⚪ 0%
 **Effort estimé** : 9 jours
@@ -859,9 +865,9 @@
 
 **Fichiers** : `database/` (17 modules, 4,524 LOC), `sql/v001_initial.sql`, `sql/v002_remaining_tables.sql`, `sql/v003_remaining_json.sql`
 
-## Phase Active
+## Sprints Complétés (Agent Host)
 
-### Sprint 8 — Agent Host v2 🟡 65%
+### Sprint 8 — Agent Host v2 Architecture 🟢 100%
 **Objectif** : Refonte du symbion-agent-host (4/5 → 4.5+/5)
 **Résultat** : 9 phases complétées, score 4/5 → 4.5/5, version v1.2.6
 
@@ -915,33 +921,78 @@
 
 **Fichiers** : 34 fichiers `.rs` (6,438 LOC), 3 fichiers UI, `gui.rs` (281), `agent.rs` (559), `local_api.rs` (637)
 
-#### Restant (Sprint 8 suite) ⚪
+### Sprint 10 — Watchdog + Log Streaming (v2.1.0) 🟢 100%
+**Complété** : 4 Mars 2026
 
-**Architecture**
-- [ ] Plugin system agent-side (trait `AgentPlugin`)
-- [ ] Event bus interne
+**Feature 1 — Internal Watchdog** (commit tag `v2.5.0`)
+- [x] `watchdog.rs` (487 LOC) — WatchdogConfig, SubsystemStatus, WatchdogReport
+- [x] MQTT liveness check (90s timeout → force reconnect)
+- [x] Metrics health (5 failures threshold → degraded)
+- [x] Heartbeat liveness (120s timeout → alert + recovery)
+- [x] Self-healing : max 3 recovery attempts, puis exit(1) pour systemd
+- [x] 15 tests
 
-**Monitoring enrichi**
-- [ ] GPU metrics (NVIDIA via nvidia-smi, AMD via rocm-smi)
-- [ ] Disk I/O metrics (read/write throughput)
-- [ ] Monitoring réseau avancé (latence, débit temps réel)
+**Feature 2 — Log Streaming Enhancement** (commit tag `v2.5.0`)
+- [x] `log_collector.rs` (386 LOC) — LogLevel, LogConfig, LogCollector
+- [x] Configurable levels (TRACE→CRITICAL)
+- [x] Immediate publish for ERROR/CRITICAL (pas d'attente 30s)
+- [x] OS log capture : journalctl (Linux), wevtutil (Windows) — cfg-gated
+- [x] 11 tests
 
-**Capabilities v2**
-- [ ] File transfer agent↔kernel (petit fichiers, configs)
-- [ ] Screenshot/screen capture à distance
-- [ ] Notification système locale (toast OS natif)
-- [ ] Scheduled tasks agent-side (cron local)
-- [ ] Log streaming (journalctl/Event Viewer → kernel)
+### Sprint 11 — Notifications + Scheduled Tasks (v2.2.0) 🟢 100%
+**Complété** : 4 Mars 2026
 
-**Sécurité avancée**
-- [ ] Mutual TLS agent↔broker (certificats client)
-- [ ] Command signing (vérification signature kernel)
-- [ ] Watchdog process (redémarrage auto si crash)
+**Feature 3 — OS Notifications** (commit tag `v2.5.0`)
+- [x] `execution/handlers/notify.rs` (151 LOC) — NotifyHandler
+- [x] Feature-gated : `cfg(feature = "notifications")` → notify-rust
+- [x] Params : title, body, urgency (low/normal/critical), timeout_ms
+- [x] 5 tests
 
-**Cross-platform**
-- [ ] macOS support complet (launchd, pmset)
-- [ ] Android/Termux amélioré (battery, notifications)
-- [ ] ARM support (Raspberry Pi)
+**Feature 4 — Scheduled Tasks** (commit tag `v2.5.0`)
+- [x] `scheduler.rs` (371 LOC) — TaskSchedule (Once/Interval/Daily/Weekly)
+- [x] `execution/handlers/schedule.rs` (213 LOC) — ScheduleHandler
+- [x] JSON persistence `<config_dir>/symbion-agent/scheduled-tasks.json`
+- [x] 15s tick loop dispatching via CommandRegistry
+- [x] 17 tests (12 scheduler + 5 handler)
+
+### Sprint 12 — File Transfer Protocol (v2.3.0) 🟢 100%
+**Complété** : 4 Mars 2026
+
+**Feature 5 — File Transfer over MQTT** (commit tag `v2.5.0`)
+- [x] `file_transfer.rs` (540 LOC) — FileTransferManager
+- [x] `execution/handlers/file_transfer.rs` (114 LOC)
+- [x] Chunking 500KB (base64 ~667KB, sous 1MB MQTT)
+- [x] SHA-256 par chunk + fichier complet
+- [x] Path traversal protection, max 50MB, sandboxed directory
+- [x] 17 tests (11 transfer + 4 handler + 2 integration)
+
+### Sprint 13 — Agent Plugin System (v2.4.0) 🟢 100%
+**Complété** : 4 Mars 2026
+
+**Feature 6 — Plugin System** (commit tag `v2.5.0`)
+- [x] `plugins/trait_def.rs` (33 LOC) — trait `AgentPlugin` (init/tick/handle_command/shutdown)
+- [x] `plugins/registry.rs` (150 LOC) — `AgentPluginRegistry`
+- [x] `plugins/activity_tracker.rs` (201 LOC) — Built-in plugin (idle time, active window)
+- [x] `execution/handlers/plugin_cmd.rs` (122 LOC) — PluginCommandHandler
+- [x] `plugin_data` dans HeartbeatMessage
+- [x] 16 tests (11 plugins + 5 handler)
+
+### Sprint 14 — Screenshot + macOS/ARM (v2.5.0) 🟢 100%
+**Complété** : 4 Mars 2026
+
+**Feature 7 — Screenshot** (commit tag `v2.5.0`)
+- [x] `execution/handlers/screenshot.rs` (190 LOC) — ScreenshotHandler
+- [x] Privacy-first : `allow_screenshots: false` par défaut
+- [x] Cross-platform : gnome-screenshot/scrot/grim (Linux), PowerShell (Windows)
+- [x] Notification avant capture (si configuré)
+- [x] 4 tests
+
+**Feature 8 — macOS/ARM** (commit tag `v2.5.0`)
+- [x] `metrics/gpu_macos.rs` (109 LOC) — GPU metrics via `ioreg`
+- [x] `metrics/disk_io_macos.rs` (84 LOC) — Disk I/O via `iostat`
+- [x] `macos/com.symbion.agent.plist` — launchd service definition
+- [x] cfg-gated blocks for all platform-specific code
+- [x] 4 tests
 
 ### Sprint 9 — Couverture Tests ✅ TERMINÉ (2 Mars 2026)
 **Objectif** : Stabiliser couverture tests avant nouvelles features
@@ -965,13 +1016,17 @@
 - [x] `symbion-plugin-freebox` : +4 tests (PollingConfig defaults, all 11 default functions, config load, roundtrip)
 
 **Bilan** : Tests Rust workspace 474 → 540 (+66), Total projet 1,218 → 1,284
+**Bilan Sprint 10-14** : Tests agent 107 → 218 (+111), Total projet 1,284 → 1,395
 
 ---
 
-### Sprint 10+ (Long terme) — Features
+### Sprint 15+ (Long terme) — Features
 - [ ] F3 Intentions Log (type déjà défini)
 - [ ] F2 Digital Hygiene (activity tracking + burnout)
 - [ ] F5 Light Actuator (bridge hardware Tuya)
+- [ ] Mutual TLS agent↔broker (certificats client)
+- [ ] Command signing (vérification signature kernel)
+- [ ] Android/Termux amélioré (battery, notifications)
 
 ---
 
@@ -1008,5 +1063,5 @@ AUTOMATION ENGINE (automations/) — Trigger → Condition → Action
 
 **Document Maintenu Par** : Claude Code + Mark
 **Git Branch** : master
-**Agent Host** : v1.2.6 (107 tests, 34 fichiers, 6,438 LOC)
+**Agent Host** : v2.5.0 (218 tests, 47 fichiers, ~11,200 LOC)
 **Plugins** : 28 tests (ssl 9 + notes 10 + common 5 + freebox 4)
