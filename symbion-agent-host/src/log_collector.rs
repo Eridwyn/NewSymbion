@@ -286,7 +286,7 @@ mod tests {
     #[test]
     fn test_log_config_defaults() {
         let config = LogConfig::default();
-        assert_eq!(config.min_level, LogLevel::Warn);
+        assert_eq!(config.min_level, LogLevel::Info);
         assert!(config.immediate_publish_levels.contains(&LogLevel::Error));
         assert!(config.immediate_publish_levels.contains(&LogLevel::Critical));
         assert_eq!(config.max_buffer_size, 200);
@@ -296,7 +296,7 @@ mod tests {
     #[test]
     fn test_log_config_serde_defaults() {
         let config: LogConfig = toml::from_str("").unwrap();
-        assert_eq!(config.min_level, LogLevel::Warn);
+        assert_eq!(config.min_level, LogLevel::Info);
         assert_eq!(config.max_buffer_size, 200);
     }
 
@@ -339,8 +339,8 @@ mod tests {
     #[tokio::test]
     async fn test_collector_filters_below_min_level() {
         let collector = make_collector();
-        // Default min_level is WARN, so INFO should be filtered out
-        collector.push("INFO", "should be filtered", None, None).await;
+        // Default min_level is INFO, so DEBUG should be filtered out
+        collector.push("DEBUG", "should be filtered", None, None).await;
         assert_eq!(collector.buffer_len().await, 0);
     }
 
