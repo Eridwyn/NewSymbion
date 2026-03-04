@@ -17,11 +17,16 @@ mod metrics;
 mod mqtt_client;
 mod execution;
 mod config;
+mod file_transfer;
+mod log_collector;
+mod plugins;
+mod scheduler;
 mod updater;
 mod wizard;
 mod local_api;
 mod system_tray;
 mod transport;
+mod watchdog;
 mod windows_utils;
 
 #[cfg(feature = "gui")]

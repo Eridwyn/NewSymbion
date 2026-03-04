@@ -23,6 +23,11 @@ use crate::messages::*;
 use crate::metrics;
 use crate::mqtt_client;
 use crate::system_tray;
+use crate::file_transfer::FileTransferManager;
+use crate::log_collector::LogCollector;
+use crate::plugins::{AgentPluginRegistry, ActivityTracker};
+use crate::scheduler::Scheduler;
+use crate::watchdog::Watchdog;
 
 /// Runtime MQTT configuration (derived from user config)
 #[derive(Debug, Clone)]
@@ -56,7 +61,10 @@ pub struct Agent {
     system_tray: Option<system_tray::SystemTray>,
     mqtt_connected: Arc<AtomicBool>,
     reconnect_rx: Option<mpsc::Receiver<()>>,
-    pending_logs: Arc<std::sync::Mutex<Vec<crate::messages::LogEntry>>>,
+    log_collector: Arc<LogCollector>,
+    scheduler: Arc<Scheduler>,
+    plugin_registry: Arc<tokio::sync::Mutex<AgentPluginRegistry>>,
+    watchdog: Arc<Watchdog>,
 }
 
 impl Agent {
@@ -85,7 +93,53 @@ impl Agent {
         });
 
         // Build command registry with all standard handlers
-        let command_registry = handlers::build_default_registry();
+        let mut command_registry = handlers::build_default_registry();
+
+        // Create scheduler and register its handler
+        let scheduler = Arc::new(Scheduler::new().await);
+        command_registry.register(Box::new(
+            handlers::ScheduleHandler::new(scheduler.clone()),
+        ));
+
+        // Create file transfer manager and register its handler
+        let transfer_dir = dirs::config_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+            .join("symbion-agent")
+            .join("transfers");
+        let file_transfer = Arc::new(FileTransferManager::new(transfer_dir));
+        let _ = file_transfer.ensure_dir().await;
+        command_registry.register(Box::new(
+            handlers::FileTransferHandler::new(file_transfer.clone()),
+        ));
+
+        // Register screenshot handler (reuses file transfer directory)
+        command_registry.register(Box::new(
+            handlers::ScreenshotHandler::new(file_transfer),
+        ));
+
+        // Create plugin registry with built-in plugins
+        let plugin_registry = {
+            let mut registry = AgentPluginRegistry::new();
+            let _ = registry.register(Box::new(ActivityTracker::new())).await;
+            Arc::new(tokio::sync::Mutex::new(registry))
+        };
+        command_registry.register(Box::new(
+            handlers::PluginCommandHandler::new(plugin_registry.clone()),
+        ));
+
+        // Create log collector
+        let log_collector = Arc::new(LogCollector::new(
+            agent_config.logging.clone(),
+            system_info.agent_id.clone(),
+            mqtt_handle.client.clone(),
+        ));
+
+        // Create watchdog
+        let watchdog = Arc::new(Watchdog::new(
+            agent_config.watchdog.clone(),
+            mqtt_handle.connected.clone(),
+            None,
+        ));
 
         info!("Agent initialized — ID: {}, Hostname: {}, commands: {:?}",
               system_info.agent_id, system_info.hostname, command_registry.command_types());
@@ -101,7 +155,10 @@ impl Agent {
             system_tray: None,
             mqtt_connected: mqtt_handle.connected,
             reconnect_rx: None,
-            pending_logs: Arc::new(std::sync::Mutex::new(Vec::new())),
+            log_collector,
+            scheduler,
+            plugin_registry,
+            watchdog,
         })
     }
 
@@ -133,12 +190,16 @@ impl Agent {
         info!("Starting agent main loop...");
         self.log("INFO", "Agent main loop started").await;
 
+        // Spawn watchdog background task
+        let _watchdog_handle = self.watchdog.clone().spawn();
+
         // Initial registration
         self.register().await?;
         self.log("INFO", "Agent registered with kernel").await;
 
         let mut heartbeat_timer = interval(Duration::from_secs(self.config.heartbeat_interval_secs));
         let mut registration_timer = interval(Duration::from_secs(300));
+        let mut scheduler_timer = interval(Duration::from_secs(15));
         let mut reconnect_rx = self.reconnect_rx.take();
 
         // Graceful shutdown signal
@@ -157,11 +218,14 @@ impl Agent {
                     let connected = self.mqtt_connected.load(Ordering::Relaxed);
                     match self.send_heartbeat().await {
                         Ok(system_metrics) => {
+                            self.watchdog.notify_heartbeat_sent().await;
+                            self.watchdog.notify_metrics_ok().await;
                             // Reuse metrics from heartbeat — avoid double collection
                             self.update_local_api_status(connected, Some(system_metrics)).await;
                         }
                         Err(e) => {
                             error!("Failed to send heartbeat: {}", e);
+                            self.watchdog.notify_metrics_failed().await;
                             self.log("ERROR", &format!("Heartbeat failed: {}", e)).await;
                             self.update_local_api_status(connected, None).await;
                         }
@@ -171,6 +235,13 @@ impl Agent {
                 _ = registration_timer.tick() => {
                     if let Err(e) = self.register().await {
                         error!("Failed to re-register: {}", e);
+                    }
+                }
+
+                _ = scheduler_timer.tick() => {
+                    let executed = self.scheduler.tick(&self.command_registry).await;
+                    if executed > 0 {
+                        debug!("Scheduler executed {} task(s)", executed);
                     }
                 }
 
@@ -223,6 +294,8 @@ impl Agent {
             processes: None,
             services: None,
             last_command: self.last_command.clone(),
+            watchdog: Some(self.watchdog.report().await),
+            plugin_data: None,
             timestamp: Utc::now(),
         };
 
@@ -266,6 +339,15 @@ impl Agent {
         let process_info = metrics::ProcessInfo::collect().await.ok();
         let services = metrics::ServiceStatus::collect_critical().await.ok();
 
+        let watchdog_report = self.watchdog.report().await;
+
+        // Tick plugins and collect data
+        let plugin_data = {
+            let registry = self.plugin_registry.lock().await;
+            let data = registry.tick_all().await;
+            if data.is_empty() { None } else { Some(data) }
+        };
+
         let heartbeat = HeartbeatMessage {
             agent_id: self.system_info.agent_id.clone(),
             status: "online".to_string(),
@@ -273,29 +355,16 @@ impl Agent {
             processes: process_info,
             services,
             last_command: self.last_command.clone(),
+            watchdog: Some(watchdog_report),
+            plugin_data,
             timestamp: Utc::now(),
         };
 
         mqtt_client::publish_json(&self.mqtt_client, mqtt_client::TOPIC_HEARTBEAT, &heartbeat).await?;
         debug!("Heartbeat sent");
 
-        // Flush pending logs to kernel
-        let logs_to_send: Vec<crate::messages::LogEntry> = {
-            let mut logs = self.pending_logs.lock().unwrap_or_else(|e| e.into_inner());
-            std::mem::take(&mut *logs)
-        };
-        if !logs_to_send.is_empty() {
-            let log_msg = crate::messages::LogMessage {
-                agent_id: self.system_info.agent_id.clone(),
-                entries: logs_to_send,
-                timestamp: Utc::now(),
-            };
-            if let Err(e) = mqtt_client::publish_json(&self.mqtt_client, mqtt_client::TOPIC_LOGS, &log_msg).await {
-                warn!("Failed to send logs to kernel: {}", e);
-            } else {
-                debug!("Flushed {} log entries to kernel", log_msg.entries.len());
-            }
-        }
+        // Flush buffered logs to kernel
+        self.log_collector.flush().await;
 
         Ok(system_metrics)
     }
@@ -413,27 +482,13 @@ impl Agent {
     // Local API status update
     // ========================================================================
 
-    /// Push a log entry to the local API ring buffer (if available)
+    /// Push a log entry to the local API ring buffer and log collector
     async fn log(&self, level: &str, message: &str) {
         if let Some(ref api) = self.local_api {
             api.push_log(level, message).await;
         }
-        // Buffer WARN/ERROR for forwarding to kernel
-        if level == "WARN" || level == "ERROR" {
-            if let Ok(mut logs) = self.pending_logs.lock() {
-                logs.push(crate::messages::LogEntry {
-                    timestamp: Utc::now(),
-                    level: level.to_string(),
-                    message: message.to_string(),
-                    module: None,
-                });
-                // Cap at 200 entries to prevent memory issues
-                if logs.len() > 200 {
-                    let excess = logs.len() - 200;
-                    logs.drain(..excess);
-                }
-            }
-        }
+        // Forward to log collector (it handles level filtering and immediate publish)
+        self.log_collector.push(level, message, None, None).await;
     }
 
     /// Update local API status. Reuses metrics from heartbeat to avoid double collection.
@@ -562,6 +617,7 @@ mod tests {
                     level: "ERROR".to_string(),
                     message: format!("error {}", i),
                     module: None,
+                    source: None,
                 });
             }
             // Cap at 200
@@ -582,6 +638,7 @@ mod tests {
             level: "WARN".to_string(),
             message: "test".to_string(),
             module: Some("agent".to_string()),
+            source: None,
         };
         let json = serde_json::to_string(&entry).unwrap();
         // Verify timestamp is ISO 8601
