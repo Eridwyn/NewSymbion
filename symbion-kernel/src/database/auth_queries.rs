@@ -286,7 +286,10 @@ pub fn insert_credential(db: &Database, row: &WebauthnRow) -> Result<i64> {
     conn.execute(
         "INSERT INTO webauthn_credentials
          (username, credential_id, credential_json, friendly_name, created_at, last_used_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(credential_id) DO UPDATE SET
+             credential_json = excluded.credential_json,
+             last_used_at = excluded.last_used_at",
         params![
             row.username,
             row.credential_id,
