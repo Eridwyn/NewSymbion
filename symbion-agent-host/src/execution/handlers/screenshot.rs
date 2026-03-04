@@ -74,10 +74,26 @@ impl CommandHandler for ScreenshotHandler {
             match capture_screenshot(&dest).await {
                 Ok(()) => {
                     info!("[screenshot] Captured: {}", filename);
+
+                    // Read PNG and encode as base64 for transfer to dashboard
+                    let image_base64 = match tokio::fs::read(&dest).await {
+                        Ok(bytes) => {
+                            use base64::Engine;
+                            info!("[screenshot] Encoding {} bytes as base64", bytes.len());
+                            Some(base64::engine::general_purpose::STANDARD.encode(&bytes))
+                        }
+                        Err(e) => {
+                            warn!("[screenshot] Failed to read file for base64 encoding: {}", e);
+                            None
+                        }
+                    };
+
                     CommandResult::success(serde_json::json!({
                         "message": "Screenshot captured",
                         "filename": filename,
                         "path": dest.to_string_lossy(),
+                        "content_type": "image/png",
+                        "image_base64": image_base64,
                     }))
                 }
                 Err(e) => {

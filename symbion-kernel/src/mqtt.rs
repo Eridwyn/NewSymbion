@@ -83,7 +83,7 @@ pub fn create_mqtt_client(config: &HostsConfig) -> Result<AsyncClient, Box<dyn s
     let mut opts = MqttOptions::new("symbion-kernel-bridge", &mqtt_cfg.host, mqtt_cfg.port);
     opts.set_keep_alive(std::time::Duration::from_secs(15));
     let max_packet = std::env::var("SYMBION_MQTT_MAX_PACKET")
-        .ok().and_then(|v| v.parse().ok()).unwrap_or(1024 * 1024);
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(5 * 1024 * 1024);
     opts.set_max_packet_size(max_packet, max_packet);
     let (client, mut eventloop) = AsyncClient::new(opts, 10);
 
@@ -111,7 +111,7 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
         let mut opts = MqttOptions::new("symbion-kernel-listener", &mqtt_cfg.host, mqtt_cfg.port);
         opts.set_keep_alive(std::time::Duration::from_secs(15));
         let max_packet = std::env::var("SYMBION_MQTT_MAX_PACKET")
-            .ok().and_then(|v| v.parse().ok()).unwrap_or(1024 * 1024);
+            .ok().and_then(|v| v.parse().ok()).unwrap_or(5 * 1024 * 1024);
         opts.set_max_packet_size(max_packet, max_packet);
         let (client, mut eventloop) = AsyncClient::new(opts, 200); // Buffer increased for streaming (100+ notes)
         
