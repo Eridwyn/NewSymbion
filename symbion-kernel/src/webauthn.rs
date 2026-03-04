@@ -78,7 +78,18 @@ impl WebAuthnManager {
         let webauthn = Arc::new(builder.build()?);
 
         // Charger les credentials depuis le fichier
-        let credentials = Self::load_credentials(&storage_path)?;
+        let mut credentials = Self::load_credentials(&storage_path)?;
+
+        // Dédupliquer au chargement (fix pour les doublons accumulés)
+        for (_, user_creds) in credentials.iter_mut() {
+            let mut seen = std::collections::HashSet::new();
+            let before = user_creds.len();
+            user_creds.retain(|c| seen.insert(c.credential_id.clone()));
+            if user_creds.len() < before {
+                eprintln!("[webauthn] Deduplicated {} → {} credentials",
+                    before, user_creds.len());
+            }
+        }
 
         Ok(Self {
             webauthn,
@@ -116,6 +127,7 @@ impl WebAuthnManager {
             }
             eprintln!("[webauthn] Loaded {} users with passkeys from SQLite", creds.len());
             *self.credentials.write() = creds;
+            self.deduplicate_credentials();
         } else {
             // Seed DB from in-memory data
             self.persist_to_db(&db);
@@ -124,7 +136,7 @@ impl WebAuthnManager {
         self
     }
 
-    /// Persist all credentials to SQLite
+    /// Persist all credentials to SQLite (upsert — safe against duplicates)
     fn persist_to_db(&self, db: &crate::database::SharedDatabase) {
         let creds = self.credentials.read();
         for (_, user_creds) in creds.iter() {
@@ -142,6 +154,15 @@ impl WebAuthnManager {
                 };
                 let _ = crate::database::auth_queries::insert_credential(db, &row);
             }
+        }
+    }
+
+    /// Deduplicate in-memory credentials (remove entries with same credential_id)
+    fn deduplicate_credentials(&self) {
+        let mut creds = self.credentials.write();
+        for (_, user_creds) in creds.iter_mut() {
+            let mut seen = std::collections::HashSet::new();
+            user_creds.retain(|c| seen.insert(c.credential_id.clone()));
         }
     }
 
@@ -295,12 +316,27 @@ impl WebAuthnManager {
     /// Permet à l'authenticator de présenter TOUTES les passkeys disponibles
     /// L'utilisateur choisit via son biométrie, le serveur identifie ensuite via credential_id
     pub fn start_discoverable_authentication(&self) -> Result<RequestChallengeResponse> {
-        // Récupérer TOUTES les passkeys enregistrées (tous utilisateurs)
+        // Browser limit: allowCredentials max 64 entries
+        const MAX_ALLOW_CREDENTIALS: usize = 64;
+
+        // Récupérer TOUTES les passkeys enregistrées, triées par dernière utilisation
         let all_passkeys = {
             let creds = self.credentials.read();
-            creds
+            let mut all_stored: Vec<&StoredCredential> = creds
                 .values()
                 .flat_map(|user_creds| user_creds.iter())
+                .collect();
+
+            // Priorité aux plus récemment utilisées
+            all_stored.sort_by(|a, b| {
+                let a_time = a.last_used_at.unwrap_or(a.created_at);
+                let b_time = b.last_used_at.unwrap_or(b.created_at);
+                b_time.cmp(&a_time)
+            });
+
+            all_stored
+                .into_iter()
+                .take(MAX_ALLOW_CREDENTIALS)
                 .map(|stored_cred| stored_cred.credential.clone())
                 .collect::<Vec<_>>()
         };
@@ -309,7 +345,7 @@ impl WebAuthnManager {
             anyhow::bail!("No passkeys registered in the system");
         }
 
-        // Générer le challenge d'authentification avec TOUTES les passkeys
+        // Générer le challenge d'authentification (max 64 passkeys)
         let (rcr, auth_state) = self
             .webauthn
             .start_passkey_authentication(&all_passkeys)?;

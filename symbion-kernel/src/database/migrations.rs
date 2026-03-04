@@ -17,6 +17,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (2, include_str!("sql/v002_remaining_tables.sql")),
     (3, include_str!("sql/v003_remaining_json.sql")),
     (4, include_str!("sql/v004_command_history.sql")),
+    (5, include_str!("sql/v005_webauthn_unique.sql")),
 ];
 
 /// Ensure schema_version table exists, then apply pending migrations.
@@ -74,7 +75,7 @@ mod tests {
         let version: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 4);
+        assert_eq!(version, 5);
 
         // Verify v1 tables
         let count: i64 = conn
@@ -131,6 +132,6 @@ mod tests {
         let version: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 4);
+        assert_eq!(version, 5);
     }
 }
