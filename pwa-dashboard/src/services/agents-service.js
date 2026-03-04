@@ -280,6 +280,87 @@ class AgentsService extends LitElement {
     return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/logs${query}`)
   }
 
+  // ===== Agent Watchdog (v2.5+) =====
+
+  async getAgentWatchdog(agentId) {
+    return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/watchdog`)
+  }
+
+  // ===== Agent Plugins (v2.5+) =====
+
+  async getAgentPlugins(agentId) {
+    return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/plugins`)
+  }
+
+  async sendPluginCommand(agentId, pluginId, action, parameters = null) {
+    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+    const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/plugins/${encodeURIComponent(pluginId)}/command`
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, parameters })
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    return await response.json()
+  }
+
+  // ===== Agent Notifications (v2.5+) =====
+
+  async notifyAgent(agentId, title, body, urgency = 'normal', timeout_ms = 5000) {
+    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+    const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/notify`
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, body, urgency, timeout_ms })
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    return await response.json()
+  }
+
+  // ===== Agent Screenshot (v2.5+) =====
+
+  async takeScreenshot(agentId, notifyBefore = true) {
+    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+    const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/screenshot`
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notify_before: notifyBefore })
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    return await response.json()
+  }
+
+  // ===== Agent Scheduled Tasks (v2.5+) =====
+
+  async getScheduledTasks(agentId) {
+    return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/scheduled-tasks`)
+  }
+
+  async createScheduledTask(agentId, name, commandType, schedule, parameters = null) {
+    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+    const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/scheduled-tasks`
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, command_type: commandType, schedule, parameters })
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    return await response.json()
+  }
+
+  async deleteScheduledTask(agentId, taskName) {
+    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+    const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/scheduled-tasks/${encodeURIComponent(taskName)}`
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    return await response.json()
+  }
+
   // ===== Latest Agent Version (cached 5 min) =====
 
   async getLatestAgentVersion() {

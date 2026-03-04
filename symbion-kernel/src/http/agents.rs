@@ -1006,3 +1006,313 @@ pub(super) async fn agent_logs_endpoint(
         "count": entries.len(),
     }))
 }
+
+// =============== AGENT v2.5 FEATURE ENDPOINTS ===============
+
+/// Request body for sending a notification to an agent.
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct AgentNotifyRequest {
+    pub title: Option<String>,
+    pub body: String,
+    pub urgency: Option<String>,
+    pub timeout_ms: Option<u64>,
+}
+
+/// Request body for taking a screenshot on an agent.
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct AgentScreenshotRequest {
+    #[serde(default = "default_true")]
+    pub notify_before: Option<bool>,
+}
+fn default_true() -> Option<bool> { Some(true) }
+
+/// Request body for creating a scheduled task on an agent.
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct CreateScheduledTaskRequest {
+    pub name: String,
+    pub command_type: String,
+    #[schema(value_type = Object)]
+    pub schedule: serde_json::Value,
+    #[schema(value_type = Option<Object>)]
+    pub parameters: Option<serde_json::Value>,
+}
+
+/// Request body for sending a command to an agent plugin.
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct AgentPluginCommandRequest {
+    pub action: String,
+    #[schema(value_type = Option<Object>)]
+    pub parameters: Option<serde_json::Value>,
+}
+
+/// GET /v1/agents/{id}/watchdog -- Return watchdog health report for an agent.
+#[utoipa::path(
+    get,
+    path = "/agents/{id}/watchdog",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(("id" = String, Path, description = "Agent ID")),
+    responses(
+        (status = 200, description = "Watchdog health report"),
+        (status = 404, description = "Agent not found")
+    )
+)]
+pub(super) async fn agent_watchdog_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match app.agents.get_agent(&id).await {
+        Some(agent) => Ok(Json(serde_json::json!({
+            "agent_id": id,
+            "watchdog": agent.status.watchdog,
+            "health_score": agent.status.health_score,
+            "health_details": agent.status.health_details,
+        }))),
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+/// GET /v1/agents/{id}/plugins -- Return plugin data from agent heartbeat.
+#[utoipa::path(
+    get,
+    path = "/agents/{id}/plugins",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(("id" = String, Path, description = "Agent ID")),
+    responses(
+        (status = 200, description = "Agent plugin data"),
+        (status = 404, description = "Agent not found")
+    )
+)]
+pub(super) async fn agent_plugins_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match app.agents.get_agent(&id).await {
+        Some(agent) => Ok(Json(serde_json::json!({
+            "agent_id": id,
+            "plugin_data": agent.status.plugin_data,
+        }))),
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+/// POST /v1/agents/{id}/notify -- Send a desktop notification to the agent.
+#[utoipa::path(
+    post,
+    path = "/agents/{id}/notify",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Agent ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    request_body = AgentNotifyRequest,
+    responses(
+        (status = 200, description = "Notification command sent"),
+        (status = 500, description = "Failed to send command")
+    )
+)]
+pub(super) async fn agent_notify_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<AgentNotifyRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let params = serde_json::json!({
+        "title": body.title,
+        "body": body.body,
+        "urgency": body.urgency.unwrap_or_else(|| "normal".to_string()),
+        "timeout_ms": body.timeout_ms.unwrap_or(5000),
+    });
+    match app.agents.send_command(&id, "notify", Some(params)).await {
+        Ok(command_id) => Ok(Json(serde_json::json!({
+            "success": true,
+            "command_id": command_id,
+            "message": "Notification command sent"
+        }))),
+        Err(e) => {
+            eprintln!("[http] failed to send notify to agent {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+/// POST /v1/agents/{id}/screenshot -- Request a screenshot from the agent.
+#[utoipa::path(
+    post,
+    path = "/agents/{id}/screenshot",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Agent ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    request_body = AgentScreenshotRequest,
+    responses(
+        (status = 200, description = "Screenshot command sent"),
+        (status = 500, description = "Failed to send command")
+    )
+)]
+pub(super) async fn agent_screenshot_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<AgentScreenshotRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let params = serde_json::json!({
+        "notify_before": body.notify_before.unwrap_or(true),
+    });
+    match app.agents.send_command(&id, "screenshot", Some(params)).await {
+        Ok(command_id) => Ok(Json(serde_json::json!({
+            "success": true,
+            "command_id": command_id,
+            "message": "Screenshot command sent"
+        }))),
+        Err(e) => {
+            eprintln!("[http] failed to send screenshot to agent {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+/// POST /v1/agents/{id}/scheduled-tasks -- Create a scheduled task on the agent.
+#[utoipa::path(
+    post,
+    path = "/agents/{id}/scheduled-tasks",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Agent ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    request_body = CreateScheduledTaskRequest,
+    responses(
+        (status = 200, description = "Schedule task command sent"),
+        (status = 500, description = "Failed to send command")
+    )
+)]
+pub(super) async fn agent_create_scheduled_task_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<CreateScheduledTaskRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let params = serde_json::json!({
+        "name": body.name,
+        "command_type": body.command_type,
+        "schedule": body.schedule,
+        "parameters": body.parameters,
+    });
+    match app.agents.send_command(&id, "schedule_task", Some(params)).await {
+        Ok(command_id) => Ok(Json(serde_json::json!({
+            "success": true,
+            "command_id": command_id,
+            "message": "Schedule task command sent"
+        }))),
+        Err(e) => {
+            eprintln!("[http] failed to send schedule_task to agent {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+/// GET /v1/agents/{id}/scheduled-tasks -- List scheduled tasks on the agent.
+#[utoipa::path(
+    get,
+    path = "/agents/{id}/scheduled-tasks",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(("id" = String, Path, description = "Agent ID")),
+    responses(
+        (status = 200, description = "Command sent to list scheduled tasks (poll command_id for result)"),
+        (status = 500, description = "Failed to send command")
+    )
+)]
+pub(super) async fn agent_scheduled_tasks_endpoint(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match app.agents.send_command(&id, "list_scheduled_tasks", None).await {
+        Ok(command_id) => Ok(Json(serde_json::json!({
+            "success": true,
+            "command_id": command_id,
+            "message": "List scheduled tasks command sent — poll /commands/{command_id}/status for result"
+        }))),
+        Err(e) => {
+            eprintln!("[http] failed to send list_scheduled_tasks to agent {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+/// DELETE /v1/agents/{id}/scheduled-tasks/{name} -- Delete a scheduled task on the agent.
+#[utoipa::path(
+    delete,
+    path = "/agents/{id}/scheduled-tasks/{name}",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Agent ID"),
+        ("name" = String, Path, description = "Task name"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    responses(
+        (status = 200, description = "Unschedule task command sent"),
+        (status = 500, description = "Failed to send command")
+    )
+)]
+pub(super) async fn agent_delete_scheduled_task_endpoint(
+    State(app): State<AppState>,
+    Path((id, name)): Path<(String, String)>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let params = serde_json::json!({ "name": name });
+    match app.agents.send_command(&id, "unschedule_task", Some(params)).await {
+        Ok(command_id) => Ok(Json(serde_json::json!({
+            "success": true,
+            "command_id": command_id,
+            "message": format!("Unschedule task '{}' command sent", name)
+        }))),
+        Err(e) => {
+            eprintln!("[http] failed to send unschedule_task to agent {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+/// POST /v1/agents/{id}/plugins/{plugin_id}/command -- Send a command to an agent plugin.
+#[utoipa::path(
+    post,
+    path = "/agents/{id}/plugins/{plugin_id}/command",
+    tag = "Agents",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Agent ID"),
+        ("plugin_id" = String, Path, description = "Plugin ID"),
+        ("X-CSRF-Token" = String, Header, description = "CSRF nonce")
+    ),
+    request_body = AgentPluginCommandRequest,
+    responses(
+        (status = 200, description = "Plugin command sent"),
+        (status = 500, description = "Failed to send command")
+    )
+)]
+pub(super) async fn agent_plugin_command_endpoint(
+    State(app): State<AppState>,
+    Path((id, plugin_id)): Path<(String, String)>,
+    Json(body): Json<AgentPluginCommandRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let params = serde_json::json!({
+        "plugin_id": plugin_id,
+        "action": body.action,
+        "parameters": body.parameters,
+    });
+    match app.agents.send_command(&id, "plugin_command", Some(params)).await {
+        Ok(command_id) => Ok(Json(serde_json::json!({
+            "success": true,
+            "command_id": command_id,
+            "message": format!("Plugin command sent to {}", plugin_id)
+        }))),
+        Err(e) => {
+            eprintln!("[http] failed to send plugin_command to agent {}: {}", id, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
