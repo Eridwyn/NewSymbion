@@ -55,6 +55,7 @@ pub fn create_and_spawn(config: &MqttConfig) -> MqttClientHandle {
     );
     mqtt_options.set_keep_alive(Duration::from_secs(config.keep_alive_secs));
     mqtt_options.set_clean_session(true);
+    mqtt_options.set_max_packet_size(5 * 1024 * 1024, 5 * 1024 * 1024); // 5MB for screenshot base64
 
     let (client, eventloop) = AsyncClient::new(mqtt_options, 10);
     let (command_tx, command_rx) = mpsc::channel::<ReceivedCommand>(100);

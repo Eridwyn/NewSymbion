@@ -42,7 +42,8 @@ class AgentControlWidget extends LitElement {
     watchdogData: { type: Object },
     pluginData: { type: Object },
     scheduledTasks: { type: Object },
-    screenshotStatus: { type: String }
+    screenshotStatus: { type: String },
+    screenshotImage: { type: String }
   }
 
   static styles = [sharedAnimations, overlayStyles, statusBadgeStyles, widgetSectionStyles, css`
@@ -971,15 +972,52 @@ class AgentControlWidget extends LitElement {
   async takeScreenshot() {
     try {
       this.screenshotStatus = 'capturing'
+      this.screenshotImage = null
       this.requestUpdate()
       const result = await this.agentsService.takeScreenshot(this.agentId, true)
-      this.screenshotStatus = result?.command_id ? `sent:${result.command_id}` : 'sent'
-      this.requestUpdate()
+      if (result?.command_id) {
+        this.screenshotStatus = `polling:${result.command_id}`
+        this.requestUpdate()
+        this._pollScreenshot(result.command_id)
+      } else {
+        this.screenshotStatus = 'sent'
+        this.requestUpdate()
+      }
     } catch (error) {
       console.error('Failed to take screenshot:', error)
       this.screenshotStatus = `error:${error.message}`
       this.requestUpdate()
     }
+  }
+
+  async _pollScreenshot(commandId) {
+    let attempts = 0
+    const poll = async () => {
+      if (attempts++ > 30) {
+        this.screenshotStatus = 'error:Timeout waiting for screenshot'
+        this.requestUpdate()
+        return
+      }
+      try {
+        const status = await this.agentsService.getCommandStatus(commandId)
+        if (status.status === 'Completed' && status.output?.image_base64) {
+          this.screenshotImage = `data:${status.output.content_type || 'image/png'};base64,${status.output.image_base64}`
+          this.screenshotStatus = `done:${status.output.filename || 'screenshot.png'}`
+          this.requestUpdate()
+          return
+        } else if (status.status === 'Completed') {
+          this.screenshotStatus = `done:${status.output?.filename || 'unknown'}`
+          this.requestUpdate()
+          return
+        } else if (status.status === 'Failed') {
+          this.screenshotStatus = `error:${status.error?.message || 'Capture failed'}`
+          this.requestUpdate()
+          return
+        }
+      } catch (e) { /* continue polling */ }
+      setTimeout(poll, 1000)
+    }
+    poll()
   }
 
   async createScheduledTask() {
@@ -2092,26 +2130,46 @@ class AgentControlWidget extends LitElement {
             @click="${() => this.takeScreenshot()}">
             ${this.screenshotStatus === 'capturing' ? 'Capturing...' : 'Take Screenshot'}
           </button>
-          ${this.screenshotStatus && this.screenshotStatus !== 'capturing' ? html`
+          ${this.screenshotStatus?.startsWith('polling') ? html`
             <div style="text-align: center; font-size: var(--text-sm, 0.875rem);">
-              ${this.screenshotStatus.startsWith('sent') ? html`
-                <span style="color: #22c55e;">Screenshot command sent</span>
-                ${this.screenshotStatus.includes(':') ? html`
-                  <br><small style="opacity: 0.5;">Command ID: ${this.screenshotStatus.split(':')[1]}</small>
-                ` : ''}
-              ` : this.screenshotStatus.startsWith('error') ? html`
-                <span style="color: #ef4444;">Error: ${this.screenshotStatus.split(':').slice(1).join(':')}</span>
-              ` : ''}
+              <span style="color: var(--context-primary, #667eea);">⏳ Capturing screenshot...</span>
+            </div>
+          ` : ''}
+          ${this.screenshotStatus?.startsWith('done') ? html`
+            <div style="text-align: center; font-size: var(--text-sm, 0.875rem);">
+              <span style="color: #22c55e;">✅ ${this.screenshotStatus.split(':')[1]}</span>
+            </div>
+          ` : ''}
+          ${this.screenshotStatus?.startsWith('error') ? html`
+            <div style="text-align: center; font-size: var(--text-sm, 0.875rem);">
+              <span style="color: #ef4444;">❌ ${this.screenshotStatus.split(':').slice(1).join(':')}</span>
+            </div>
+          ` : ''}
+          ${this.screenshotStatus?.startsWith('sent') ? html`
+            <div style="text-align: center; font-size: var(--text-sm, 0.875rem);">
+              <span style="color: #22c55e;">Screenshot command sent</span>
             </div>
           ` : ''}
         </div>
       </div>
+      ${this.screenshotImage ? html`
+        <div class="section">
+          <div class="section-title">🖼️ Captured Screenshot</div>
+          <div style="border: 1px solid var(--border-subtle, rgba(255,255,255,0.1)); border-radius: 8px; overflow: hidden; max-width: 100%;">
+            <img src="${this.screenshotImage}" alt="Screenshot"
+                 style="width: 100%; height: auto; display: block; cursor: pointer;"
+                 @click="${() => window.open(this.screenshotImage, '_blank')}" />
+          </div>
+          <small style="opacity: 0.5; display: block; margin-top: 4px;">
+            ${this.screenshotStatus?.split(':')[1] || ''} — Click image to open full size
+          </small>
+        </div>
+      ` : ''}
       <div class="section" style="opacity: 0.6;">
         <div class="section-title">ℹ️ Privacy Notice</div>
         <p style="font-size: var(--text-xs, 0.75rem); margin: 0;">
           Screenshots are captured on the remote agent machine. The agent displays a notification
-          before capture to inform the user. Screenshots are stored locally on the agent and
-          are not automatically transferred.
+          before capture to inform the user. Screenshots are stored locally on the agent.
         </p>
       </div>
     `
