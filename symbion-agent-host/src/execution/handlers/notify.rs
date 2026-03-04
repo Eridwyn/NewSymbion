@@ -66,20 +66,26 @@ impl CommandHandler for NotifyHandler {
 /// Show notification using notify-rust (feature-gated)
 #[cfg(feature = "notifications")]
 fn show_notification(title: &str, body: &str, urgency: &str, timeout_ms: u64) -> CommandResult {
-    use notify_rust::{Notification, Urgency};
+    use notify_rust::Notification;
 
-    let notify_urgency = match urgency {
-        "low" => Urgency::Low,
-        "critical" => Urgency::Critical,
-        _ => Urgency::Normal,
-    };
-
-    match Notification::new()
-        .summary(title)
+    let mut notif = Notification::new();
+    notif.summary(title)
         .body(body)
-        .hint(notify_rust::Hint::Urgency(notify_urgency))
-        .timeout(notify_rust::Timeout::Milliseconds(timeout_ms as u32))
-        .show()
+        .timeout(notify_rust::Timeout::Milliseconds(timeout_ms as u32));
+
+    // Urgency hints are only supported on Linux (XDG/dbus backend)
+    #[cfg(target_os = "linux")]
+    {
+        use notify_rust::Urgency;
+        let notify_urgency = match urgency {
+            "low" => Urgency::Low,
+            "critical" => Urgency::Critical,
+            _ => Urgency::Normal,
+        };
+        notif.hint(notify_rust::Hint::Urgency(notify_urgency));
+    }
+
+    match notif.show()
     {
         Ok(_) => {
             info!("Notification shown: {} — {}", title, body);
