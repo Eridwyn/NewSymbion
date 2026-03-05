@@ -643,6 +643,61 @@ class AgentControlWidget extends LitElement {
     .ac-version-outdated { color: var(--warning-color, #f59e0b); }
     .ac-version-icon { cursor: help; margin-left: 4px; }
 
+    /* === P1-9: Migrated inline style classes === */
+    .ac-span-2 { grid-column: span 2; }
+    .ac-health-score { font-size: var(--text-2xl, 1.5rem); }
+    .ac-health-good { color: #22c55e; }
+    .ac-health-warn { color: #f59e0b; }
+    .ac-health-bad { color: #ef4444; }
+    .ac-btn-sm { padding: 2px 8px; font-size: var(--text-xs, 0.75rem); margin-left: 8px; }
+    .ac-btn-compact { padding: 4px 8px; font-size: var(--text-xs, 0.75rem); }
+    .ac-btn-filter { padding: 4px 12px; font-size: var(--text-xs, 0.75rem); }
+    .ac-scroll-x { overflow-x: auto; }
+    .ac-flex-col { display: flex; flex-direction: column; gap: 8px; }
+    .ac-flex-row { display: flex; gap: 8px; }
+    .ac-flex-row-12 { display: flex; gap: 12px; margin-bottom: 12px; }
+    .ac-flex-1 { flex: 1; }
+    .ac-select-field { flex: 0 0 auto; background: rgba(0,0,0,0.3); color: #e5e5e5; border: 1px solid var(--ctx-border); border-radius: 6px; padding: 4px 8px; }
+    .ac-select-w120 { width: 120px; }
+    .ac-select-w100 { width: 100px; }
+    .ac-cursor-pointer { cursor: pointer; }
+    .ac-text-xs { font-size: var(--text-xs, 0.75rem); }
+    .ac-text-sm { font-size: var(--text-sm, 0.875rem); }
+    .ac-text-xl { font-size: var(--text-xl, 1.25rem); }
+    .ac-text-4xl { font-size: var(--text-4xl, 2.25rem); }
+    .ac-opacity-half { opacity: 0.5; }
+    .ac-opacity-40 { opacity: 0.4; }
+    .ac-opacity-60 { opacity: 0.6; }
+    .ac-opacity-70 { opacity: 0.7; }
+    .ac-cmd-row { cursor: pointer; }
+    .ac-cmd-detail { padding: 8px 12px; background: rgba(0,0,0,0.2); border-radius: 4px; }
+    .ac-cmd-output-label { font-size: var(--text-xs, 0.75rem); opacity: 0.6; }
+    .ac-cmd-output-pre { margin: 4px 0; padding: 6px 8px; background: rgba(0,0,0,0.3); border-radius: 4px; font-size: var(--text-xs, 0.75rem); white-space: pre-wrap; word-break: break-all; max-height: 150px; overflow-y: auto; }
+    .ac-cmd-error-label { font-size: var(--text-xs, 0.75rem); color: #ef4444; }
+    .ac-cmd-error-pre { margin: 4px 0; padding: 6px 8px; background: rgba(239,68,68,0.1); border-radius: 4px; font-size: var(--text-xs, 0.75rem); white-space: pre-wrap; color: #fca5a5; }
+    .ac-log-output { max-height: 400px; overflow-y: auto; font-size: var(--text-xs, 0.75rem); }
+    .ac-log-entry { margin-bottom: 4px; }
+    .ac-log-error { color: #ef4444; }
+    .ac-log-warn { color: #f59e0b; }
+    .ac-log-default { color: #e5e5e5; }
+    .ac-log-timestamp { opacity: 0.6; }
+    .ac-log-module { opacity: 0.4; }
+    .ac-ml-auto { margin-left: auto; }
+    .ac-actions-row { display: flex; gap: 4px; }
+    .ac-screenshot-center { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px; }
+    .ac-screenshot-status { text-align: center; font-size: var(--text-sm, 0.875rem); }
+    .ac-screenshot-capture { color: var(--context-primary, #667eea); }
+    .ac-screenshot-done { color: #22c55e; }
+    .ac-screenshot-error { color: #ef4444; }
+    .ac-screenshot-frame { border: 1px solid var(--border-subtle, rgba(255,255,255,0.1)); border-radius: 8px; overflow: hidden; max-width: 100%; }
+    .ac-screenshot-img { width: 100%; height: auto; display: block; cursor: pointer; }
+    .ac-screenshot-caption { opacity: 0.5; display: block; margin-top: 4px; }
+    .ac-execute-btn-lg { padding: 12px 32px; font-size: var(--text-base, 1rem); }
+    .ac-plugin-output { max-height: 200px; overflow-y: auto; font-size: var(--text-xs, 0.75rem); }
+    .ac-section-muted { opacity: 0.6; }
+    .ac-p0-note { font-size: var(--text-xs, 0.75rem); margin: 0; }
+    .ac-mb-6 { margin-bottom: 6px; }
+
     /* Responsive */
     @media (max-width: 768px) {
       .modal {
@@ -1347,9 +1402,9 @@ class AgentControlWidget extends LitElement {
         <div class="section">
           <div class="section-title">💓 Health Score</div>
           <div class="info-grid">
-            <div class="info-card" style="grid-column: span 2;">
+            <div class="info-card ac-span-2">
               <div class="info-label">Overall Health</div>
-              <div class="info-value" style="font-size: var(--text-2xl, 1.5rem); color: ${this.agent.health_score >= 80 ? '#22c55e' : this.agent.health_score >= 50 ? '#f59e0b' : '#ef4444'}">
+              <div class="info-value ac-health-score ${this.agent.health_score >= 80 ? 'ac-health-good' : this.agent.health_score >= 50 ? 'ac-health-warn' : 'ac-health-bad'}">
                 ${this.agent.health_score}/100
               </div>
             </div>
@@ -1596,7 +1651,7 @@ class AgentControlWidget extends LitElement {
                 <div class="metric-card">
                   <div class="metric-label">${d.device}</div>
                   ${isIdle ? html`
-                    <div class="ac-meta-hint" style="text-align: center; padding: 8px 0; opacity: 0.5;">Idle</div>
+                    <div class="ac-meta-hint ac-text-center-muted ac-opacity-half">Idle</div>
                   ` : html`
                     <div class="io-stats">
                       <div class="io-stat">
@@ -1715,46 +1770,46 @@ class AgentControlWidget extends LitElement {
 
       <div class="section">
         <div class="section-title">📋 Command History
-          <button class="power-btn" style="padding: 2px 8px; font-size: var(--text-xs, 0.75rem); margin-left: 8px;"
+          <button class="power-btn ac-btn-sm"
             @click="${() => this.loadCommandHistory()}">🔄</button>
         </div>
         ${this.commandHistory.length === 0
           ? html`<div class="error-state">No command history yet</div>`
           : html`
-            <div style="overflow-x: auto;">
+            <div class="ac-scroll-x">
               <table class="ac-table">
                 <thead>
                   <tr><th>Time</th><th>Type</th><th>Status</th><th></th></tr>
                 </thead>
                 <tbody>
                   ${this.commandHistory.slice(0, 15).map(cmd => html`
-                    <tr style="cursor: pointer;" @click="${() => { this.expandedCommandId = this.expandedCommandId === cmd.command_id ? null : cmd.command_id; this.requestUpdate() }}">
-                      <td style="font-size: var(--text-xs, 0.75rem); opacity: 0.7">${cmd.created_at?.substring(11, 19) || ''}</td>
+                    <tr class="ac-cmd-row" @click="${() => { this.expandedCommandId = this.expandedCommandId === cmd.command_id ? null : cmd.command_id; this.requestUpdate() }}">
+                      <td class="ac-text-xs ac-opacity-70">${cmd.created_at?.substring(11, 19) || ''}</td>
                       <td>${cmd.command_type}</td>
                       <td>
                         <span class="status-badge ${cmd.status === 'Completed' ? 'online' : cmd.status === 'Failed' ? 'offline' : 'unknown'}">
                           ${cmd.status}
                         </span>
                       </td>
-                      <td style="font-size: var(--text-xs, 0.75rem); opacity: 0.5">${this.expandedCommandId === cmd.command_id ? '▼' : '▶'}</td>
+                      <td class="ac-text-xs ac-opacity-half">${this.expandedCommandId === cmd.command_id ? '▼' : '▶'}</td>
                     </tr>
                     ${this.expandedCommandId === cmd.command_id ? html`
                       <tr>
-                        <td colspan="4" style="padding: 8px 12px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                        <td colspan="4" class="ac-cmd-detail">
                           ${cmd.output ? html`
-                            <div style="margin-bottom: 6px;">
-                              <strong style="font-size: var(--text-xs, 0.75rem); opacity: 0.6;">Output:</strong>
-                              <pre style="margin: 4px 0; padding: 6px 8px; background: rgba(0,0,0,0.3); border-radius: 4px; font-size: var(--text-xs, 0.75rem); white-space: pre-wrap; word-break: break-all; max-height: 150px; overflow-y: auto;">${typeof cmd.output === 'string' ? cmd.output : JSON.stringify(cmd.output, null, 2)}</pre>
+                            <div class="ac-mb-6">
+                              <strong class="ac-cmd-output-label">Output:</strong>
+                              <pre class="ac-cmd-output-pre">${typeof cmd.output === 'string' ? cmd.output : JSON.stringify(cmd.output, null, 2)}</pre>
                             </div>
                           ` : ''}
                           ${cmd.error ? html`
                             <div>
-                              <strong style="font-size: var(--text-xs, 0.75rem); color: #ef4444;">Error:</strong>
-                              <pre style="margin: 4px 0; padding: 6px 8px; background: rgba(239,68,68,0.1); border-radius: 4px; font-size: var(--text-xs, 0.75rem); white-space: pre-wrap; color: #fca5a5;">${typeof cmd.error === 'string' ? cmd.error : JSON.stringify(cmd.error, null, 2)}</pre>
+                              <strong class="ac-cmd-error-label">Error:</strong>
+                              <pre class="ac-cmd-error-pre">${typeof cmd.error === 'string' ? cmd.error : JSON.stringify(cmd.error, null, 2)}</pre>
                             </div>
                           ` : ''}
                           ${!cmd.output && !cmd.error ? html`
-                            <span style="font-size: var(--text-xs, 0.75rem); opacity: 0.4;">No output data</span>
+                            <span class="ac-text-xs ac-opacity-40">No output data</span>
                           ` : ''}
                         </td>
                       </tr>
@@ -1787,7 +1842,7 @@ class AgentControlWidget extends LitElement {
     return html`
       <div class="section">
         <div class="section-title">🔧 Services (${this.services.length})</div>
-        <div style="overflow-x: auto;">
+        <div class="ac-scroll-x">
           <table class="ac-table">
             <thead>
               <tr>
@@ -1806,12 +1861,12 @@ class AgentControlWidget extends LitElement {
                     </span>
                   </td>
                   <td>
-                    <div style="display: flex; gap: 4px;">
-                      <button class="power-btn ac-power-btn-green" style="padding: 4px 8px; font-size: var(--text-xs, 0.75rem);"
+                    <div class="ac-actions-row">
+                      <button class="power-btn ac-power-btn-green ac-btn-compact"
                         ?disabled="${!isOnline}" @click="${() => this.controlService(svc.name, 'start')}">Start</button>
-                      <button class="power-btn danger" style="padding: 4px 8px; font-size: var(--text-xs, 0.75rem);"
+                      <button class="power-btn danger ac-btn-compact"
                         ?disabled="${!isOnline}" @click="${() => this.controlService(svc.name, 'stop')}">Stop</button>
-                      <button class="power-btn warning" style="padding: 4px 8px; font-size: var(--text-xs, 0.75rem);"
+                      <button class="power-btn warning ac-btn-compact"
                         ?disabled="${!isOnline}" @click="${() => this.controlService(svc.name, 'restart')}">Restart</button>
                     </div>
                   </td>
@@ -1828,25 +1883,25 @@ class AgentControlWidget extends LitElement {
     return html`
       <div class="section">
         <div class="section-title">📜 Agent Logs</div>
-        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-          <button class="power-btn ${!this.logLevelFilter ? 'ac-power-btn-blue' : ''}" style="padding: 4px 12px; font-size: var(--text-xs, 0.75rem);"
+        <div class="ac-flex-row-12">
+          <button class="power-btn ${!this.logLevelFilter ? 'ac-power-btn-blue' : ''} ac-btn-filter"
             @click="${() => { this.logLevelFilter = null; this.loadAgentLogs() }}">All</button>
-          <button class="power-btn ${this.logLevelFilter === 'WARN' ? 'warning' : ''}" style="padding: 4px 12px; font-size: var(--text-xs, 0.75rem);"
+          <button class="power-btn ${this.logLevelFilter === 'WARN' ? 'warning' : ''} ac-btn-filter"
             @click="${() => { this.logLevelFilter = 'WARN'; this.loadAgentLogs() }}">WARN</button>
-          <button class="power-btn ${this.logLevelFilter === 'ERROR' ? 'danger' : ''}" style="padding: 4px 12px; font-size: var(--text-xs, 0.75rem);"
+          <button class="power-btn ${this.logLevelFilter === 'ERROR' ? 'danger' : ''} ac-btn-filter"
             @click="${() => { this.logLevelFilter = 'ERROR'; this.loadAgentLogs() }}">ERROR</button>
-          <button class="power-btn" style="padding: 4px 12px; font-size: var(--text-xs, 0.75rem); margin-left: auto;"
+          <button class="power-btn ac-btn-filter ac-ml-auto"
             @click="${() => this.loadAgentLogs()}">🔄 Refresh</button>
         </div>
         ${this.agentLogs.length === 0
           ? html`<div class="error-state">${this.loading ? 'Loading logs...' : 'No logs available'}<br><small>Only WARN/ERROR logs are collected by default</small></div>`
           : html`
-            <div class="command-output" style="max-height: 400px; overflow-y: auto; font-size: var(--text-xs, 0.75rem);">
+            <div class="command-output ac-log-output">
               ${this.agentLogs.map(log => html`
-                <div style="margin-bottom: 4px; color: ${log.level === 'ERROR' ? '#ef4444' : log.level === 'WARN' ? '#f59e0b' : '#e5e5e5'}">
-                  <span style="opacity: 0.6">${log.timestamp?.substring(11, 19) || ''}</span>
+                <div class="ac-log-entry ${log.level === 'ERROR' ? 'ac-log-error' : log.level === 'WARN' ? 'ac-log-warn' : 'ac-log-default'}">
+                  <span class="ac-log-timestamp">${log.timestamp?.substring(11, 19) || ''}</span>
                   [${log.level}] ${log.message}
-                  ${log.module ? html`<span style="opacity: 0.4"> (${log.module})</span>` : ''}
+                  ${log.module ? html`<span class="ac-log-module"> (${log.module})</span>` : ''}
                 </div>
               `)}
             </div>
@@ -1890,9 +1945,9 @@ class AgentControlWidget extends LitElement {
           <div class="section">
             <div class="section-title">💓 Health Score</div>
             <div class="info-grid">
-              <div class="info-card" style="grid-column: span 2;">
+              <div class="info-card ac-span-2">
                 <div class="info-label">Score</div>
-                <div class="info-value" style="font-size: var(--text-2xl, 1.5rem); color: ${resp.health_score >= 80 ? '#22c55e' : resp.health_score >= 50 ? '#f59e0b' : '#ef4444'}">
+                <div class="info-value ac-health-score ${resp.health_score >= 80 ? 'ac-health-good' : resp.health_score >= 50 ? 'ac-health-warn' : 'ac-health-bad'}">
                   ${resp.health_score}/100
                 </div>
               </div>
@@ -1907,13 +1962,13 @@ class AgentControlWidget extends LitElement {
     return html`
       <div class="section">
         <div class="section-title">🛡️ Watchdog Status
-          <button class="power-btn" style="padding: 2px 8px; font-size: var(--text-xs, 0.75rem); margin-left: 8px;"
+          <button class="power-btn ac-btn-sm"
             @click="${() => this.loadWatchdog()}">🔄</button>
         </div>
         <div class="info-grid">
-          <div class="info-card" style="grid-column: span 2;">
+          <div class="info-card ac-span-2">
             <div class="info-label">Overall Status</div>
-            <div class="info-value" style="font-size: var(--text-xl, 1.25rem); color: ${statusColor}">
+            <div class="info-value ac-text-xl" style="color: ${statusColor}">
               ${wd.status?.toUpperCase() || 'UNKNOWN'}
             </div>
           </div>
@@ -1940,9 +1995,9 @@ class AgentControlWidget extends LitElement {
         <div class="section">
           <div class="section-title">💓 Health Score</div>
           <div class="info-grid">
-            <div class="info-card" style="grid-column: span 2;">
+            <div class="info-card ac-span-2">
               <div class="info-label">Score</div>
-              <div class="info-value" style="font-size: var(--text-2xl, 1.5rem); color: ${resp.health_score >= 80 ? '#22c55e' : resp.health_score >= 50 ? '#f59e0b' : '#ef4444'}">
+              <div class="info-value ac-health-score ${resp.health_score >= 80 ? 'ac-health-good' : resp.health_score >= 50 ? 'ac-health-warn' : 'ac-health-bad'}">
                 ${resp.health_score}/100
               </div>
             </div>
@@ -1976,28 +2031,25 @@ class AgentControlWidget extends LitElement {
     return html`
       <div class="section">
         <div class="section-title">📅 Create Scheduled Task</div>
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-          <div style="display: flex; gap: 8px;">
-            <input type="text" class="command-field" placeholder="Task name"
-              style="flex: 1;"
+        <div class="ac-flex-col">
+          <div class="ac-flex-row">
+            <input type="text" class="command-field ac-flex-1" placeholder="Task name"
               .value="${this.scheduledTaskForm.name}"
               @input="${(e) => { this.scheduledTaskForm = {...this.scheduledTaskForm, name: e.target.value}; this.requestUpdate() }}" />
-            <select class="command-field" style="flex: 0 0 auto; width: 120px; background: rgba(0,0,0,0.3); color: #e5e5e5; border: 1px solid var(--ctx-border); border-radius: 6px; padding: 4px 8px;"
+            <select class="command-field ac-select-field ac-select-w120"
               @change="${(e) => { this.scheduledTaskForm = {...this.scheduledTaskForm, commandType: e.target.value}; this.requestUpdate() }}">
               <option value="shell" ?selected="${this.scheduledTaskForm.commandType === 'shell'}">Shell</option>
               <option value="reboot" ?selected="${this.scheduledTaskForm.commandType === 'reboot'}">Reboot</option>
               <option value="shutdown" ?selected="${this.scheduledTaskForm.commandType === 'shutdown'}">Shutdown</option>
             </select>
           </div>
-          <div style="display: flex; gap: 8px;">
-            <input type="text" class="command-field" placeholder="Schedule (cron: '0 2 * * *' or interval: '30m')"
-              style="flex: 1;"
+          <div class="ac-flex-row">
+            <input type="text" class="command-field ac-flex-1" placeholder="Schedule (cron: '0 2 * * *' or interval: '30m')"
               .value="${this.scheduledTaskForm.schedule}"
               @input="${(e) => { this.scheduledTaskForm = {...this.scheduledTaskForm, schedule: e.target.value}; this.requestUpdate() }}" />
           </div>
-          <div style="display: flex; gap: 8px;">
-            <input type="text" class="command-field" placeholder='Parameters JSON (e.g. {"cmd": "apt update"})'
-              style="flex: 1;"
+          <div class="ac-flex-row">
+            <input type="text" class="command-field ac-flex-1" placeholder='Parameters JSON (e.g. {"cmd": "apt update"})'
               .value="${this.scheduledTaskForm.parameters}"
               @input="${(e) => { this.scheduledTaskForm = {...this.scheduledTaskForm, parameters: e.target.value}; this.requestUpdate() }}" />
             <button class="execute-btn" ?disabled="${!isOnline || !this.scheduledTaskForm.name.trim()}"
@@ -2010,7 +2062,7 @@ class AgentControlWidget extends LitElement {
 
       <div class="section">
         <div class="section-title">📋 Scheduled Tasks
-          <button class="power-btn" style="padding: 2px 8px; font-size: var(--text-xs, 0.75rem); margin-left: 8px;"
+          <button class="power-btn ac-btn-sm"
             @click="${() => this.loadScheduledTasks()}">🔄</button>
         </div>
         ${this.loading
@@ -2018,7 +2070,7 @@ class AgentControlWidget extends LitElement {
           : !this.scheduledTasks || (Array.isArray(this.scheduledTasks) && this.scheduledTasks.length === 0)
             ? html`<div class="error-state">No scheduled tasks<br><small>Tasks are managed on the agent via command pipeline</small></div>`
             : html`
-              <div style="overflow-x: auto;">
+              <div class="ac-scroll-x">
                 <table class="ac-table">
                   <thead>
                     <tr><th>Name</th><th>Schedule</th><th>Type</th><th>Actions</th></tr>
@@ -2027,10 +2079,10 @@ class AgentControlWidget extends LitElement {
                     ${(Array.isArray(this.scheduledTasks) ? this.scheduledTasks : []).map(task => html`
                       <tr>
                         <td>${task.name || task.task_name || 'unnamed'}</td>
-                        <td style="font-size: var(--text-xs, 0.75rem);">${task.schedule || ''}</td>
+                        <td class="ac-text-xs">${task.schedule || ''}</td>
                         <td>${task.command_type || task.type || ''}</td>
                         <td>
-                          <button class="power-btn danger" style="padding: 4px 8px; font-size: var(--text-xs, 0.75rem);"
+                          <button class="power-btn danger ac-btn-compact"
                             ?disabled="${!isOnline}"
                             @click="${() => this.deleteScheduledTask(task.name || task.task_name)}">
                             Delete
@@ -2072,7 +2124,7 @@ class AgentControlWidget extends LitElement {
       ${plugins.activity_tracker ? html`
         <div class="section">
           <div class="section-title">🖱️ Activity Tracker
-            <button class="power-btn" style="padding: 2px 8px; font-size: var(--text-xs, 0.75rem); margin-left: 8px;"
+            <button class="power-btn ac-btn-sm"
               @click="${() => this.loadPlugins()}">🔄</button>
           </div>
           <div class="info-grid">
@@ -2089,9 +2141,9 @@ class AgentControlWidget extends LitElement {
               <div class="info-value">${Math.round((plugins.activity_tracker.idle_secs || 0) / 60)}m</div>
             </div>
             ${plugins.activity_tracker.active_window ? html`
-              <div class="info-card" style="grid-column: span 2;">
+              <div class="info-card ac-span-2">
                 <div class="info-label">Active Window</div>
-                <div class="info-value" style="font-size: var(--text-xs, 0.75rem);">${plugins.activity_tracker.active_window}</div>
+                <div class="info-value ac-text-xs">${plugins.activity_tracker.active_window}</div>
               </div>
             ` : ''}
             ${plugins.activity_tracker.total_active_secs != null ? html`
@@ -2107,7 +2159,7 @@ class AgentControlWidget extends LitElement {
       ${Object.entries(plugins).filter(([k]) => k !== 'activity_tracker').map(([pluginId, data]) => html`
         <div class="section">
           <div class="section-title">🔌 ${pluginId}</div>
-          <div class="command-output" style="max-height: 200px; overflow-y: auto; font-size: var(--text-xs, 0.75rem);">
+          <div class="command-output ac-plugin-output">
             ${JSON.stringify(data, null, 2)}
           </div>
         </div>
@@ -2116,22 +2168,20 @@ class AgentControlWidget extends LitElement {
       ${isOnline ? html`
         <div class="section">
           <div class="section-title">📤 Send Notification to Agent</div>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <div style="display: flex; gap: 8px;">
-              <input type="text" class="command-field" placeholder="Title"
-                style="flex: 1;"
+          <div class="ac-flex-col">
+            <div class="ac-flex-row">
+              <input type="text" class="command-field ac-flex-1" placeholder="Title"
                 .value="${this.notifyForm.title}"
                 @input="${(e) => { this.notifyForm = {...this.notifyForm, title: e.target.value}; this.requestUpdate() }}" />
-              <select class="command-field" style="flex: 0 0 auto; width: 100px; background: rgba(0,0,0,0.3); color: #e5e5e5; border: 1px solid var(--ctx-border); border-radius: 6px; padding: 4px 8px;"
+              <select class="command-field ac-select-field ac-select-w100"
                 @change="${(e) => { this.notifyForm = {...this.notifyForm, urgency: e.target.value}; this.requestUpdate() }}">
                 <option value="low">Low</option>
                 <option value="normal" selected>Normal</option>
                 <option value="critical">Critical</option>
               </select>
             </div>
-            <div style="display: flex; gap: 8px;">
-              <input type="text" class="command-field" placeholder="Message body"
-                style="flex: 1;"
+            <div class="ac-flex-row">
+              <input type="text" class="command-field ac-flex-1" placeholder="Message body"
                 .value="${this.notifyForm.body}"
                 @input="${(e) => { this.notifyForm = {...this.notifyForm, body: e.target.value}; this.requestUpdate() }}" />
               <button class="execute-btn" ?disabled="${!this.notifyForm.title.trim()}"
@@ -2151,35 +2201,35 @@ class AgentControlWidget extends LitElement {
     return html`
       <div class="section">
         <div class="section-title">📸 Remote Screenshot</div>
-        <div style="display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px;">
-          <div style="font-size: var(--text-4xl, 2.25rem);">📸</div>
-          <p style="text-align: center; opacity: 0.7; font-size: var(--text-sm, 0.875rem);">
+        <div class="ac-screenshot-center">
+          <div class="ac-text-4xl">📸</div>
+          <p class="ac-screenshot-status ac-opacity-70">
             Request a screenshot from the remote agent.<br>
             The agent will be notified before capture.
           </p>
-          <button class="execute-btn" style="padding: 12px 32px; font-size: var(--text-base, 1rem);"
+          <button class="execute-btn ac-execute-btn-lg"
             ?disabled="${!isOnline || this.screenshotStatus === 'capturing'}"
             @click="${() => this.takeScreenshot()}">
             ${this.screenshotStatus === 'capturing' ? 'Capturing...' : 'Take Screenshot'}
           </button>
           ${this.screenshotStatus?.startsWith('polling') ? html`
-            <div style="text-align: center; font-size: var(--text-sm, 0.875rem);">
-              <span style="color: var(--context-primary, #667eea);">⏳ Capturing screenshot...</span>
+            <div class="ac-screenshot-status">
+              <span class="ac-screenshot-capture">⏳ Capturing screenshot...</span>
             </div>
           ` : ''}
           ${this.screenshotStatus?.startsWith('done') ? html`
-            <div style="text-align: center; font-size: var(--text-sm, 0.875rem);">
-              <span style="color: #22c55e;">✅ ${this.screenshotStatus.split(':')[1]}</span>
+            <div class="ac-screenshot-status">
+              <span class="ac-screenshot-done">✅ ${this.screenshotStatus.split(':')[1]}</span>
             </div>
           ` : ''}
           ${this.screenshotStatus?.startsWith('error') ? html`
-            <div style="text-align: center; font-size: var(--text-sm, 0.875rem);">
-              <span style="color: #ef4444;">❌ ${this.screenshotStatus.split(':').slice(1).join(':')}</span>
+            <div class="ac-screenshot-status">
+              <span class="ac-screenshot-error">❌ ${this.screenshotStatus.split(':').slice(1).join(':')}</span>
             </div>
           ` : ''}
           ${this.screenshotStatus?.startsWith('sent') ? html`
-            <div style="text-align: center; font-size: var(--text-sm, 0.875rem);">
-              <span style="color: #22c55e;">Screenshot command sent</span>
+            <div class="ac-screenshot-status">
+              <span class="ac-screenshot-done">Screenshot command sent</span>
             </div>
           ` : ''}
         </div>
@@ -2187,19 +2237,19 @@ class AgentControlWidget extends LitElement {
       ${this.screenshotImage ? html`
         <div class="section">
           <div class="section-title">🖼️ Captured Screenshot</div>
-          <div style="border: 1px solid var(--border-subtle, rgba(255,255,255,0.1)); border-radius: 8px; overflow: hidden; max-width: 100%;">
+          <div class="ac-screenshot-frame">
             <img src="${this.screenshotImage}" alt="Screenshot"
-                 style="width: 100%; height: auto; display: block; cursor: pointer;"
+                 class="ac-screenshot-img"
                  @click="${() => window.open(this.screenshotImage, '_blank')}" />
           </div>
-          <small style="opacity: 0.5; display: block; margin-top: 4px;">
+          <small class="ac-screenshot-caption">
             ${this.screenshotStatus?.split(':')[1] || ''} — Click image to open full size
           </small>
         </div>
       ` : ''}
-      <div class="section" style="opacity: 0.6;">
+      <div class="section ac-section-muted">
         <div class="section-title">ℹ️ Privacy Notice</div>
-        <p style="font-size: var(--text-xs, 0.75rem); margin: 0;">
+        <p class="ac-p0-note">
           Screenshots are captured on the remote agent machine. The agent displays a notification
           before capture to inform the user. Screenshots are stored locally on the agent.
         </p>
