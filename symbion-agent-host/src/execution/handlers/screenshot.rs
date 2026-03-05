@@ -60,10 +60,11 @@ impl CommandHandler for ScreenshotHandler {
                 {
                     let _ = notify_rust::Notification::new()
                         .summary("Symbion")
-                        .body("Screenshot capture in 2 seconds...")
+                        .body("Screenshot capture in 3 seconds...")
                         .timeout(notify_rust::Timeout::Milliseconds(2000))
                         .show();
-                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    // Wait 3s so notification is fully dismissed before capture
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                 }
             }
 
@@ -111,11 +112,11 @@ async fn capture_screenshot(dest: &std::path::Path) -> anyhow::Result<()> {
 
     #[cfg(target_os = "linux")]
     {
-        // Try gnome-screenshot first, then scrot, then grim (Wayland)
+        // scrot first (headless), then grim (Wayland), then gnome-screenshot (may show UI on GNOME 42+)
         let tools = [
-            ("gnome-screenshot", vec!["-f", &dest_str]),
-            ("scrot", vec![dest_str.clone().leak() as &str]),
+            ("scrot", vec!["-o", dest_str.clone().leak() as &str]),
             ("grim", vec![dest_str.clone().leak() as &str]),
+            ("gnome-screenshot", vec!["-f", &dest_str]),
         ];
 
         for (tool, args) in &tools {
