@@ -183,33 +183,37 @@ impl LocalApiServer {
         // Rate limiter for POST endpoints: 10 requests per 60 seconds
         let rate_limiter = RateLimiter::new(10, 60);
 
-        // GET /status - Agent status and metrics (no auth required)
+        // Auth filter factory — reusable for all protected endpoints
+        let make_auth = |token: String| {
+            warp::header::optional::<String>("authorization")
+                .and(warp::any().map(move || token.clone()))
+                .and_then(|auth_header: Option<String>, expected_token: String| async move {
+                    let provided = auth_header
+                        .as_deref()
+                        .and_then(|h| h.strip_prefix("Bearer "));
+                    if provided == Some(expected_token.as_str()) {
+                        Ok::<_, warp::Rejection>(())
+                    } else {
+                        Err(warp::reject::reject())
+                    }
+                })
+                .untuple_one()
+        };
+
+        // GET /status - Agent status and metrics (auth required)
         let status_route = warp::path("status")
             .and(warp::get())
+            .and(make_auth(api_token.clone()))
             .and(warp::any().map(move || status.clone()))
             .and_then(get_status);
 
         // POST /reconnect - Force MQTT reconnection (auth + rate limited)
         let reconnect_tx = self.reconnect_tx.clone();
-        let token_for_reconnect = api_token.clone();
-        let reconnect_auth = warp::header::optional::<String>("authorization")
-            .and(warp::any().map(move || token_for_reconnect.clone()))
-            .and_then(|auth_header: Option<String>, expected_token: String| async move {
-                let provided = auth_header
-                    .as_deref()
-                    .and_then(|h| h.strip_prefix("Bearer "));
-                if provided == Some(expected_token.as_str()) {
-                    Ok::<_, warp::Rejection>(())
-                } else {
-                    Err(warp::reject::reject())
-                }
-            })
-            .untuple_one();
 
         let reconnect_route = warp::path("reconnect")
             .and(warp::post())
             .and(rate_limiter.filter())
-            .and(reconnect_auth)
+            .and(make_auth(api_token.clone()))
             .and(warp::any().map(move || reconnect_tx.clone()))
             .and_then(|tx: mpsc::Sender<()>| async move {
                 match tx.try_send(()) {
@@ -224,10 +228,11 @@ impl LocalApiServer {
                 }
             });
 
-        // GET /logs - Agent logs from ring buffer
+        // GET /logs - Agent logs from ring buffer (auth required)
         let logs = self.logs.clone();
         let logs_route = warp::path("logs")
             .and(warp::get())
+            .and(make_auth(api_token.clone()))
             .and(warp::any().map(move || logs.clone()))
             .and_then(get_logs);
 
@@ -254,40 +259,23 @@ impl LocalApiServer {
             .allow_methods(vec!["GET", "POST"]);
 
         // POST /open-dashboard - Open local dashboard in browser (auth + rate limited)
-        let token_for_dashboard = api_token.clone();
-        let dashboard_auth = warp::header::optional::<String>("authorization")
-            .and(warp::any().map(move || token_for_dashboard.clone()))
-            .and_then(|auth_header: Option<String>, expected_token: String| async move {
-                let provided = auth_header.as_deref().and_then(|h| h.strip_prefix("Bearer "));
-                if provided == Some(expected_token.as_str()) { Ok::<_, warp::Rejection>(()) } else { Err(warp::reject::reject()) }
-            })
-            .untuple_one();
-
         let open_dashboard_route = warp::path("open-dashboard")
             .and(warp::post())
             .and(rate_limiter.filter())
-            .and(dashboard_auth)
+            .and(make_auth(api_token.clone()))
             .and_then(open_dashboard_handler);
 
-        // GET /update/status - Check for updates (no auth required)
+        // GET /update/status - Check for updates (auth required)
         let update_status_route = warp::path!("update" / "status")
             .and(warp::get())
+            .and(make_auth(api_token.clone()))
             .and_then(update_status_handler);
 
         // POST /update/install - Install available update (auth + rate limited)
-        let token_for_update = api_token;
-        let update_auth = warp::header::optional::<String>("authorization")
-            .and(warp::any().map(move || token_for_update.clone()))
-            .and_then(|auth_header: Option<String>, expected_token: String| async move {
-                let provided = auth_header.as_deref().and_then(|h| h.strip_prefix("Bearer "));
-                if provided == Some(expected_token.as_str()) { Ok::<_, warp::Rejection>(()) } else { Err(warp::reject::reject()) }
-            })
-            .untuple_one();
-
         let update_install_route = warp::path!("update" / "install")
             .and(warp::post())
             .and(rate_limiter.filter())
-            .and(update_auth)
+            .and(make_auth(api_token))
             .and_then(update_install_handler);
 
         let routes = status_route

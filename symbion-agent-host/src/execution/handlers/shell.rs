@@ -4,6 +4,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use serde_json::Value;
+use tracing::warn;
 
 use crate::execution::handler::{CommandHandler, CommandResult};
 use crate::execution::CommandExecutor;
@@ -43,6 +44,11 @@ impl CommandHandler for ShellHandler {
             };
 
             if let Err(reason) = validate_shell_command(command) {
+                warn!(
+                    command = command,
+                    reason = %reason,
+                    "[shell] REJECTED command — forensic audit"
+                );
                 return CommandResult::error("UNSAFE_COMMAND", reason);
             }
 
