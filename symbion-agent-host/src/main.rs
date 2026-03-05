@@ -18,6 +18,7 @@ mod mqtt_client;
 mod execution;
 mod config;
 mod file_transfer;
+mod kernel_client;
 mod log_collector;
 mod plugins;
 mod scheduler;

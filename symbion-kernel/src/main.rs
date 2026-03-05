@@ -49,6 +49,7 @@ mod plugins;  // Plugin Contract v1 - Plugin system structures and types
 mod mqtt_watchdog;  // MQTT connection watchdog - detects half-dead connections
 mod rate_limiter;  // Global IP-based rate limiting middleware
 mod openapi;  // K8: OpenAPI/Swagger documentation generation
+mod file_hub;  // File transfer hub — HTTPS relay for agent file transfers
 
 use crate::models::HostsMap;
 use crate::state::{new_state, Shared};
@@ -645,6 +646,18 @@ async fn main() {
         session_manager: session_manager.clone(),
         trust_tracker: trust_tracker.clone(),
         rate_limiter: crate::rate_limiter::RateLimitStore::new(),
+        file_hub: {
+            let hub = Arc::new(crate::file_hub::FileHub::new(std::path::Path::new("./data")));
+            let hub_cleanup = hub.clone();
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+                loop {
+                    interval.tick().await;
+                    hub_cleanup.cleanup_expired().await;
+                }
+            });
+            Some(hub)
+        },
     };
 
     // HTTPS avec TLS (PWA + mTLS)

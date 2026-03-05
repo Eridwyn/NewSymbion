@@ -12,6 +12,7 @@
  * - Scheduler: Tâches planifiées (create/delete/list)
  * - Plugins: Données plugins + notifications agent
  * - Screenshot: Capture d'écran distante
+ * - Files: Gestion fichiers agent (upload drag & drop, download, delete)
  */
 
 import { LitElement, html, css } from 'lit'
@@ -44,7 +45,10 @@ class AgentControlWidget extends LitElement {
     scheduledTasks: { type: Object },
     screenshotStatus: { type: String },
     screenshotImage: { type: String },
-    expandedCommandId: { type: String }
+    expandedCommandId: { type: String },
+    agentFiles: { type: Array },
+    fileTransfers: { type: Array },
+    fileDragOver: { type: Boolean }
   }
 
   static styles = [sharedAnimations, overlayStyles, statusBadgeStyles, widgetSectionStyles, css`
@@ -698,6 +702,93 @@ class AgentControlWidget extends LitElement {
     .ac-p0-note { font-size: var(--text-xs, 0.75rem); margin: 0; }
     .ac-mb-6 { margin-bottom: 6px; }
 
+    /* Files tab */
+    .ac-dropzone {
+      border: 2px dashed var(--border-hover, rgba(255,255,255,0.2));
+      border-radius: 12px;
+      padding: 32px;
+      text-align: center;
+      transition: all 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .ac-dropzone:hover, .ac-dropzone-active {
+      border-color: var(--context-primary, #00d4aa);
+      background: var(--surface-glass, rgba(255,255,255,0.03));
+    }
+    .ac-dropzone-disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .ac-file-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .ac-file-table th {
+      text-align: left;
+      font-size: var(--text-xs, 0.75rem);
+      opacity: 0.6;
+      padding: 8px;
+      border-bottom: 1px solid var(--border-default, rgba(255,255,255,0.1));
+    }
+    .ac-file-table td {
+      padding: 8px;
+      border-bottom: 1px solid var(--surface-glass, rgba(255,255,255,0.03));
+      font-size: var(--text-sm, 0.875rem);
+    }
+    .ac-file-table tr:hover td {
+      background: var(--surface-glass, rgba(255,255,255,0.03));
+    }
+    .ac-btn-icon {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+    .ac-btn-icon:hover {
+      background: var(--surface-glass-hover, rgba(255,255,255,0.08));
+    }
+    .ac-btn-icon:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .ac-progress-bar {
+      width: 100%;
+      height: 4px;
+      background: var(--surface-glass, rgba(255,255,255,0.05));
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .ac-progress-fill {
+      height: 100%;
+      background: var(--context-primary, #00d4aa);
+      border-radius: 2px;
+    }
+    .ac-progress-indeterminate {
+      width: 40%;
+      animation: ac-progress-slide 1.5s ease-in-out infinite;
+    }
+    @keyframes ac-progress-slide {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(350%); }
+    }
+    .ac-loading-state, .ac-empty-state {
+      text-align: center;
+      padding: 24px;
+    }
+    .ac-empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .ac-mt-xs { margin-top: 6px; }
+
     /* Responsive */
     @media (max-width: 768px) {
       .modal {
@@ -756,6 +847,9 @@ class AgentControlWidget extends LitElement {
     this.scheduledTasks = null
     this.screenshotStatus = null
     this.expandedCommandId = null
+    this.agentFiles = []
+    this.fileTransfers = []
+    this.fileDragOver = false
     this.scheduledTaskForm = { name: '', commandType: 'shell', scheduleType: 'once', schedule: '', parameters: '{}' }
     this.notifyForm = { title: '', body: '', urgency: 'normal' }
   }
@@ -885,6 +979,9 @@ class AgentControlWidget extends LitElement {
         break
       case 'screenshot':
         // No data to preload — tab is action-driven
+        break
+      case 'files':
+        await this.loadFiles()
         break
     }
   }
@@ -2195,6 +2292,290 @@ class AgentControlWidget extends LitElement {
     `
   }
 
+  // ===== Files Tab =====
+
+  async loadFiles() {
+    try {
+      this.loading = true
+      const data = await this.agentsService.listAgentFiles(this.agentId)
+      this.agentFiles = data?.files || []
+    } catch (error) {
+      console.error('[files] Failed to load:', error)
+      this.agentFiles = []
+    } finally {
+      this.loading = false
+    }
+  }
+
+  _handleFileDragOver(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    this.fileDragOver = true
+  }
+
+  _handleFileDragLeave(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    this.fileDragOver = false
+  }
+
+  _handleFileDrop(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    this.fileDragOver = false
+    const files = e.dataTransfer?.files
+    if (files && files.length > 0) {
+      this._uploadFile(files[0])
+    }
+  }
+
+  _handleFileSelect(e) {
+    const files = e.target?.files
+    if (files && files.length > 0) {
+      this._uploadFile(files[0])
+    }
+    // Reset input so the same file can be selected again
+    e.target.value = ''
+  }
+
+  async _uploadFile(file) {
+    if (file.size > 200 * 1024 * 1024) {
+      alert('File too large (max 200 MB)')
+      return
+    }
+
+    const transfer = {
+      id: `upload-${Date.now()}`,
+      filename: file.name,
+      direction: 'upload',
+      status: 'uploading',
+      size: file.size
+    }
+    this.fileTransfers = [...this.fileTransfers, transfer]
+
+    try {
+      const result = await this.agentsService.uploadFileToAgent(this.agentId, file)
+      transfer.status = 'processing'
+      transfer.transferId = result.transfer_id
+      this.fileTransfers = [...this.fileTransfers]
+
+      // Poll transfer status until agent pulls the file
+      await this._pollTransfer(transfer)
+    } catch (error) {
+      console.error('[files] Upload failed:', error)
+      transfer.status = 'failed'
+      transfer.error = error.message
+      this.fileTransfers = [...this.fileTransfers]
+    }
+  }
+
+  async _downloadFile(filename) {
+    const transfer = {
+      id: `download-${Date.now()}`,
+      filename,
+      direction: 'download',
+      status: 'requesting'
+    }
+    this.fileTransfers = [...this.fileTransfers, transfer]
+
+    try {
+      const result = await this.agentsService.requestFileDownload(this.agentId, filename)
+      transfer.transferId = result.transfer_id
+      transfer.status = 'processing'
+      this.fileTransfers = [...this.fileTransfers]
+
+      // Poll until agent pushes the file to kernel
+      const finalStatus = await this._pollTransfer(transfer)
+      if (finalStatus?.status === 'Completed' && finalStatus?.download_token) {
+        const url = this.agentsService.getTransferDownloadUrl(
+          transfer.transferId, finalStatus.download_token
+        )
+        // Trigger browser download
+        const a = document.createElement('a')
+        a.href = url
+        a.download = filename
+        a.click()
+        transfer.status = 'completed'
+      } else if (transfer.status !== 'failed') {
+        transfer.status = 'completed'
+      }
+      this.fileTransfers = [...this.fileTransfers]
+    } catch (error) {
+      console.error('[files] Download failed:', error)
+      transfer.status = 'failed'
+      transfer.error = error.message
+      this.fileTransfers = [...this.fileTransfers]
+    }
+  }
+
+  async _deleteFile(filename) {
+    if (!confirm(`Delete "${filename}" from agent?`)) return
+
+    try {
+      await this.agentsService.deleteAgentFile(this.agentId, filename)
+      await this.loadFiles()
+    } catch (error) {
+      console.error('[files] Delete failed:', error)
+      alert(`Delete failed: ${error.message}`)
+    }
+  }
+
+  async _pollTransfer(transfer) {
+    const maxAttempts = 300 // 5 min at 1s interval
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise(r => setTimeout(r, 1000))
+      try {
+        const status = await this.agentsService.getTransferStatus(transfer.transferId)
+        transfer.status = status.status?.toLowerCase() || 'unknown'
+        this.fileTransfers = [...this.fileTransfers]
+
+        if (status.status === 'Completed' || status.status === 'Failed' || status.status === 'Expired') {
+          if (status.status === 'Failed') {
+            transfer.status = 'failed'
+            transfer.error = status.error || 'Transfer failed'
+          } else if (status.status === 'Completed') {
+            transfer.status = 'completed'
+          }
+          this.fileTransfers = [...this.fileTransfers]
+          await this.loadFiles()
+          return status
+        }
+      } catch {
+        // Polling error — continue
+      }
+    }
+    transfer.status = 'timeout'
+    this.fileTransfers = [...this.fileTransfers]
+    return null
+  }
+
+  _formatFileSize(bytes) {
+    if (!bytes || bytes === 0) return '0 B'
+    const units = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(1024))
+    return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`
+  }
+
+  _removeTransfer(transferId) {
+    this.fileTransfers = this.fileTransfers.filter(t => t.id !== transferId)
+  }
+
+  renderFilesTab() {
+    const isOnline = this.agent && this.agent.status === 'online'
+    const activeTransfers = this.fileTransfers.filter(t =>
+      t.status !== 'completed' && t.status !== 'failed' && t.status !== 'timeout'
+    )
+    const doneTransfers = this.fileTransfers.filter(t =>
+      t.status === 'completed' || t.status === 'failed' || t.status === 'timeout'
+    )
+
+    return html`
+      <!-- Upload Zone -->
+      <div class="section">
+        <div class="section-title">📤 Upload File</div>
+        <div class="ac-dropzone ${this.fileDragOver ? 'ac-dropzone-active' : ''} ${!isOnline ? 'ac-dropzone-disabled' : ''}"
+             @dragover="${e => this._handleFileDragOver(e)}"
+             @dragleave="${e => this._handleFileDragLeave(e)}"
+             @drop="${e => this._handleFileDrop(e)}">
+          <div class="ac-text-4xl">📤</div>
+          <p class="ac-opacity-70">Drag & drop a file here</p>
+          <span class="ac-opacity-50">or</span>
+          <input type="file" id="fileUploadInput" @change="${e => this._handleFileSelect(e)}" hidden>
+          <button class="execute-btn"
+            ?disabled="${!isOnline}"
+            @click="${() => this.shadowRoot.getElementById('fileUploadInput').click()}">
+            Choose File
+          </button>
+          <small class="ac-opacity-50">Max 200 MB</small>
+        </div>
+      </div>
+
+      <!-- Active Transfers -->
+      ${activeTransfers.length > 0 ? html`
+        <div class="section">
+          <div class="section-title">🔄 Active Transfers</div>
+          ${activeTransfers.map(t => html`
+            <div class="info-card">
+              <div class="ac-flex ac-items-center ac-gap-sm">
+                <span>${t.direction === 'upload' ? '⬆️' : '⬇️'}</span>
+                <span class="ac-font-medium">${t.filename}</span>
+                <span class="ac-ml-auto ac-opacity-60 ac-text-xs">${t.status}</span>
+              </div>
+              <div class="ac-progress-bar ac-mt-xs">
+                <div class="ac-progress-fill ac-progress-indeterminate"></div>
+              </div>
+            </div>
+          `)}
+        </div>
+      ` : ''}
+
+      <!-- Done Transfers -->
+      ${doneTransfers.length > 0 ? html`
+        <div class="section">
+          <div class="section-title">📋 Recent Transfers</div>
+          ${doneTransfers.map(t => html`
+            <div class="info-card ac-flex ac-items-center ac-gap-sm">
+              <span>${t.status === 'completed' ? '✅' : '❌'}</span>
+              <span>${t.direction === 'upload' ? '⬆️' : '⬇️'} ${t.filename}</span>
+              <span class="ac-ml-auto ac-opacity-60 ac-text-xs">${t.status}</span>
+              <button class="ac-btn-icon" @click="${() => this._removeTransfer(t.id)}" title="Dismiss">✕</button>
+            </div>
+          `)}
+        </div>
+      ` : ''}
+
+      <!-- File List -->
+      <div class="section">
+        <div class="section-title ac-flex ac-items-center ac-gap-sm">
+          📁 Agent Files
+          <button class="ac-btn-icon ac-ml-auto" @click="${() => this.loadFiles()}" title="Refresh">🔄</button>
+        </div>
+
+        ${this.loading ? html`
+          <div class="ac-loading-state">Loading files...</div>
+        ` : this.agentFiles.length === 0 ? html`
+          <div class="ac-empty-state">
+            <div class="ac-text-4xl">📂</div>
+            <p class="ac-opacity-60">No files on this agent</p>
+          </div>
+        ` : html`
+          <table class="ac-file-table">
+            <thead>
+              <tr>
+                <th>File</th>
+                <th>Size</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${this.agentFiles.map(f => html`
+                <tr>
+                  <td class="ac-font-medium">${f.name}</td>
+                  <td class="ac-opacity-60">${this._formatFileSize(f.size)}</td>
+                  <td>
+                    <button class="ac-btn-icon" @click="${() => this._downloadFile(f.name)}"
+                            ?disabled="${!isOnline}" title="Download">⬇️</button>
+                    <button class="ac-btn-icon" @click="${() => this._deleteFile(f.name)}"
+                            ?disabled="${!isOnline}" title="Delete">🗑️</button>
+                  </td>
+                </tr>
+              `)}
+            </tbody>
+          </table>
+        `}
+      </div>
+
+      <div class="section ac-section-muted">
+        <div class="section-title">ℹ️ About File Transfers</div>
+        <p class="ac-p0-note">
+          Files are transferred securely via HTTPS through the kernel (not MQTT).
+          Uploaded files are stored in the agent's transfer directory.
+          Max file size: 200 MB. Transfers expire after 30 minutes.
+        </p>
+      </div>
+    `
+  }
+
   renderScreenshotTab() {
     const isOnline = this.agent && this.agent.status === 'online'
 
@@ -2363,6 +2744,11 @@ class AgentControlWidget extends LitElement {
             @click="${() => this.switchTab('screenshot')}">
             📸 Screenshot
           </button>
+          <button
+            class="tab-btn ${this.currentTab === 'files' ? 'active' : ''}"
+            @click="${() => this.switchTab('files')}">
+            📁 Files
+          </button>
         </div>
 
         <div class="modal-content">
@@ -2395,6 +2781,9 @@ class AgentControlWidget extends LitElement {
           </div>
           <div class="tab-panel ${this.currentTab === 'screenshot' ? 'active' : ''}">
             ${this.renderScreenshotTab()}
+          </div>
+          <div class="tab-panel ${this.currentTab === 'files' ? 'active' : ''}">
+            ${this.renderFilesTab()}
           </div>
         </div>
       </div>

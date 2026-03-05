@@ -30,6 +30,7 @@ use crate::messages::*;
 use crate::mqtt_client;
 use crate::system_tray;
 use crate::file_transfer::FileTransferManager;
+use crate::kernel_client::KernelClient;
 use crate::log_collector::LogCollector;
 use crate::plugins::{AgentPluginRegistry, ActivityTracker};
 use crate::scheduler::Scheduler;
@@ -107,6 +108,13 @@ impl Agent {
             handlers::ScheduleHandler::new(scheduler.clone()),
         ));
 
+        // Create kernel HTTP client for file transfers
+        let kernel_client = Arc::new(KernelClient::new(
+            agent_config.kernel_http.url.as_deref(),
+            &agent_config.mqtt.broker_host,
+            agent_config.kernel_http.tls_verify,
+        ));
+
         // Create file transfer manager and register its handler
         let transfer_dir = dirs::config_dir()
             .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
@@ -115,7 +123,7 @@ impl Agent {
         let file_transfer = Arc::new(FileTransferManager::new(transfer_dir));
         let _ = file_transfer.ensure_dir().await;
         command_registry.register(Box::new(
-            handlers::FileTransferHandler::new(file_transfer.clone()),
+            handlers::FileTransferHandler::new(file_transfer.clone(), kernel_client),
         ));
 
         // Register screenshot handler (reuses file transfer directory)

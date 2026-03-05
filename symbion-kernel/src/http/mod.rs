@@ -27,6 +27,7 @@ pub mod agents;
 pub mod auth;
 pub mod context;
 pub mod decision;
+pub mod files;
 pub mod notifications;
 pub mod system;
 
@@ -104,6 +105,8 @@ pub struct AppState {
     pub trust_tracker: crate::decision::SharedTrustTracker,
     // Global IP-based rate limiter
     pub rate_limiter: crate::rate_limiter::RateLimitStore,
+    // File Transfer Hub (HTTPS relay for agent file transfers)
+    pub file_hub: Option<std::sync::Arc<crate::file_hub::FileHub>>,
 }
 
 async fn require_auth(
@@ -222,6 +225,11 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/plugins/register", post(crate::plugin_proxy::handle_plugin_registration))
         .with_state(app_state.clone());
 
+    // File transfer data routes (token-authenticated, no JWT required — agents use transfer tokens)
+    let file_transfer_data_routes = Router::new()
+        .route("/v1/transfers/{id}/data", get(files::download_transfer_data).post(files::upload_transfer_data))
+        .with_state(app_state.clone());
+
     // Routes d'authentification protégées (nécessitent JWT valide)
     let protected_auth_routes = Router::new()
         .route("/auth/verify", get(auth::auth_verify))
@@ -282,6 +290,10 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/v1/plugins/{name}/start", post(agents::start_plugin_systemctl))
         .route("/v1/plugins/{name}/stop", post(agents::stop_plugin_systemctl))
         .route("/v1/plugins/{name}/restart", post(agents::restart_plugin_systemctl))
+        // File Transfer (POST upload, CSRF protected)
+        .route("/agents/{id}/files/upload", post(files::upload_file_to_agent))
+        .route("/agents/{id}/files/download", post(files::request_file_download))
+        .route("/agents/{id}/files/{filename}", axum::routing::delete(files::delete_agent_file))
         // Sensor delete (soft delete, CSRF protected)
         .route("/environment/sensors/{sensor_id}", axum::routing::delete(agents::delete_sensor_endpoint))
         // Automations CRUD (CSRF protected)
@@ -362,6 +374,9 @@ pub fn build_router(app_state: AppState) -> Router {
         .route("/automations/schema", get(crate::automations_http::get_automations_schema))
         .route("/automations/history", get(crate::automations_http::get_automations_history))
         .route("/automations/{automation_id}", get(crate::automations_http::get_automation))
+        // File Transfer (read-only, JWT auth only)
+        .route("/agents/{id}/files", get(files::list_agent_files))
+        .route("/transfers/{id}/status", get(files::get_transfer_status))
         // Logs API
         .route("/logs", get(system::get_logs))
         .with_state(app_state.clone())
@@ -418,6 +433,8 @@ pub fn build_router(app_state: AppState) -> Router {
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", openapi_spec))
         // Routes publiques (toujours accessibles)
         .merge(public_routes)
+        // File transfer data (token-authenticated, bypasses JWT for agent access)
+        .merge(file_transfer_data_routes)
         // API v1 sous namespace /v1/
         .nest("/v1", v1_api_routes.clone())
         // Backward compatibility: routes à la racine (DEPRECATED, à supprimer en v0.3.0)

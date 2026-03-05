@@ -42,6 +42,7 @@ impl SetupWizard {
             agent: agent_config,
             watchdog: Default::default(),
             logging: Default::default(),
+            kernel_http: Default::default(),
         };
         
         // Display summary and confirm
