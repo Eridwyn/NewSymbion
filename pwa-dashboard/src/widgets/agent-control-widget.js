@@ -43,7 +43,8 @@ class AgentControlWidget extends LitElement {
     pluginData: { type: Object },
     scheduledTasks: { type: Object },
     screenshotStatus: { type: String },
-    screenshotImage: { type: String }
+    screenshotImage: { type: String },
+    expandedCommandId: { type: String }
   }
 
   static styles = [sharedAnimations, overlayStyles, statusBadgeStyles, widgetSectionStyles, css`
@@ -699,6 +700,7 @@ class AgentControlWidget extends LitElement {
     this.pluginData = null
     this.scheduledTasks = null
     this.screenshotStatus = null
+    this.expandedCommandId = null
     this.scheduledTaskForm = { name: '', commandType: 'shell', scheduleType: 'once', schedule: '', parameters: '{}' }
     this.notifyForm = { title: '', body: '', urgency: 'normal' }
   }
@@ -1722,11 +1724,11 @@ class AgentControlWidget extends LitElement {
             <div style="overflow-x: auto;">
               <table class="ac-table">
                 <thead>
-                  <tr><th>Time</th><th>Type</th><th>Status</th></tr>
+                  <tr><th>Time</th><th>Type</th><th>Status</th><th></th></tr>
                 </thead>
                 <tbody>
-                  ${this.commandHistory.slice(0, 10).map(cmd => html`
-                    <tr>
+                  ${this.commandHistory.slice(0, 15).map(cmd => html`
+                    <tr style="cursor: pointer;" @click="${() => { this.expandedCommandId = this.expandedCommandId === cmd.command_id ? null : cmd.command_id; this.requestUpdate() }}">
                       <td style="font-size: var(--text-xs, 0.75rem); opacity: 0.7">${cmd.created_at?.substring(11, 19) || ''}</td>
                       <td>${cmd.command_type}</td>
                       <td>
@@ -1734,7 +1736,29 @@ class AgentControlWidget extends LitElement {
                           ${cmd.status}
                         </span>
                       </td>
+                      <td style="font-size: var(--text-xs, 0.75rem); opacity: 0.5">${this.expandedCommandId === cmd.command_id ? '▼' : '▶'}</td>
                     </tr>
+                    ${this.expandedCommandId === cmd.command_id ? html`
+                      <tr>
+                        <td colspan="4" style="padding: 8px 12px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                          ${cmd.output ? html`
+                            <div style="margin-bottom: 6px;">
+                              <strong style="font-size: var(--text-xs, 0.75rem); opacity: 0.6;">Output:</strong>
+                              <pre style="margin: 4px 0; padding: 6px 8px; background: rgba(0,0,0,0.3); border-radius: 4px; font-size: var(--text-xs, 0.75rem); white-space: pre-wrap; word-break: break-all; max-height: 150px; overflow-y: auto;">${typeof cmd.output === 'string' ? cmd.output : JSON.stringify(cmd.output, null, 2)}</pre>
+                            </div>
+                          ` : ''}
+                          ${cmd.error ? html`
+                            <div>
+                              <strong style="font-size: var(--text-xs, 0.75rem); color: #ef4444;">Error:</strong>
+                              <pre style="margin: 4px 0; padding: 6px 8px; background: rgba(239,68,68,0.1); border-radius: 4px; font-size: var(--text-xs, 0.75rem); white-space: pre-wrap; color: #fca5a5;">${typeof cmd.error === 'string' ? cmd.error : JSON.stringify(cmd.error, null, 2)}</pre>
+                            </div>
+                          ` : ''}
+                          ${!cmd.output && !cmd.error ? html`
+                            <span style="font-size: var(--text-xs, 0.75rem); opacity: 0.4;">No output data</span>
+                          ` : ''}
+                        </td>
+                      </tr>
+                    ` : ''}
                   `)}
                 </tbody>
               </table>
