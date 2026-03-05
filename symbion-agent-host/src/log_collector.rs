@@ -122,10 +122,13 @@ impl LogCollector {
             return;
         }
 
+        // Sanitize newlines to prevent log injection
+        let sanitized_message = message.replace('\r', "\\r").replace('\n', "\\n");
+
         let entry = LogEntry {
             timestamp: Utc::now(),
             level: level.to_string(),
-            message: message.to_string(),
+            message: sanitized_message,
             module,
             source,
         };

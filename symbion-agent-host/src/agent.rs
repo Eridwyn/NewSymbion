@@ -402,10 +402,17 @@ impl Agent {
         } else {
             match self.command_registry.execute(&incoming.command_type, incoming.parameters.as_ref()).await {
                 Some(result) => result,
-                None => crate::execution::handler::CommandResult::error(
-                    "UNKNOWN_COMMAND",
-                    format!("Unknown command type: {}", incoming.command_type),
-                ),
+                None => {
+                    warn!(
+                        command_type = %incoming.command_type,
+                        command_id = %incoming.command_id,
+                        "[agent] REJECTED unknown command type — forensic audit"
+                    );
+                    crate::execution::handler::CommandResult::error(
+                        "UNKNOWN_COMMAND",
+                        format!("Unknown command type: {}", incoming.command_type),
+                    )
+                }
             }
         };
 
