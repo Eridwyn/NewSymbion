@@ -35,7 +35,7 @@ impl RateLimiter {
 
     /// Check if a request is allowed. Returns true if allowed, false if rate limited.
     pub fn check(&self) -> bool {
-        let mut requests = self.requests.lock().unwrap();
+        let mut requests = self.requests.lock().unwrap_or_else(|e| e.into_inner());
         let now = Instant::now();
         let window = std::time::Duration::from_secs(self.window_secs);
 

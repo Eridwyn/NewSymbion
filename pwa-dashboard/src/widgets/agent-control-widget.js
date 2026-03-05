@@ -717,7 +717,7 @@ class AgentControlWidget extends LitElement {
     
     // Écouter les événements d'ouverture du modal
     this.handleOpenEvent = (e) => {
-      console.log('Agent control widget received open event:', e.detail)
+      console.debug('Agent control widget received open event:', e.detail)
       this.open(e.detail.agentId)
     }
     document.addEventListener('open-agent-control', this.handleOpenEvent)
@@ -739,10 +739,10 @@ class AgentControlWidget extends LitElement {
   }
 
   async open(agentId) {
-    console.log('Opening modal for agent:', agentId)
+    console.debug('Opening modal for agent:', agentId)
     this.agentId = agentId
     this.agent = this.agentsService?.getAgentById(agentId)
-    console.log('Found agent:', this.agent)
+    console.debug('Found agent:', this.agent)
     this.isOpen = true
     this.setAttribute('is-open', '')  // Ajouter l'attribut HTML pour le CSS
     this.currentTab = 'system'
@@ -782,6 +782,10 @@ class AgentControlWidget extends LitElement {
           this.loadProcesses()
         } else if (this.currentTab === 'metrics') {
           this.loadMetrics()
+        } else if (this.currentTab === 'watchdog') {
+          this.loadWatchdog()
+        } else if (this.currentTab === 'plugins') {
+          this.loadPlugins()
         }
       }
     })
@@ -838,9 +842,9 @@ class AgentControlWidget extends LitElement {
         this.refreshing = true
       }
       
-      console.log('Loading processes for agent:', this.agentId)
+      console.debug('Loading processes for agent:', this.agentId)
       const newProcesses = await this.agentsService.getAgentProcesses(this.agentId)
-      console.log('Loaded processes:', newProcesses)
+      console.debug('Loaded processes:', newProcesses)
       
       // Only update if we got valid data
       if (newProcesses && (Array.isArray(newProcesses) || newProcesses.total_count !== undefined)) {
@@ -865,9 +869,9 @@ class AgentControlWidget extends LitElement {
         this.refreshing = true
       }
       
-      console.log('Loading metrics for agent:', this.agentId)
+      console.debug('Loading metrics for agent:', this.agentId)
       const newMetrics = await this.agentsService.getAgentMetrics(this.agentId)
-      console.log('Loaded metrics:', newMetrics)
+      console.debug('Loaded metrics:', newMetrics)
       
       // Only update if we got valid data
       if (newMetrics && (newMetrics.cpu || newMetrics.memory)) {
@@ -1091,6 +1095,10 @@ class AgentControlWidget extends LitElement {
   }
 
   async killProcess(pid) {
+    if (!this.agent || this.agent.status !== 'online') {
+      alert('Agent is offline — cannot kill process')
+      return
+    }
     const confirmMsg = `Kill process ${pid}?`
     if (!confirm(confirmMsg)) return
 
@@ -1264,7 +1272,7 @@ class AgentControlWidget extends LitElement {
     }
 
     const dashboardURL = this.agentsService.getAgentLocalDashboardURL(agentIP)
-    console.log('Opening agent local dashboard:', dashboardURL)
+    console.debug('Opening agent local dashboard:', dashboardURL)
     
     // Open in new tab
     window.open(dashboardURL, '_blank', 'noopener,noreferrer')
@@ -2176,7 +2184,7 @@ class AgentControlWidget extends LitElement {
   }
 
   render() {
-    console.log('Agent control render - isOpen:', this.isOpen, 'agent:', this.agent)
+    console.debug('Agent control render - isOpen:', this.isOpen, 'agent:', this.agent)
 
     // Si pas ouvert, ne rien afficher
     if (!this.isOpen) {

@@ -9,6 +9,9 @@ import { LitElement } from 'lit'
 import { ApiService } from './api-service.js'
 import csrfService from './csrf-service.js'
 import authService from './auth-service.js'
+import { getApiBase } from './config.js'
+
+const API_BASE = getApiBase()
 
 class AgentsService extends LitElement {
   static properties = {
@@ -81,7 +84,6 @@ class AgentsService extends LitElement {
   async shutdownAgent(agentId) {
     console.log(`[agents-service] shutdownAgent called: agentId=${agentId}`)
 
-    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
     const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/shutdown`
 
     try {
@@ -106,7 +108,6 @@ class AgentsService extends LitElement {
   }
   
   async rebootAgent(agentId) {
-    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
     const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/reboot`
 
     const response = await csrfService.fetchWithCsrf(url, {
@@ -124,7 +125,6 @@ class AgentsService extends LitElement {
   }
   
   async hibernateAgent(agentId) {
-    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
     const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/hibernate`
 
     const response = await csrfService.fetchWithCsrf(url, {
@@ -146,7 +146,6 @@ class AgentsService extends LitElement {
   async deleteAgent(agentId) {
     console.log(`[agents-service] deleteAgent called: agentId=${agentId}`)
 
-    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
     const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}`
 
     const response = await csrfService.fetchWithCsrf(url, {
@@ -172,7 +171,6 @@ class AgentsService extends LitElement {
   }
   
   async killAgentProcess(agentId, pid) {
-    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
     const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/processes/${pid}/kill`
 
     const response = await csrfService.fetchWithCsrf(url, {
@@ -192,7 +190,6 @@ class AgentsService extends LitElement {
   // ===== Command Execution Enhanced (CSRF protected) =====
 
   async executeCommand(agentId, command, timeout_secs = 30) {
-    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
     const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/command`
     const response = await csrfService.fetchWithCsrf(url, {
       method: 'POST',
@@ -204,7 +201,6 @@ class AgentsService extends LitElement {
   }
 
   async executeCommandWithTracking(agentId, command, timeout_secs = 30) {
-    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
     const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/commands`
     const response = await csrfService.fetchWithCsrf(url, {
       method: 'POST',
@@ -220,7 +216,6 @@ class AgentsService extends LitElement {
 
   async getCommandStatus(commandId) {
     // Direct fetch with auth (bypass apiService to avoid null reference during polling)
-    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
     const url = `${API_BASE}/v1/commands/${encodeURIComponent(commandId)}/status`
 
     const headers = { 'Content-Type': 'application/json' }
@@ -234,7 +229,6 @@ class AgentsService extends LitElement {
   }
 
   async cancelCommand(commandId) {
-    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
     const url = `${API_BASE}/v1/commands/${encodeURIComponent(commandId)}/cancel`
     const response = await csrfService.fetchWithCsrf(url, {
       method: 'POST',
@@ -257,7 +251,6 @@ class AgentsService extends LitElement {
   }
 
   async controlService(agentId, serviceName, action) {
-    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
     const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/services/${encodeURIComponent(serviceName)}/${encodeURIComponent(action)}`
     const response = await csrfService.fetchWithCsrf(url, {
       method: 'POST',
@@ -293,7 +286,6 @@ class AgentsService extends LitElement {
   }
 
   async sendPluginCommand(agentId, pluginId, action, parameters = null) {
-    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
     const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/plugins/${encodeURIComponent(pluginId)}/command`
     const response = await csrfService.fetchWithCsrf(url, {
       method: 'POST',
@@ -307,7 +299,6 @@ class AgentsService extends LitElement {
   // ===== Agent Notifications (v2.5+) =====
 
   async notifyAgent(agentId, title, body, urgency = 'normal', timeout_ms = 5000) {
-    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
     const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/notify`
     const response = await csrfService.fetchWithCsrf(url, {
       method: 'POST',
@@ -321,7 +312,6 @@ class AgentsService extends LitElement {
   // ===== Agent Screenshot (v2.5+) =====
 
   async takeScreenshot(agentId, notifyBefore = true) {
-    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
     const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/screenshot`
     const response = await csrfService.fetchWithCsrf(url, {
       method: 'POST',
@@ -339,7 +329,6 @@ class AgentsService extends LitElement {
   }
 
   async createScheduledTask(agentId, name, commandType, schedule, parameters = null) {
-    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
     const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/scheduled-tasks`
     const response = await csrfService.fetchWithCsrf(url, {
       method: 'POST',
@@ -351,7 +340,6 @@ class AgentsService extends LitElement {
   }
 
   async deleteScheduledTask(agentId, taskName) {
-    const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
     const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/scheduled-tasks/${encodeURIComponent(taskName)}`
     const response = await csrfService.fetchWithCsrf(url, {
       method: 'DELETE',

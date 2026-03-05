@@ -89,10 +89,16 @@ pub fn create_mqtt_client(config: &HostsConfig) -> Result<AsyncClient, Box<dyn s
 
     // Lancer l'eventloop du client bridge en arrière-plan
     tokio::spawn(async move {
+        let mut retry_count: u32 = 0;
         loop {
-            if let Err(e) = eventloop.poll().await {
-                eprintln!("[mqtt-bridge] eventloop error: {:?}", e);
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            match eventloop.poll().await {
+                Ok(_) => { retry_count = 0; }
+                Err(e) => {
+                    retry_count = retry_count.saturating_add(1);
+                    let delay = 2u64.saturating_pow(retry_count.min(5)); // 2s→4s→8s→16s→32s
+                    eprintln!("[mqtt-bridge] eventloop error (retry #{}, backoff {}s): {:?}", retry_count, delay, e);
+                    tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
+                }
             }
         }
     });
@@ -186,6 +192,7 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
             println!("[kernel] MQTT connected and subscriptions active");
         }
 
+        let mut mqtt_retry_count: u32 = 0;
         loop {
             match eventloop.poll().await {
                 Ok(Event::Incoming(rumqttc::Incoming::Publish(p))) => {
@@ -595,10 +602,12 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                     }
                 }
                 }
-                Ok(_) => {}
+                Ok(_) => { mqtt_retry_count = 0; }
                 Err(e) => {
-                    eprintln!("[kernel] MQTT erreur: {:?}", e);
-                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    mqtt_retry_count = mqtt_retry_count.saturating_add(1);
+                    let delay = 2u64.saturating_pow(mqtt_retry_count.min(5)); // 2s→4s→8s→16s→32s
+                    eprintln!("[kernel] MQTT erreur (retry #{}, backoff {}s): {:?}", mqtt_retry_count, delay, e);
+                    tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
                 }
             }
         }
