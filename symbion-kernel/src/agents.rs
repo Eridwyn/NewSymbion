@@ -1264,6 +1264,96 @@ impl AgentRegistry {
             }
         });
     }
+
+    /// Proactive timeout checker: scans pending commands every 5s and marks timed-out ones.
+    /// Also sends a cancel signal to the agent via MQTT so it can abort the running process.
+    pub fn start_command_timeout_checker(registry: SharedAgentRegistry) {
+        println!("[agents] starting proactive command timeout checker (5s interval)");
+
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+
+            loop {
+                interval.tick().await;
+
+                let now = OffsetDateTime::now_utc();
+                let mut timed_out_commands: Vec<(String, String)> = Vec::new(); // (command_id, agent_id)
+
+                // Scan and mark timed-out commands
+                {
+                    let mut pending = registry.pending_commands.write().await;
+                    for (cmd_id, command) in pending.iter_mut() {
+                        match command.status {
+                            CommandStatus::Sent | CommandStatus::Acknowledged => {
+                                let elapsed = now - command.timestamp;
+                                let timeout_secs = command.timeout.as_secs() as i64;
+                                if elapsed.whole_seconds() > timeout_secs {
+                                    command.status = CommandStatus::TimedOut;
+                                    command.error = Some(serde_json::json!({
+                                        "code": "TIMEOUT",
+                                        "message": format!("Command timed out after {}s with no response", timeout_secs)
+                                    }));
+                                    timed_out_commands.push((cmd_id.clone(), command.agent_id.clone()));
+                                    println!("[agents] proactive timeout: command {} ({}s elapsed)", cmd_id, elapsed.whole_seconds());
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                // Send cancel signals to agents for timed-out commands
+                if let Some(mqtt_client) = &registry.mqtt_client {
+                    for (cmd_id, agent_id) in &timed_out_commands {
+                        let cancel_command = AgentCommand {
+                            command_id: Uuid::new_v4().to_string(),
+                            agent_id: agent_id.clone(),
+                            command_type: "cancel".to_string(),
+                            parameters: Some(serde_json::json!({"cancelled_command_id": cmd_id})),
+                            timeout_seconds: Some(10),
+                            timestamp: now.format(&time::format_description::well_known::Iso8601::DEFAULT).unwrap_or_default(),
+                        };
+                        if let Ok(payload) = serde_json::to_string(&cancel_command) {
+                            let _ = mqtt_client.publish("symbion/agents/command@v1", rumqttc::QoS::AtLeastOnce, false, payload).await;
+                        }
+                    }
+                }
+
+                // Update SQLite for timed-out commands
+                if let Some(ref db) = registry.db {
+                    for (cmd_id, _) in &timed_out_commands {
+                        let now_str = now.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
+                        let error_str = serde_json::json!({"code": "TIMEOUT", "message": "Command timed out"}).to_string();
+                        let _ = crate::database::command_history_queries::update_command_status(
+                            db, cmd_id, "TimedOut",
+                            None,
+                            Some(&error_str),
+                            Some(&now_str),
+                        );
+                    }
+                }
+
+                // Cleanup old completed/failed/timed-out commands (>5 minutes old)
+                {
+                    let mut pending = registry.pending_commands.write().await;
+                    let before = pending.len();
+                    pending.retain(|_, cmd| {
+                        match cmd.status {
+                            CommandStatus::Completed | CommandStatus::Failed | CommandStatus::TimedOut | CommandStatus::Cancelled => {
+                                let elapsed = now - cmd.timestamp;
+                                elapsed.whole_seconds() < 300 // Keep for 5 minutes
+                            }
+                            _ => true, // Keep active commands
+                        }
+                    });
+                    let removed = before - pending.len();
+                    if removed > 0 {
+                        println!("[agents] cleaned up {} stale pending commands", removed);
+                    }
+                }
+            }
+        });
+    }
 }
 
 /// Compute heartbeat regularity score from timestamps (0-25).

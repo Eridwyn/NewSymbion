@@ -442,6 +442,9 @@ async fn main() {
     // démarre la sauvegarde périodique débounced des agents (toutes les 5min si modifiés)
     AgentRegistry::start_periodic_save(agents.clone());
 
+    // démarre le timeout checker proactif des commandes (toutes les 5s)
+    AgentRegistry::start_command_timeout_checker(agents.clone());
+
     // démarre la sauvegarde périodique débounced des environnements sensors (toutes les 5min si modifiés)
     crate::sensors::SensorRegistry::start_periodic_env_save(sensor_registry.clone());
 

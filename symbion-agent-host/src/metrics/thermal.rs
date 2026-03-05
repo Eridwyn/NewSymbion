@@ -23,6 +23,12 @@ impl TemperatureMetrics {
     pub fn collect() -> Option<Self> {
         let components = Components::new_with_refreshed_list();
         if components.is_empty() {
+            // sysinfo returns empty on Windows — try WMI fallback
+            #[cfg(target_os = "windows")]
+            {
+                return Self::collect_windows_wmi();
+            }
+            #[cfg(not(target_os = "windows"))]
             return None;
         }
 
@@ -53,6 +59,67 @@ impl TemperatureMetrics {
             cpu_celsius,
             sensors,
         })
+    }
+
+    /// Windows WMI fallback for temperature when sysinfo returns empty
+    #[cfg(target_os = "windows")]
+    fn collect_windows_wmi() -> Option<Self> {
+        // MSAcpi_ThermalZoneTemperature returns temp in tenths of Kelvin
+        let output = std::process::Command::new("powershell")
+            .args([
+                "-NonInteractive", "-WindowStyle", "Hidden", "-Command",
+                r#"Get-CimInstance -Namespace root/WMI -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue | Select-Object InstanceName, CurrentTemperature | ConvertTo-Json"#
+            ])
+            .output()
+            .ok()?;
+
+        if !output.status.success() {
+            return None;
+        }
+
+        let json_str = String::from_utf8_lossy(&output.stdout);
+        let parsed: serde_json::Value = serde_json::from_str(json_str.trim()).ok()?;
+
+        let mut sensors = Vec::new();
+        let mut cpu_celsius: Option<f32> = None;
+
+        // Can be a single object or array
+        let entries = if parsed.is_array() {
+            parsed.as_array().cloned().unwrap_or_default()
+        } else {
+            vec![parsed]
+        };
+
+        for entry in &entries {
+            let name = entry.get("InstanceName")
+                .and_then(|v| v.as_str())
+                .unwrap_or("ThermalZone")
+                .to_string();
+            let raw_temp = entry.get("CurrentTemperature")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+
+            // Convert from tenths of Kelvin to Celsius
+            let celsius = (raw_temp / 10.0 - 273.15) as f32;
+
+            if celsius > -50.0 && celsius < 200.0 {
+                if cpu_celsius.is_none() {
+                    cpu_celsius = Some(celsius);
+                }
+                sensors.push(TemperatureSensor {
+                    name,
+                    value: celsius,
+                    unit: "\u{00b0}C".to_string(),
+                    critical: Some(100.0),
+                });
+            }
+        }
+
+        if sensors.is_empty() {
+            None
+        } else {
+            Some(TemperatureMetrics { cpu_celsius, sensors })
+        }
     }
 }
 
