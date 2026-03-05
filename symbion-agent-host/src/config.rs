@@ -25,6 +25,25 @@ pub struct AgentConfig {
     pub watchdog: WatchdogConfig,
     #[serde(default)]
     pub logging: LogConfig,
+    #[serde(default)]
+    pub kernel_http: KernelHttpConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KernelHttpConfig {
+    /// Kernel HTTPS URL (e.g. "https://192.168.1.14:8443"). If None, derived from mqtt.broker_host.
+    pub url: Option<String>,
+    /// Verify TLS certificates. Default false (mkcert dev certs).
+    pub tls_verify: bool,
+}
+
+impl Default for KernelHttpConfig {
+    fn default() -> Self {
+        Self {
+            url: None,
+            tls_verify: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -105,6 +124,7 @@ impl Default for AgentConfig {
             },
             watchdog: WatchdogConfig::default(),
             logging: LogConfig::default(),
+            kernel_http: KernelHttpConfig::default(),
         }
     }
 }

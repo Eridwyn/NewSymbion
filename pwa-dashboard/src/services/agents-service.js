@@ -368,6 +368,55 @@ class AgentsService extends LitElement {
     }
   }
 
+  // ===== File Management =====
+
+  async listAgentFiles(agentId) {
+    return await this.apiService.request(`/agents/${encodeURIComponent(agentId)}/files`)
+  }
+
+  async uploadFileToAgent(agentId, file) {
+    const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/files/upload`
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'POST',
+      body: formData
+      // No Content-Type header — browser sets multipart boundary automatically
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    return await response.json()
+  }
+
+  async requestFileDownload(agentId, filename) {
+    const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/files/download`
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename })
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    return await response.json()
+  }
+
+  async deleteAgentFile(agentId, filename) {
+    const url = `${API_BASE}/v1/agents/${encodeURIComponent(agentId)}/files/${encodeURIComponent(filename)}`
+    const response = await csrfService.fetchWithCsrf(url, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    return await response.json()
+  }
+
+  async getTransferStatus(transferId) {
+    return await this.apiService.request(`/transfers/${encodeURIComponent(transferId)}/status`)
+  }
+
+  getTransferDownloadUrl(transferId, token) {
+    return `${API_BASE}/v1/transfers/${encodeURIComponent(transferId)}/data?token=${encodeURIComponent(token)}`
+  }
+
   // ===== Agent Reconnection =====
 
   async reconnectAgent(agentId) {
