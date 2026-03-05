@@ -8,7 +8,8 @@
  * - Métriques et statistiques
  */
 
-const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+import { getApiBase } from './config.js'
+const API_BASE = getApiBase()
 
 class DecisionService {
   constructor() {

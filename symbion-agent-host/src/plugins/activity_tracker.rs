@@ -109,7 +109,7 @@ impl AgentPlugin for ActivityTracker {
         if !is_idle {
             // Track active time approximately (30s heartbeat interval)
             self.total_active_secs.fetch_add(30, Ordering::Relaxed);
-            *self.last_activity.lock().unwrap() = Instant::now();
+            *self.last_activity.lock().unwrap_or_else(|e| e.into_inner()) = Instant::now();
         }
 
         Ok(Some(serde_json::json!({

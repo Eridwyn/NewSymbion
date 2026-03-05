@@ -9,7 +9,8 @@
  * - Events csrf:fetched, csrf:expired, csrf:error
  */
 
-const API_BASE = window.SYMBION_CONFIG?.API_BASE || 'https://192.168.1.14:8443'
+import { getApiBase } from './config.js'
+const API_BASE = getApiBase()
 const NONCE_REFRESH_MARGIN = 30 // Refresh 30s avant expiration
 
 class CsrfService extends EventTarget {

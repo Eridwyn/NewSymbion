@@ -157,7 +157,7 @@ impl SymbionGui {
                 match tray_event {
                     tray_icon::TrayIconEvent::DoubleClick { button, .. } => {
                         if button == tray_icon::MouseButton::Left {
-                            let mut state = state_clone.lock().unwrap();
+                            let mut state = state_clone.lock().unwrap_or_else(|e| e.into_inner());
                             state.window_visible = !state.window_visible;
                             window.set_visible(state.window_visible);
 
@@ -182,7 +182,7 @@ impl SymbionGui {
                     info!("Quit requested from tray menu");
                     *control_flow = ControlFlow::Exit;
                 } else if menu_id == "toggle_dashboard" {
-                    let mut state = state_clone.lock().unwrap();
+                    let mut state = state_clone.lock().unwrap_or_else(|e| e.into_inner());
                     state.window_visible = !state.window_visible;
                     window.set_visible(state.window_visible);
                     if state.window_visible {
@@ -193,7 +193,7 @@ impl SymbionGui {
                 } else if menu_id == "open_config" {
                     let _ = windows_utils::open_config();
                 } else if menu_id == "check_updates" {
-                    let mut state = state_clone.lock().unwrap();
+                    let mut state = state_clone.lock().unwrap_or_else(|e| e.into_inner());
                     state.window_visible = true;
                     window.set_visible(true);
                     window.set_focus();
@@ -208,7 +208,7 @@ impl SymbionGui {
                     ..
                 } => {
                     window.set_visible(false);
-                    let mut state = state_clone.lock().unwrap();
+                    let mut state = state_clone.lock().unwrap_or_else(|e| e.into_inner());
                     state.window_visible = false;
                     info!("Dashboard window hidden via close button");
                 }
