@@ -2,7 +2,7 @@
 
 **Version** : 2026-03 (Post Audit + Sprint P0/P1/P2/P3 + Sprint 5/5 K3+K4+K8 + Sprint 7 SQLite + Sprint 8-9 Agent v2 + Sprint 10-14 Agent v2.5)
 **Statut** : Fondations complètes, Agent Host v2.5.0 (8 features, 5 sprints), 100% persistance SQLite, couverture tests renforcée
-**Dernière mise à jour** : 4 Mars 2026
+**Dernière mise à jour** : 6 Mars 2026
 **Score global** : 4.8/5
 
 ---
@@ -13,24 +13,24 @@
 
 | Composant | Langage | LOC | Fichiers | Score | Tests |
 |-----------|---------|----:|----------|-------|------:|
-| **symbion-kernel** | Rust | ~46,800 | 102 | 4.8/5 | 405 |
+| **symbion-kernel** | Rust | ~46,800 | 105 | 4.8/5 | 420 |
 | **pwa-dashboard** | JS (Lit) | ~36,400 | 75 | 4.5/5 | 744 |
-| **symbion-agent-host** | Rust | ~11,200 | 47 | 4.7/5 | 218 |
+| **symbion-agent-host** | Rust | ~11,200 | 47 | 4.7/5 | 225 |
 | **Plugins** (5) | Rust | ~5,580 | 14 | 4.8/5 | 28 |
 | **Infra** (scripts/CI) | Bash/YAML | ~2,960 | 24 | 3.5/5 | - |
-| **Total** | | **~103,000** | **262** | **4.7/5** | **1,395** |
+| **Total** | | **~103,000** | **265** | **4.7/5** | **1,417** |
 
 ### Chiffres Clés
 
 | Métrique | Valeur |
 |----------|--------|
-| Unit Tests | 1,395 (405 kernel + 744 PWA + 218 agent + 28 plugins) |
+| Unit Tests | 1,417 (420 kernel + 744 PWA + 225 agent + 28 plugins) |
 | API Routes (http/) | 150+ endpoints across 7 modules + plugins |
 | MQTT Topics | 10 subscriptions |
 | Automations actives | 16 (+ intelligence-managed) |
 | Modes contextuels | 4 système + custom |
 | Intelligence Samples | 34 (apprentissage continu) |
-| **SQLite Database** | **21 tables, 5 migrations, 13 query modules, 107 fonctions** |
+| **SQLite Database** | **22 tables, 5 migrations, 13 query modules, 107 fonctions** |
 | Data files (JSON) | Fallback uniquement (SQLite primaire) |
 | **Issues audit** | **116 identifiées — 29 P0/P1 + 47 P2 + 46 P3 corrigées, 3 faux positifs, 0 différées** |
 | **OpenAPI/Swagger** | 109 paths, 184 schemas, Swagger UI `/swagger-ui/` |
@@ -1016,7 +1016,7 @@
 - [x] `symbion-plugin-freebox` : +4 tests (PollingConfig defaults, all 11 default functions, config load, roundtrip)
 
 **Bilan** : Tests Rust workspace 474 → 540 (+66), Total projet 1,218 → 1,284
-**Bilan Sprint 10-14** : Tests agent 107 → 218 (+111), Total projet 1,284 → 1,395
+**Bilan Sprint 10-14** : Tests agent 107 → 225 (+118), Total projet 1,284 → 1,417
 
 ---
 
@@ -1063,5 +1063,5 @@ AUTOMATION ENGINE (automations/) — Trigger → Condition → Action
 
 **Document Maintenu Par** : Claude Code + Mark
 **Git Branch** : master
-**Agent Host** : v2.5.0 (218 tests, 47 fichiers, ~11,200 LOC)
+**Agent Host** : v2.5.0 (225 tests, 47 fichiers, ~11,200 LOC)
 **Plugins** : 28 tests (ssl 9 + notes 10 + common 5 + freebox 4)

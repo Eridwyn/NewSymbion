@@ -108,7 +108,7 @@ Vue d'ensemble de l'architecture IoT distribuée.
 
 ### Kernel (Rust - `symbion-kernel/src/`)
 
-**Note** : Le kernel contient 60 fichiers Rust au total (33 modules racine + 16 dans decision/ + 11 dans automations/).
+**Note** : Le kernel contient 105 fichiers Rust au total (54 modules racine + 16 dans decision/ + 11 dans automations/ + 8 dans http/ + 16 dans database/).
 
 ```
 symbion-kernel/src/
