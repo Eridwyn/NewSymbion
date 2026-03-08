@@ -87,13 +87,17 @@ async fn run_event_loop(
         match eventloop.poll().await {
             Ok(Event::Incoming(Incoming::ConnAck(_))) => {
                 retry_count = 0;
-                connected.store(true, Ordering::Relaxed);
+                // P1 fix: Do NOT set connected=true here. Wait for SubAck to ensure
+                // the command subscription is confirmed before accepting publishes.
+                // Otherwise commands sent between ConnAck and SubAck are silently lost.
                 info!("MQTT connected/reconnected — subscribing to command topic");
                 if let Err(e) = client.subscribe(TOPIC_COMMAND, QoS::AtLeastOnce).await {
                     error!("Failed to subscribe to command topic: {}", e);
-                } else {
-                    info!("Subscribed to {}", TOPIC_COMMAND);
                 }
+            }
+            Ok(Event::Incoming(Incoming::SubAck(_))) => {
+                connected.store(true, Ordering::Relaxed);
+                info!("MQTT subscription confirmed — agent fully connected");
             }
             Ok(Event::Incoming(Incoming::Publish(publish))) => {
                 if publish.topic == TOPIC_COMMAND {

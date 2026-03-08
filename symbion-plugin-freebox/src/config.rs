@@ -34,7 +34,13 @@ pub struct FreeboxConfig {
     #[serde(default = "default_app_id")]
     pub app_id: String,
 
-    /// App token obtained during authorization
+    /// App token obtained during authorization.
+    ///
+    /// SECURITY NOTE: This token is stored in plaintext in the TOML config file.
+    /// For production deployments, prefer setting the FREEBOX_APP_TOKEN environment
+    /// variable instead, which takes precedence over this field. If neither is set,
+    /// the plugin will fail to start.
+    #[serde(default)]
     pub app_token: String,
 }
 
@@ -158,10 +164,31 @@ impl Default for PollingConfig {
 }
 
 impl Config {
-    /// Load configuration from file
+    /// Load configuration from file.
+    ///
+    /// Environment variable overrides:
+    /// - `FREEBOX_APP_TOKEN`: overrides `freebox.app_token` from the TOML file.
+    ///   This is the recommended way to provide the token in production to avoid
+    ///   storing secrets in plaintext config files.
     pub fn load(path: &str) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(path)?;
-        let config: Config = toml::from_str(&content)?;
+        let mut config: Config = toml::from_str(&content)?;
+
+        // Environment variable override for sensitive app_token
+        if let Ok(token) = std::env::var("FREEBOX_APP_TOKEN") {
+            if !token.is_empty() {
+                config.freebox.app_token = token;
+            }
+        }
+
+        // Validate that app_token is set (from either source)
+        if config.freebox.app_token.is_empty() {
+            anyhow::bail!(
+                "Freebox app_token is required. Set it in the TOML config file \
+                 or via the FREEBOX_APP_TOKEN environment variable."
+            );
+        }
+
         Ok(config)
     }
 }
@@ -261,6 +288,65 @@ friendly_name = "Mon iPhone"
         assert_eq!(device.freebox_name, "iPhone");
         assert_eq!(device.device_type, "phone");
         assert_eq!(device.friendly_name, Some("Mon iPhone".to_string()));
+    }
+
+    #[test]
+    fn test_config_load_env_var_override() {
+        let toml_content = r#"
+[freebox]
+api_url = "http://192.168.1.254"
+app_id = "test.app"
+app_token = "toml-token"
+
+[mqtt]
+host = "127.0.0.1"
+
+[http]
+socket_path = "/tmp/freebox-env-test.sock"
+"#;
+
+        let dir = std::env::temp_dir().join("symbion-freebox-test-env");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("config.toml");
+        std::fs::write(&path, toml_content).unwrap();
+
+        // Set env var - should override TOML value
+        std::env::set_var("FREEBOX_APP_TOKEN", "env-secret-token");
+        let config = Config::load(path.to_str().unwrap()).unwrap();
+        assert_eq!(config.freebox.app_token, "env-secret-token");
+
+        // Clean up
+        std::env::remove_var("FREEBOX_APP_TOKEN");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_config_load_missing_token_fails() {
+        let toml_content = r#"
+[freebox]
+api_url = "http://192.168.1.254"
+app_id = "test.app"
+
+[mqtt]
+host = "127.0.0.1"
+
+[http]
+socket_path = "/tmp/freebox-notoken-test.sock"
+"#;
+
+        let dir = std::env::temp_dir().join("symbion-freebox-test-notoken");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("config.toml");
+        std::fs::write(&path, toml_content).unwrap();
+
+        // Ensure env var is not set
+        std::env::remove_var("FREEBOX_APP_TOKEN");
+        let result = Config::load(path.to_str().unwrap());
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("app_token"), "Error should mention app_token: {}", err_msg);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

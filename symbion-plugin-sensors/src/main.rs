@@ -738,6 +738,300 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+// ============================================================================
+// TESTS
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use time::OffsetDateTime;
+
+    // --- ActionResponse tests ---
+
+    #[test]
+    fn test_action_response_success() {
+        let id = Uuid::new_v4();
+        let resp = ActionResponse::success(id, serde_json::json!({"ok": true}), 42);
+        assert_eq!(resp.spec_version, SPEC_VERSION);
+        assert_eq!(resp.action_id, id);
+        assert_eq!(resp.status, "success");
+        assert!(resp.result.is_some());
+        assert!(resp.error.is_none());
+        assert_eq!(resp.execution_time_ms, 42);
+    }
+
+    #[test]
+    fn test_action_response_error() {
+        let id = Uuid::new_v4();
+        let resp = ActionResponse::error(id, "something broke", 7);
+        assert_eq!(resp.status, "error");
+        assert!(resp.result.is_none());
+        let err = resp.error.unwrap();
+        assert_eq!(err["message"], "something broke");
+        assert_eq!(resp.execution_time_ms, 7);
+    }
+
+    // --- EventMessage tests ---
+
+    #[test]
+    fn test_event_message_new() {
+        let event = EventMessage::new("sensor_registered", serde_json::json!({"sensor_id": "s1"}));
+        assert_eq!(event.spec_version, SPEC_VERSION);
+        assert_eq!(event.event_type, "sensor_registered");
+        assert_eq!(event.plugin_id, PLUGIN_ID);
+        assert_eq!(event.payload["sensor_id"], "s1");
+        assert!(!event.timestamp.is_empty());
+    }
+
+    #[test]
+    fn test_event_message_serialization() {
+        let event = EventMessage::new("test_event", serde_json::json!({}));
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"event_type\":\"test_event\""));
+        assert!(json.contains("\"plugin_id\":\"sensors\""));
+    }
+
+    // --- SensorStatus tests ---
+
+    #[test]
+    fn test_sensor_status_serde() {
+        let json = serde_json::to_string(&SensorStatus::Online).unwrap();
+        assert_eq!(json, "\"online\"");
+
+        let json = serde_json::to_string(&SensorStatus::LowBattery).unwrap();
+        assert_eq!(json, "\"low_battery\"");
+
+        let parsed: SensorStatus = serde_json::from_str("\"offline\"").unwrap();
+        assert_eq!(parsed, SensorStatus::Offline);
+    }
+
+    // --- EnvironmentStatus tests ---
+
+    #[test]
+    fn test_environment_status_serde() {
+        let json = serde_json::to_string(&EnvironmentStatus::Normal).unwrap();
+        assert_eq!(json, "\"normal\"");
+
+        let json = serde_json::to_string(&EnvironmentStatus::MoldRisk).unwrap();
+        assert_eq!(json, "\"mold_risk\"");
+
+        let parsed: EnvironmentStatus = serde_json::from_str("\"temp_low\"").unwrap();
+        assert_eq!(parsed, EnvironmentStatus::TempLow);
+    }
+
+    // --- SensorRegistry tests ---
+
+    #[test]
+    fn test_registry_register_sensor() {
+        let registry = SensorRegistry::new();
+        let reg = SensorRegistration {
+            sensor_id: "esp32-001".to_string(),
+            sensor_type: "dht22".to_string(),
+            room_id: "bedroom".to_string(),
+            firmware_version: "1.0.0".to_string(),
+        };
+
+        let sensor = registry.register_sensor(reg);
+        assert_eq!(sensor.sensor_id, "esp32-001");
+        assert_eq!(sensor.sensor_type, "dht22");
+        assert_eq!(sensor.room_id, "bedroom");
+        assert_eq!(sensor.status, SensorStatus::Online);
+        assert!(sensor.battery_pct.is_none());
+
+        // Verify it's in the registry
+        let sensors = registry.list_sensors();
+        assert_eq!(sensors.len(), 1);
+        assert_eq!(sensors[0].sensor_id, "esp32-001");
+    }
+
+    #[test]
+    fn test_registry_list_empty() {
+        let registry = SensorRegistry::new();
+        assert!(registry.list_sensors().is_empty());
+    }
+
+    #[test]
+    fn test_registry_get_environment_missing() {
+        let registry = SensorRegistry::new();
+        assert!(registry.get_environment("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_registry_add_reading_unregistered_sensor() {
+        let registry = SensorRegistry::new();
+        let reading = EnvReadingMqtt {
+            sensor_id: "unknown".to_string(),
+            temperature_c: 22.0,
+            humidity_pct: 45.0,
+            signal_rssi: None,
+        };
+        let result = registry.add_reading(reading);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not registered"));
+    }
+
+    #[test]
+    fn test_registry_add_reading_creates_environment() {
+        let registry = SensorRegistry::new();
+
+        // Register sensor first
+        registry.register_sensor(SensorRegistration {
+            sensor_id: "s1".to_string(),
+            sensor_type: "dht22".to_string(),
+            room_id: "salon".to_string(),
+            firmware_version: "1.0".to_string(),
+        });
+
+        // Add a reading
+        let result = registry.add_reading(EnvReadingMqtt {
+            sensor_id: "s1".to_string(),
+            temperature_c: 21.5,
+            humidity_pct: 48.0,
+            signal_rssi: Some(-65),
+        });
+        assert!(result.is_ok());
+
+        // Verify environment was created
+        let env = registry.get_environment("salon").unwrap();
+        assert_eq!(env.room_id, "salon");
+        assert!((env.current.temperature_c - 21.5).abs() < 0.01);
+        assert!((env.current.humidity_pct - 48.0).abs() < 0.01);
+        assert_eq!(env.status, EnvironmentStatus::Normal);
+        assert_eq!(env.history.len(), 1);
+
+        // Verify sensor rssi was updated
+        let sensors = registry.sensors.read();
+        let sensor = sensors.get("s1").unwrap();
+        assert_eq!(sensor.signal_rssi, Some(-65));
+    }
+
+    // --- evaluate_status_with_history tests ---
+
+    #[test]
+    fn test_evaluate_status_empty_history() {
+        assert_eq!(
+            SensorRegistry::evaluate_status_with_history(&[]),
+            EnvironmentStatus::Normal
+        );
+    }
+
+    #[test]
+    fn test_evaluate_status_normal_conditions() {
+        let readings = vec![EnvironmentReading {
+            temperature_c: 22.0,
+            humidity_pct: 45.0,
+            timestamp: OffsetDateTime::now_utc(),
+        }];
+        assert_eq!(
+            SensorRegistry::evaluate_status_with_history(&readings),
+            EnvironmentStatus::Normal
+        );
+    }
+
+    #[test]
+    fn test_evaluate_status_temp_low() {
+        let readings = vec![EnvironmentReading {
+            temperature_c: 14.0,
+            humidity_pct: 40.0,
+            timestamp: OffsetDateTime::now_utc(),
+        }];
+        assert_eq!(
+            SensorRegistry::evaluate_status_with_history(&readings),
+            EnvironmentStatus::TempLow
+        );
+    }
+
+    #[test]
+    fn test_evaluate_status_temp_boundary() {
+        // Exactly 16.0 should NOT trigger TempLow (condition is < 16.0)
+        let readings = vec![EnvironmentReading {
+            temperature_c: 16.0,
+            humidity_pct: 40.0,
+            timestamp: OffsetDateTime::now_utc(),
+        }];
+        assert_eq!(
+            SensorRegistry::evaluate_status_with_history(&readings),
+            EnvironmentStatus::Normal
+        );
+    }
+
+    // --- HealthStatus serialization ---
+
+    #[test]
+    fn test_health_status_serialization() {
+        let health = HealthStatus {
+            spec_version: "1.0".to_string(),
+            plugin_id: "sensors".to_string(),
+            status: "healthy".to_string(),
+            uptime_seconds: 120,
+            last_action_at: None,
+        };
+        let json = serde_json::to_string(&health).unwrap();
+        assert!(json.contains("\"uptime_seconds\":120"));
+        // last_action_at should be omitted when None (skip_serializing_if)
+        assert!(!json.contains("last_action_at"));
+    }
+
+    #[test]
+    fn test_health_status_with_last_action() {
+        let health = HealthStatus {
+            spec_version: "1.0".to_string(),
+            plugin_id: "sensors".to_string(),
+            status: "healthy".to_string(),
+            uptime_seconds: 60,
+            last_action_at: Some("2026-01-01T00:00:00Z".to_string()),
+        };
+        let json = serde_json::to_string(&health).unwrap();
+        assert!(json.contains("\"last_action_at\":\"2026-01-01T00:00:00Z\""));
+    }
+
+    // --- Constants ---
+
+    #[test]
+    fn test_constants() {
+        assert_eq!(PLUGIN_ID, "sensors");
+        assert_eq!(SPEC_VERSION, "1.0");
+        assert!(!PLUGIN_VERSION.is_empty());
+    }
+
+    #[test]
+    fn test_topic_constants() {
+        assert_eq!(topics::MANIFEST, "symbion/plugins/sensors/manifest");
+        assert_eq!(topics::EVENTS, "symbion/plugins/sensors/events");
+        assert_eq!(topics::HEALTH, "symbion/plugins/sensors/health");
+        assert!(topics::LEGACY_REGISTRATION.contains("registration"));
+        assert!(topics::LEGACY_ENV_PATTERN.contains("env@v1"));
+    }
+
+    // --- Sensor struct serialization roundtrip ---
+
+    #[test]
+    fn test_sensor_serialization_roundtrip() {
+        let now = OffsetDateTime::now_utc();
+        let sensor = Sensor {
+            sensor_id: "test-01".to_string(),
+            sensor_type: "bme280".to_string(),
+            room_id: "kitchen".to_string(),
+            firmware_version: "2.1.0".to_string(),
+            registered_at: now,
+            last_seen: now,
+            status: SensorStatus::Online,
+            battery_pct: Some(87.5),
+            signal_rssi: Some(-42),
+        };
+
+        let json = serde_json::to_string(&sensor).unwrap();
+        let parsed: Sensor = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.sensor_id, "test-01");
+        assert_eq!(parsed.sensor_type, "bme280");
+        assert_eq!(parsed.room_id, "kitchen");
+        assert_eq!(parsed.status, SensorStatus::Online);
+        assert_eq!(parsed.battery_pct, Some(87.5));
+        assert_eq!(parsed.signal_rssi, Some(-42));
+    }
+}
+
 async fn handle_mqtt_message(
     registry: &Arc<SensorRegistry>,
     client: &AsyncClient,

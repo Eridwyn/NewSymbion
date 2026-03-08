@@ -2,6 +2,21 @@
 //!
 //! Implémente une protection CSRF basée sur des nonces (tokens à usage unique)
 //! Les nonces ont une durée de vie limitée (5 minutes) et sont liés à l'utilisateur
+//!
+//! ## Design Decision: In-Memory Storage
+//!
+//! CSRF nonces are intentionally stored only in memory (not persisted to disk/DB).
+//! This means all tokens are invalidated on kernel restart, which is acceptable because:
+//! - Nonces are short-lived (5 min TTL) and single-use by design
+//! - The PWA's `csrf-service.js` automatically fetches a fresh nonce before each
+//!   protected request (via `getNonce()` / `fetchNewNonce()`)
+//! - On reconnect after a restart, the PWA re-authenticates and obtains new nonces
+//! - Persisting CSRF tokens would add complexity with no security benefit
+//!
+//! The flow after kernel restart:
+//! 1. PWA detects connection loss / 403 on stale nonce
+//! 2. `csrf-service.js` calls `invalidateNonce()` and fetches a fresh one
+//! 3. Normal operation resumes transparently
 
 use anyhow::Result;
 use parking_lot::RwLock;
