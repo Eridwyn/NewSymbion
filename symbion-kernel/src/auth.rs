@@ -153,28 +153,8 @@ impl AuthManager {
 
     fn load_users() -> Result<HashMap<String, User>> {
         if !Path::new(USERS_FILE).exists() {
-            // Create default admin user: mark / Sourire951 (username normalized to lowercase)
-            println!("[auth] Creating default admin user...");
-            let default_user = User {
-                username: "mark".to_string(),
-                password_hash: hash("Sourire951", 12)
-                    .context("Failed to hash default password")?,
-                role: "admin".to_string(),
-                created_at: OffsetDateTime::now_utc().unix_timestamp(),
-                mfa_config: None,
-            };
-
-            let mut users = HashMap::new();
-            users.insert(default_user.username.clone(), default_user);
-
-            // Save to file
-            let json = serde_json::to_string_pretty(&users)
-                .context("Failed to serialize default users")?;
-            fs::write(USERS_FILE, json)
-                .context("Failed to write default users file")?;
-
-            println!("[auth] Default user 'mark' created (case-insensitive)");
-            return Ok(users);
+            println!("[auth] No users file found — create one via API or CLI");
+            return Ok(HashMap::new());
         }
 
         let content = fs::read_to_string(USERS_FILE)
@@ -603,12 +583,18 @@ mod tests {
         }
     }
 
-    // Helper to create test AuthManager with fresh state
+    const TEST_USER: &str = "mark";
+    const TEST_PASS: &str = "Sourire951";
+
+    // Helper to create test AuthManager with fresh state and a test admin user.
     // Caller MUST hold AUTH_TEST_LOCK
     fn create_test_auth_manager() -> Result<AuthManager> {
         cleanup_test_users();
         std::env::set_var("SYMBION_JWT_SECRET", "test-secret-1234567890123456789012345678901234567890123456789012345678901234");
-        AuthManager::new()
+        let auth = AuthManager::new()?;
+        // Seed a test admin user (no longer created by default)
+        auth.create_user(TEST_USER, TEST_PASS, "admin")?;
+        Ok(auth)
     }
 
     #[test]

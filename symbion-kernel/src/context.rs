@@ -1073,4 +1073,76 @@ mod tests {
         assert_ne!(cravate_no_priority, Mode::Veille);
         assert_ne!(intime_no_priority, Mode::Veille);
     }
+
+    #[test]
+    fn test_concurrent_override_and_read() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let engine = Arc::new(ContextEngine::new());
+        let mut handles = vec![];
+
+        // 20 threads setting overrides simultaneously
+        for i in 0..20 {
+            let eng = Arc::clone(&engine);
+            handles.push(thread::spawn(move || {
+                let mode = if i % 2 == 0 { Mode::Pro } else { Mode::Maison };
+                eng.set_override(mode, 60, format!("concurrent-test-{}", i));
+            }));
+        }
+
+        // 20 threads reading state simultaneously
+        for _ in 0..20 {
+            let eng = Arc::clone(&engine);
+            handles.push(thread::spawn(move || {
+                // get_state returns Option<ContextState> — should never panic
+                let _state = eng.get_state();
+            }));
+        }
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        // History should have at least 20 entries (overrides + possible initial state entries)
+        let history = engine.get_history();
+        assert!(history.len() >= 20, "Expected >=20 history entries, got {}", history.len());
+    }
+
+    #[test]
+    fn test_concurrent_clear_override() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let engine = Arc::new(ContextEngine::new());
+        let agents: Vec<Agent> = vec![];
+
+        // Set an override first
+        engine.set_override(Mode::Pro, 60, "setup".to_string());
+
+        let mut handles = vec![];
+
+        // 30 threads: half clear, half set overrides
+        for i in 0..30 {
+            let eng = Arc::clone(&engine);
+            let ag = agents.clone();
+            handles.push(thread::spawn(move || {
+                if i % 2 == 0 {
+                    eng.clear_override(&ag);
+                } else {
+                    eng.set_override(Mode::Maison, 30, format!("race-{}", i));
+                }
+            }));
+        }
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        // State should be consistent (no panic, no deadlock)
+        let state = engine.get_state();
+        if let Some(s) = state {
+            assert!(s.mode == Mode::Pro || s.mode == Mode::Maison || s.mode == Mode::Veille);
+        }
+    }
 }

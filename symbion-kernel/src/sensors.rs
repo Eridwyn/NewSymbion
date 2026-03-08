@@ -1123,4 +1123,156 @@ mod tests {
         // Second save without update should skip (dirty flag cleared)
         assert!(registry.save_environments_to_disk().is_ok());
     }
+
+    #[test]
+    fn test_concurrent_sensor_registration() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("sensors_concurrent.json");
+        let registry = Arc::new(SensorRegistry::new(&path));
+
+        let mut handles = vec![];
+
+        // 50 threads registering sensors simultaneously
+        for i in 0..50 {
+            let reg = Arc::clone(&registry);
+            handles.push(thread::spawn(move || {
+                let sensor = Sensor {
+                    sensor_id: format!("esp32-concurrent-{:03}", i),
+                    sensor_type: "bme280".to_string(),
+                    room_id: format!("room-{}", i % 5),
+                    firmware_version: None,
+                    registered_at: Utc::now(),
+                    last_seen: Utc::now(),
+                    status: SensorStatus::Online,
+                    battery_pct: None,
+                    signal_rssi: None,
+                    deleted_at: None,
+                };
+                reg.register_sensor(sensor).unwrap();
+            }));
+        }
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        assert_eq!(registry.sensor_count(), 50);
+    }
+
+    #[test]
+    fn test_concurrent_register_and_read() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("sensors_rw.json");
+        let registry = Arc::new(SensorRegistry::new(&path));
+
+        // Pre-register 10 sensors
+        for i in 0..10 {
+            let sensor = Sensor {
+                sensor_id: format!("esp32-rw-{:03}", i),
+                sensor_type: "bme280".to_string(),
+                room_id: "rw-room".to_string(),
+                firmware_version: None,
+                registered_at: Utc::now(),
+                last_seen: Utc::now(),
+                status: SensorStatus::Online,
+                battery_pct: None,
+                signal_rssi: None,
+                deleted_at: None,
+            };
+            registry.register_sensor(sensor).unwrap();
+        }
+
+        let mut handles = vec![];
+
+        // 20 writer threads adding new sensors
+        for i in 10..30 {
+            let reg = Arc::clone(&registry);
+            handles.push(thread::spawn(move || {
+                let sensor = Sensor {
+                    sensor_id: format!("esp32-rw-{:03}", i),
+                    sensor_type: "dht22".to_string(),
+                    room_id: "rw-room".to_string(),
+                    firmware_version: None,
+                    registered_at: Utc::now(),
+                    last_seen: Utc::now(),
+                    status: SensorStatus::Online,
+                    battery_pct: None,
+                    signal_rssi: None,
+                    deleted_at: None,
+                };
+                reg.register_sensor(sensor).unwrap();
+            }));
+        }
+
+        // 20 reader threads listing sensors
+        for _ in 0..20 {
+            let reg = Arc::clone(&registry);
+            handles.push(thread::spawn(move || {
+                let sensors = reg.list_sensors();
+                // Should see between 10 and 30 sensors (partial writes OK)
+                assert!(sensors.len() >= 10);
+                assert!(sensors.len() <= 30);
+            }));
+        }
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        assert_eq!(registry.sensor_count(), 30);
+    }
+
+    #[test]
+    fn test_concurrent_update_readings() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("sensors_readings.json");
+        let registry = Arc::new(SensorRegistry::new(&path));
+
+        // Register one sensor
+        let sensor = Sensor {
+            sensor_id: "esp32-readings-concurrent".to_string(),
+            sensor_type: "bme280".to_string(),
+            room_id: "test".to_string(),
+            firmware_version: None,
+            registered_at: Utc::now(),
+            last_seen: Utc::now(),
+            status: SensorStatus::Online,
+            battery_pct: None,
+            signal_rssi: None,
+            deleted_at: None,
+        };
+        registry.register_sensor(sensor).unwrap();
+
+        let mut handles = vec![];
+
+        // 50 threads updating readings simultaneously
+        for i in 0..50 {
+            let reg = Arc::clone(&registry);
+            handles.push(thread::spawn(move || {
+                let reading = EnvReading {
+                    temperature_c: Some(20.0 + i as f32 * 0.1),
+                    humidity_pct: Some(50.0 + i as f32 * 0.1),
+                    timestamp: Utc::now(),
+                };
+                reg.update_reading("esp32-readings-concurrent", reading).unwrap();
+            }));
+        }
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        // All 50 readings should be in history
+        let env = registry.get_environment("esp32-readings-concurrent").unwrap();
+        assert_eq!(env.history.len(), 50);
+    }
 }

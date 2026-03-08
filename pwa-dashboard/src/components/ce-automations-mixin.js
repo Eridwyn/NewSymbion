@@ -869,8 +869,7 @@ export const AutomationsMixin = (Base) => class extends Base {
       <div class="rules-group" style="margin-left: ${indent}px; ${depth > 0 ? 'margin-top: 0.5rem; padding: 0.5rem; background: var(--surface-glass-faint, rgba(255,255,255,0.02)); border-radius: var(--radius-sm); border: 1px dashed var(--border-medium);' : ''}">
         <div class="ce-flex ce-mb-sm">
           <button
-            class="btn btn-small"
-            class="ce-operator-btn"
+            class="btn btn-small ce-operator-btn"
             style="background: ${operatorColor};"
             @click="${() => this.toggleRulesGroupOperator(path)}"
             title="Cliquer pour basculer AND/OR"

@@ -209,8 +209,9 @@ impl FileHub {
     }
 
     /// Get the file path for a transfer (for serving/reading)
-    pub fn get_file_path(&self, transfer_id: &str, filename: &str) -> PathBuf {
-        self.transfer_dir.join(transfer_id).join(filename)
+    pub fn get_file_path(&self, transfer_id: &str, filename: &str) -> Result<PathBuf, String> {
+        Self::validate_filename(filename)?;
+        Ok(self.transfer_dir.join(transfer_id).join(filename))
     }
 
     /// Store a file pushed by the agent (download flow: agent → kernel)
@@ -235,7 +236,7 @@ impl FileHub {
                 .ok_or_else(|| "Transfer not found".to_string())?
         };
 
-        let file_path = self.get_file_path(transfer_id, &filename);
+        let file_path = self.get_file_path(transfer_id, &filename)?;
         tokio::fs::write(&file_path, &data)
             .await
             .map_err(|e| format!("Failed to write file: {}", e))?;

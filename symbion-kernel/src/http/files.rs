@@ -280,7 +280,9 @@ pub(super) async fn download_transfer_data(
         return Err((StatusCode::FORBIDDEN, Json(serde_json::json!({ "error": "Invalid or expired token" }))));
     }
 
-    let file_path = file_hub.get_file_path(&id, &record.filename);
+    let file_path = file_hub.get_file_path(&id, &record.filename).map_err(|e| {
+        (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": format!("Invalid filename: {}", e) })))
+    })?;
     let data = tokio::fs::read(&file_path).await.map_err(|e| {
         (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": format!("File not found: {}", e) })))
     })?;

@@ -688,6 +688,13 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
       color: var(--color-danger-text-muted, #ef4444);
     }
 
+    /* ===== Automations List Layout ===== */
+    .automations-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
     /* ===== Enhanced Automation Cards ===== */
     .automation-card {
       background: linear-gradient(135deg, var(--surface-glass-subtle) 0%, rgba(255, 255, 255, 0.01) 100%);
@@ -2096,6 +2103,15 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
   firstUpdated() {
     super.firstUpdated?.()
     this._cleanupReveal = setupScrollReveal(this.shadowRoot)
+  }
+
+  updated(changedProperties) {
+    super.updated(changedProperties)
+    // Re-observe scroll-reveal elements when content changes (cards rendered after async load)
+    if (changedProperties.has('loading') || changedProperties.has('automations') || changedProperties.has('activeTab')) {
+      this._cleanupReveal?.()
+      this._cleanupReveal = setupScrollReveal(this.shadowRoot)
+    }
   }
 
   disconnectedCallback() {

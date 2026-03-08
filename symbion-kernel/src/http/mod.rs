@@ -159,6 +159,16 @@ async fn require_csrf(
     req: Request,
     next: Next
 ) -> Result<Response, StatusCode> {
+    // API key auth bypasses CSRF (not browser-sent, not vulnerable to CSRF)
+    let expected_api_key = std::env::var("SYMBION_API_KEY").unwrap_or_default();
+    if !expected_api_key.is_empty() {
+        if let Some(key) = req.headers().get("x-api-key").and_then(|v| v.to_str().ok()) {
+            if key == expected_api_key {
+                return Ok(next.run(req).await);
+            }
+        }
+    }
+
     // Extraire le header X-CSRF-Token
     let csrf_token = req
         .headers()
@@ -445,6 +455,8 @@ pub fn build_router(app_state: AppState) -> Router {
                 .allow_origin([
                     "http://localhost:3000".parse().unwrap(),
                     "https://localhost:3000".parse().unwrap(),
+                    "http://localhost:3002".parse().unwrap(),
+                    "https://localhost:3002".parse().unwrap(),
                     "http://192.168.1.14:3000".parse().unwrap(),
                     "https://192.168.1.14:3000".parse().unwrap(),
                     "https://symbion.local:3000".parse().unwrap(),
