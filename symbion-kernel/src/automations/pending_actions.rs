@@ -406,4 +406,107 @@ mod tests {
         // Cleanup
         let _ = std::fs::remove_dir_all(&tmp_dir);
     }
+
+    #[test]
+    fn test_concurrent_register_and_take() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let registry = Arc::new(PendingActionRegistry::new(None));
+
+        let mut handles = vec![];
+
+        // 50 threads registering actions simultaneously
+        for i in 0..50 {
+            let reg = Arc::clone(&registry);
+            handles.push(thread::spawn(move || {
+                let action = create_test_action();
+                reg.register(
+                    format!("val-concurrent-{:03}", i),
+                    format!("auto-{}", i),
+                    format!("Concurrent Test {}", i),
+                    action,
+                    0,
+                    0.5,
+                    None,
+                );
+            }));
+        }
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        assert_eq!(registry.count(), 50);
+
+        // 50 threads taking actions simultaneously — each should get exactly one or none
+        let mut take_handles = vec![];
+        let taken_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+
+        for i in 0..50 {
+            let reg = Arc::clone(&registry);
+            let count = Arc::clone(&taken_count);
+            take_handles.push(thread::spawn(move || {
+                if reg.take(&format!("val-concurrent-{:03}", i)).is_some() {
+                    count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
+            }));
+        }
+
+        for h in take_handles {
+            h.join().unwrap();
+        }
+
+        assert_eq!(taken_count.load(std::sync::atomic::Ordering::Relaxed), 50);
+        assert_eq!(registry.count(), 0);
+    }
+
+    #[test]
+    fn test_concurrent_register_and_cleanup() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let registry = Arc::new(PendingActionRegistry::new(None));
+
+        let mut handles = vec![];
+
+        // 30 threads registering
+        for i in 0..30 {
+            let reg = Arc::clone(&registry);
+            handles.push(thread::spawn(move || {
+                let action = create_test_action();
+                reg.register(
+                    format!("val-cleanup-{:03}", i),
+                    format!("auto-{}", i),
+                    format!("Cleanup Test {}", i),
+                    action,
+                    0,
+                    0.5,
+                    None,
+                );
+            }));
+        }
+
+        // 10 reader threads listing actions
+        for _ in 0..10 {
+            let reg = Arc::clone(&registry);
+            handles.push(thread::spawn(move || {
+                let list = reg.list();
+                assert!(list.len() <= 30);
+            }));
+        }
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        // All 30 should be registered
+        assert_eq!(registry.count(), 30);
+
+        // Cleanup with max_age = 0 should remove all (they're already "old" at creation)
+        // Use a very large age so none get removed
+        let removed = registry.cleanup(999_999);
+        assert_eq!(removed, 0);
+        assert_eq!(registry.count(), 30);
+    }
 }

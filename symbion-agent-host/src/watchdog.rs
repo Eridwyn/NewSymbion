@@ -283,8 +283,11 @@ impl Watchdog {
             loop {
                 timer.tick().await;
                 if !self.check().await {
-                    error!("[watchdog] Fatal: exiting process for systemd restart");
-                    std::process::exit(1);
+                    error!("[watchdog] Fatal: max recovery attempts reached — signaling graceful shutdown");
+                    if let Some(ref tx) = self.shutdown_tx {
+                        let _ = tx.try_send(());
+                    }
+                    return;
                 }
             }
         })

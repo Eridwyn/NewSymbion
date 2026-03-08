@@ -696,14 +696,42 @@ async fn main() {
     let redirect_app = http::build_redirect_router(https_port);
     println!("[kernel] 🔄 HTTP redirect enabled - listening on http://{} → https://localhost:{}", http_addr, https_port);
 
-    // Lancer les deux serveurs en parallèle
+    // Lancer les deux serveurs en parallèle avec graceful shutdown
     let https_server = axum_server::bind_rustls(https_addr, tls_config)
         .serve(app_https.into_make_service());
 
-    let http_server = axum::serve(
-        tokio::net::TcpListener::bind(http_addr).await.unwrap(),
-        redirect_app.into_make_service()
-    );
+    let http_listener = tokio::net::TcpListener::bind(http_addr)
+        .await
+        .expect(&format!("[kernel] FATAL: cannot bind HTTP port {} — check if already in use", http_port));
 
-    tokio::try_join!(https_server, http_server).unwrap();
+    let http_server = axum::serve(http_listener, redirect_app.into_make_service());
+
+    // Graceful shutdown on SIGTERM/SIGINT
+    let shutdown = async {
+        let ctrl_c = tokio::signal::ctrl_c();
+        #[cfg(unix)]
+        let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("Failed to register SIGTERM handler");
+        #[cfg(unix)]
+        let sigterm_recv = sigterm.recv();
+        #[cfg(not(unix))]
+        let sigterm_recv = std::future::pending::<Option<()>>();
+
+        tokio::select! {
+            _ = ctrl_c => eprintln!("[kernel] SIGINT received, shutting down gracefully..."),
+            _ = sigterm_recv => eprintln!("[kernel] SIGTERM received, shutting down gracefully..."),
+        }
+    };
+
+    tokio::select! {
+        res = https_server => {
+            if let Err(e) = res { eprintln!("[kernel] HTTPS server error: {}", e); }
+        }
+        res = http_server => {
+            if let Err(e) = res { eprintln!("[kernel] HTTP server error: {}", e); }
+        }
+        _ = shutdown => {
+            eprintln!("[kernel] Graceful shutdown complete");
+        }
+    }
 }
