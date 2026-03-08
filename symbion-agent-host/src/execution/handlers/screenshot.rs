@@ -113,9 +113,11 @@ async fn capture_screenshot(dest: &std::path::Path) -> anyhow::Result<()> {
     #[cfg(target_os = "linux")]
     {
         // scrot first (headless), then grim (Wayland), then gnome-screenshot (may show UI on GNOME 42+)
-        let tools = [
-            ("scrot", vec!["-o", dest_str.clone().leak() as &str]),
-            ("grim", vec![dest_str.clone().leak() as &str]),
+        // P1 fix: Use &dest_str references instead of Box::leak() which permanently
+        // leaked memory on every screenshot capture call.
+        let tools: [(&str, Vec<&str>); 3] = [
+            ("scrot", vec!["-o", &dest_str]),
+            ("grim", vec![&dest_str]),
             ("gnome-screenshot", vec!["-f", &dest_str]),
         ];
 

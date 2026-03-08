@@ -30,6 +30,17 @@ vi.mock('./csrf-service.js', () => ({
   }
 }))
 
+vi.mock('./auth-service.js', () => ({
+  default: {
+    isAuthenticated: vi.fn(() => false),
+    getToken: vi.fn(() => null)
+  }
+}))
+
+vi.mock('./config.js', () => ({
+  getApiBase: () => ''
+}))
+
 const { AgentsService } = await import('./agents-service.js')
 const { default: csrfService } = await import('./csrf-service.js')
 
@@ -73,6 +84,7 @@ const SAMPLE_AGENTS = [
 
 beforeEach(() => {
   mockApiService.request.mockReset()
+  mockFetch.mockReset()
   csrfService.fetchWithCsrf.mockReset()
   csrfService.fetchWithCsrf.mockResolvedValue({
     ok: true,
@@ -274,14 +286,14 @@ describe('killAgentProcess()', () => {
 // executeCommand()
 // =====================================================================
 describe('executeCommand()', () => {
-  it('calls POST to apiService with command', async () => {
+  it('calls POST via csrfService with command', async () => {
     const svc = createService()
-    mockApiService.request.mockResolvedValueOnce({ output: 'result' })
 
     await svc.executeCommand('pc-salon', 'ls -la', 60)
 
-    const [url, options] = mockApiService.request.mock.calls[0]
-    expect(url).toBe('/agents/pc-salon/command')
+    expect(csrfService.fetchWithCsrf).toHaveBeenCalledTimes(1)
+    const [url, options] = csrfService.fetchWithCsrf.mock.calls[0]
+    expect(url).toContain('/v1/agents/pc-salon/command')
     expect(options.method).toBe('POST')
     const body = JSON.parse(options.body)
     expect(body.command).toBe('ls -la')
@@ -290,11 +302,10 @@ describe('executeCommand()', () => {
 
   it('uses default timeout of 30', async () => {
     const svc = createService()
-    mockApiService.request.mockResolvedValueOnce({})
 
     await svc.executeCommand('pc-salon', 'whoami')
 
-    const body = JSON.parse(mockApiService.request.mock.calls[0][1].body)
+    const body = JSON.parse(csrfService.fetchWithCsrf.mock.calls[0][1].body)
     expect(body.timeout_secs).toBe(30)
   })
 })
@@ -303,14 +314,14 @@ describe('executeCommand()', () => {
 // executeCommandWithTracking()
 // =====================================================================
 describe('executeCommandWithTracking()', () => {
-  it('calls POST to /agents/:id/commands', async () => {
+  it('calls POST to /v1/agents/:id/commands via csrfService', async () => {
     const svc = createService()
-    mockApiService.request.mockResolvedValueOnce({ command_id: 'cmd-1' })
 
     await svc.executeCommandWithTracking('pc-salon', 'uptime', 30)
 
-    const [url, options] = mockApiService.request.mock.calls[0]
-    expect(url).toBe('/agents/pc-salon/commands')
+    expect(csrfService.fetchWithCsrf).toHaveBeenCalledTimes(1)
+    const [url, options] = csrfService.fetchWithCsrf.mock.calls[0]
+    expect(url).toContain('/v1/agents/pc-salon/commands')
     expect(options.method).toBe('POST')
     const body = JSON.parse(options.body)
     expect(body.command_type).toBe('shell_command')
@@ -322,23 +333,28 @@ describe('executeCommandWithTracking()', () => {
 // getCommandStatus() / cancelCommand()
 // =====================================================================
 describe('command tracking', () => {
-  it('getCommandStatus calls correct endpoint', async () => {
+  it('getCommandStatus calls correct endpoint via fetch', async () => {
     const svc = createService()
-    mockApiService.request.mockResolvedValueOnce({ status: 'completed' })
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ status: 'completed' })
+    })
 
     await svc.getCommandStatus('cmd-1')
 
-    expect(mockApiService.request).toHaveBeenCalledWith('/commands/cmd-1/status')
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    const [url] = mockFetch.mock.calls[0]
+    expect(url).toContain('/v1/commands/cmd-1/status')
   })
 
-  it('cancelCommand calls POST to cancel', async () => {
+  it('cancelCommand calls POST via csrfService', async () => {
     const svc = createService()
-    mockApiService.request.mockResolvedValueOnce({ cancelled: true })
 
     await svc.cancelCommand('cmd-1')
 
-    const [url, options] = mockApiService.request.mock.calls[0]
-    expect(url).toBe('/commands/cmd-1/cancel')
+    expect(csrfService.fetchWithCsrf).toHaveBeenCalledTimes(1)
+    const [url, options] = csrfService.fetchWithCsrf.mock.calls[0]
+    expect(url).toContain('/v1/commands/cmd-1/cancel')
     expect(options.method).toBe('POST')
   })
 })

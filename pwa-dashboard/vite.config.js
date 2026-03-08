@@ -99,18 +99,18 @@ export default defineConfig(({ mode }) => {
         changeOrigin: true,
         secure: false,  // Accept self-signed certificates
         rewrite: (path) => path.replace(/^\/api/, ''),
-        headers: {
-          'x-api-key': env.VITE_SYMBION_API_KEY || 's3cr3t-42'  // Load from .env
-        }
+        ...(env.VITE_SYMBION_API_KEY ? {
+          headers: { 'x-api-key': env.VITE_SYMBION_API_KEY }
+        } : {})
       },
       // Proxy pour endpoints v1 (Environment IoT, Metrics, etc.)
       '/v1': {
         target: 'https://localhost:8443',    // Kernel Symbion HTTPS
         changeOrigin: true,
         secure: false,  // Accept self-signed certificates
-        headers: {
-          'x-api-key': env.VITE_SYMBION_API_KEY || 's3cr3t-42'  // Load from .env
-        }
+        ...(env.VITE_SYMBION_API_KEY ? {
+          headers: { 'x-api-key': env.VITE_SYMBION_API_KEY }
+        } : {})
       }
     }
   },

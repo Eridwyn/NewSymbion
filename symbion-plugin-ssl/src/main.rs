@@ -203,7 +203,7 @@ async fn main() -> Result<()> {
 
     info!("All tasks started, plugin running");
 
-    // Wait for any task to complete
+    // Wait for any task to complete or graceful shutdown signal
     tokio::select! {
         r = ssl_handle => {
             error!("SSL check loop exited: {:?}", r);
@@ -217,7 +217,31 @@ async fn main() -> Result<()> {
         r = api_handle => {
             error!("API server exited: {:?}", r);
         }
+        _ = tokio::signal::ctrl_c() => {
+            info!("[ssl] Received SIGINT (Ctrl+C), shutting down gracefully...");
+        }
+        _ = async {
+            #[cfg(unix)]
+            {
+                let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                    .expect("failed to install SIGTERM handler");
+                sigterm.recv().await;
+            }
+            #[cfg(not(unix))]
+            {
+                // On non-Unix platforms, just wait forever (ctrl_c branch handles shutdown)
+                std::future::pending::<()>().await;
+            }
+        } => {
+            info!("[ssl] Received SIGTERM, shutting down gracefully...");
+        }
     }
+
+    // Final state save before exit
+    if let Err(e) = state.domains.save().await {
+        error!("Failed to save state on shutdown: {}", e);
+    }
+    info!("[ssl] Shutdown complete");
 
     Ok(())
 }

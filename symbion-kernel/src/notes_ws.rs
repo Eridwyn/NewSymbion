@@ -4,6 +4,21 @@
  * Permet le chargement progressif des notes via WebSocket.
  * Chaque note est envoyée dès qu'elle arrive via MQTT, permettant
  * un affichage temps réel dans le frontend.
+ *
+ * ## Security Note: Auth via Query Parameters
+ *
+ * WebSocket authentication uses JWT tokens or API keys passed as URL query parameters
+ * (e.g., `?token=...` or `?api_key=...`). This is a known limitation of the WebSocket API
+ * which does not support custom HTTP headers during the handshake.
+ *
+ * Mitigations in place:
+ * - Token values are NEVER logged — only auth status messages (success/failure)
+ * - JWT tokens are short-lived and can be revoked
+ * - Connections are upgraded to WSS (TLS) in production, preventing network sniffing
+ * - Browser history risk is minimal since WebSocket URLs are not stored in history
+ *
+ * Alternative approaches (subprotocol auth, cookie-based) were considered but add
+ * complexity without meaningful security improvement given the mitigations above.
  */
 
 use axum::{
@@ -31,6 +46,9 @@ pub async fn notes_stream_handler(
     // WebSockets ne supportent pas les headers custom, on accepte:
     // 1. JWT token en query param (?token=...) - PREFERRED
     // 2. API key en query param (?api_key=...) - LEGACY
+    //
+    // SECURITY: Never log token/api_key values from query params.
+    // Only log authentication status (success/failure), never the credentials themselves.
 
     let mut authenticated = false;
 
@@ -38,6 +56,7 @@ pub async fn notes_stream_handler(
     if let Some(token) = params.get("token") {
         if app_state.auth_manager.verify_token(token).is_ok() {
             authenticated = true;
+            // NOTE: Do NOT log the token value here — only the auth method
             eprintln!("[notes-ws] Authenticated via JWT token");
         }
     }
@@ -48,6 +67,7 @@ pub async fn notes_stream_handler(
         if let Some(provided_key) = params.get("api_key") {
             if !expected_key.is_empty() && provided_key == &expected_key {
                 authenticated = true;
+                // NOTE: Do NOT log the api_key value here — only the auth method
                 eprintln!("[notes-ws] Authenticated via API key");
             }
         }
