@@ -1061,7 +1061,7 @@ mod tests {
     /// Build a minimal ExecutionContext for testing conditions
     fn test_ctx() -> ExecutionContext {
         ExecutionContext {
-            context_engine: Arc::new(ContextEngine::new()),
+            context_engine: Arc::new(ContextEngine::new_isolated()),
             agents: Arc::new(crate::agents::AgentRegistry::new("/tmp/test-agents.json")),
             sensors: Arc::new(SensorRegistry::new("/tmp/test-sensors.json")),
             notifications_manager: Arc::new(crate::notifications::NotificationManager::new(None)),

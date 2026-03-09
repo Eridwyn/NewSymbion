@@ -4,8 +4,10 @@
  * ROLE: Centralized database access with WAL mode, migration system,
  * and graceful degradation to JSON fallback.
  *
- * PATTERN: Single connection behind parking_lot::Mutex, matching
- * the project's Shared<T> = Arc<Mutex<T>> convention from src/state.rs.
+ * PATTERN: r2d2 connection pool with SqliteConnectionManager.
+ * Pool allows concurrent reads (WAL mode) while serializing writes.
+ * conn() returns a PooledConnection that Derefs to rusqlite::Connection,
+ * so all 115+ call sites remain unchanged.
  *
  * SAFETY: If Database::open() fails, the kernel continues in JSON-only mode.
  * All query functions return Result — callers fall back to JSON on any error.
@@ -28,14 +30,29 @@ pub mod sensor_meta_queries;
 pub mod command_history_queries;
 
 use anyhow::{Context, Result};
-use parking_lot::Mutex;
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
 use std::path::Path;
 use std::sync::Arc;
 
-/// Thread-safe database handle.
+/// Custom initializer that applies pragmas on each new connection from the pool.
+#[derive(Debug)]
+struct PragmaCustomizer;
+
+impl r2d2::CustomizeConnection<Connection, rusqlite::Error> for PragmaCustomizer {
+    fn on_acquire(&self, conn: &mut Connection) -> std::result::Result<(), rusqlite::Error> {
+        conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+        conn.execute_batch("PRAGMA synchronous=NORMAL;")?;
+        conn.execute_batch("PRAGMA foreign_keys=ON;")?;
+        conn.busy_timeout(std::time::Duration::from_secs(5))?;
+        Ok(())
+    }
+}
+
+/// Thread-safe database handle backed by r2d2 connection pool.
 pub struct Database {
-    conn: Mutex<Connection>,
+    pool: Pool<SqliteConnectionManager>,
 }
 
 /// Shared reference, matching project convention (Arc<T>).
@@ -43,7 +60,7 @@ pub type SharedDatabase = Arc<Database>;
 
 impl Database {
     /// Open or create database at the given path.
-    /// Enables WAL mode, NORMAL synchronous, foreign keys, and runs pending migrations.
+    /// Creates an r2d2 pool with up to 8 connections, WAL mode, and runs pending migrations.
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
 
@@ -55,37 +72,15 @@ impl Database {
             }
         }
 
-        let conn = Connection::open(path)
-            .with_context(|| format!("Failed to open SQLite database at {:?}", path))?;
+        let manager = SqliteConnectionManager::file(path);
+        let pool = Pool::builder()
+            .max_size(8)
+            .connection_timeout(std::time::Duration::from_secs(30))
+            .connection_customizer(Box::new(PragmaCustomizer))
+            .build(manager)
+            .with_context(|| format!("Failed to create connection pool for {:?}", path))?;
 
-        Self::configure_and_migrate(conn)
-    }
-
-    /// Open in-memory database (for tests).
-    pub fn open_in_memory() -> Result<Self> {
-        let conn = Connection::open_in_memory()
-            .context("Failed to open in-memory SQLite database")?;
-        Self::configure_and_migrate(conn)
-    }
-
-    /// Configure pragmas and run migrations.
-    fn configure_and_migrate(conn: Connection) -> Result<Self> {
-        // WAL mode for concurrent reads during writes
-        conn.execute_batch("PRAGMA journal_mode=WAL;")
-            .context("Failed to set WAL mode")?;
-        // NORMAL sync is safe with WAL (no corruption, ~2x faster than FULL)
-        conn.execute_batch("PRAGMA synchronous=NORMAL;")
-            .context("Failed to set synchronous mode")?;
-        // Foreign keys
-        conn.execute_batch("PRAGMA foreign_keys=ON;")
-            .context("Failed to enable foreign keys")?;
-        // Busy timeout 5 seconds
-        conn.busy_timeout(std::time::Duration::from_secs(5))
-            .context("Failed to set busy timeout")?;
-
-        let db = Self {
-            conn: Mutex::new(conn),
-        };
+        let db = Self { pool };
 
         // Run schema migrations
         migrations::run_migrations(&db)?;
@@ -93,9 +88,29 @@ impl Database {
         Ok(db)
     }
 
-    /// Access the connection under lock.
-    pub fn conn(&self) -> parking_lot::MutexGuard<'_, Connection> {
-        self.conn.lock()
+    /// Open in-memory database (for tests).
+    /// Uses max_size(1) because in-memory DBs are per-connection.
+    pub fn open_in_memory() -> Result<Self> {
+        let manager = SqliteConnectionManager::memory();
+        let pool = Pool::builder()
+            .max_size(1)
+            .connection_customizer(Box::new(PragmaCustomizer))
+            .build(manager)
+            .context("Failed to create in-memory connection pool")?;
+
+        let db = Self { pool };
+
+        // Run schema migrations
+        migrations::run_migrations(&db)?;
+
+        Ok(db)
+    }
+
+    /// Access a connection from the pool.
+    /// Panics if the pool is exhausted after the configured timeout (30s).
+    /// This matches the previous parking_lot::Mutex behavior (never returns Result).
+    pub fn conn(&self) -> r2d2::PooledConnection<SqliteConnectionManager> {
+        self.pool.get().expect("Failed to acquire database connection from pool (30s timeout)")
     }
 
     /// Import existing JSON data into SQLite (one-shot migration).
@@ -174,5 +189,22 @@ mod tests {
         // In-memory databases use "memory" journal mode, not WAL
         // WAL only applies to file-based databases
         assert!(mode == "memory" || mode == "wal");
+    }
+
+    #[test]
+    fn test_pool_multiple_connections() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pool_test.db");
+        let db = Database::open(&path).unwrap();
+
+        // Acquire multiple connections concurrently (WAL allows concurrent reads)
+        let conn1 = db.conn();
+        let conn2 = db.conn();
+
+        let mode1: String = conn1.query_row("PRAGMA journal_mode", [], |r| r.get(0)).unwrap();
+        let mode2: String = conn2.query_row("PRAGMA journal_mode", [], |r| r.get(0)).unwrap();
+
+        assert_eq!(mode1, "wal");
+        assert_eq!(mode2, "wal");
     }
 }
