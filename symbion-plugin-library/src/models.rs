@@ -193,6 +193,23 @@ pub struct SearchResult {
     pub total: usize,
 }
 
+// ── List Params (pagination) ──
+
+#[derive(Debug, Deserialize)]
+pub struct ListParams {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+impl ListParams {
+    pub fn limit(&self) -> i64 {
+        self.limit.unwrap_or(100).min(500).max(1)
+    }
+    pub fn offset(&self) -> i64 {
+        self.offset.unwrap_or(0).max(0)
+    }
+}
+
 // ── Graph data for library view ──
 
 #[derive(Debug, Serialize)]

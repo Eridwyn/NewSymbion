@@ -20,6 +20,40 @@
       "parameters": {
         "id": { "type": "string", "required": true }
       }
+    },
+    {
+      "action_type": "create_node",
+      "description": "Create a new knowledge node",
+      "impact_level": "medium",
+      "parameters": {
+        "title": { "type": "string", "required": true },
+        "content": { "type": "string", "required": false },
+        "template_id": { "type": "string", "required": false }
+      }
+    },
+    {
+      "action_type": "update_node",
+      "description": "Update an existing knowledge node",
+      "impact_level": "medium",
+      "parameters": {
+        "id": { "type": "string", "required": true },
+        "title": { "type": "string", "required": false },
+        "content": { "type": "string", "required": false }
+      }
+    },
+    {
+      "action_type": "delete_node",
+      "description": "Soft-delete a knowledge node",
+      "impact_level": "high",
+      "parameters": {
+        "id": { "type": "string", "required": true }
+      }
+    },
+    {
+      "action_type": "list_nodes",
+      "description": "List all knowledge nodes",
+      "impact_level": "low",
+      "parameters": {}
     }
   ],
   "events": [
@@ -52,7 +86,18 @@
     "/templates/:id",
     "/tags",
     "/search",
-    "/trash"
+    "/trash",
+    "/nodes/:id/versions",
+    "/nodes/:id/desk",
+    "/nodes/:id/activate",
+    "/sections/:id/nodes",
+    "/edges/:id",
+    "/pending-links",
+    "/pending-links/:id/confirm",
+    "/pending-links/:id/dismiss",
+    "/trash/:id/restore",
+    "/trash/:id/purge",
+    "/graph"
   ],
   "features": [
     "library.nodes.count",

@@ -123,6 +123,12 @@ export class LibraryWidget extends LitElement {
   connectedCallback() {
     super.connectedCallback()
     this.fetchData()
+    this._refreshInterval = setInterval(() => this.fetchData(), 30000)
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback()
+    if (this._refreshInterval) clearInterval(this._refreshInterval)
   }
 
   getAuthToken() {

@@ -14,7 +14,7 @@ impl MqttPublisher {
     pub async fn connect(host: &str, port: u16, client_id: &str) -> Result<Self> {
         let mut options = MqttOptions::new(client_id, host, port);
         options.set_keep_alive(Duration::from_secs(30));
-        options.set_clean_session(false);
+        options.set_clean_session(true);
 
         let (client, mut eventloop) = AsyncClient::new(options, 100);
 

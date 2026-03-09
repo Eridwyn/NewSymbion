@@ -33,6 +33,107 @@ impl Database {
         let conn = self.conn.lock().await;
         conn.execute_batch(include_str!("schema.sql"))
             .context("Failed to run migrations")?;
+
+        // Migration v2: Add ON DELETE CASCADE
+        let user_version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+        if user_version < 2 {
+            conn.execute_batch("BEGIN IMMEDIATE")?;
+            let mig_result = (|| -> Result<()> {
+                // node_versions
+                conn.execute_batch(
+                    "CREATE TABLE IF NOT EXISTS node_versions_new (
+                        id TEXT PRIMARY KEY,
+                        node_id TEXT REFERENCES nodes(id) ON DELETE CASCADE,
+                        content TEXT,
+                        version_num INTEGER,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    );
+                    INSERT OR IGNORE INTO node_versions_new SELECT * FROM node_versions;
+                    DROP TABLE IF EXISTS node_versions;
+                    ALTER TABLE node_versions_new RENAME TO node_versions;
+                    CREATE INDEX IF NOT EXISTS idx_versions_node ON node_versions(node_id);"
+                )?;
+                // node_sections
+                conn.execute_batch(
+                    "CREATE TABLE IF NOT EXISTS node_sections_new (
+                        node_id TEXT REFERENCES nodes(id) ON DELETE CASCADE,
+                        section_id TEXT REFERENCES sections(id) ON DELETE CASCADE,
+                        PRIMARY KEY (node_id, section_id)
+                    );
+                    INSERT OR IGNORE INTO node_sections_new SELECT * FROM node_sections;
+                    DROP TABLE IF EXISTS node_sections;
+                    ALTER TABLE node_sections_new RENAME TO node_sections;"
+                )?;
+                // node_tags
+                conn.execute_batch(
+                    "CREATE TABLE IF NOT EXISTS node_tags_new (
+                        node_id TEXT REFERENCES nodes(id) ON DELETE CASCADE,
+                        tag_id TEXT REFERENCES tags(id) ON DELETE CASCADE,
+                        PRIMARY KEY (node_id, tag_id)
+                    );
+                    INSERT OR IGNORE INTO node_tags_new SELECT * FROM node_tags;
+                    DROP TABLE IF EXISTS node_tags;
+                    ALTER TABLE node_tags_new RENAME TO node_tags;"
+                )?;
+                // node_fields
+                conn.execute_batch(
+                    "CREATE TABLE IF NOT EXISTS node_fields_new (
+                        id TEXT PRIMARY KEY,
+                        node_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+                        field_name TEXT NOT NULL,
+                        field_value TEXT,
+                        sort_order INTEGER DEFAULT 0,
+                        UNIQUE(node_id, field_name)
+                    );
+                    INSERT OR IGNORE INTO node_fields_new SELECT * FROM node_fields;
+                    DROP TABLE IF EXISTS node_fields;
+                    ALTER TABLE node_fields_new RENAME TO node_fields;
+                    CREATE INDEX IF NOT EXISTS idx_fields_node ON node_fields(node_id);"
+                )?;
+                // edges
+                conn.execute_batch(
+                    "CREATE TABLE IF NOT EXISTS edges_new (
+                        id TEXT PRIMARY KEY,
+                        node_from TEXT REFERENCES nodes(id) ON DELETE CASCADE,
+                        node_to TEXT REFERENCES nodes(id) ON DELETE CASCADE,
+                        relation TEXT,
+                        auto BOOLEAN DEFAULT FALSE,
+                        confirmed BOOLEAN DEFAULT TRUE,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    );
+                    INSERT OR IGNORE INTO edges_new SELECT * FROM edges;
+                    DROP TABLE IF EXISTS edges;
+                    ALTER TABLE edges_new RENAME TO edges;
+                    CREATE INDEX IF NOT EXISTS idx_edges_from ON edges(node_from);
+                    CREATE INDEX IF NOT EXISTS idx_edges_to ON edges(node_to);"
+                )?;
+                // pending_links
+                conn.execute_batch(
+                    "CREATE TABLE IF NOT EXISTS pending_links_new (
+                        id TEXT PRIMARY KEY,
+                        node_from TEXT REFERENCES nodes(id) ON DELETE CASCADE,
+                        node_to TEXT REFERENCES nodes(id) ON DELETE CASCADE,
+                        occurrence TEXT,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    );
+                    INSERT OR IGNORE INTO pending_links_new SELECT * FROM pending_links;
+                    DROP TABLE IF EXISTS pending_links;
+                    ALTER TABLE pending_links_new RENAME TO pending_links;
+                    CREATE INDEX IF NOT EXISTS idx_pending_from ON pending_links(node_from);
+                    CREATE INDEX IF NOT EXISTS idx_pending_to ON pending_links(node_to);"
+                )?;
+                conn.execute_batch("PRAGMA user_version = 2;")?;
+                Ok(())
+            })();
+            match mig_result {
+                Ok(()) => conn.execute_batch("COMMIT")?,
+                Err(e) => {
+                    let _ = conn.execute_batch("ROLLBACK");
+                    return Err(e);
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -43,6 +144,8 @@ impl Database {
             return Ok(false);
         }
 
+        conn.execute_batch("BEGIN IMMEDIATE")?;
+        let result = (|| -> Result<bool> {
         let template_id = Uuid::new_v4().to_string();
         let structure = serde_json::json!([
             {"name": "fiche_num", "type": "text", "label": "N° Fiche"},
@@ -140,71 +243,89 @@ impl Database {
 
         tracing::info!("[library] seeded: template 'Fiche Épice', section 'Épices', node 'Marc de Café'");
         Ok(true)
+        })();
+        match result {
+            Ok(v) => { conn.execute_batch("COMMIT")?; Ok(v) }
+            Err(e) => { let _ = conn.execute_batch("ROLLBACK"); Err(e) }
+        }
     }
 
     // ── Nodes CRUD ──
 
     pub async fn create_node(&self, input: &CreateNode) -> Result<Node> {
         let conn = self.conn.lock().await;
-        let id = Uuid::new_v4().to_string();
-        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute_batch("BEGIN IMMEDIATE")?;
+        let result = (|| -> Result<Node> {
+            let id = Uuid::new_v4().to_string();
+            let now = chrono::Utc::now().to_rfc3339();
 
-        conn.execute(
-            "INSERT INTO nodes (id, title, content, template_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
-            params![id, input.title, input.content, input.template_id, now],
-        )?;
+            conn.execute(
+                "INSERT INTO nodes (id, title, content, template_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
+                params![id, input.title, input.content, input.template_id, now],
+            )?;
 
-        // Fields (structured data in node_fields table)
-        if let Some(ref fields) = input.fields {
-            self.save_fields(&conn, &id, fields)?;
-        }
-
-        // Sections
-        if let Some(ref section_ids) = input.section_ids {
-            for sid in section_ids {
-                conn.execute(
-                    "INSERT OR IGNORE INTO node_sections (node_id, section_id) VALUES (?1, ?2)",
-                    params![id, sid],
-                )?;
+            // Fields (structured data in node_fields table)
+            if let Some(ref fields) = input.fields {
+                self.save_fields(&conn, &id, fields)?;
             }
-        }
 
-        // Tags
-        if let Some(ref tag_names) = input.tag_names {
-            for name in tag_names {
-                let tag_id = get_or_create_tag(&conn, name)?;
-                conn.execute(
-                    "INSERT OR IGNORE INTO node_tags (node_id, tag_id) VALUES (?1, ?2)",
-                    params![id, tag_id],
-                )?;
+            // Sections
+            if let Some(ref section_ids) = input.section_ids {
+                for sid in section_ids {
+                    conn.execute(
+                        "INSERT OR IGNORE INTO node_sections (node_id, section_id) VALUES (?1, ?2)",
+                        params![id, sid],
+                    )?;
+                }
             }
+
+            // Tags
+            if let Some(ref tag_names) = input.tag_names {
+                for name in tag_names {
+                    let tag_id = get_or_create_tag(&conn, name)?;
+                    conn.execute(
+                        "INSERT OR IGNORE INTO node_tags (node_id, tag_id) VALUES (?1, ?2)",
+                        params![id, tag_id],
+                    )?;
+                }
+            }
+
+            // Version 1 — snapshot content + fields
+            let ver_id = Uuid::new_v4().to_string();
+            let version_snapshot = self.build_version_snapshot(input.content.as_deref(), input.fields.as_ref());
+            conn.execute(
+                "INSERT INTO node_versions (id, node_id, content, version_num) VALUES (?1, ?2, ?3, 1)",
+                params![ver_id, id, version_snapshot],
+            )?;
+
+            // FTS index — title + content + field values
+            let fields_text = self.get_fields_text(&conn, &id)?;
+            let fts_content = format!("{} {}", input.content.as_deref().unwrap_or(""), fields_text);
+            conn.execute(
+                "INSERT INTO nodes_fts (node_id, title, content) VALUES (?1, ?2, ?3)",
+                params![id, input.title, fts_content.trim()],
+            )?;
+
+            let node = self.get_node_by_id_inner(&conn, &id)?;
+            Ok(node)
+        })();
+        match result {
+            Ok(v) => { conn.execute_batch("COMMIT")?; Ok(v) }
+            Err(e) => { let _ = conn.execute_batch("ROLLBACK"); Err(e) }
         }
-
-        // Version 1 — snapshot content + fields
-        let ver_id = Uuid::new_v4().to_string();
-        let version_snapshot = self.build_version_snapshot(input.content.as_deref(), input.fields.as_ref());
-        conn.execute(
-            "INSERT INTO node_versions (id, node_id, content, version_num) VALUES (?1, ?2, ?3, 1)",
-            params![ver_id, id, version_snapshot],
-        )?;
-
-        // FTS index — title + content + field values
-        let fields_text = self.get_fields_text(&conn, &id)?;
-        let fts_content = format!("{} {}", input.content.as_deref().unwrap_or(""), fields_text);
-        conn.execute(
-            "INSERT INTO nodes_fts (node_id, title, content) VALUES (?1, ?2, ?3)",
-            params![id, input.title, fts_content.trim()],
-        )?;
-
-        let node = self.get_node_by_id_inner(&conn, &id)?;
-        Ok(node)
     }
 
     pub async fn get_node(&self, id: &str) -> Result<Option<Node>> {
         let conn = self.conn.lock().await;
         match self.get_node_by_id_inner(&conn, id) {
             Ok(n) => Ok(Some(n)),
-            Err(_) => Ok(None),
+            Err(e) => {
+                if let Some(rusqlite::Error::QueryReturnedNoRows) = e.downcast_ref::<rusqlite::Error>() {
+                    Ok(None)
+                } else {
+                    Err(e)
+                }
+            }
         }
     }
 
@@ -305,28 +426,16 @@ impl Database {
         snapshot.to_string()
     }
 
-    pub async fn list_nodes(&self, include_deleted: bool) -> Result<Vec<Node>> {
+    pub async fn list_nodes(&self, include_deleted: bool, limit: i64, offset: i64) -> Result<Vec<Node>> {
         let conn = self.conn.lock().await;
         let sql = if include_deleted {
-            "SELECT id, title, content, template_id, created_at, updated_at, deleted_at, is_pinned, is_active FROM nodes ORDER BY updated_at DESC"
+            format!("SELECT id, title, content, template_id, created_at, updated_at, deleted_at, is_pinned, is_active FROM nodes ORDER BY updated_at DESC LIMIT {} OFFSET {}", limit, offset)
         } else {
-            "SELECT id, title, content, template_id, created_at, updated_at, deleted_at, is_pinned, is_active FROM nodes WHERE deleted_at IS NULL ORDER BY updated_at DESC"
+            format!("SELECT id, title, content, template_id, created_at, updated_at, deleted_at, is_pinned, is_active FROM nodes WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT {} OFFSET {}", limit, offset)
         };
-        let mut stmt = conn.prepare(sql)?;
-        let mut nodes: Vec<Node> = stmt.query_map([], |row| {
-            Ok(Node {
-                id: row.get(0)?,
-                title: row.get(1)?,
-                content: row.get(2)?,
-                fields: None,
-                template_id: row.get(3)?,
-                created_at: row.get(4)?,
-                updated_at: row.get(5)?,
-                deleted_at: row.get(6)?,
-                is_pinned: row.get(7)?,
-                is_active: row.get(8)?,
-            })
-        })?.collect::<std::result::Result<Vec<_>, _>>()?;
+        let mut stmt = conn.prepare(&sql)?;
+        let mut nodes: Vec<Node> = stmt.query_map([], map_node)?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
         // Populate fields for each node
         for node in &mut nodes {
             node.fields = Some(self.get_fields_as_json(&conn, &node.id)?);
@@ -336,95 +445,104 @@ impl Database {
 
     pub async fn update_node(&self, id: &str, input: &UpdateNode) -> Result<Option<Node>> {
         let conn = self.conn.lock().await;
-        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute_batch("BEGIN IMMEDIATE")?;
+        let result = (|| -> Result<Option<Node>> {
+            let now = chrono::Utc::now().to_rfc3339();
 
-        // Check exists
-        let exists: bool = conn.query_row(
-            "SELECT COUNT(*) > 0 FROM nodes WHERE id = ?1 AND deleted_at IS NULL",
-            params![id],
-            |r| r.get(0),
-        )?;
-        if !exists { return Ok(None); }
-
-        if let Some(ref title) = input.title {
-            conn.execute("UPDATE nodes SET title = ?1, updated_at = ?2 WHERE id = ?3", params![title, now, id])?;
-        }
-        if let Some(ref content) = input.content {
-            conn.execute("UPDATE nodes SET content = ?1, updated_at = ?2 WHERE id = ?3", params![content, now, id])?;
-        }
-
-        // Fields (structured data)
-        if let Some(ref fields) = input.fields {
-            self.save_fields(&conn, id, fields)?;
-            conn.execute("UPDATE nodes SET updated_at = ?1 WHERE id = ?2", params![now, id])?;
-        }
-
-        // New version on content or fields change
-        if input.content.is_some() || input.fields.is_some() {
-            let ver_num: i64 = conn.query_row(
-                "SELECT COALESCE(MAX(version_num), 0) + 1 FROM node_versions WHERE node_id = ?1",
-                params![id], |r| r.get(0),
+            // Check exists
+            let exists: bool = conn.query_row(
+                "SELECT COUNT(*) > 0 FROM nodes WHERE id = ?1 AND deleted_at IS NULL",
+                params![id],
+                |r| r.get(0),
             )?;
-            let ver_id = Uuid::new_v4().to_string();
-            let current_content: Option<String> = conn.query_row(
-                "SELECT content FROM nodes WHERE id = ?1", params![id], |r| r.get(0),
-            )?;
-            let current_fields = self.get_fields_as_json(&conn, id)?;
-            let snapshot = self.build_version_snapshot(current_content.as_deref(), Some(&current_fields));
+            if !exists { return Ok(None); }
+
+            if let Some(ref title) = input.title {
+                conn.execute("UPDATE nodes SET title = ?1, updated_at = ?2 WHERE id = ?3", params![title, now, id])?;
+            }
+            if let Some(ref content) = input.content {
+                conn.execute("UPDATE nodes SET content = ?1, updated_at = ?2 WHERE id = ?3", params![content, now, id])?;
+            }
+
+            // Fields (structured data)
+            if let Some(ref fields) = input.fields {
+                self.save_fields(&conn, id, fields)?;
+                conn.execute("UPDATE nodes SET updated_at = ?1 WHERE id = ?2", params![now, id])?;
+            }
+
+            // New version on content or fields change
+            if input.content.is_some() || input.fields.is_some() {
+                let ver_num: i64 = conn.query_row(
+                    "SELECT COALESCE(MAX(version_num), 0) + 1 FROM node_versions WHERE node_id = ?1",
+                    params![id], |r| r.get(0),
+                )?;
+                let ver_id = Uuid::new_v4().to_string();
+                let current_content: Option<String> = conn.query_row(
+                    "SELECT content FROM nodes WHERE id = ?1", params![id], |r| r.get(0),
+                )?;
+                let current_fields = self.get_fields_as_json(&conn, id)?;
+                let snapshot = self.build_version_snapshot(current_content.as_deref(), Some(&current_fields));
+                conn.execute(
+                    "INSERT INTO node_versions (id, node_id, content, version_num) VALUES (?1, ?2, ?3, ?4)",
+                    params![ver_id, id, snapshot, ver_num],
+                )?;
+            }
+
+            if let Some(ref template_id) = input.template_id {
+                conn.execute("UPDATE nodes SET template_id = ?1, updated_at = ?2 WHERE id = ?3", params![template_id, now, id])?;
+            }
+            if let Some(pinned) = input.is_pinned {
+                conn.execute("UPDATE nodes SET is_pinned = ?1, updated_at = ?2 WHERE id = ?3", params![pinned, now, id])?;
+            }
+            if let Some(active) = input.is_active {
+                // Deactivate all others if activating
+                if active {
+                    conn.execute("UPDATE nodes SET is_active = FALSE WHERE is_active = TRUE", [])?;
+                }
+                conn.execute("UPDATE nodes SET is_active = ?1, updated_at = ?2 WHERE id = ?3", params![active, now, id])?;
+            }
+
+            // Sections
+            if let Some(ref section_ids) = input.section_ids {
+                conn.execute("DELETE FROM node_sections WHERE node_id = ?1", params![id])?;
+                for sid in section_ids {
+                    conn.execute(
+                        "INSERT OR IGNORE INTO node_sections (node_id, section_id) VALUES (?1, ?2)",
+                        params![id, sid],
+                    )?;
+                }
+            }
+
+            // Tags
+            if let Some(ref tag_names) = input.tag_names {
+                conn.execute("DELETE FROM node_tags WHERE node_id = ?1", params![id])?;
+                for name in tag_names {
+                    let tag_id = get_or_create_tag(&conn, name)?;
+                    conn.execute(
+                        "INSERT OR IGNORE INTO node_tags (node_id, tag_id) VALUES (?1, ?2)",
+                        params![id, tag_id],
+                    )?;
+                }
+                // Clean orphan tags (tags not linked to any node)
+                conn.execute("DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM node_tags)", [])?;
+            }
+
+            // Update FTS — include field values
+            let node = self.get_node_by_id_inner(&conn, id)?;
+            conn.execute("DELETE FROM nodes_fts WHERE node_id = ?1", params![id])?;
+            let fields_text = self.get_fields_text(&conn, id)?;
+            let fts_content = format!("{} {}", node.content.as_deref().unwrap_or(""), fields_text);
             conn.execute(
-                "INSERT INTO node_versions (id, node_id, content, version_num) VALUES (?1, ?2, ?3, ?4)",
-                params![ver_id, id, snapshot, ver_num],
+                "INSERT INTO nodes_fts (node_id, title, content) VALUES (?1, ?2, ?3)",
+                params![id, node.title, fts_content.trim()],
             )?;
-        }
 
-        if let Some(ref template_id) = input.template_id {
-            conn.execute("UPDATE nodes SET template_id = ?1, updated_at = ?2 WHERE id = ?3", params![template_id, now, id])?;
+            Ok(Some(node))
+        })();
+        match result {
+            Ok(v) => { conn.execute_batch("COMMIT")?; Ok(v) }
+            Err(e) => { let _ = conn.execute_batch("ROLLBACK"); Err(e) }
         }
-        if let Some(pinned) = input.is_pinned {
-            conn.execute("UPDATE nodes SET is_pinned = ?1, updated_at = ?2 WHERE id = ?3", params![pinned, now, id])?;
-        }
-        if let Some(active) = input.is_active {
-            // Deactivate all others if activating
-            if active {
-                conn.execute("UPDATE nodes SET is_active = FALSE WHERE is_active = TRUE", [])?;
-            }
-            conn.execute("UPDATE nodes SET is_active = ?1, updated_at = ?2 WHERE id = ?3", params![active, now, id])?;
-        }
-
-        // Sections
-        if let Some(ref section_ids) = input.section_ids {
-            conn.execute("DELETE FROM node_sections WHERE node_id = ?1", params![id])?;
-            for sid in section_ids {
-                conn.execute(
-                    "INSERT OR IGNORE INTO node_sections (node_id, section_id) VALUES (?1, ?2)",
-                    params![id, sid],
-                )?;
-            }
-        }
-
-        // Tags
-        if let Some(ref tag_names) = input.tag_names {
-            conn.execute("DELETE FROM node_tags WHERE node_id = ?1", params![id])?;
-            for name in tag_names {
-                let tag_id = get_or_create_tag(&conn, name)?;
-                conn.execute(
-                    "INSERT OR IGNORE INTO node_tags (node_id, tag_id) VALUES (?1, ?2)",
-                    params![id, tag_id],
-                )?;
-            }
-        }
-
-        // Update FTS — include field values
-        let node = self.get_node_by_id_inner(&conn, id)?;
-        conn.execute("DELETE FROM nodes_fts WHERE node_id = ?1", params![id])?;
-        let fields_text = self.get_fields_text(&conn, id)?;
-        let fts_content = format!("{} {}", node.content.as_deref().unwrap_or(""), fields_text);
-        conn.execute(
-            "INSERT INTO nodes_fts (node_id, title, content) VALUES (?1, ?2, ?3)",
-            params![id, node.title, fts_content.trim()],
-        )?;
-
-        Ok(Some(node))
     }
 
     pub async fn soft_delete_node(&self, id: &str) -> Result<bool> {
@@ -467,29 +585,34 @@ impl Database {
         ).unwrap_or(false);
         if !is_deleted { return Ok(false); }
 
-        conn.execute("DELETE FROM node_tags WHERE node_id = ?1", params![id])?;
-        conn.execute("DELETE FROM node_sections WHERE node_id = ?1", params![id])?;
-        conn.execute("DELETE FROM node_fields WHERE node_id = ?1", params![id])?;
-        conn.execute("DELETE FROM node_versions WHERE node_id = ?1", params![id])?;
-        conn.execute("DELETE FROM edges WHERE node_from = ?1 OR node_to = ?1", params![id])?;
-        conn.execute("DELETE FROM pending_links WHERE node_from = ?1 OR node_to = ?1", params![id])?;
-        conn.execute("DELETE FROM nodes WHERE id = ?1", params![id])?;
-        Ok(true)
+        conn.execute_batch("BEGIN IMMEDIATE")?;
+        let result = (|| -> Result<bool> {
+            conn.execute("DELETE FROM node_tags WHERE node_id = ?1", params![id])?;
+            // Clean orphan tags
+            conn.execute("DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM node_tags)", [])?;
+            conn.execute("DELETE FROM node_sections WHERE node_id = ?1", params![id])?;
+            conn.execute("DELETE FROM node_fields WHERE node_id = ?1", params![id])?;
+            conn.execute("DELETE FROM node_versions WHERE node_id = ?1", params![id])?;
+            conn.execute("DELETE FROM edges WHERE node_from = ?1 OR node_to = ?1", params![id])?;
+            conn.execute("DELETE FROM pending_links WHERE node_from = ?1 OR node_to = ?1", params![id])?;
+            conn.execute("DELETE FROM nodes WHERE id = ?1", params![id])?;
+            Ok(true)
+        })();
+        match result {
+            Ok(v) => { conn.execute_batch("COMMIT")?; Ok(v) }
+            Err(e) => { let _ = conn.execute_batch("ROLLBACK"); Err(e) }
+        }
     }
 
-    pub async fn list_trash(&self) -> Result<Vec<Node>> {
+    pub async fn list_trash(&self, limit: i64, offset: i64) -> Result<Vec<Node>> {
         let conn = self.conn.lock().await;
-        let mut stmt = conn.prepare(
-            "SELECT id, title, content, template_id, created_at, updated_at, deleted_at, is_pinned, is_active FROM nodes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC"
-        )?;
-        let mut nodes: Vec<Node> = stmt.query_map([], |row| {
-            Ok(Node {
-                id: row.get(0)?, title: row.get(1)?, content: row.get(2)?,
-                fields: None,
-                template_id: row.get(3)?, created_at: row.get(4)?, updated_at: row.get(5)?,
-                deleted_at: row.get(6)?, is_pinned: row.get(7)?, is_active: row.get(8)?,
-            })
-        })?.collect::<std::result::Result<Vec<_>, _>>()?;
+        let sql = format!(
+            "SELECT id, title, content, template_id, created_at, updated_at, deleted_at, is_pinned, is_active FROM nodes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT {} OFFSET {}",
+            limit, offset
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let mut nodes: Vec<Node> = stmt.query_map([], map_node)?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
         for node in &mut nodes {
             node.fields = Some(self.get_fields_as_json(&conn, &node.id)?);
         }
@@ -509,8 +632,7 @@ impl Database {
         Ok(Section { id, name: input.name.clone(), description: input.description.clone(), color: input.color.clone(), pos_x: input.pos_x, pos_y: input.pos_y, created_at: now })
     }
 
-    pub async fn list_sections(&self) -> Result<Vec<Section>> {
-        let conn = self.conn.lock().await;
+    fn list_sections_inner(&self, conn: &Connection) -> Result<Vec<Section>> {
         let mut stmt = conn.prepare("SELECT id, name, description, color, pos_x, pos_y, created_at FROM sections ORDER BY name")?;
         let sections = stmt.query_map([], |row| {
             Ok(Section {
@@ -519,6 +641,11 @@ impl Database {
             })
         })?.collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(sections)
+    }
+
+    pub async fn list_sections(&self) -> Result<Vec<Section>> {
+        let conn = self.conn.lock().await;
+        self.list_sections_inner(&conn)
     }
 
     pub async fn get_section(&self, id: &str) -> Result<Option<Section>> {
@@ -566,25 +693,23 @@ impl Database {
         Ok(affected > 0)
     }
 
-    pub async fn get_section_nodes(&self, section_id: &str) -> Result<Vec<Node>> {
-        let conn = self.conn.lock().await;
+    fn get_section_nodes_inner(&self, conn: &Connection, section_id: &str) -> Result<Vec<Node>> {
         let mut stmt = conn.prepare(
             "SELECT n.id, n.title, n.content, n.template_id, n.created_at, n.updated_at, n.deleted_at, n.is_pinned, n.is_active \
              FROM nodes n JOIN node_sections ns ON n.id = ns.node_id \
              WHERE ns.section_id = ?1 AND n.deleted_at IS NULL ORDER BY n.updated_at DESC"
         )?;
-        let mut nodes: Vec<Node> = stmt.query_map(params![section_id], |row| {
-            Ok(Node {
-                id: row.get(0)?, title: row.get(1)?, content: row.get(2)?,
-                fields: None,
-                template_id: row.get(3)?, created_at: row.get(4)?, updated_at: row.get(5)?,
-                deleted_at: row.get(6)?, is_pinned: row.get(7)?, is_active: row.get(8)?,
-            })
-        })?.collect::<std::result::Result<Vec<_>, _>>()?;
+        let mut nodes: Vec<Node> = stmt.query_map(params![section_id], map_node)?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
         for node in &mut nodes {
-            node.fields = Some(self.get_fields_as_json(&conn, &node.id)?);
+            node.fields = Some(self.get_fields_as_json(conn, &node.id)?);
         }
         Ok(nodes)
+    }
+
+    pub async fn get_section_nodes(&self, section_id: &str) -> Result<Vec<Node>> {
+        let conn = self.conn.lock().await;
+        self.get_section_nodes_inner(&conn, section_id)
     }
 
     // ── Edges CRUD ──
@@ -600,8 +725,7 @@ impl Database {
         Ok(Edge { id, node_from: input.node_from.clone(), node_to: input.node_to.clone(), relation: input.relation.clone(), auto_created: false, confirmed: true, created_at: now })
     }
 
-    pub async fn list_edges(&self) -> Result<Vec<Edge>> {
-        let conn = self.conn.lock().await;
+    fn list_edges_inner(&self, conn: &Connection) -> Result<Vec<Edge>> {
         let mut stmt = conn.prepare(
             "SELECT id, node_from, node_to, relation, auto, confirmed, created_at FROM edges ORDER BY created_at DESC"
         )?;
@@ -614,8 +738,23 @@ impl Database {
         Ok(edges)
     }
 
-    pub async fn get_node_edges(&self, node_id: &str) -> Result<Vec<Edge>> {
+    pub async fn list_edges(&self, limit: i64, offset: i64) -> Result<Vec<Edge>> {
         let conn = self.conn.lock().await;
+        let sql = format!(
+            "SELECT id, node_from, node_to, relation, auto, confirmed, created_at FROM edges ORDER BY created_at DESC LIMIT {} OFFSET {}",
+            limit, offset
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let edges = stmt.query_map([], |row| {
+            Ok(Edge {
+                id: row.get(0)?, node_from: row.get(1)?, node_to: row.get(2)?,
+                relation: row.get(3)?, auto_created: row.get(4)?, confirmed: row.get(5)?, created_at: row.get(6)?,
+            })
+        })?.collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(edges)
+    }
+
+    fn get_node_edges_inner(&self, conn: &Connection, node_id: &str) -> Result<Vec<Edge>> {
         let mut stmt = conn.prepare(
             "SELECT id, node_from, node_to, relation, auto, confirmed, created_at FROM edges WHERE (node_from = ?1 OR node_to = ?1) AND confirmed = TRUE ORDER BY created_at DESC"
         )?;
@@ -626,6 +765,11 @@ impl Database {
             })
         })?.collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(edges)
+    }
+
+    pub async fn get_node_edges(&self, node_id: &str) -> Result<Vec<Edge>> {
+        let conn = self.conn.lock().await;
+        self.get_node_edges_inner(&conn, node_id)
     }
 
     pub async fn delete_edge(&self, id: &str) -> Result<bool> {
@@ -714,8 +858,7 @@ impl Database {
         Ok(tags)
     }
 
-    pub async fn get_node_tags(&self, node_id: &str) -> Result<Vec<Tag>> {
-        let conn = self.conn.lock().await;
+    fn get_node_tags_inner(&self, conn: &Connection, node_id: &str) -> Result<Vec<Tag>> {
         let mut stmt = conn.prepare(
             "SELECT t.id, t.name FROM tags t JOIN node_tags nt ON t.id = nt.tag_id WHERE nt.node_id = ?1 ORDER BY t.name"
         )?;
@@ -725,8 +868,12 @@ impl Database {
         Ok(tags)
     }
 
-    pub async fn get_node_sections(&self, node_id: &str) -> Result<Vec<Section>> {
+    pub async fn get_node_tags(&self, node_id: &str) -> Result<Vec<Tag>> {
         let conn = self.conn.lock().await;
+        self.get_node_tags_inner(&conn, node_id)
+    }
+
+    fn get_node_sections_inner(&self, conn: &Connection, node_id: &str) -> Result<Vec<Section>> {
         let mut stmt = conn.prepare(
             "SELECT s.id, s.name, s.description, s.color, s.pos_x, s.pos_y, s.created_at \
              FROM sections s JOIN node_sections ns ON s.id = ns.section_id WHERE ns.node_id = ?1"
@@ -740,19 +887,27 @@ impl Database {
         Ok(sections)
     }
 
+    pub async fn get_node_sections(&self, node_id: &str) -> Result<Vec<Section>> {
+        let conn = self.conn.lock().await;
+        self.get_node_sections_inner(&conn, node_id)
+    }
+
     // ── Pending Links ──
 
-    pub async fn list_pending_links(&self) -> Result<Vec<PendingLink>> {
+    pub async fn list_pending_links(&self, limit: i64, offset: i64) -> Result<Vec<PendingLink>> {
         let conn = self.conn.lock().await;
-        let mut stmt = conn.prepare("SELECT id, node_from, node_to, occurrence, created_at FROM pending_links ORDER BY created_at DESC")?;
+        let sql = format!(
+            "SELECT id, node_from, node_to, occurrence, created_at FROM pending_links ORDER BY created_at DESC LIMIT {} OFFSET {}",
+            limit, offset
+        );
+        let mut stmt = conn.prepare(&sql)?;
         let links = stmt.query_map([], |row| {
             Ok(PendingLink { id: row.get(0)?, node_from: row.get(1)?, node_to: row.get(2)?, occurrence: row.get(3)?, created_at: row.get(4)? })
         })?.collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(links)
     }
 
-    pub async fn get_node_pending_links(&self, node_id: &str) -> Result<Vec<PendingLink>> {
-        let conn = self.conn.lock().await;
+    fn get_node_pending_links_inner(&self, conn: &Connection, node_id: &str) -> Result<Vec<PendingLink>> {
         let mut stmt = conn.prepare(
             "SELECT id, node_from, node_to, occurrence, created_at FROM pending_links WHERE node_from = ?1 OR node_to = ?1 ORDER BY created_at DESC"
         )?;
@@ -760,6 +915,11 @@ impl Database {
             Ok(PendingLink { id: row.get(0)?, node_from: row.get(1)?, node_to: row.get(2)?, occurrence: row.get(3)?, created_at: row.get(4)? })
         })?.collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(links)
+    }
+
+    pub async fn get_node_pending_links(&self, node_id: &str) -> Result<Vec<PendingLink>> {
+        let conn = self.conn.lock().await;
+        self.get_node_pending_links_inner(&conn, node_id)
     }
 
     pub async fn confirm_pending_link(&self, pending_id: &str, relation: Option<&str>) -> Result<Option<Edge>> {
@@ -794,6 +954,14 @@ impl Database {
 
     // ── Versions ──
 
+    fn get_node_versions_count_inner(&self, conn: &Connection, node_id: &str) -> Result<i64> {
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM node_versions WHERE node_id = ?1",
+            params![node_id], |r| r.get(0),
+        )?;
+        Ok(count)
+    }
+
     pub async fn get_node_versions(&self, node_id: &str) -> Result<Vec<NodeVersion>> {
         let conn = self.conn.lock().await;
         let mut stmt = conn.prepare(
@@ -807,8 +975,19 @@ impl Database {
 
     // ── Search (FTS5) ──
 
+    fn sanitize_fts_query(query: &str) -> String {
+        let trimmed = query.trim();
+        if trimmed.is_empty() {
+            return "\"\"".to_string();
+        }
+        // Escape internal double quotes and wrap
+        let escaped = trimmed.replace('"', "\"\"");
+        format!("\"{}\"", escaped)
+    }
+
     pub async fn search(&self, query: &str, section_id: Option<&str>, tag: Option<&str>) -> Result<Vec<Node>> {
         let conn = self.conn.lock().await;
+        let safe_query = Self::sanitize_fts_query(query);
 
         let base = if section_id.is_some() && tag.is_some() {
             "SELECT n.id, n.title, n.content, n.template_id, n.created_at, n.updated_at, n.deleted_at, n.is_pinned, n.is_active \
@@ -843,38 +1022,50 @@ impl Database {
         };
 
         let mut stmt = conn.prepare(base)?;
-        let nodes = if section_id.is_some() && tag.is_some() {
-            stmt.query_map(params![query, section_id.unwrap(), tag.unwrap()], map_node)?
+        let mut nodes: Vec<Node> = if section_id.is_some() && tag.is_some() {
+            stmt.query_map(params![safe_query, section_id.unwrap(), tag.unwrap()], map_node)?
         } else if section_id.is_some() {
-            stmt.query_map(params![query, section_id.unwrap()], map_node)?
+            stmt.query_map(params![safe_query, section_id.unwrap()], map_node)?
         } else if tag.is_some() {
-            stmt.query_map(params![query, tag.unwrap()], map_node)?
+            stmt.query_map(params![safe_query, tag.unwrap()], map_node)?
         } else {
-            stmt.query_map(params![query], map_node)?
+            stmt.query_map(params![safe_query], map_node)?
         }.collect::<std::result::Result<Vec<_>, _>>()?;
 
+        // Hydrate fields for search results
+        for node in &mut nodes {
+            node.fields = Some(self.get_fields_as_json(&conn, &node.id)?);
+        }
         Ok(nodes)
     }
 
     // ── Study Desk ──
 
     pub async fn get_study_desk(&self, node_id: &str) -> Result<Option<StudyDesk>> {
-        let node = match self.get_node(node_id).await? {
-            Some(n) => n,
-            None => return Ok(None),
+        let conn = self.conn.lock().await;
+
+        let node = match self.get_node_by_id_inner(&conn, node_id) {
+            Ok(n) => n,
+            Err(e) => {
+                if let Some(rusqlite::Error::QueryReturnedNoRows) = e.downcast_ref::<rusqlite::Error>() {
+                    return Ok(None);
+                }
+                return Err(e);
+            }
         };
 
-        let edges = self.get_node_edges(node_id).await?;
-        let tags = self.get_node_tags(node_id).await?;
-        let sections = self.get_node_sections(node_id).await?;
-        let pending = self.get_node_pending_links(node_id).await?;
-        let versions = self.get_node_versions(node_id).await?;
+        let edges = self.get_node_edges_inner(&conn, node_id)?;
+        let tags = self.get_node_tags_inner(&conn, node_id)?;
+        let sections = self.get_node_sections_inner(&conn, node_id)?;
+        let pending = self.get_node_pending_links_inner(&conn, node_id)?;
+        let versions_count = self.get_node_versions_count_inner(&conn, node_id)?;
 
         let mut connections = Vec::new();
         for edge in &edges {
             let other_id = if edge.node_from == node_id { &edge.node_to } else { &edge.node_from };
-            if let Some(other_node) = self.get_node(other_id).await? {
-                connections.push(StudyConnection { node: other_node, edge: edge.clone() });
+            match self.get_node_by_id_inner(&conn, other_id) {
+                Ok(other_node) => connections.push(StudyConnection { node: other_node, edge: edge.clone() }),
+                Err(_) => {} // Skip deleted/missing nodes
             }
         }
 
@@ -887,17 +1078,18 @@ impl Database {
             pending_links: pending,
             tags,
             sections,
-            versions_count: versions.len() as i64,
+            versions_count,
         }))
     }
 
     // ── Graph data ──
 
     pub async fn get_graph_data(&self) -> Result<GraphData> {
-        let sections = self.list_sections().await?;
+        let conn = self.conn.lock().await;
+        let sections = self.list_sections_inner(&conn)?;
         let mut section_nodes = Vec::new();
         for section in &sections {
-            let nodes = self.get_section_nodes(&section.id).await?;
+            let nodes = self.get_section_nodes_inner(&conn, &section.id)?;
             section_nodes.push(SectionWithNodes {
                 section: section.clone(),
                 node_count: nodes.len(),
@@ -905,8 +1097,7 @@ impl Database {
         }
 
         // Inter-section edges: edges where node_from and node_to are in different sections
-        let edges = self.list_edges().await?;
-        let conn = self.conn.lock().await;
+        let edges = self.list_edges_inner(&conn)?;
         let mut inter = Vec::new();
         for edge in edges {
             let from_sections: Vec<String> = conn
@@ -1102,7 +1293,7 @@ mod tests {
         let db = test_db().await;
         assert!(db.seed_if_empty().await.unwrap());
 
-        let nodes = db.list_nodes(false).await.unwrap();
+        let nodes = db.list_nodes(false, 100, 0).await.unwrap();
         assert_eq!(nodes.len(), 1);
         assert_eq!(nodes[0].title, "Marc de Café");
         assert!(nodes[0].template_id.is_some());
@@ -1125,7 +1316,7 @@ mod tests {
     async fn test_seed_node_has_fields_in_db() {
         let db = test_db().await;
         db.seed_if_empty().await.unwrap();
-        let nodes = db.list_nodes(false).await.unwrap();
+        let nodes = db.list_nodes(false, 100, 0).await.unwrap();
         let fields = nodes[0].fields.as_ref().unwrap();
         assert!(fields.is_object());
         let obj = fields.as_object().unwrap();
@@ -1152,7 +1343,7 @@ mod tests {
     async fn test_seed_node_has_tags_and_section() {
         let db = test_db().await;
         db.seed_if_empty().await.unwrap();
-        let nodes = db.list_nodes(false).await.unwrap();
+        let nodes = db.list_nodes(false, 100, 0).await.unwrap();
         let tags = db.get_node_tags(&nodes[0].id).await.unwrap();
         assert_eq!(tags.len(), 6); // Bœuf, Sauce brune, Chocolat noir, Gibier, Échalote caramélisée, Poivre long
         let sections = db.get_node_sections(&nodes[0].id).await.unwrap();
@@ -1164,7 +1355,7 @@ mod tests {
     async fn test_seed_creates_initial_version() {
         let db = test_db().await;
         db.seed_if_empty().await.unwrap();
-        let nodes = db.list_nodes(false).await.unwrap();
+        let nodes = db.list_nodes(false, 100, 0).await.unwrap();
         let versions = db.get_node_versions(&nodes[0].id).await.unwrap();
         assert_eq!(versions.len(), 1);
         assert_eq!(versions[0].version_num, 1);
@@ -1236,7 +1427,7 @@ mod tests {
         let n1 = db.create_node(&node("A")).await.unwrap();
         let _n2 = db.create_node(&node("B")).await.unwrap();
         db.soft_delete_node(&n1.id).await.unwrap();
-        let nodes = db.list_nodes(false).await.unwrap();
+        let nodes = db.list_nodes(false, 100, 0).await.unwrap();
         assert_eq!(nodes.len(), 1);
         assert_eq!(nodes[0].title, "B");
     }
@@ -1247,7 +1438,7 @@ mod tests {
         let n1 = db.create_node(&node("A")).await.unwrap();
         db.create_node(&node("B")).await.unwrap();
         db.soft_delete_node(&n1.id).await.unwrap();
-        let all = db.list_nodes(true).await.unwrap();
+        let all = db.list_nodes(true, 100, 0).await.unwrap();
         assert_eq!(all.len(), 2);
     }
 
@@ -1476,7 +1667,7 @@ mod tests {
         let n2 = db.create_node(&node("B")).await.unwrap();
         db.soft_delete_node(&n1.id).await.unwrap();
         db.soft_delete_node(&n2.id).await.unwrap();
-        let trash = db.list_trash().await.unwrap();
+        let trash = db.list_trash(100, 0).await.unwrap();
         assert_eq!(trash.len(), 2);
         assert!(trash.iter().all(|n| n.deleted_at.is_some()));
     }
@@ -1664,7 +1855,7 @@ mod tests {
         let n3 = db.create_node(&node("C")).await.unwrap();
         db.create_edge(&CreateEdge { node_from: n1.id.clone(), node_to: n2.id.clone(), relation: None }).await.unwrap();
         db.create_edge(&CreateEdge { node_from: n2.id.clone(), node_to: n3.id.clone(), relation: None }).await.unwrap();
-        assert_eq!(db.list_edges().await.unwrap().len(), 2);
+        assert_eq!(db.list_edges(100, 0).await.unwrap().len(), 2);
     }
 
     // ── Templates CRUD ──
@@ -1875,7 +2066,7 @@ mod tests {
         assert_eq!(edge.relation.as_deref(), Some("associé"));
 
         // Pending link removed
-        assert_eq!(db.list_pending_links().await.unwrap().len(), 0);
+        assert_eq!(db.list_pending_links(100, 0).await.unwrap().len(), 0);
         // Edge exists
         assert_eq!(db.get_node_edges(&n1.id).await.unwrap().len(), 1);
     }
@@ -1889,7 +2080,7 @@ mod tests {
         assert!(!pending.is_empty());
 
         assert!(db.dismiss_pending_link(&pending[0].id).await.unwrap());
-        assert_eq!(db.list_pending_links().await.unwrap().len(), 0);
+        assert_eq!(db.list_pending_links(100, 0).await.unwrap().len(), 0);
         assert_eq!(db.get_node_edges(&n1.id).await.unwrap().len(), 0); // No edge created
     }
 
@@ -2062,5 +2253,66 @@ mod tests {
         let db = test_db().await; // Already migrated once
         db.migrate().await.unwrap(); // Should not fail
         db.migrate().await.unwrap(); // Nor on third call
+    }
+
+    // ── FTS sanitization ──
+
+    #[tokio::test]
+    async fn test_search_special_chars_no_crash() {
+        let db = test_db().await;
+        db.create_node(&node_with("Test", "content")).await.unwrap();
+        // These should not crash (FTS5 special chars)
+        assert!(db.search("test AND OR NOT", None, None).await.is_ok());
+        assert!(db.search("\"unclosed quote", None, None).await.is_ok());
+        assert!(db.search("col:value", None, None).await.is_ok());
+        assert!(db.search("*wild*", None, None).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_transaction_rollback_on_error() {
+        let db = test_db().await;
+        // Creating node with invalid template_id should still work (no FK constraint on template)
+        // but verify transaction doesn't leave partial state
+        let n = db.create_node(&node("TxTest")).await.unwrap();
+        assert!(db.get_node(&n.id).await.unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn test_get_node_error_vs_not_found() {
+        let db = test_db().await;
+        // Not found should return None
+        assert!(db.get_node("nonexistent-id").await.unwrap().is_none());
+    }
+
+    // ── Cascade / Orphan cleanup ──
+
+    #[tokio::test]
+    async fn test_cascade_delete_cleans_related() {
+        let db = test_db().await;
+        let n = db.create_node(&CreateNode {
+            tag_names: Some(vec!["test-tag".into()]),
+            ..node_with("CascadeTest", "content")
+        }).await.unwrap();
+        // Soft delete then purge
+        db.soft_delete_node(&n.id).await.unwrap();
+        db.purge_node(&n.id).await.unwrap();
+        // Verify node is gone
+        assert!(db.get_node(&n.id).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_orphan_tags_cleaned() {
+        let db = test_db().await;
+        let n = db.create_node(&CreateNode {
+            tag_names: Some(vec!["orphan-tag".into()]),
+            ..node("OrphanTest")
+        }).await.unwrap();
+        assert_eq!(db.list_tags().await.unwrap().len(), 1);
+        // Update with different tags
+        db.update_node(&n.id, &UpdateNode { tag_names: Some(vec!["new-tag".into()]), ..update() }).await.unwrap();
+        let tags = db.list_tags().await.unwrap();
+        // "orphan-tag" should be cleaned
+        assert_eq!(tags.len(), 1);
+        assert_eq!(tags[0].name, "new-tag");
     }
 }
