@@ -1,0 +1,39 @@
+[Unit]
+Description=Symbion Knowledge Library Plugin
+After=network.target mosquitto.service symbion-kernel.service
+Wants=mosquitto.service
+
+[Service]
+Type=simple
+User=eridwyn
+Group=eridwyn
+
+WorkingDirectory=/home/eridwyn/RustroverProjects/NewSymbion
+
+Environment=LIBRARY_CONFIG=/home/eridwyn/RustroverProjects/NewSymbion/symbion-plugin-library/config/library.toml
+Environment=RUST_LOG=info,symbion_plugin_library=debug
+
+ExecStart=/opt/symbion/bin/symbion-plugin-library
+
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths=/run/symbion-plugins
+ReadWritePaths=/home/eridwyn/RustroverProjects/NewSymbion/data
+
+ExecStartPre=/bin/mkdir -p /run/symbion-plugins
+ExecStartPre=/bin/chown eridwyn:eridwyn /run/symbion-plugins
+
+MemoryMax=256M
+CPUQuota=50%
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=symbion-library
+
+[Install]
+WantedBy=multi-user.target

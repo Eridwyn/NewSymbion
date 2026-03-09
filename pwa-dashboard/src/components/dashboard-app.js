@@ -28,12 +28,14 @@ const lazyWidgets = () => {
   import('../widgets/agent-control-widget.js')
   import('../widgets/environment-widget.js')
   import('../widgets/context-engine-widget.js')
+  import('../widgets/library-widget.js')
 }
 const lazyPages = () => {
   import('./user-settings-page.js')
   import('./notes-page.js')
   import('./context-engine-page.js')
   import('./ssl-config-page.js')
+  import('./library-page.js')
 }
 // Toast/notifications loaded eagerly (needed immediately for push events)
 import './toast-notifications.js'
@@ -1031,6 +1033,7 @@ class DashboardApp extends LitElement {
     showNotesPage: { type: Boolean },
     showContextEnginePage: { type: Boolean },
     showSslConfigPage: { type: Boolean },
+    showLibraryPage: { type: Boolean },
     currentUser: { type: Object },
     activeTab: { type: String },
     currentTime: { type: String },
@@ -1053,6 +1056,7 @@ class DashboardApp extends LitElement {
     this.showNotesPage = false
     this.showContextEnginePage = false
     this.showSslConfigPage = false
+    this.showLibraryPage = false
     this.isOffline = !navigator.onLine
     this.currentTheme = themeService.current
     this.showLogsFab = localStorage.getItem('symbion_show_logs') === 'true'
@@ -1081,6 +1085,7 @@ class DashboardApp extends LitElement {
     this._handleCreateNote = this.handleCreateNote.bind(this)
     this._handleOpenContextEngine = this.handleOpenContextEngine.bind(this)
     this._handleOpenSslConfig = this.handleOpenSslConfig.bind(this)
+    this._handleOpenLibrary = this.handleOpenLibrary.bind(this)
   }
 
   formatTime(date) {
@@ -1117,6 +1122,9 @@ class DashboardApp extends LitElement {
 
     // Écouter les événements du ssl-widget pour ouvrir la page de config
     this.addEventListener('open-ssl-config', this._handleOpenSslConfig)
+
+    // Écouter les événements du library-widget
+    this.addEventListener('open-library-page', this._handleOpenLibrary)
 
     // Écouter auth:expired pour rediriger vers login (session expirée)
     this._boundHandlers.authExpired = this.handleAuthExpired.bind(this)
@@ -1183,6 +1191,7 @@ class DashboardApp extends LitElement {
     this.removeEventListener('create-note', this._handleCreateNote)
     this.removeEventListener('open-context-engine', this._handleOpenContextEngine)
     this.removeEventListener('open-ssl-config', this._handleOpenSslConfig)
+    this.removeEventListener('open-library-page', this._handleOpenLibrary)
 
     // [P0-5] Cleanup all stored window/document event handlers to prevent memory leaks
     if (this._boundHandlers.authExpired) {
@@ -1220,14 +1229,14 @@ class DashboardApp extends LitElement {
   // PWA4: Focus trap management for full-page overlays
   updated(changedProperties) {
     super.updated(changedProperties)
-    const pageProps = ['showSettingsPage', 'showNotesPage', 'showContextEnginePage', 'showSslConfigPage']
+    const pageProps = ['showSettingsPage', 'showNotesPage', 'showContextEnginePage', 'showSslConfigPage', 'showLibraryPage']
     const anyPageOpen = pageProps.some(p => changedProperties.has(p))
 
     if (anyPageOpen) {
-      const isOpen = this.showSettingsPage || this.showNotesPage || this.showContextEnginePage || this.showSslConfigPage
+      const isOpen = this.showSettingsPage || this.showNotesPage || this.showContextEnginePage || this.showSslConfigPage || this.showLibraryPage
       // Find the active page overlay in shadow DOM
       const pageEl = this.shadowRoot.querySelector(
-        'user-settings-page, notes-page, context-engine-page, ssl-config-page'
+        'user-settings-page, notes-page, context-engine-page, ssl-config-page, library-page'
       )
       this._focusTrap = manageFocusTrap(pageEl, isOpen, this._focusTrap)
     }
@@ -1532,6 +1541,9 @@ class DashboardApp extends LitElement {
                 .connected="${this.connected}">
               </notes-widget>
             </div>
+            <div class="widget-container">
+              <library-widget></library-widget>
+            </div>
           </div>
         </div>
 
@@ -1581,6 +1593,11 @@ class DashboardApp extends LitElement {
             </notes-widget>
           </div>
 
+          <!-- Widget bibliothèque -->
+          <div class="widget-container">
+            <library-widget></library-widget>
+          </div>
+
           <!-- Widget agents network -->
           <div class="widget-container">
             <agents-network-widget
@@ -1610,6 +1627,10 @@ class DashboardApp extends LitElement {
 
         ${this.showSslConfigPage ? html`
           <ssl-config-page @close="${this.handleCloseSslConfig}"></ssl-config-page>
+        ` : ''}
+
+        ${this.showLibraryPage ? html`
+          <library-page @close="${this.handleCloseLibrary}"></library-page>
         ` : ''}
       </div>
 
@@ -1742,6 +1763,15 @@ class DashboardApp extends LitElement {
 
   handleCloseSslConfig() {
     this.showSslConfigPage = false
+  }
+
+  handleOpenLibrary() {
+    console.log('[dashboard] Opening Library page')
+    this.showLibraryPage = true
+  }
+
+  handleCloseLibrary() {
+    this.showLibraryPage = false
   }
 
   handleAuthExpired(event) {

@@ -1,0 +1,14 @@
+[mqtt]
+host = "127.0.0.1"
+port = 1883
+client_id = "symbion-plugin-library"
+
+[http]
+socket_path = "/run/symbion-plugins/library.sock"
+
+[database]
+path = "data/library.db"
+
+[worker]
+# Delay before running occurrence detection after a node change (seconds)
+debounce_seconds = 5
