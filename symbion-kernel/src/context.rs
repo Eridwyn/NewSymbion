@@ -154,6 +154,20 @@ pub struct ContextEngine {
 }
 
 impl ContextEngine {
+    /// Create a test-only ContextEngine with default state (mode=Veille)
+    /// and no file persistence. Avoids loading production data.
+    #[cfg(test)]
+    pub fn new_isolated() -> Self {
+        Self {
+            state: Arc::new(Mutex::new(Self::default_state())),
+            history: Arc::new(Mutex::new(Vec::new())),
+            history_path: PathBuf::from("/tmp/symbion-test-history.json"),
+            state_path: PathBuf::from("/tmp/symbion-test-state.json"),
+            pending_change: Arc::new(RwLock::new(None)),
+            db: std::sync::Mutex::new(None),
+        }
+    }
+
     pub fn new() -> Self {
         let history_path = PathBuf::from("context-history.json");
         let state_path = PathBuf::from("context-state.json");

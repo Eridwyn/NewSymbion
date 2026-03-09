@@ -3,7 +3,7 @@
 
 use crate::decision::{
     Action, BlockedReasonCategory, DecisionConfig, DecisionContext, DecisionOutcome,
-    DecisionResult, GuardsEvaluator, TrustCalculator, ImpactLevel, GuardWarning,
+    DecisionResult, GuardsEvaluation, GuardsEvaluator, TrustCalculator, ImpactLevel, GuardWarning,
 };
 use std::sync::RwLock;
 use uuid::Uuid;
@@ -32,31 +32,31 @@ impl DecisionEngine {
     pub fn decide(&self, action: &Action, context: &DecisionContext) -> DecisionResult {
         let decision_id = Uuid::new_v4().to_string();
 
-        // Ensure trace_id is valid (generate if empty)
-        let mut action = action.clone();
-        action.ensure_trace_id();
-        let action = &action;
+        // Resolve trace_id inline (avoids cloning the entire Action)
+        let trace_id = if action.trace_id.is_empty() {
+            Uuid::new_v4().to_string()
+        } else {
+            action.trace_id.clone()
+        };
 
         // Mode dry-run: évaluation sans exécution
         if action.dry_run {
-            return self.dry_run_evaluate(action, context, decision_id);
+            return self.dry_run_evaluate(action, context, decision_id, trace_id);
         }
 
         // Étape 1: Évaluer les guards
         let guards_eval = self.guards_evaluator.evaluate(action, context);
 
-        // Convertir GuardWarning en warnings du résultat
-        let warnings: Vec<GuardWarning> = guards_eval.warnings.clone();
+        // Destructure to consume fields (avoids .clone() on warnings)
+        let GuardsEvaluation { passed: _, blocks, requires_validation, warnings } = guards_eval;
 
         // Si guards bloquent
-        if !guards_eval.blocks.is_empty() {
-            let reasons: Vec<String> = guards_eval
-                .blocks
+        if !blocks.is_empty() {
+            let reasons: Vec<String> = blocks
                 .iter()
                 .map(|b| b.reason.clone())
                 .collect();
-            let explanation_codes: Vec<String> = guards_eval
-                .blocks
+            let explanation_codes: Vec<String> = blocks
                 .iter()
                 .map(|b| b.explanation_code.clone())
                 .collect();
@@ -73,25 +73,22 @@ impl DecisionEngine {
                     explanation_codes,
                     categories,
                 },
-                trace_id: action.trace_id.clone(),
+                trace_id,
                 warnings,
             };
         }
 
         // Si guards requièrent validation
-        if !guards_eval.requires_validation.is_empty() {
-            let reasons: Vec<String> = guards_eval
-                .requires_validation
+        if !requires_validation.is_empty() {
+            let reasons: Vec<String> = requires_validation
                 .iter()
                 .map(|r| r.reason.clone())
                 .collect();
-            let explanation_codes: Vec<String> = guards_eval
-                .requires_validation
+            let explanation_codes: Vec<String> = requires_validation
                 .iter()
                 .map(|r| r.explanation_code.clone())
                 .collect();
-            let human_reasons: Vec<String> = guards_eval
-                .requires_validation
+            let human_reasons: Vec<String> = requires_validation
                 .iter()
                 .map(|r| r.human_reason.clone())
                 .collect();
@@ -109,7 +106,7 @@ impl DecisionEngine {
                     explanation_codes,
                     human_reasons,
                 },
-                trace_id: action.trace_id.clone(),
+                trace_id,
                 warnings,
             };
         }
@@ -128,7 +125,7 @@ impl DecisionEngine {
                     trust_score: trust_score.score,
                     auto: true,
                 },
-                trace_id: action.trace_id.clone(),
+                trace_id,
                 warnings,
             }
         } else {
@@ -149,7 +146,7 @@ impl DecisionEngine {
                         threshold * 100.0
                     )],
                 },
-                trace_id: action.trace_id.clone(),
+                trace_id,
                 warnings,
             }
         }
@@ -161,12 +158,14 @@ impl DecisionEngine {
         action: &Action,
         context: &DecisionContext,
         decision_id: String,
+        trace_id: String,
     ) -> DecisionResult {
         let guards_eval = self.guards_evaluator.evaluate(action, context);
         let trust_score = self.trust_calculator.calculate(action, context);
         let threshold = self.get_threshold(&action.impact_level);
 
-        let would_approve = guards_eval.passed && trust_score.score >= threshold;
+        let GuardsEvaluation { passed, blocks, requires_validation: _, warnings } = guards_eval;
+        let would_approve = passed && trust_score.score >= threshold;
 
         DecisionResult {
             decision_id,
@@ -174,11 +173,11 @@ impl DecisionEngine {
                 would_approve,
                 trust_score: trust_score.score,
                 threshold,
-                guards_passed: guards_eval.passed,
-                blocks: guards_eval.blocks.clone(),
+                guards_passed: passed,
+                blocks,
             },
-            trace_id: action.trace_id.clone(),
-            warnings: guards_eval.warnings.clone(),
+            trace_id,
+            warnings,
         }
     }
 

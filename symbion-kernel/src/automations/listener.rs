@@ -141,10 +141,11 @@ impl AutomationListener {
                 continue;
             }
 
-            // Check if already executing (prevent re-trigger during long actions)
+            // Atomic check-and-insert: prevents race condition where two threads
+            // could pass the check before either inserts (previously separate check + insert)
             {
-                let executing = self.executing.lock().await;
-                if executing.contains(&automation.id) {
+                let mut executing = self.executing.lock().await;
+                if !executing.insert(automation.id.clone()) {
                     eprintln!("[automations] '{}' already executing, skipping", automation.name);
                     continue;
                 }
@@ -201,6 +202,7 @@ impl AutomationListener {
                     decision_outcome: None,
                 };
                 let _ = self.store.add_history(record);
+                self.executing.lock().await.remove(&automation.id);
                 continue;
             }
 
@@ -208,9 +210,6 @@ impl AutomationListener {
                 "[automations]   ✓ Conditions met, executing {} action(s)",
                 automation.actions.len()
             );
-
-            // Mark as executing (prevents re-trigger during long actions)
-            self.executing.lock().await.insert(automation.id.clone());
 
             // Record execution IMMEDIATELY for cooldown enforcement (before actions)
             if let Err(e) = self.store.record_execution(&automation.id) {
