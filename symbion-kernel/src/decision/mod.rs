@@ -40,5 +40,5 @@ pub use audit::{AuditManager, AuditStats};
 #[allow(unused_imports)]
 pub use agent_status::{AgentHealthManager, AgentHealthStatus, AgentHealthStats};
 pub use metrics::DecisionMetrics;
-pub use environment::{EnvironmentRules, Intention};  // F1: Environment alerts
-pub use trust_tracker::{TrustTracker, SharedTrustTracker, TrustStats, ActionTrustStats, AgentTrustStats};
+  // F1: Environment alerts
+pub use trust_tracker::{TrustTracker, SharedTrustTracker};

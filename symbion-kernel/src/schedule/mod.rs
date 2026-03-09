@@ -8,4 +8,4 @@ pub use types::{
     Schedule, ScheduleRule, CreateRuleRequest, UpdateRuleRequest,
     UpdateDefaultModeRequest, CurrentScheduleInfo,
 };
-pub use registry::{ScheduleRegistry, SharedScheduleRegistry, create_shared_registry};
+pub use registry::{ScheduleRegistry, SharedScheduleRegistry};

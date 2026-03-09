@@ -32,6 +32,10 @@ export default defineConfig(({ mode }) => {
       workbox: {
         // Cache tous les assets statiques pour fonctionnement offline
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // Offline fallback: navigateFallback serves index.html for navigation requests;
+        // offline.html is precached via globPatterns and served by the catch handler
+        // when even index.html is unavailable (true offline scenario).
+        navigateFallbackDenylist: [/\/v1\//, /\/health$/, /\/auth\//],
         runtimeCaching: [
           {
             urlPattern: /\/v1\/.*$/,

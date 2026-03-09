@@ -79,10 +79,25 @@ impl SslChecker {
             checked_at,
         };
 
+        // SSRF protection: reject hostnames resolving to private/loopback addresses
+        if let Err(e) = Self::validate_hostname(hostname) {
+            return error_status(e);
+        }
+
         // Resolve hostname to socket address
         let socket_addr = match address.to_socket_addrs() {
             Ok(mut addrs) => match addrs.next() {
-                Some(addr) => addr,
+                Some(addr) => {
+                    // Double-check resolved IP is not private/loopback
+                    let ip = addr.ip();
+                    if ip.is_loopback() || Self::is_private_ip(&ip) {
+                        return error_status(format!(
+                            "Hostname '{}' resolves to private/loopback IP {}",
+                            hostname, ip
+                        ));
+                    }
+                    addr
+                }
                 None => return error_status("DNS resolution returned no addresses".to_string()),
             },
             Err(e) => return error_status(format!("DNS resolution failed: {}", e)),
@@ -206,6 +221,57 @@ impl SslChecker {
             }
         }
         false
+    }
+
+    /// Validate hostname to prevent SSRF attacks.
+    /// Rejects IP literals, localhost, and known private patterns.
+    pub(crate) fn validate_hostname(hostname: &str) -> Result<(), String> {
+        let h = hostname.to_lowercase();
+
+        // Reject empty
+        if h.is_empty() {
+            return Err("Empty hostname".to_string());
+        }
+
+        // Reject localhost variants
+        if h == "localhost" || h.starts_with("localhost.") {
+            return Err("Hostname 'localhost' is not allowed".to_string());
+        }
+
+        // Reject raw IP addresses (v4 and v6)
+        if h.parse::<std::net::IpAddr>().is_ok() {
+            return Err(format!("Raw IP addresses are not allowed: {}", hostname));
+        }
+        // IPv6 bracket notation
+        if h.starts_with('[') {
+            return Err(format!("Raw IP addresses are not allowed: {}", hostname));
+        }
+
+        // Reject .local, .internal, .lan TLDs
+        for suffix in &[".local", ".internal", ".lan", ".home", ".arpa"] {
+            if h.ends_with(suffix) {
+                return Err(format!("Private TLD '{}' is not allowed", suffix));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Check if an IP address is in a private/reserved range
+    fn is_private_ip(ip: &std::net::IpAddr) -> bool {
+        match ip {
+            std::net::IpAddr::V4(v4) => {
+                v4.is_loopback()           // 127.0.0.0/8
+                || v4.is_private()         // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+                || v4.is_link_local()      // 169.254.0.0/16
+                || v4.is_broadcast()       // 255.255.255.255
+                || v4.is_unspecified()     // 0.0.0.0
+            }
+            std::net::IpAddr::V6(v6) => {
+                v6.is_loopback()           // ::1
+                || v6.is_unspecified()     // ::
+            }
+        }
     }
 }
 

@@ -447,6 +447,16 @@ pub(super) async fn agent_command_endpoint(
         }))));
     }
 
+    // P2: Validate parameters payload size (max 64KB serialized)
+    if let Some(ref params) = req.parameters {
+        let params_size = serde_json::to_string(params).map(|s| s.len()).unwrap_or(0);
+        if params_size > 65_536 {
+            return Err((StatusCode::BAD_REQUEST, Json(serde_json::json!({
+                "error": format!("Parameters too large ({} bytes, max 65536)", params_size)
+            }))));
+        }
+    }
+
     let params = serde_json::json!({
         "command": req.command,
         "parameters": req.parameters

@@ -5,7 +5,7 @@
 
 use anyhow::{Context, Result};
 use std::path::Path;
-use tracing::{info, warn};
+use tracing::info;
 
 /// HTTP client for communicating with the kernel's file transfer endpoints
 pub struct KernelClient {

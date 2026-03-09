@@ -89,15 +89,14 @@ async fn main() -> Result<()> {
         &config.freebox.app_token,
     );
 
-    // Test Freebox connection
+    // Test Freebox connection (non-fatal: polling loops will retry)
     info!("Testing Freebox connection...");
     match freebox.get_connection_status().await {
         Ok(status) => {
             info!("Freebox connected: {} ({})", status.state, status.connection_type);
         }
         Err(e) => {
-            error!("Failed to connect to Freebox: {}", e);
-            return Err(e);
+            warn!("Freebox not reachable at startup (will retry in polling loops): {}", e);
         }
     }
 

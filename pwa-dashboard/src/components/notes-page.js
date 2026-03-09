@@ -1243,7 +1243,7 @@ class NotesPage extends LitElement {
       <!-- New Note Modal -->
       ${this.showNoteForm ? html`
         <div class="modal-overlay" @click="${() => this.showNoteForm = false}">
-          <div class="modal-content" @click="${(e) => e.stopPropagation()}">
+          <div class="modal-content" role="dialog" aria-modal="true" aria-label="Nouvelle note" @click="${(e) => e.stopPropagation()}">
             <div class="modal-header">
               <h2 class="modal-title">✍️ Nouvelle Note</h2>
               <button class="modal-close-btn" @click="${() => this.showNoteForm = false}" aria-label="Fermer">×</button>
@@ -1296,7 +1296,7 @@ class NotesPage extends LitElement {
       <!-- Note Detail Modal -->
       ${this.selectedNote ? html`
         <div class="modal-overlay" @click="${this.closeNoteDetail}">
-          <div class="modal-content" @click="${(e) => e.stopPropagation()}">
+          <div class="modal-content" role="dialog" aria-modal="true" aria-label="Detail de la note" @click="${(e) => e.stopPropagation()}">
             <div class="modal-header">
               <div class="np-modal-header-content">
                 <div class="np-flex-wrap">
@@ -1344,7 +1344,7 @@ class NotesPage extends LitElement {
       <!-- Edit Note Modal -->
       ${this.editingNote ? html`
         <div class="modal-overlay" @click="${this.closeEditNote}">
-          <div class="modal-content" @click="${(e) => e.stopPropagation()}">
+          <div class="modal-content" role="dialog" aria-modal="true" aria-label="Modifier la note" @click="${(e) => e.stopPropagation()}">
             <div class="modal-header">
               <h2 class="modal-title">✏️ Modifier la Note</h2>
               <button class="modal-close-btn" @click="${this.closeEditNote}" aria-label="Fermer">×</button>

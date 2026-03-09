@@ -23,10 +23,8 @@ use super::decision_bridge::{action_to_decision, action_description};
 use super::pending_actions::SharedPendingActionRegistry;
 use super::types::*;
 use super::AutomationEvent;
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
-use time::OffsetDateTime;
 // timezone handled via crate::intelligence::local_now()
 
 /// Centralized mode alias table: (input_alias, canonical_slug, base_mode)
@@ -1057,6 +1055,7 @@ impl AutomationEngine {
 mod tests {
     use super::*;
     use crate::intelligence::FeatureRegistry;
+    use time::OffsetDateTime;
 
     /// Build a minimal ExecutionContext for testing conditions
     fn test_ctx() -> ExecutionContext {

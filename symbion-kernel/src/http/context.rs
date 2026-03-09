@@ -3,12 +3,11 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use crate::notes_bridge;
-use crate::context_intelligence::DecisionSignal;
 use std::collections::HashMap;
 use utoipa::ToSchema;
 
 // Types referenced by utoipa::path body annotations
-use crate::context::{ContextState, ManualOverride, ModeHistoryEntry, ModeStats, ProductivityMetrics};
+use crate::context::{ContextState, ModeHistoryEntry, ModeStats, ProductivityMetrics};
 use crate::modes::types::{DynamicMode, CreateModeRequest, UpdateModeRequest};
 use crate::schedule::types::{Schedule, ScheduleRule, CreateRuleRequest, UpdateRuleRequest, UpdateDefaultModeRequest, CurrentScheduleInfo};
 

@@ -6,6 +6,7 @@
 //! - OS log capture via journalctl (Linux) / wevtutil (Windows)
 //! - Source and service tracking per log entry
 
+use std::collections::VecDeque;
 use std::sync::Arc;
 
 use chrono::Utc;
@@ -98,7 +99,7 @@ impl Default for LogConfig {
 pub struct LogCollector {
     config: LogConfig,
     agent_id: String,
-    buffer: Arc<Mutex<Vec<LogEntry>>>,
+    buffer: Arc<Mutex<VecDeque<LogEntry>>>,
     mqtt_client: AsyncClient,
 }
 
@@ -108,7 +109,7 @@ impl LogCollector {
         Self {
             config,
             agent_id,
-            buffer: Arc::new(Mutex::new(Vec::new())),
+            buffer: Arc::new(Mutex::new(VecDeque::new())),
             mqtt_client,
         }
     }
@@ -140,12 +141,11 @@ impl LogCollector {
 
         // Always buffer for batch flush
         let mut buffer = self.buffer.lock().await;
-        buffer.push(entry);
+        buffer.push_back(entry);
 
-        // Cap buffer size
-        if buffer.len() > self.config.max_buffer_size {
-            let excess = buffer.len() - self.config.max_buffer_size;
-            buffer.drain(..excess);
+        // Cap buffer size: pop oldest entries (O(1) per pop with VecDeque)
+        while buffer.len() > self.config.max_buffer_size {
+            buffer.pop_front();
         }
     }
 
@@ -153,7 +153,7 @@ impl LogCollector {
     pub async fn flush(&self) -> usize {
         let entries: Vec<LogEntry> = {
             let mut buffer = self.buffer.lock().await;
-            std::mem::take(&mut *buffer)
+            std::mem::take(&mut *buffer).into_iter().collect()
         };
 
         if entries.is_empty() {
@@ -172,7 +172,7 @@ impl LogCollector {
             // Re-buffer failed entries
             let mut buffer = self.buffer.lock().await;
             for entry in log_msg.entries {
-                buffer.push(entry);
+                buffer.push_back(entry);
             }
             return 0;
         }

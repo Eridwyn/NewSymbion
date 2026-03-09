@@ -25,7 +25,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use time::OffsetDateTime;
 use utoipa::ToSchema;

@@ -7,7 +7,6 @@
 
 use crate::http::AppState;
 use std::net::SocketAddr;
-use std::sync::Arc;
 
 pub async fn run_servers(app_state: AppState, boot_start: std::time::Instant) {
     let app_https = crate::http::build_router(app_state.clone());

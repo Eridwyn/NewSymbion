@@ -5,7 +5,7 @@
  * health publishing, context monitoring, automation listeners, plugin health, etc.
  */
 
-use crate::agents::{AgentRegistry, SharedAgentRegistry};
+use crate::agents::AgentRegistry;
 use crate::automations::{AutomationStore, EventDispatcher};
 use crate::bootstrap::database::DatabaseSubsystem;
 use crate::bootstrap::decision::DecisionSubsystem;

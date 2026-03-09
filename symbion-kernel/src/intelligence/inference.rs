@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use utoipa::ToSchema;
 
-use super::vector::{ContextVector, dimensions};
+use super::vector::ContextVector;
 
 // ============================================================================
 // Training Sample
@@ -817,6 +817,8 @@ fn cosine_similarity(a: &HashMap<String, f32>, b: &HashMap<String, f32>) -> f32 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::intelligence::vector::dimensions;
+    use time::OffsetDateTime;
 
     fn make_test_vector(home: f32, work: f32, focus: f32, sleep: f32) -> ContextVector {
         let mut dimensions = HashMap::new();

@@ -179,7 +179,8 @@ class HostsWidget extends LitElement {
     super.connectedCallback()
 
     // Écouter les heartbeats MQTT
-    this.addEventListener('host-heartbeat', this.handleHeartbeat.bind(this))
+    this._boundHeartbeatHandler = this.handleHeartbeat.bind(this)
+    this.addEventListener('host-heartbeat', this._boundHeartbeatHandler)
 
     // Vérification périodique des hosts offline (5s) via scheduler centralisé
     this._unsubscribeStaleCheck = pollingScheduler.subscribe('5s', () => this.checkOfflineHosts())
@@ -194,6 +195,12 @@ class HostsWidget extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback()
+
+    // Cleanup MQTT heartbeat listener
+    if (this._boundHeartbeatHandler) {
+      this.removeEventListener('host-heartbeat', this._boundHeartbeatHandler)
+      this._boundHeartbeatHandler = null
+    }
 
     // Cleanup polling scheduler subscriptions
     if (this._unsubscribeStaleCheck) {

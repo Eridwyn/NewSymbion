@@ -10,7 +10,7 @@
 
 use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::Notify;
 
 /// Configuration du watchdog MQTT

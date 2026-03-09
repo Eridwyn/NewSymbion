@@ -22,6 +22,7 @@ use std::time::Instant;
 
 /// Configuration du rate limiter
 const REQUESTS_PER_WINDOW: usize = 600;
+const REQUESTS_PER_WINDOW_AUTH: usize = 6000; // Authenticated users: 10x higher quota
 const WINDOW_SECONDS: u64 = 60;
 const CLEANUP_INTERVAL: usize = 500; // Cleanup toutes les 500 requêtes
 
@@ -41,7 +42,7 @@ impl RateLimitStore {
     }
 
     /// Vérifie si une IP a dépassé la limite
-    fn check_and_record(&self, ip: &str) -> Result<(), u64> {
+    fn check_and_record(&self, ip: &str, limit: usize) -> Result<(), u64> {
         let now = Instant::now();
         let mut entries = self.entries.lock();
 
@@ -50,7 +51,7 @@ impl RateLimitStore {
         // Supprimer les entrées hors fenêtre
         timestamps.retain(|t| now.duration_since(*t).as_secs() < WINDOW_SECONDS);
 
-        if timestamps.len() >= REQUESTS_PER_WINDOW {
+        if timestamps.len() >= limit {
             // Calculer le temps restant avant expiration de la plus ancienne entrée
             if let Some(oldest) = timestamps.first() {
                 let elapsed = now.duration_since(*oldest).as_secs();
@@ -144,19 +145,20 @@ pub async fn rate_limit_middleware(
         return Ok(next.run(req).await);
     }
 
-    // Exempter les requêtes authentifiées (JWT valide) — le rate limiting strict
-    // protège uniquement les routes publiques (login, brute-force)
-    if let Some(auth_header) = req.headers().get("authorization") {
-        if let Ok(auth_str) = auth_header.to_str() {
-            if let Some(token) = auth_str.strip_prefix("Bearer ") {
-                if app.auth_manager.verify_token(token).is_ok() {
-                    return Ok(next.run(req).await);
-                }
-            }
-        }
-    }
+    // Authenticated users get higher rate limit (6000/min) instead of bypass
+    let is_authenticated = req.headers().get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .map(|token| app.auth_manager.verify_token(token).is_ok())
+        .unwrap_or(false);
 
-    if let Err(retry_after) = app.rate_limiter.check_and_record(&client_ip) {
+    let limit = if is_authenticated {
+        REQUESTS_PER_WINDOW_AUTH
+    } else {
+        REQUESTS_PER_WINDOW
+    };
+
+    if let Err(retry_after) = app.rate_limiter.check_and_record(&client_ip, limit) {
         eprintln!(
             "[rate-limit] 🚫 IP {} rate limited on {} (retry in {}s)",
             client_ip, path, retry_after

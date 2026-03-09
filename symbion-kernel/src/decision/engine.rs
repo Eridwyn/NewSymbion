@@ -3,7 +3,7 @@
 
 use crate::decision::{
     Action, BlockedReasonCategory, DecisionConfig, DecisionContext, DecisionOutcome,
-    DecisionResult, GuardsEvaluation, GuardsEvaluator, TrustCalculator, ImpactLevel, GuardWarning,
+    DecisionResult, GuardsEvaluation, GuardsEvaluator, TrustCalculator, ImpactLevel,
 };
 use std::sync::RwLock;
 use uuid::Uuid;
