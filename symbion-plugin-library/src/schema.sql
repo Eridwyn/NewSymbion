@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS node_versions (
 
 CREATE TABLE IF NOT EXISTS sections (
     id          TEXT PRIMARY KEY,
+    parent_id   TEXT REFERENCES sections(id) ON DELETE CASCADE,
     name        TEXT NOT NULL,
     description TEXT,
     color       TEXT,

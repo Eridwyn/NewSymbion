@@ -401,11 +401,13 @@ pub async fn proxy_to_plugin(
         }
     };
 
-    // Build new request with forwarded path
+    // Build new request with forwarded path (preserve query string)
     let (parts, body) = req.into_parts();
+    let original_query = parts.uri.query().map(|q| format!("?{}", q)).unwrap_or_default();
+    let forwarded_with_query = format!("{}{}", forwarded_path, original_query);
     let mut new_uri_parts = parts.uri.into_parts();
     new_uri_parts.path_and_query = Some(
-        forwarded_path.parse().unwrap_or_else(|_| "/".parse().expect("static / path"))
+        forwarded_with_query.parse().unwrap_or_else(|_| "/".parse().expect("static / path"))
     );
     // [SECURITY] P0-4: Handle URI parsing errors gracefully
     let new_uri = match Uri::from_parts(new_uri_parts) {

@@ -134,6 +134,32 @@ impl Database {
             }
         }
 
+        // Re-read version after potential v2 migration
+        let user_version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+
+        // Migration v3: Add parent_id to sections for hierarchy (allées → étagères)
+        if user_version < 3 {
+            conn.execute_batch("BEGIN IMMEDIATE")?;
+            let mig3_result = (|| -> Result<()> {
+                let has_parent_id: bool = conn
+                    .prepare("SELECT COUNT(*) FROM pragma_table_info('sections') WHERE name='parent_id'")?
+                    .query_row([], |r| r.get::<_, i64>(0))
+                    .map(|c| c > 0)?;
+                if !has_parent_id {
+                    conn.execute_batch("ALTER TABLE sections ADD COLUMN parent_id TEXT REFERENCES sections(id);")?;
+                }
+                conn.execute_batch("PRAGMA user_version = 3;")?;
+                Ok(())
+            })();
+            match mig3_result {
+                Ok(()) => conn.execute_batch("COMMIT")?,
+                Err(e) => {
+                    let _ = conn.execute_batch("ROLLBACK");
+                    return Err(e);
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -172,11 +198,18 @@ impl Database {
             params![template_id, "Fiche Épice", structure.to_string(), preview_css, preview_html],
         )?;
 
-        // Section: Épices
+        // Allée: Cuisine (section racine)
+        let aisle_id = Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO sections (id, parent_id, name, description, color, pos_x, pos_y) VALUES (?1, NULL, ?2, ?3, ?4, ?5, ?6)",
+            params![aisle_id, "Cuisine", "Savoir-faire culinaire, épices, techniques et recettes", "#c8a46e", 0.0, 0.0],
+        )?;
+
+        // Étagère: Épices (sous-section de Cuisine)
         let section_id = Uuid::new_v4().to_string();
         conn.execute(
-            "INSERT INTO sections (id, name, description, color, pos_x, pos_y) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![section_id, "Épices", "Fiches gustatives d'épices et mélanges aromatiques", "#e6a23c", 0.0, 0.0],
+            "INSERT INTO sections (id, parent_id, name, description, color, pos_x, pos_y) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![section_id, aisle_id, "Épices", "Fiches gustatives d'épices et mélanges aromatiques", "#e6a23c", 0.0, 0.0],
         )?;
 
         // Node: Marc de Café
@@ -241,7 +274,7 @@ impl Database {
             params![node_id, "Marc de Café", fields_text],
         )?;
 
-        tracing::info!("[library] seeded: template 'Fiche Épice', section 'Épices', node 'Marc de Café'");
+        tracing::info!("[library] seeded: template 'Fiche Épice', allée 'Cuisine' → étagère 'Épices', node 'Marc de Café'");
         Ok(true)
         })();
         match result {
@@ -626,18 +659,18 @@ impl Database {
         let id = Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
-            "INSERT INTO sections (id, name, description, color, pos_x, pos_y, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![id, input.name, input.description, input.color, input.pos_x, input.pos_y, now],
+            "INSERT INTO sections (id, parent_id, name, description, color, pos_x, pos_y, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![id, input.parent_id, input.name, input.description, input.color, input.pos_x, input.pos_y, now],
         )?;
-        Ok(Section { id, name: input.name.clone(), description: input.description.clone(), color: input.color.clone(), pos_x: input.pos_x, pos_y: input.pos_y, created_at: now })
+        Ok(Section { id, parent_id: input.parent_id.clone(), name: input.name.clone(), description: input.description.clone(), color: input.color.clone(), pos_x: input.pos_x, pos_y: input.pos_y, created_at: now })
     }
 
     fn list_sections_inner(&self, conn: &Connection) -> Result<Vec<Section>> {
-        let mut stmt = conn.prepare("SELECT id, name, description, color, pos_x, pos_y, created_at FROM sections ORDER BY name")?;
+        let mut stmt = conn.prepare("SELECT id, parent_id, name, description, color, pos_x, pos_y, created_at FROM sections ORDER BY name")?;
         let sections = stmt.query_map([], |row| {
             Ok(Section {
-                id: row.get(0)?, name: row.get(1)?, description: row.get(2)?,
-                color: row.get(3)?, pos_x: row.get(4)?, pos_y: row.get(5)?, created_at: row.get(6)?,
+                id: row.get(0)?, parent_id: row.get(1)?, name: row.get(2)?, description: row.get(3)?,
+                color: row.get(4)?, pos_x: row.get(5)?, pos_y: row.get(6)?, created_at: row.get(7)?,
             })
         })?.collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(sections)
@@ -651,11 +684,11 @@ impl Database {
     pub async fn get_section(&self, id: &str) -> Result<Option<Section>> {
         let conn = self.conn.lock().await;
         let section = conn.query_row(
-            "SELECT id, name, description, color, pos_x, pos_y, created_at FROM sections WHERE id = ?1",
+            "SELECT id, parent_id, name, description, color, pos_x, pos_y, created_at FROM sections WHERE id = ?1",
             params![id],
             |row| Ok(Section {
-                id: row.get(0)?, name: row.get(1)?, description: row.get(2)?,
-                color: row.get(3)?, pos_x: row.get(4)?, pos_y: row.get(5)?, created_at: row.get(6)?,
+                id: row.get(0)?, parent_id: row.get(1)?, name: row.get(2)?, description: row.get(3)?,
+                color: row.get(4)?, pos_x: row.get(5)?, pos_y: row.get(6)?, created_at: row.get(7)?,
             }),
         );
         match section {
@@ -667,6 +700,9 @@ impl Database {
 
     pub async fn update_section(&self, id: &str, input: &UpdateSection) -> Result<Option<Section>> {
         let conn = self.conn.lock().await;
+        if let Some(ref parent_id) = input.parent_id {
+            conn.execute("UPDATE sections SET parent_id = ?1 WHERE id = ?2", params![parent_id, id])?;
+        }
         if let Some(ref name) = input.name {
             conn.execute("UPDATE sections SET name = ?1 WHERE id = ?2", params![name, id])?;
         }
@@ -875,13 +911,13 @@ impl Database {
 
     fn get_node_sections_inner(&self, conn: &Connection, node_id: &str) -> Result<Vec<Section>> {
         let mut stmt = conn.prepare(
-            "SELECT s.id, s.name, s.description, s.color, s.pos_x, s.pos_y, s.created_at \
+            "SELECT s.id, s.parent_id, s.name, s.description, s.color, s.pos_x, s.pos_y, s.created_at \
              FROM sections s JOIN node_sections ns ON s.id = ns.section_id WHERE ns.node_id = ?1"
         )?;
         let sections = stmt.query_map(params![node_id], |row| {
             Ok(Section {
-                id: row.get(0)?, name: row.get(1)?, description: row.get(2)?,
-                color: row.get(3)?, pos_x: row.get(4)?, pos_y: row.get(5)?, created_at: row.get(6)?,
+                id: row.get(0)?, parent_id: row.get(1)?, name: row.get(2)?, description: row.get(3)?,
+                color: row.get(4)?, pos_x: row.get(5)?, pos_y: row.get(6)?, created_at: row.get(7)?,
             })
         })?.collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(sections)
@@ -1086,17 +1122,38 @@ impl Database {
 
     pub async fn get_graph_data(&self) -> Result<GraphData> {
         let conn = self.conn.lock().await;
-        let sections = self.list_sections_inner(&conn)?;
-        let mut section_nodes = Vec::new();
-        for section in &sections {
+        let all_sections = self.list_sections_inner(&conn)?;
+
+        // Build flat list with node counts
+        let mut flat: Vec<(Section, usize)> = Vec::new();
+        for section in &all_sections {
             let nodes = self.get_section_nodes_inner(&conn, &section.id)?;
-            section_nodes.push(SectionWithNodes {
-                section: section.clone(),
-                node_count: nodes.len(),
-            });
+            flat.push((section.clone(), nodes.len()));
         }
 
-        // Inter-section edges: edges where node_from and node_to are in different sections
+        // Build tree: root sections (no parent) with their children
+        let roots: Vec<SectionWithNodes> = flat.iter()
+            .filter(|(s, _)| s.parent_id.is_none())
+            .map(|(s, count)| {
+                let children: Vec<SectionWithNodes> = flat.iter()
+                    .filter(|(child, _)| child.parent_id.as_deref() == Some(&s.id))
+                    .map(|(child, child_count)| SectionWithNodes {
+                        section: child.clone(),
+                        node_count: *child_count,
+                        children: vec![], // 2 levels deep max for now
+                    })
+                    .collect();
+                // Root node_count = own nodes + sum of children
+                let total = *count + children.iter().map(|c| c.node_count).sum::<usize>();
+                SectionWithNodes {
+                    section: s.clone(),
+                    node_count: total,
+                    children,
+                }
+            })
+            .collect();
+
+        // Inter-section edges
         let edges = self.list_edges_inner(&conn)?;
         let mut inter = Vec::new();
         for edge in edges {
@@ -1114,7 +1171,7 @@ impl Database {
             }
         }
 
-        Ok(GraphData { sections: section_nodes, inter_section_edges: inter })
+        Ok(GraphData { sections: roots, inter_section_edges: inter })
     }
 
     // ── Stats ──
@@ -1307,9 +1364,11 @@ mod tests {
         assert!(templates[0].preview_css.is_some());
 
         let sections = db.list_sections().await.unwrap();
-        assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].name, "Épices");
-        assert_eq!(sections[0].color.as_deref(), Some("#e6a23c"));
+        assert_eq!(sections.len(), 2); // Cuisine (allée) + Épices (étagère)
+        let cuisine = sections.iter().find(|s| s.name == "Cuisine").unwrap();
+        assert!(cuisine.parent_id.is_none());
+        let epices = sections.iter().find(|s| s.name == "Épices").unwrap();
+        assert_eq!(epices.parent_id.as_deref(), Some(cuisine.id.as_str()));
     }
 
     #[tokio::test]
@@ -1394,7 +1453,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_node_with_section() {
         let db = test_db().await;
-        let sec = db.create_section(&CreateSection { name: "Herbes".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
+        let sec = db.create_section(&CreateSection { parent_id: None, name: "Herbes".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
         let n = db.create_node(&CreateNode {
             title: "Basilic".into(), content: None, fields: None, template_id: None,
             section_ids: Some(vec![sec.id.clone()]), tag_names: None,
@@ -1503,8 +1562,8 @@ mod tests {
     #[tokio::test]
     async fn test_update_node_sections_replaces() {
         let db = test_db().await;
-        let s1 = db.create_section(&CreateSection { name: "S1".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
-        let s2 = db.create_section(&CreateSection { name: "S2".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
+        let s1 = db.create_section(&CreateSection { parent_id: None, name: "S1".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
+        let s2 = db.create_section(&CreateSection { parent_id: None, name: "S2".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
         let n = db.create_node(&CreateNode { section_ids: Some(vec![s1.id.clone()]), ..node("N") }).await.unwrap();
         assert_eq!(db.get_node_sections(&n.id).await.unwrap().len(), 1);
 
@@ -1712,7 +1771,7 @@ mod tests {
         let db = test_db().await;
         let n1 = db.create_node(&CreateNode { tag_names: Some(vec!["tag1".into()]), ..node_with("N1", "content") }).await.unwrap();
         let n2 = db.create_node(&node("N2")).await.unwrap();
-        let sec = db.create_section(&CreateSection { name: "S".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
+        let sec = db.create_section(&CreateSection { parent_id: None, name: "S".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
         db.update_node(&n1.id, &UpdateNode { section_ids: Some(vec![sec.id.clone()]), ..update() }).await.unwrap();
         db.create_edge(&CreateEdge { node_from: n1.id.clone(), node_to: n2.id.clone(), relation: None }).await.unwrap();
 
@@ -1733,7 +1792,7 @@ mod tests {
     async fn test_create_section() {
         let db = test_db().await;
         let s = db.create_section(&CreateSection {
-            name: "Herbes".into(), description: Some("Herbes fraîches".into()),
+            parent_id: None, name: "Herbes".into(), description: Some("Herbes fraîches".into()),
             color: Some("#22c55e".into()), pos_x: Some(1.0), pos_y: Some(2.0),
         }).await.unwrap();
         assert_eq!(s.name, "Herbes");
@@ -1750,9 +1809,9 @@ mod tests {
     #[tokio::test]
     async fn test_update_section() {
         let db = test_db().await;
-        let s = db.create_section(&CreateSection { name: "Old".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
+        let s = db.create_section(&CreateSection { parent_id: None, name: "Old".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
         let updated = db.update_section(&s.id, &UpdateSection {
-            name: Some("New".into()), description: None, color: Some("#ff0000".into()), pos_x: Some(5.0), pos_y: None,
+            parent_id: None, name: Some("New".into()), description: None, color: Some("#ff0000".into()), pos_x: Some(5.0), pos_y: None,
         }).await.unwrap().unwrap();
         assert_eq!(updated.name, "New");
         assert_eq!(updated.color.as_deref(), Some("#ff0000"));
@@ -1762,7 +1821,7 @@ mod tests {
     #[tokio::test]
     async fn test_delete_section_cleans_node_links() {
         let db = test_db().await;
-        let s = db.create_section(&CreateSection { name: "S".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
+        let s = db.create_section(&CreateSection { parent_id: None, name: "S".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
         let n = db.create_node(&CreateNode { section_ids: Some(vec![s.id.clone()]), ..node("N") }).await.unwrap();
         assert_eq!(db.get_node_sections(&n.id).await.unwrap().len(), 1);
 
@@ -1780,7 +1839,7 @@ mod tests {
     #[tokio::test]
     async fn test_section_nodes() {
         let db = test_db().await;
-        let s = db.create_section(&CreateSection { name: "S".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
+        let s = db.create_section(&CreateSection { parent_id: None, name: "S".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
         db.create_node(&CreateNode { section_ids: Some(vec![s.id.clone()]), ..node("A") }).await.unwrap();
         db.create_node(&CreateNode { section_ids: Some(vec![s.id.clone()]), ..node("B") }).await.unwrap();
         db.create_node(&node("C")).await.unwrap(); // Not in section
@@ -1791,8 +1850,8 @@ mod tests {
     #[tokio::test]
     async fn test_node_multiple_sections() {
         let db = test_db().await;
-        let s1 = db.create_section(&CreateSection { name: "S1".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
-        let s2 = db.create_section(&CreateSection { name: "S2".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
+        let s1 = db.create_section(&CreateSection { parent_id: None, name: "S1".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
+        let s2 = db.create_section(&CreateSection { parent_id: None, name: "S2".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
         let n = db.create_node(&CreateNode { section_ids: Some(vec![s1.id.clone(), s2.id.clone()]), ..node("Multi") }).await.unwrap();
         let secs = db.get_node_sections(&n.id).await.unwrap();
         assert_eq!(secs.len(), 2);
@@ -1985,8 +2044,8 @@ mod tests {
     #[tokio::test]
     async fn test_search_with_section_filter() {
         let db = test_db().await;
-        let s1 = db.create_section(&CreateSection { name: "S1".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
-        let s2 = db.create_section(&CreateSection { name: "S2".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
+        let s1 = db.create_section(&CreateSection { parent_id: None, name: "S1".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
+        let s2 = db.create_section(&CreateSection { parent_id: None, name: "S2".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
         db.create_node(&CreateNode { section_ids: Some(vec![s1.id.clone()]), ..node_with("Cumin", "épice") }).await.unwrap();
         db.create_node(&CreateNode { section_ids: Some(vec![s2.id.clone()]), ..node_with("Menthe", "épice") }).await.unwrap();
 
@@ -2138,7 +2197,7 @@ mod tests {
     #[tokio::test]
     async fn test_study_desk_full() {
         let db = test_db().await;
-        let sec = db.create_section(&CreateSection { name: "S".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
+        let sec = db.create_section(&CreateSection { parent_id: None, name: "S".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
         let n1 = db.create_node(&CreateNode {
             section_ids: Some(vec![sec.id.clone()]),
             tag_names: Some(vec!["tag1".into(), "tag2".into()]),
@@ -2187,8 +2246,8 @@ mod tests {
     #[tokio::test]
     async fn test_graph_data_with_sections() {
         let db = test_db().await;
-        let s1 = db.create_section(&CreateSection { name: "S1".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
-        let s2 = db.create_section(&CreateSection { name: "S2".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
+        let s1 = db.create_section(&CreateSection { parent_id: None, name: "S1".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
+        let s2 = db.create_section(&CreateSection { parent_id: None, name: "S2".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
         db.create_node(&CreateNode { section_ids: Some(vec![s1.id.clone()]), ..node("A") }).await.unwrap();
         db.create_node(&CreateNode { section_ids: Some(vec![s1.id.clone()]), ..node("B") }).await.unwrap();
         db.create_node(&CreateNode { section_ids: Some(vec![s2.id.clone()]), ..node("C") }).await.unwrap();
@@ -2204,8 +2263,8 @@ mod tests {
     #[tokio::test]
     async fn test_graph_inter_section_edges() {
         let db = test_db().await;
-        let s1 = db.create_section(&CreateSection { name: "S1".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
-        let s2 = db.create_section(&CreateSection { name: "S2".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
+        let s1 = db.create_section(&CreateSection { parent_id: None, name: "S1".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
+        let s2 = db.create_section(&CreateSection { parent_id: None, name: "S2".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
         let n1 = db.create_node(&CreateNode { section_ids: Some(vec![s1.id.clone()]), ..node("A") }).await.unwrap();
         let n2 = db.create_node(&CreateNode { section_ids: Some(vec![s2.id.clone()]), ..node("B") }).await.unwrap();
         let n3 = db.create_node(&CreateNode { section_ids: Some(vec![s1.id.clone()]), ..node("C") }).await.unwrap();
@@ -2230,7 +2289,7 @@ mod tests {
         assert_eq!(p, 0);
 
         db.create_node(&node("A")).await.unwrap();
-        db.create_section(&CreateSection { name: "S".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
+        db.create_section(&CreateSection { parent_id: None, name: "S".into(), description: None, color: None, pos_x: None, pos_y: None }).await.unwrap();
         let (n, s, p) = db.stats().await.unwrap();
         assert_eq!(n, 1);
         assert_eq!(s, 1);

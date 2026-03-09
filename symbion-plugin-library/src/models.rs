@@ -55,6 +55,7 @@ pub struct NodeField {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Section {
     pub id: String,
+    pub parent_id: Option<String>,
     pub name: String,
     pub description: Option<String>,
     pub color: Option<String>,
@@ -66,6 +67,7 @@ pub struct Section {
 #[derive(Debug, Deserialize)]
 pub struct CreateSection {
     pub name: String,
+    pub parent_id: Option<String>,
     pub description: Option<String>,
     pub color: Option<String>,
     pub pos_x: Option<f64>,
@@ -75,6 +77,7 @@ pub struct CreateSection {
 #[derive(Debug, Deserialize)]
 pub struct UpdateSection {
     pub name: Option<String>,
+    pub parent_id: Option<String>,
     pub description: Option<String>,
     pub color: Option<String>,
     pub pos_x: Option<f64>,
@@ -222,4 +225,5 @@ pub struct GraphData {
 pub struct SectionWithNodes {
     pub section: Section,
     pub node_count: usize,
+    pub children: Vec<SectionWithNodes>,
 }

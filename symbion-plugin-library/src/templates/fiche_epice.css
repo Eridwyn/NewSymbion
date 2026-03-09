@@ -1,215 +1,261 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=IM+Fell+English:ital@0;1&display=swap');
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* Fiche Épice — Symbion Knowledge Library */
+/* Fonts loaded via system stack (no @import needed) */
 
 .card {
-  --bg:        #1a1208;
-  --card-bg:   #22180a;
-  --gold:      #c9a96e;
-  --gold-dim:  #7a5535;
-  --brown:     #6b4a20;
-  --dark-br:   #3d2a10;
-  --mid-br:    #5a4030;
-  --text-dim:  #9a7545;
-  --inner-br:  #2a1c0a;
+  --bg:        #0f0d08;
+  --card-bg:   #181410;
+  --accent:    #d4a54a;
+  --accent-soft: #b8923e;
+  --accent-dim: #8a6d30;
+  --border:    #3a2e1a;
+  --border-inner: #2a2010;
+  --text-main: #e8d5a8;
+  --text-dim:  #a08860;
+  --text-muted: #6a5838;
+  --glow:      rgba(212, 165, 74, 0.08);
 
   position: relative;
   max-width: 520px;
   margin: 0 auto;
-  padding: 1.8rem 2rem;
-  background: linear-gradient(145deg, #22180a, #1a1208);
-  border: 1px solid var(--brown);
-  border-radius: 6px;
+  padding: 1.5rem 1.2rem;
+  background: linear-gradient(160deg, var(--card-bg) 0%, var(--bg) 100%);
+  border: 1px solid var(--border);
+  border-radius: 8px;
   overflow: hidden;
-  font-family: 'Georgia', serif;
-  color: var(--gold);
+  font-family: 'Georgia', 'Times New Roman', serif;
+  color: var(--text-main);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(212, 165, 74, 0.06);
 }
 
+/* Inner frame */
 .card::before {
   content: '';
   position: absolute;
-  inset: 4px;
-  border: 1px solid var(--inner-br);
-  border-radius: 4px;
+  inset: 6px;
+  border: 1px solid var(--border-inner);
+  border-radius: 6px;
   pointer-events: none;
 }
 
+/* Watermark icon */
 .card::after {
   content: attr(data-icon);
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%) rotate(-20deg);
-  font-size: 8rem;
-  opacity: 0.04;
-  color: var(--gold);
+  transform: translate(-50%, -50%) rotate(-15deg);
+  font-size: 10rem;
+  opacity: 0.03;
+  color: var(--accent);
   pointer-events: none;
   user-select: none;
   line-height: 1;
 }
 
+/* ── Header ── */
+
 .header {
   text-align: center;
-  margin-bottom: 1.2rem;
+  margin-bottom: 1.4rem;
 }
 
 .header .meta {
-  font-family: 'Helvetica Neue', 'Helvetica', Arial, sans-serif;
-  font-size: 0.65rem;
-  letter-spacing: 0.25em;
-  text-transform: uppercase;
-  color: var(--brown);
-  margin-bottom: 0.5rem;
-}
-
-.header .title {
-  font-family: 'Playfair Display', 'Georgia', serif;
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: var(--gold);
-  line-height: 1.1;
-}
-
-.header .subtitle {
-  font-family: 'IM Fell English', 'Georgia', serif;
-  font-style: italic;
-  font-size: 0.85rem;
-  color: var(--gold-dim);
-  margin-top: 0.3rem;
-}
-
-.divider {
-  border: none;
-  border-top: 1px solid var(--dark-br);
-  margin: 0.8rem 0;
-}
-
-.section-label {
-  font-family: 'Helvetica Neue', 'Helvetica', Arial, sans-serif;
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
   font-size: 0.6rem;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.3em;
   text-transform: uppercase;
-  color: var(--brown);
+  color: var(--text-muted);
   margin-bottom: 0.6rem;
 }
 
+.header .title {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 1.9rem;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.15;
+  text-shadow: 0 1px 8px rgba(212, 165, 74, 0.15);
+}
+
+.header .subtitle {
+  font-family: 'Georgia', serif;
+  font-style: italic;
+  font-size: 0.82rem;
+  color: var(--accent-dim);
+  margin-top: 0.4rem;
+  letter-spacing: 0.02em;
+}
+
+/* ── Dividers ── */
+
+.divider {
+  border: none;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--border) 20%, var(--border) 80%, transparent 100%);
+  margin: 1rem 0;
+}
+
+/* ── Section Labels ── */
+
+.section-label {
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 0.58rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.7rem;
+}
+
+/* ── Profil Sensoriel ── */
+
 .profil {
-  margin-bottom: 0.8rem;
+  margin-bottom: 0.6rem;
 }
 
 .profil-row {
   display: flex;
-  gap: 1rem;
-  margin-bottom: 0.45rem;
+  gap: 0.8rem;
+  margin-bottom: 0.5rem;
   align-items: baseline;
+  flex-wrap: wrap;
 }
 
 .profil-label {
-  font-family: 'Helvetica Neue', 'Helvetica', Arial, sans-serif;
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
-  min-width: 8rem;
-  flex-shrink: 0;
+  min-width: 7rem;
 }
 
 .profil-value {
-  font-family: 'IM Fell English', 'Georgia', serif;
+  font-family: 'Georgia', serif;
   font-size: 0.88rem;
-  color: var(--gold);
-  line-height: 1.35;
+  color: var(--text-main);
+  line-height: 1.4;
 }
+
+/* ── Intensité (dots) ── */
 
 .intensite {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
-  margin: 0.8rem 0;
+  gap: 0.6rem;
+  margin: 0.6rem 0;
+  flex-wrap: wrap;
 }
 
 .intensite-label {
-  font-family: 'Helvetica Neue', 'Helvetica', Arial, sans-serif;
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
-  min-width: 8rem;
+  min-width: 7rem;
 }
 
 .dots {
   display: flex;
-  gap: 0.35rem;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .dot {
-  width: 10px;
-  height: 10px;
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  min-width: 12px;
+  min-height: 12px;
   border-radius: 50%;
-  border: 1px solid var(--gold-dim);
+  border: 1.5px solid var(--accent-dim);
+  flex-shrink: 0;
+  vertical-align: middle;
 }
 
 .dot.filled {
-  background: var(--gold);
-  border-color: var(--gold);
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 6px rgba(212, 165, 74, 0.35);
 }
 
 .dot.empty {
-  background: transparent;
+  background: rgba(212, 165, 74, 0.08);
+  border-color: var(--accent-dim);
 }
 
 .intensite-text {
-  font-family: 'IM Fell English', 'Georgia', serif;
+  font-family: 'Georgia', serif;
   font-style: italic;
   font-size: 0.8rem;
-  color: var(--gold-dim);
-  margin-left: 0.4rem;
+  color: var(--accent-dim);
+  margin-left: 0.3rem;
 }
 
+/* ── Associations ── */
+
 .associations {
-  margin: 0.8rem 0;
+  margin: 0.6rem 0;
 }
 
 .assoc-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem 0.6rem;
+  gap: 0.35rem;
 }
 
 .assoc-tag {
-  font-family: 'IM Fell English', 'Georgia', serif;
-  font-size: 0.8rem;
-  color: var(--gold-dim);
-  padding: 0.2rem 0.5rem;
-  border: 1px solid var(--dark-br);
-  border-radius: 3px;
-  background: rgba(201, 169, 110, 0.06);
+  font-family: 'Georgia', serif;
+  font-size: 0.78rem;
+  color: var(--accent-soft);
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--glow);
+  transition: all 0.2s ease;
 }
 
+/* ── Usage ── */
+
 .usage {
-  margin: 0.8rem 0;
+  margin: 0.6rem 0;
 }
 
 .usage-text {
-  font-family: 'IM Fell English', 'Georgia', serif;
+  font-family: 'Georgia', serif;
   font-style: italic;
   font-size: 0.85rem;
-  color: var(--gold-dim);
-  line-height: 1.5;
-  padding: 0.5rem 0.8rem;
-  border-left: 2px solid var(--dark-br);
+  color: var(--text-main);
+  line-height: 1.6;
+  padding: 0.6rem 1rem;
+  border-left: 2px solid var(--accent-dim);
+  background: linear-gradient(90deg, var(--glow) 0%, transparent 100%);
+  border-radius: 0 4px 4px 0;
 }
 
+/* ── Footer ── */
+
 .footer {
-  margin-top: 1.2rem;
+  margin-top: 1.4rem;
   text-align: center;
-  font-family: 'Helvetica Neue', 'Helvetica', Arial, sans-serif;
-  font-size: 0.55rem;
-  letter-spacing: 0.3em;
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 0.52rem;
+  letter-spacing: 0.35em;
   text-transform: uppercase;
-  color: var(--dark-br);
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* ── Notes personnelles ── */
+
+.notes {
+  margin: 0.6rem 0;
+}
+
+.notes-text {
+  font-family: 'Georgia', serif;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  padding: 0.4rem 0;
 }
