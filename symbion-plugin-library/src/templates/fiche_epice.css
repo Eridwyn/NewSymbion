@@ -6,7 +6,7 @@
   box-sizing: border-box;
 }
 
-:root {
+.card {
   --bg:        #1a1208;
   --card-bg:   #22180a;
   --gold:      #c9a96e;
@@ -16,40 +16,25 @@
   --mid-br:    #5a4030;
   --text-dim:  #9a7545;
   --inner-br:  #2a1c0a;
-}
 
-html, body {
-  width: 148mm;
-  height: 210mm;
-  background: var(--bg);
+  position: relative;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 1.8rem 2rem;
+  background: linear-gradient(145deg, #22180a, #1a1208);
+  border: 1px solid var(--brown);
+  border-radius: 6px;
+  overflow: hidden;
   font-family: 'Georgia', serif;
   color: var(--gold);
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
-}
-
-@page {
-  size: A5;
-  margin: 0;
-}
-
-.card {
-  position: relative;
-  margin: 10mm;
-  padding: 8mm 10mm;
-  background: linear-gradient(145deg, #22180a, #1a1208);
-  border: 0.5px solid var(--brown);
-  border-radius: 4px;
-  overflow: hidden;
-  height: calc(210mm - 20mm);
 }
 
 .card::before {
   content: '';
   position: absolute;
-  inset: 3px;
-  border: 0.3px solid var(--inner-br);
-  border-radius: 3px;
+  inset: 4px;
+  border: 1px solid var(--inner-br);
+  border-radius: 4px;
   pointer-events: none;
 }
 
@@ -59,8 +44,8 @@ html, body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) rotate(-20deg);
-  font-size: 110px;
-  opacity: 0.03;
+  font-size: 8rem;
+  opacity: 0.04;
   color: var(--gold);
   pointer-events: none;
   user-select: none;
@@ -69,73 +54,73 @@ html, body {
 
 .header {
   text-align: center;
-  margin-bottom: 5mm;
+  margin-bottom: 1.2rem;
 }
 
 .header .meta {
-  font-family: 'Helvetica', sans-serif;
-  font-size: 6px;
+  font-family: 'Helvetica Neue', 'Helvetica', Arial, sans-serif;
+  font-size: 0.65rem;
   letter-spacing: 0.25em;
   text-transform: uppercase;
   color: var(--brown);
-  margin-bottom: 2mm;
+  margin-bottom: 0.5rem;
 }
 
 .header .title {
-  font-family: 'Playfair Display', serif;
-  font-size: 26px;
+  font-family: 'Playfair Display', 'Georgia', serif;
+  font-size: 1.8rem;
   font-weight: 700;
   color: var(--gold);
   line-height: 1.1;
 }
 
 .header .subtitle {
-  font-family: 'IM Fell English', serif;
+  font-family: 'IM Fell English', 'Georgia', serif;
   font-style: italic;
-  font-size: 9px;
+  font-size: 0.85rem;
   color: var(--gold-dim);
-  margin-top: 1.5mm;
+  margin-top: 0.3rem;
 }
 
 .divider {
   border: none;
-  border-top: 0.4px solid var(--dark-br);
-  margin: 3mm 0;
+  border-top: 1px solid var(--dark-br);
+  margin: 0.8rem 0;
 }
 
 .section-label {
-  font-family: 'Helvetica', sans-serif;
-  font-size: 6px;
+  font-family: 'Helvetica Neue', 'Helvetica', Arial, sans-serif;
+  font-size: 0.6rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--brown);
-  margin-bottom: 2.5mm;
+  margin-bottom: 0.6rem;
 }
 
 .profil {
-  margin-bottom: 3mm;
+  margin-bottom: 0.8rem;
 }
 
 .profil-row {
   display: flex;
-  gap: 6mm;
-  margin-bottom: 1.8mm;
+  gap: 1rem;
+  margin-bottom: 0.45rem;
   align-items: baseline;
 }
 
 .profil-label {
-  font-family: 'Helvetica', sans-serif;
-  font-size: 6.5px;
+  font-family: 'Helvetica Neue', 'Helvetica', Arial, sans-serif;
+  font-size: 0.7rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-dim);
-  min-width: 28mm;
+  min-width: 8rem;
   flex-shrink: 0;
 }
 
 .profil-value {
-  font-family: 'IM Fell English', serif;
-  font-size: 9px;
+  font-family: 'IM Fell English', 'Georgia', serif;
+  font-size: 0.88rem;
   color: var(--gold);
   line-height: 1.35;
 }
@@ -143,29 +128,29 @@ html, body {
 .intensite {
   display: flex;
   align-items: center;
-  gap: 4mm;
-  margin: 3mm 0;
+  gap: 0.8rem;
+  margin: 0.8rem 0;
 }
 
 .intensite-label {
-  font-family: 'Helvetica', sans-serif;
-  font-size: 6.5px;
+  font-family: 'Helvetica Neue', 'Helvetica', Arial, sans-serif;
+  font-size: 0.7rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-dim);
-  min-width: 28mm;
+  min-width: 8rem;
 }
 
 .dots {
   display: flex;
-  gap: 1.5mm;
+  gap: 0.35rem;
 }
 
 .dot {
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  border: 0.4px solid var(--gold-dim);
+  border: 1px solid var(--gold-dim);
 }
 
 .dot.filled {
@@ -178,55 +163,52 @@ html, body {
 }
 
 .intensite-text {
-  font-family: 'IM Fell English', serif;
+  font-family: 'IM Fell English', 'Georgia', serif;
   font-style: italic;
-  font-size: 8px;
+  font-size: 0.8rem;
   color: var(--gold-dim);
-  margin-left: 2mm;
+  margin-left: 0.4rem;
 }
 
 .associations {
-  margin: 3mm 0;
+  margin: 0.8rem 0;
 }
 
 .assoc-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5mm 3mm;
+  gap: 0.3rem 0.6rem;
 }
 
 .assoc-tag {
-  font-family: 'IM Fell English', serif;
-  font-size: 8px;
+  font-family: 'IM Fell English', 'Georgia', serif;
+  font-size: 0.8rem;
   color: var(--gold-dim);
-  padding: 0.8mm 2.5mm;
-  border: 0.3px solid var(--dark-br);
-  border-radius: 2px;
-  background: rgba(201, 169, 110, 0.04);
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--dark-br);
+  border-radius: 3px;
+  background: rgba(201, 169, 110, 0.06);
 }
 
 .usage {
-  margin: 3mm 0;
+  margin: 0.8rem 0;
 }
 
 .usage-text {
-  font-family: 'IM Fell English', serif;
+  font-family: 'IM Fell English', 'Georgia', serif;
   font-style: italic;
-  font-size: 8.5px;
+  font-size: 0.85rem;
   color: var(--gold-dim);
   line-height: 1.5;
-  padding: 2mm 3mm;
-  border-left: 0.4px solid var(--dark-br);
+  padding: 0.5rem 0.8rem;
+  border-left: 2px solid var(--dark-br);
 }
 
 .footer {
-  position: absolute;
-  bottom: 6mm;
-  left: 10mm;
-  right: 10mm;
+  margin-top: 1.2rem;
   text-align: center;
-  font-family: 'Helvetica', sans-serif;
-  font-size: 5px;
+  font-family: 'Helvetica Neue', 'Helvetica', Arial, sans-serif;
+  font-size: 0.55rem;
   letter-spacing: 0.3em;
   text-transform: uppercase;
   color: var(--dark-br);

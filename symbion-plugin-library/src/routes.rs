@@ -76,8 +76,11 @@ async fn health(State(state): State<Arc<PluginState>>) -> Json<serde_json::Value
 
 // ── Nodes ──
 
-async fn list_nodes(State(state): State<Arc<PluginState>>) -> impl IntoResponse {
-    match state.db.list_nodes(false).await {
+async fn list_nodes(
+    State(state): State<Arc<PluginState>>,
+    Query(params): Query<ListParams>,
+) -> impl IntoResponse {
+    match state.db.list_nodes(false, params.limit(), params.offset()).await {
         Ok(nodes) => Json(serde_json::json!({"nodes": nodes})).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
@@ -87,6 +90,9 @@ async fn create_node(
     State(state): State<Arc<PluginState>>,
     Json(input): Json<CreateNode>,
 ) -> impl IntoResponse {
+    if input.title.trim().is_empty() {
+        return (StatusCode::BAD_REQUEST, "Title cannot be empty".to_string()).into_response();
+    }
     match state.db.create_node(&input).await {
         Ok(node) => {
             // MQTT event
@@ -210,6 +216,9 @@ async fn create_section(
     State(state): State<Arc<PluginState>>,
     Json(input): Json<CreateSection>,
 ) -> impl IntoResponse {
+    if input.name.trim().is_empty() {
+        return (StatusCode::BAD_REQUEST, "Section name cannot be empty".to_string()).into_response();
+    }
     match state.db.create_section(&input).await {
         Ok(section) => (StatusCode::CREATED, Json(section)).into_response(),
         Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
@@ -262,8 +271,11 @@ async fn get_section_nodes(
 
 // ── Edges ──
 
-async fn list_edges(State(state): State<Arc<PluginState>>) -> impl IntoResponse {
-    match state.db.list_edges().await {
+async fn list_edges(
+    State(state): State<Arc<PluginState>>,
+    Query(params): Query<ListParams>,
+) -> impl IntoResponse {
+    match state.db.list_edges(params.limit(), params.offset()).await {
         Ok(edges) => Json(serde_json::json!({"edges": edges})).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
@@ -273,6 +285,9 @@ async fn create_edge(
     State(state): State<Arc<PluginState>>,
     Json(input): Json<CreateEdge>,
 ) -> impl IntoResponse {
+    if input.node_from == input.node_to {
+        return (StatusCode::BAD_REQUEST, "Cannot create edge to self".to_string()).into_response();
+    }
     match state.db.create_edge(&input).await {
         Ok(edge) => (StatusCode::CREATED, Json(edge)).into_response(),
         Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
@@ -303,6 +318,9 @@ async fn create_template(
     State(state): State<Arc<PluginState>>,
     Json(input): Json<CreateTemplate>,
 ) -> impl IntoResponse {
+    if input.name.trim().is_empty() {
+        return (StatusCode::BAD_REQUEST, "Template name cannot be empty".to_string()).into_response();
+    }
     match state.db.create_template(&input).await {
         Ok(t) => (StatusCode::CREATED, Json(t)).into_response(),
         Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
@@ -369,8 +387,11 @@ async fn search(
 
 // ── Pending Links ──
 
-async fn list_pending_links(State(state): State<Arc<PluginState>>) -> impl IntoResponse {
-    match state.db.list_pending_links().await {
+async fn list_pending_links(
+    State(state): State<Arc<PluginState>>,
+    Query(params): Query<ListParams>,
+) -> impl IntoResponse {
+    match state.db.list_pending_links(params.limit(), params.offset()).await {
         Ok(links) => Json(serde_json::json!({"pending_links": links})).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
@@ -406,8 +427,11 @@ async fn dismiss_pending_link(
 
 // ── Trash ──
 
-async fn list_trash(State(state): State<Arc<PluginState>>) -> impl IntoResponse {
-    match state.db.list_trash().await {
+async fn list_trash(
+    State(state): State<Arc<PluginState>>,
+    Query(params): Query<ListParams>,
+) -> impl IntoResponse {
+    match state.db.list_trash(params.limit(), params.offset()).await {
         Ok(nodes) => Json(serde_json::json!({"trash": nodes})).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }

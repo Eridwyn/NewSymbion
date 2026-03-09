@@ -11,6 +11,7 @@
 
 import { LitElement, html, css } from 'lit'
 import { unsafeHTML } from 'lit/directives/unsafe-html.js'
+import DOMPurify from 'dompurify'
 import { sharedAnimations, pageTransitionStyles } from '../styles/shared-animations.js'
 import { overlayStyles } from '../styles/shared-patterns.js'
 import { pageHeaderStyles, tabPillStyles } from '../styles/shared-page.js'
@@ -65,6 +66,14 @@ export class LibraryPage extends LitElement {
     loading: { type: Boolean },
     sectionNodes: { type: Array },
     selectedSection: { type: Object },
+    // Toasts
+    toasts: { type: Array },
+    // Template editor
+    templateJsonError: { type: String },
+    // Versions panel
+    showVersions: { type: Boolean },
+    // Unsaved changes
+    _hasUnsavedChanges: { type: Boolean },
   }
 
   static styles = [sharedAnimations, pageTransitionStyles, overlayStyles, pageHeaderStyles, formInputStyles, btnStyles, css`
@@ -477,6 +486,44 @@ export class LibraryPage extends LitElement {
       margin-bottom: 0.5rem;
     }
 
+    .toast-container {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .toast {
+      padding: 0.7rem 1.2rem;
+      border-radius: var(--radius-lg);
+      font-size: 0.85em;
+      font-weight: 500;
+      animation: slideUp 0.3s ease-out;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      max-width: 350px;
+    }
+
+    .toast-success {
+      background: rgba(34, 197, 94, 0.2);
+      border: 1px solid rgba(34, 197, 94, 0.5);
+      color: #22c55e;
+    }
+
+    .toast-error {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.5);
+      color: #ef4444;
+    }
+
+    .toast-info {
+      background: rgba(59, 130, 246, 0.2);
+      border: 1px solid rgba(59, 130, 246, 0.5);
+      color: #3b82f6;
+    }
+
     @media (max-width: 768px) {
       .page-wrap { padding: 0.75rem; }
       .cards-grid { grid-template-columns: 1fr; }
@@ -507,27 +554,56 @@ export class LibraryPage extends LitElement {
     this.loading = false
     this.sectionNodes = []
     this.selectedSection = null
+    this.toasts = []
+    this.templateJsonError = ''
+    this.showVersions = false
+    this._hasUnsavedChanges = false
+    this._versions = []
   }
 
   connectedCallback() {
     super.connectedCallback()
     this._handleEscape = (e) => { if (e.key === 'Escape') this.close() }
     document.addEventListener('keydown', this._handleEscape)
+    this._handleBeforeUnload = (e) => {
+      if (this._hasUnsavedChanges) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', this._handleBeforeUnload)
     this.loadTab()
   }
 
   disconnectedCallback() {
     super.disconnectedCallback()
     document.removeEventListener('keydown', this._handleEscape)
+    window.removeEventListener('beforeunload', this._handleBeforeUnload)
   }
 
   close() {
+    if (this._hasUnsavedChanges) {
+      if (!confirm('Vous avez des modifications non sauvegardées. Quitter ?')) return
+    }
     this.dispatchEvent(new CustomEvent('close'))
   }
 
   setTab(tab) {
+    if (tab === 'editor' && this.activeTab === 'editor') return
+    if (this.activeTab === 'editor' && this._hasUnsavedChanges) {
+      if (!confirm('Vous avez des modifications non sauvegardées. Quitter ?')) return
+    }
+    this._hasUnsavedChanges = false
     this.activeTab = tab
     this.loadTab()
+  }
+
+  showToast(message, type = 'info', duration = 3000) {
+    const id = Date.now()
+    this.toasts = [...this.toasts, { id, message, type }]
+    setTimeout(() => {
+      this.toasts = this.toasts.filter(t => t.id !== id)
+    }, duration)
   }
 
   async loadTab() {
@@ -650,11 +726,14 @@ export class LibraryPage extends LitElement {
       }
 
       // Open the saved node in desk
+      this._hasUnsavedChanges = false
+      this.showToast('Fiche enregistrée', 'success')
       if (result?.id) {
         this.openDesk(result.id)
       }
     } catch (err) {
       console.error('[library] Save error:', err)
+      this.showToast('Erreur lors de la sauvegarde', 'error')
     }
   }
 
@@ -662,6 +741,7 @@ export class LibraryPage extends LitElement {
     if (!confirm('Supprimer cette fiche ?')) return
     try {
       await api(`/nodes/${nodeId}`, { method: 'DELETE' })
+      this.showToast('Fiche supprimée', 'success')
       this.activeTab = 'library'
       this.loadTab()
     } catch (err) {
@@ -672,6 +752,7 @@ export class LibraryPage extends LitElement {
   async confirmLink(pendingId) {
     try {
       await api(`/pending-links/${pendingId}/confirm`, { method: 'POST', body: JSON.stringify({ relation: null }) })
+      this.showToast('Lien confirmé', 'success')
       this.loadTab()
     } catch (err) {
       console.error('[library] Confirm link error:', err)
@@ -681,6 +762,7 @@ export class LibraryPage extends LitElement {
   async dismissLink(pendingId) {
     try {
       await api(`/pending-links/${pendingId}/dismiss`, { method: 'POST' })
+      this.showToast('Lien ignoré', 'info')
       this.loadTab()
     } catch (err) {
       console.error('[library] Dismiss link error:', err)
@@ -716,6 +798,7 @@ export class LibraryPage extends LitElement {
         await api('/templates', { method: 'POST', body: JSON.stringify(body) })
       }
       this.editingTemplate = null
+      this.showToast('Patron enregistré', 'success')
       this.loadTab()
     } catch (err) {
       console.error('[library] Save template error:', err)
@@ -745,6 +828,7 @@ export class LibraryPage extends LitElement {
   async restoreNode(id) {
     try {
       await api(`/trash/${id}/restore`, { method: 'POST' })
+      this.showToast('Fiche restaurée', 'success')
       this.loadTrash()
       this.loadTab()
     } catch (err) {
@@ -806,7 +890,15 @@ export class LibraryPage extends LitElement {
     // Clean remaining placeholders
     compiled = compiled.replace(/\{\{[^}]+\}\}/g, '')
 
-    return compiled
+    // Sanitize final HTML
+    return DOMPurify.sanitize(compiled, {
+      ALLOWED_TAGS: ['div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                      'strong', 'em', 'b', 'i', 'u', 'br', 'hr', 'ul', 'ol', 'li',
+                      'table', 'tr', 'td', 'th', 'thead', 'tbody', 'img', 'a',
+                      'section', 'header', 'footer', 'main', 'article'],
+      ALLOWED_ATTR: ['class', 'style', 'src', 'alt', 'href', 'target', 'rel'],
+      ALLOW_DATA_ATTR: false
+    })
   }
 
   _getSelectedTemplate() {
@@ -879,12 +971,31 @@ export class LibraryPage extends LitElement {
   _updateField(name, value) {
     const fields = { ...(this.editingNode.fields || {}), [name]: value }
     this.editingNode = { ...this.editingNode, fields }
+    this._hasUnsavedChanges = true
   }
 
   _esc(str) {
     const el = document.createElement('span')
     el.textContent = str
     return el.innerHTML
+  }
+
+  _sanitizeCSS(cssText) {
+    if (!cssText) return ''
+    return cssText
+      .replace(/@import\b[^;]*;?/gi, '/* import blocked */')
+      .replace(/url\s*\([^)]*\)/gi, '/* url blocked */')
+      .replace(/expression\s*\([^)]*\)/gi, '/* expression blocked */')
+      .replace(/javascript\s*:/gi, '/* js blocked */')
+  }
+
+  _safeColor(color) {
+    if (!color) return 'var(--context-primary, #00d4aa)'
+    // Allow hex, rgb, hsl, named colors
+    if (/^#([0-9a-f]{3,8})$/i.test(color)) return color
+    if (/^(rgb|hsl)a?\([^)]+\)$/i.test(color)) return color
+    if (/^[a-z]{3,20}$/i.test(color)) return color
+    return 'var(--context-primary, #00d4aa)'
   }
 
   // ── Render ──
@@ -900,13 +1011,21 @@ export class LibraryPage extends LitElement {
         <div class="tabs">
           <button class="tab-btn ${this.activeTab === 'library' ? 'active' : ''}" @click=${() => this.setTab('library')}>Bibliothèque</button>
           <button class="tab-btn ${this.activeTab === 'desk' ? 'active' : ''}" @click=${() => this.setTab('desk')}>Bureau d'étude</button>
-          <button class="tab-btn ${this.activeTab === 'editor' ? 'active' : ''}" @click=${() => this.openEditor()}>Éditeur</button>
+          <button class="tab-btn ${this.activeTab === 'editor' ? 'active' : ''}" @click=${() => this.activeTab === 'editor' ? null : this.openEditor()}>Éditeur</button>
           <button class="tab-btn ${this.activeTab === 'templates' ? 'active' : ''}" @click=${() => this.setTab('templates')}>Patrons</button>
           <button class="tab-btn ${this.activeTab === 'search' ? 'active' : ''}" @click=${() => this.setTab('search')}>Recherche</button>
         </div>
 
         ${this.loading ? html`<div class="empty">Chargement...</div>` : this.renderTab()}
       </div>
+
+      ${this.toasts.length > 0 ? html`
+        <div class="toast-container">
+          ${this.toasts.map(t => html`
+            <div class="toast toast-${t.type}">${t.message}</div>
+          `)}
+        </div>
+      ` : ''}
     `
   }
 
@@ -937,7 +1056,7 @@ export class LibraryPage extends LitElement {
       ` : html`
         <div class="cards-grid" style="margin-top: 1rem;">
           ${(this.graphData?.sections || []).map(s => html`
-            <div class="card section-card" style="--section-color: ${s.section.color || 'var(--context-primary)'}"
+            <div class="card section-card" style="--section-color: ${this._safeColor(s.section.color)}"
                  @click=${() => this.openSection(s.section)}>
               <div class="card-title">${s.section.name}</div>
               ${s.section.description ? html`<div class="card-meta">${s.section.description}</div>` : ''}
@@ -957,7 +1076,7 @@ export class LibraryPage extends LitElement {
         <button class="btn-secondary" @click=${() => this.closeSection()}>&#8592; Sections</button>
         <button class="btn-primary" @click=${() => this.openEditor()}>+ Nouvelle fiche</button>
       </div>
-      <h3 style="margin: 1rem 0 0.5rem; color: ${this.selectedSection.color || 'inherit'}">${this.selectedSection.name}</h3>
+      <h3 style="margin: 1rem 0 0.5rem; color: ${this._safeColor(this.selectedSection.color)}">${this.selectedSection.name}</h3>
 
       ${this.sectionNodes.length === 0 ? html`
         <div class="empty">Aucune fiche dans cette section.</div>
@@ -978,7 +1097,10 @@ export class LibraryPage extends LitElement {
   renderTrashModal() {
     return html`
       <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-default);">
-        <h3>Corbeille</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3>Corbeille</h3>
+          <button class="btn-sm" @click=${() => { this.showTrash = false }}>Fermer</button>
+        </div>
         ${this.trash.length === 0 ? html`<div class="empty">Corbeille vide</div>` : html`
           ${this.trash.map(node => html`
             <div class="pending-card">
@@ -1034,8 +1156,8 @@ export class LibraryPage extends LitElement {
 
         ${compiledHtml ? html`
           <div class="template-preview">
-            ${template?.preview_css ? html`<style>${template.preview_css}</style>` : ''}
-            ${unsafeHTML(compiledHtml)}
+            ${template?.preview_css ? html`<style>${this._sanitizeCSS(template.preview_css)}</style>` : ''}
+            <div class="tpl-scope">${unsafeHTML(compiledHtml)}</div>
           </div>
         ` : fields && Object.keys(fields).length > 0 ? html`
           <div class="content-preview">
@@ -1060,6 +1182,32 @@ export class LibraryPage extends LitElement {
               ${c.edge.relation ? html`<span class="relation-badge">${c.edge.relation}</span>` : ''}
             </div>
           `)}
+        </div>
+      ` : ''}
+
+      ${this.desk.versions_count > 0 ? html`
+        <div style="margin-top: 1rem;">
+          <button class="btn-sm" @click=${async () => {
+            if (!this.showVersions) {
+              try {
+                const data = await api(`/nodes/${this.desk.node.id}/versions`)
+                this._versions = data.versions || []
+              } catch {}
+            }
+            this.showVersions = !this.showVersions
+          }}>
+            ${this.showVersions ? 'Masquer' : 'Voir'} les versions (${this.desk.versions_count})
+          </button>
+          ${this.showVersions && this._versions ? html`
+            <div style="margin-top: 0.5rem;">
+              ${this._versions.map(v => html`
+                <div class="version-item">
+                  <span>v${v.version_num}</span>
+                  <span class="card-meta">${v.created_at?.slice(0, 16).replace('T', ' ') || ''}</span>
+                </div>
+              `)}
+            </div>
+          ` : ''}
         </div>
       ` : ''}
 
@@ -1089,20 +1237,20 @@ export class LibraryPage extends LitElement {
 
     return html`
       <div class="editor-wrap">
-        <h3>${this.editorMode === 'edit' ? 'Modifier la fiche' : 'Nouvelle fiche'}</h3>
+        <h3>${this.editorMode === 'edit' ? 'Modifier la fiche' : 'Nouvelle fiche'}${this._hasUnsavedChanges ? html`<span style="color: #fbbf24; font-size: 0.8em; margin-left: 0.5rem;">● non sauvegardé</span>` : ''}</h3>
 
         <div class="editor-form">
           <div class="form-field">
             <label>Titre</label>
             <input type="text" .value=${this.editingNode.title || ''}
-              @input=${(e) => this.editingNode = { ...this.editingNode, title: e.target.value }}>
+              @input=${(e) => { this.editingNode = { ...this.editingNode, title: e.target.value }; this._hasUnsavedChanges = true }}>
           </div>
 
           <div class="form-row">
             <div class="form-field">
               <label>Patron (optionnel)</label>
               <select .value=${this.editingNode.template_id || ''}
-                @change=${(e) => this.editingNode = { ...this.editingNode, template_id: e.target.value }}>
+                @change=${(e) => { this.editingNode = { ...this.editingNode, template_id: e.target.value }; this._hasUnsavedChanges = true }}>
                 <option value="">Texte libre</option>
                 ${this.templates.map(t => html`
                   <option value="${t.id}" ?selected=${this.editingNode.template_id === t.id}>${t.name}</option>
@@ -1111,15 +1259,26 @@ export class LibraryPage extends LitElement {
             </div>
             <div class="form-field">
               <label>Sections</label>
-              <select multiple style="min-height: 60px;"
-                @change=${(e) => {
-                  const selected = Array.from(e.target.selectedOptions).map(o => o.value)
-                  this.editingNode = { ...this.editingNode, section_ids: selected }
-                }}>
+              <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.3rem 0;">
                 ${this.sections.map(s => html`
-                  <option value="${s.id}" ?selected=${(this.editingNode.section_ids || []).includes(s.id)}>${s.name}</option>
+                  <label style="display: flex; align-items: center; gap: 0.3rem; font-size: 0.85em; cursor: pointer;">
+                    <input type="checkbox"
+                      ?checked=${(this.editingNode.section_ids || []).includes(s.id)}
+                      @change=${(e) => {
+                        const ids = [...(this.editingNode.section_ids || [])]
+                        if (e.target.checked) {
+                          if (!ids.includes(s.id)) ids.push(s.id)
+                        } else {
+                          const idx = ids.indexOf(s.id)
+                          if (idx > -1) ids.splice(idx, 1)
+                        }
+                        this.editingNode = { ...this.editingNode, section_ids: ids }
+                        this._hasUnsavedChanges = true
+                      }}>
+                    ${s.name}
+                  </label>
                 `)}
-              </select>
+              </div>
             </div>
           </div>
 
@@ -1129,6 +1288,7 @@ export class LibraryPage extends LitElement {
               @input=${(e) => {
                 const tags = e.target.value.split(',').map(t => t.trim()).filter(Boolean)
                 this.editingNode = { ...this.editingNode, tags }
+                this._hasUnsavedChanges = true
               }}>
           </div>
 
@@ -1136,7 +1296,7 @@ export class LibraryPage extends LitElement {
             <div class="form-field">
               <label>Contenu</label>
               <textarea .value=${this.editingNode.content || ''}
-                @input=${(e) => this.editingNode = { ...this.editingNode, content: e.target.value }}
+                @input=${(e) => { this.editingNode = { ...this.editingNode, content: e.target.value }; this._hasUnsavedChanges = true }}
                 placeholder="Contenu de la fiche (texte libre)"></textarea>
             </div>
           `}
@@ -1172,15 +1332,21 @@ export class LibraryPage extends LitElement {
             </div>
             <div class="form-field">
               <label>Structure JSON (champs)</label>
-              <textarea style="min-height: 120px;"
+              <textarea style="min-height: 120px; ${this.templateJsonError ? 'border-color: #ef4444;' : ''}"
                 .value=${this.editingTemplate.structure ? JSON.stringify(this.editingTemplate.structure, null, 2) : ''}
                 @input=${(e) => {
                   try {
                     const parsed = JSON.parse(e.target.value)
                     this.editingTemplate = { ...this.editingTemplate, structure: parsed }
-                  } catch {}
+                    this.templateJsonError = ''
+                  } catch (err) {
+                    this.templateJsonError = err.message
+                  }
                 }}
                 placeholder='[{"name": "champ", "type": "text", "label": "Mon champ"}]'></textarea>
+              ${this.templateJsonError ? html`
+                <div style="color: #ef4444; font-size: 0.75em; margin-top: 0.3rem;">JSON invalide : ${this.templateJsonError}</div>
+              ` : ''}
             </div>
             <div class="form-field">
               <label>HTML du patron (placeholders {{champ}})</label>
@@ -1230,12 +1396,15 @@ export class LibraryPage extends LitElement {
 
   renderSearch() {
     return html`
-      <div class="form-field" style="margin-bottom: 1rem;">
-        <input type="text" placeholder="Rechercher dans la bibliothèque..."
-          style="font-size: 1.1em; padding: 0.8rem 1rem;"
-          .value=${this.searchQuery}
-          @input=${(e) => this.searchQuery = e.target.value}
-          @keydown=${(e) => { if (e.key === 'Enter') this.doSearch() }}>
+      <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+        <div class="form-field" style="flex: 1; margin-bottom: 0;">
+          <input type="text" placeholder="Rechercher dans la bibliothèque..."
+            style="font-size: 1.1em; padding: 0.8rem 1rem;"
+            .value=${this.searchQuery}
+            @input=${(e) => this.searchQuery = e.target.value}
+            @keydown=${(e) => { if (e.key === 'Enter') this.doSearch() }}>
+        </div>
+        <button class="btn-primary" style="align-self: flex-end; white-space: nowrap;" @click=${() => this.doSearch()}>Rechercher</button>
       </div>
 
       ${this.searchResults.length > 0 ? html`
@@ -1247,6 +1416,13 @@ export class LibraryPage extends LitElement {
             <div class="card" @click=${() => this.openDesk(node.id)}>
               <div class="card-title">${node.title}</div>
               <div class="card-meta">${node.updated_at?.slice(0, 10) || ''}</div>
+              ${node.fields && Object.keys(node.fields).length > 0 ? html`
+                <div style="margin-top: 0.3rem; font-size: 0.75em; color: var(--color-dark-text-tertiary);">
+                  ${Object.entries(node.fields).slice(0, 3).map(([k, v]) => html`
+                    <span style="margin-right: 0.5rem;">${k.replace(/_/g, ' ')}: ${this.formatFieldValue(v).substring(0, 30)}</span>
+                  `)}
+                </div>
+              ` : ''}
             </div>
           `)}
         </div>
