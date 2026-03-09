@@ -1,0 +1,48 @@
+[package]
+name = "symbion-plugin-library"
+version = "0.1.0"
+edition = "2021"
+authors = ["Mark Chavatte <Markchavatte@gmail.com>"]
+description = "Symbion plugin - Knowledge library with graph navigation and study desk"
+
+[[bin]]
+name = "symbion-plugin-library"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# HTTP framework
+axum = { version = "0.7", features = ["json"] }
+tower = "0.4"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# MQTT
+rumqttc = "0.24"
+
+# SQLite
+rusqlite = { version = "0.31", features = ["bundled", "vtab"] }
+
+# Symbion common plugin utilities
+symbion-plugin-common = { path = "../symbion-plugin-common" }
+
+# Config
+toml = "0.8"
+
+# Time
+chrono = { version = "0.4.41", features = ["serde"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# UUID generation
+uuid = { version = "1", features = ["v4"] }

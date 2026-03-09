@@ -1,0 +1,72 @@
+{
+  "spec_version": "1.0",
+  "plugin_id": "library",
+  "name": "Symbion Knowledge Library",
+  "version": "0.1.0",
+  "description": "Bibliotheque de connaissances avec navigation en graphe et bureau d'etude",
+  "capabilities": [
+    {
+      "action_type": "search_nodes",
+      "description": "Full-text search across knowledge nodes",
+      "impact_level": "low",
+      "parameters": {
+        "query": { "type": "string", "required": true }
+      }
+    },
+    {
+      "action_type": "get_node",
+      "description": "Retrieve a knowledge node by ID",
+      "impact_level": "low",
+      "parameters": {
+        "id": { "type": "string", "required": true }
+      }
+    }
+  ],
+  "events": [
+    {
+      "event_type": "node_created",
+      "description": "A knowledge node was created",
+      "mqtt_topic": "symbion/library/nodes/created"
+    },
+    {
+      "event_type": "node_updated",
+      "description": "A knowledge node was updated",
+      "mqtt_topic": "symbion/library/nodes/updated"
+    },
+    {
+      "event_type": "pending_link_detected",
+      "description": "An occurrence-based link was detected",
+      "mqtt_topic": "symbion/library/links/pending"
+    }
+  ],
+  "health_endpoint": "/health",
+  "socket_path": "/run/symbion-plugins/library.sock",
+  "routes": [
+    "/health",
+    "/nodes",
+    "/nodes/:id",
+    "/sections",
+    "/sections/:id",
+    "/edges",
+    "/templates",
+    "/templates/:id",
+    "/tags",
+    "/search",
+    "/trash"
+  ],
+  "features": [
+    "library.nodes.count",
+    "library.sections.count",
+    "library.pending_links.count"
+  ],
+  "mqtt_topics": {
+    "publish": [
+      "symbion/library/nodes/created",
+      "symbion/library/nodes/updated",
+      "symbion/library/links/pending",
+      "symbion/plugins/library/manifest",
+      "symbion/plugins/library/status",
+      "symbion/features/update"
+    ]
+  }
+}

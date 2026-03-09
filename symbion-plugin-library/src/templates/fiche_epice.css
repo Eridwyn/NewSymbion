@@ -1,0 +1,233 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=IM+Fell+English:ital@0;1&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg:        #1a1208;
+  --card-bg:   #22180a;
+  --gold:      #c9a96e;
+  --gold-dim:  #7a5535;
+  --brown:     #6b4a20;
+  --dark-br:   #3d2a10;
+  --mid-br:    #5a4030;
+  --text-dim:  #9a7545;
+  --inner-br:  #2a1c0a;
+}
+
+html, body {
+  width: 148mm;
+  height: 210mm;
+  background: var(--bg);
+  font-family: 'Georgia', serif;
+  color: var(--gold);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+@page {
+  size: A5;
+  margin: 0;
+}
+
+.card {
+  position: relative;
+  margin: 10mm;
+  padding: 8mm 10mm;
+  background: linear-gradient(145deg, #22180a, #1a1208);
+  border: 0.5px solid var(--brown);
+  border-radius: 4px;
+  overflow: hidden;
+  height: calc(210mm - 20mm);
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 0.3px solid var(--inner-br);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.card::after {
+  content: attr(data-icon);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-20deg);
+  font-size: 110px;
+  opacity: 0.03;
+  color: var(--gold);
+  pointer-events: none;
+  user-select: none;
+  line-height: 1;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 5mm;
+}
+
+.header .meta {
+  font-family: 'Helvetica', sans-serif;
+  font-size: 6px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--brown);
+  margin-bottom: 2mm;
+}
+
+.header .title {
+  font-family: 'Playfair Display', serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--gold);
+  line-height: 1.1;
+}
+
+.header .subtitle {
+  font-family: 'IM Fell English', serif;
+  font-style: italic;
+  font-size: 9px;
+  color: var(--gold-dim);
+  margin-top: 1.5mm;
+}
+
+.divider {
+  border: none;
+  border-top: 0.4px solid var(--dark-br);
+  margin: 3mm 0;
+}
+
+.section-label {
+  font-family: 'Helvetica', sans-serif;
+  font-size: 6px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--brown);
+  margin-bottom: 2.5mm;
+}
+
+.profil {
+  margin-bottom: 3mm;
+}
+
+.profil-row {
+  display: flex;
+  gap: 6mm;
+  margin-bottom: 1.8mm;
+  align-items: baseline;
+}
+
+.profil-label {
+  font-family: 'Helvetica', sans-serif;
+  font-size: 6.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  min-width: 28mm;
+  flex-shrink: 0;
+}
+
+.profil-value {
+  font-family: 'IM Fell English', serif;
+  font-size: 9px;
+  color: var(--gold);
+  line-height: 1.35;
+}
+
+.intensite {
+  display: flex;
+  align-items: center;
+  gap: 4mm;
+  margin: 3mm 0;
+}
+
+.intensite-label {
+  font-family: 'Helvetica', sans-serif;
+  font-size: 6.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  min-width: 28mm;
+}
+
+.dots {
+  display: flex;
+  gap: 1.5mm;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 0.4px solid var(--gold-dim);
+}
+
+.dot.filled {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+.dot.empty {
+  background: transparent;
+}
+
+.intensite-text {
+  font-family: 'IM Fell English', serif;
+  font-style: italic;
+  font-size: 8px;
+  color: var(--gold-dim);
+  margin-left: 2mm;
+}
+
+.associations {
+  margin: 3mm 0;
+}
+
+.assoc-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5mm 3mm;
+}
+
+.assoc-tag {
+  font-family: 'IM Fell English', serif;
+  font-size: 8px;
+  color: var(--gold-dim);
+  padding: 0.8mm 2.5mm;
+  border: 0.3px solid var(--dark-br);
+  border-radius: 2px;
+  background: rgba(201, 169, 110, 0.04);
+}
+
+.usage {
+  margin: 3mm 0;
+}
+
+.usage-text {
+  font-family: 'IM Fell English', serif;
+  font-style: italic;
+  font-size: 8.5px;
+  color: var(--gold-dim);
+  line-height: 1.5;
+  padding: 2mm 3mm;
+  border-left: 0.4px solid var(--dark-br);
+}
+
+.footer {
+  position: absolute;
+  bottom: 6mm;
+  left: 10mm;
+  right: 10mm;
+  text-align: center;
+  font-family: 'Helvetica', sans-serif;
+  font-size: 5px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--dark-br);
+}
