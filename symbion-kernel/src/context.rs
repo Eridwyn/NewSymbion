@@ -247,7 +247,7 @@ impl ContextEngine {
             Ok(count) if count > 0 => {
                 match crate::database::context_queries::list_history(&db, 10000) {
                     Ok(rows) => {
-                        let mut entries: Vec<ModeHistoryEntry> = rows.iter().rev().filter_map(|row| {
+                        let entries: Vec<ModeHistoryEntry> = rows.iter().rev().filter_map(|row| {
                             let mode = Self::slug_to_mode(&row.mode);
                             let timestamp = time::OffsetDateTime::parse(
                                 &row.timestamp,
@@ -377,10 +377,18 @@ impl ContextEngine {
             false
         };
 
-        // JSON fallback (always write for backward compatibility during transition)
-        if let Err(e) = std::fs::write(&self.state_path, &json) {
-            if !db_ok {
-                eprintln!("[context] Failed to save state to both SQLite and JSON: {}", e);
+        // JSON fallback (atomic write: .tmp + rename to prevent corruption on crash)
+        let tmp_path = self.state_path.with_extension("json.tmp");
+        match std::fs::write(&tmp_path, &json) {
+            Ok(()) => {
+                if let Err(e) = std::fs::rename(&tmp_path, &self.state_path) {
+                    eprintln!("[context] Failed to rename state tmp file: {}", e);
+                }
+            }
+            Err(e) => {
+                if !db_ok {
+                    eprintln!("[context] Failed to save state to both SQLite and JSON: {}", e);
+                }
             }
         }
     }
@@ -626,6 +634,12 @@ impl ContextEngine {
 
             history.push(entry);
 
+            // Cap in-memory history to 5000 entries (oldest pruned)
+            if history.len() > 5000 {
+                let excess = history.len() - 5000;
+                history.drain(..excess);
+            }
+
             // Try SQLite first
             if let Ok(db_guard) = self.db.lock() {
                 if let Some(ref db) = *db_guard {
@@ -642,10 +656,18 @@ impl ContextEngine {
                 }
             }
 
-            // JSON fallback (always write for backward compatibility during transition)
+            // JSON fallback (atomic write: .tmp + rename to prevent corruption on crash)
             if let Ok(json) = serde_json::to_string_pretty(&*history) {
-                if let Err(e) = std::fs::write(&self.history_path, json) {
-                    eprintln!("[context] Failed to save history to JSON: {}", e);
+                let tmp_path = self.history_path.with_extension("json.tmp");
+                match std::fs::write(&tmp_path, &json) {
+                    Ok(()) => {
+                        if let Err(e) = std::fs::rename(&tmp_path, &self.history_path) {
+                            eprintln!("[context] Failed to rename history tmp file: {}", e);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("[context] Failed to save history to JSON: {}", e);
+                    }
                 }
             }
         }
@@ -873,15 +895,21 @@ impl ContextEngine {
             return Vec::new();
         }
 
-        // Lire les notes depuis le fichier JSON
+        // Read notes from JSON (capped at 1MB to avoid blocking on large files)
         let notes_path = PathBuf::from("notes.json");
         let notes: Vec<serde_json::Value> = if notes_path.exists() {
-            match std::fs::read_to_string(&notes_path) {
-                Ok(content) => serde_json::from_str(&content).unwrap_or_else(|e| {
-                    eprintln!("[context] Failed to parse notes.json: {}", e);
+            match std::fs::metadata(&notes_path).map(|m| m.len()) {
+                Ok(size) if size > 1_048_576 => {
+                    eprintln!("[context] notes.json too large ({} bytes), skipping for productivity", size);
                     Vec::new()
-                }),
-                Err(_) => Vec::new(),
+                }
+                _ => match std::fs::read_to_string(&notes_path) {
+                    Ok(content) => serde_json::from_str(&content).unwrap_or_else(|e| {
+                        eprintln!("[context] Failed to parse notes.json: {}", e);
+                        Vec::new()
+                    }),
+                    Err(_) => Vec::new(),
+                }
             }
         } else {
             Vec::new()

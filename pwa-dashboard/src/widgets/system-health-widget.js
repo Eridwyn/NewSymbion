@@ -247,9 +247,18 @@ class SystemHealthWidget extends LitElement {
   
   connectedCallback() {
     super.connectedCallback()
-    
+
     // Écouter les mises à jour MQTT
-    this.addEventListener('system-health', this.handleHealthUpdate.bind(this))
+    this._boundHealthUpdate = this.handleHealthUpdate.bind(this)
+    this.addEventListener('system-health', this._boundHealthUpdate)
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback()
+    if (this._boundHealthUpdate) {
+      this.removeEventListener('system-health', this._boundHealthUpdate)
+      this._boundHealthUpdate = null
+    }
   }
   
   handleHealthUpdate(event) {

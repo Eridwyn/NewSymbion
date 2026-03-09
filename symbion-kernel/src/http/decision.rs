@@ -3,7 +3,6 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use time::OffsetDateTime;
-use utoipa::ToSchema;
 use crate::decision_http::{EvaluateRequest, AuditQueryParams, ResolveValidationRequest, CreateOverrideRequest, RevokeOverrideRequest};
 use crate::context_intelligence::DecisionSignal;
 

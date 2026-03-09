@@ -4,5 +4,5 @@
 pub mod types;
 pub mod registry;
 
-pub use types::{DynamicMode, ModeTheme, CreateModeRequest, UpdateModeRequest, default_system_modes};
-pub use registry::{ModeRegistry, SharedModeRegistry, create_shared_registry};
+pub use types::{DynamicMode, CreateModeRequest, UpdateModeRequest};
+pub use registry::{ModeRegistry, SharedModeRegistry};

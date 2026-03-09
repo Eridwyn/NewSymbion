@@ -57,12 +57,6 @@ pub use types::{
     mode_display_name,
     // v2 stabilization types
     ShadowStats,
-    ShadowPeriodStats,
-    PredictionLogEntry,
-    VectorSummary,
-    PredictionSummary,
-    SessionSummary,
-    AutoApplyResult,
 };
 
 // Re-export feature types
@@ -80,8 +74,6 @@ pub use features::{
 pub use vector::{
     ContextVector,
     VectorBuilder,
-    WhyItem,
-    dimensions,
 };
 
 // Re-export inference types
@@ -90,16 +82,10 @@ pub use inference::{
     InferenceConfig,
     InferenceStats,
     SharedInferenceEngine,
-    TrainingSample,
-    SampleSource,
-    SampleVector,
     PredictionV2,
-    ModeScore,
-    PredictionReason,
     // v2 stabilization types
     SampleStats,
     AutoApplyGuard,
-    GuardChecks,
 };
 
 // Re-export session types
@@ -107,26 +93,15 @@ pub use sessions::{
     SessionManager,
     SharedSessionManager,
     SessionConfig,
-    SessionSource,
     SessionStats,
     ActiveSession,
-    TransitionDecision,
 };
 
 // Re-export classifier types
-pub use classifier::{
-    ProcessClassifier,
-    SharedProcessClassifier,
-    ClassifierConfig,
-    ClassificationResult,
-};
+pub use classifier::ProcessClassifier;
 
 // Re-export bootstrap types
-pub use bootstrap::{
-    BootstrapScheduler,
-    BootstrapConfig,
-    IntelligenceMode,
-};
+pub use bootstrap::BootstrapScheduler;
 
 // ============================================================================
 // Shared Timezone Helper

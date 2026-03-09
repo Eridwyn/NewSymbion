@@ -15,7 +15,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use http_body_util::{BodyExt, Empty, Full};
-use hyper::body::{Incoming, Bytes};
+use hyper::body::Bytes;
 use hyper_util::rt::TokioIo;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -203,9 +203,9 @@ impl PluginRegistry {
 
     /// Query plugin /health endpoint via Unix socket
     async fn query_plugin_health(&self, socket_path: &Path, plugin_name: &str) -> anyhow::Result<(String, Option<String>)> {
-        use hyper::body::Incoming;
-        use hyper_util::client::legacy::connect::HttpConnector;
-        use tower::ServiceExt;
+        
+        
+        
 
         // Connect to Unix socket
         let stream = tokio::net::UnixStream::connect(socket_path).await?;
@@ -422,7 +422,7 @@ pub async fn proxy_to_plugin(
         .version(parts.version);
 
     // Copy headers
-    let mut forwarded_req = parts.headers.iter().fold(
+    let forwarded_req = parts.headers.iter().fold(
         forwarded_req,
         |builder, (name, value)| builder.header(name, value)
     );

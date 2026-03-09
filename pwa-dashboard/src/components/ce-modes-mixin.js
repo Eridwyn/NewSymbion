@@ -191,7 +191,7 @@ export const ModesMixin = (Base) => class extends Base {
     const isEditing = !!this.editingMode
     return html`
       <div class="modal-overlay" @click="${() => this.closeModeForm()}">
-        <div class="mode-form" @click="${e => e.stopPropagation()}">
+        <div class="mode-form" role="dialog" aria-modal="true" aria-label="Configuration du mode" @click="${e => e.stopPropagation()}">
           <div class="form-header">
             <h3 class="ce-m-0">${isEditing ? 'Modifier le Mode' : 'Nouveau Mode'}</h3>
             <button class="close-button" @click="${() => this.closeModeForm()}">✕</button>

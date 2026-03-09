@@ -259,6 +259,11 @@ impl DomainState {
             anyhow::bail!("Domain '{}:{}' already exists", req.hostname, req.port.unwrap_or(443));
         }
 
+        // SSRF protection: validate hostname before accepting
+        if let Err(reason) = crate::ssl::SslChecker::validate_hostname(&req.hostname) {
+            anyhow::bail!("Invalid hostname: {}", reason);
+        }
+
         let now = chrono::Utc::now().to_rfc3339();
         let domain = DynamicDomain {
             id: id.clone(),

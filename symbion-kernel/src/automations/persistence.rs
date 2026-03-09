@@ -21,7 +21,7 @@ use uuid::Uuid;
 
 use super::types::{
     Automation, AutomationRequest, ExecutionRecord, Trigger, ActionDefinition,
-    AlertLevel, PluginHealthStatus, TriggerGroup, TriggerItem, LogicalOperator
+    AlertLevel, PluginHealthStatus
 };
 use crate::decision::ImpactLevel;
 

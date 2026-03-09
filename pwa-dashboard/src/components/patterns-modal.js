@@ -386,7 +386,7 @@ class PatternsModal extends LitElement {
   render() {
     return html`
       <div class="modal-container" @click="${this.handleBackdropClick}">
-        <div class="modal-content" @click="${(e) => e.stopPropagation()}">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-label="Tous les patterns" @click="${(e) => e.stopPropagation()}">
           <div class="modal-header">
             <div class="modal-title">📋 Tous les Patterns (${this.patterns.length})</div>
             <button class="close-btn" @click="${this.handleClose}" aria-label="Fermer la modale">✕ Fermer</button>

@@ -2649,7 +2649,7 @@ class AgentControlWidget extends LitElement {
     // Si pas d'agent, afficher erreur au lieu d'une modal vide
     if (!this.agent) {
       return html`
-        <div class="modal">
+        <div class="modal" role="dialog" aria-modal="true" aria-label="Agent non trouvé">
           <div class="modal-header">
             <div class="modal-title">
               <span class="ac-icon-lg">⚠️</span>
@@ -2677,7 +2677,7 @@ class AgentControlWidget extends LitElement {
     }
 
     return html`
-      <div class="modal" @click="${(e) => e.target === e.currentTarget && this.close()}">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Controle agent" @click="${(e) => e.target === e.currentTarget && this.close()}">
         <div class="modal-header">
           <div class="modal-title">
             <span class="os-icon">${this.agentsService?.getOSIcon(this.agent.os) || '💻'}</span>

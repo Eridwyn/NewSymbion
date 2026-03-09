@@ -30,12 +30,6 @@ pub use persistence::AutomationStore;
 pub use events::{AutomationEvent, EventDispatcher};
 pub use listener::spawn_automation_listener;
 pub use engine::{AutomationEngine, ExecutionContext};
-pub use registry::{SchemaRegistry, AutomationSchema, SensorInfo, SensorOption};
-pub use executors::{
-    ActionExecutor, ActionError, ExecutorContext,
-    SendNotificationExecutor, ForceModeExecutor, AgentCommandExecutor,
-    DelayExecutor, CustomActionExecutor, ActionExecutorRegistry,
-};
-pub use decision_bridge::{action_to_decision, action_to_decision_dry_run, action_description};
-pub use pending_actions::{PendingAction, PendingActionRegistry, SharedPendingActionRegistry};
+pub use registry::{SchemaRegistry, AutomationSchema, SensorInfo};
+pub use pending_actions::{PendingActionRegistry, SharedPendingActionRegistry};
 pub use scheduler::AutomationScheduler;
