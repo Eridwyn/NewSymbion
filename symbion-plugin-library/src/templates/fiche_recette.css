@@ -1,7 +1,7 @@
-/* Fiche Épice — Symbion Knowledge Library */
-/* Botanical theme */
+/* Fiche Recette — Symbion Knowledge Library */
+/* Botanical theme — warm green accent */
 
-.card {
+.recipe-card {
   --bg:        #0a1410;
   --card-bg:   #101e18;
   --accent:    #6ecb8b;
@@ -27,8 +27,7 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(110, 203, 139, 0.06);
 }
 
-/* Inner frame */
-.card::before {
+.recipe-card::before {
   content: '';
   position: absolute;
   inset: 6px;
@@ -37,8 +36,7 @@
   pointer-events: none;
 }
 
-/* Watermark icon */
-.card::after {
+.recipe-card::after {
   content: attr(data-icon);
   position: absolute;
   top: 50%;
@@ -56,7 +54,7 @@
 
 .header {
   text-align: center;
-  margin-bottom: 1.4rem;
+  margin-bottom: 1rem;
 }
 
 .header .meta {
@@ -70,10 +68,10 @@
 
 .header .title {
   font-family: 'Georgia', 'Times New Roman', serif;
-  font-size: 1.9rem;
+  font-size: 1.7rem;
   font-weight: 700;
   color: var(--accent);
-  line-height: 1.15;
+  line-height: 1.2;
   text-shadow: 0 1px 8px rgba(110, 203, 139, 0.15);
 }
 
@@ -84,6 +82,28 @@
   color: var(--accent-dim);
   margin-top: 0.4rem;
   letter-spacing: 0.02em;
+}
+
+/* ── Info Bar ── */
+
+.info-bar {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.8rem 0;
+}
+
+.info-pill {
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  border: 1px solid rgba(110, 203, 139, 0.25);
+  color: var(--accent-soft);
+  background: rgba(110, 203, 139, 0.06);
 }
 
 /* ── Dividers ── */
@@ -109,103 +129,125 @@
   display: block;
 }
 
-/* ── Profil Sensoriel ── */
+/* ── Ingredients ── */
 
-.profil {
-  margin-bottom: 0.6rem;
-  margin-top: 0.3rem;
+.ingredients-list {
+  margin: 0.3rem 0 1rem;
 }
 
-.profil-row {
-  display: flex;
-  gap: 0.8rem;
-  margin-bottom: 0.5rem;
-  align-items: baseline;
-  flex-wrap: wrap;
-}
-
-.profil-label {
-  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
-  font-size: 0.68rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  min-width: 7rem;
-}
-
-.profil-value {
-  font-family: 'Georgia', serif;
-  font-size: 0.88rem;
-  color: var(--text-main);
-  line-height: 1.4;
-}
-
-/* ── Intensité (dots) ── */
-
-.intensite {
+.ing-item {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  margin: 0.6rem 0;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(110, 203, 139, 0.06);
 }
 
-.intensite-label {
+.ing-item:last-child {
+  border-bottom: none;
+}
+
+.ing-name {
+  font-size: 0.88rem;
+  color: var(--text-main);
+}
+
+.ing-qty {
   font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
-  font-size: 0.68rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  min-width: 7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+  padding-left: 0.8rem;
 }
 
-.dots {
+/* ── Ustensiles ── */
+
+.ustensiles-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.3rem 0 0.6rem;
+}
+
+.ust-tag {
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  padding: 0.2rem 0.5rem;
+  border: 1px solid rgba(110, 203, 139, 0.12);
+  border-radius: 4px;
+  background: rgba(110, 203, 139, 0.03);
+}
+
+/* ── Steps ── */
+
+.steps {
+  margin: 0.3rem 0 0.6rem;
+}
+
+.step {
+  margin-bottom: 1rem;
+}
+
+.step-title {
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 0.4rem;
   display: flex;
   align-items: center;
   gap: 0.4rem;
 }
 
-.dot {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  min-width: 12px;
-  min-height: 12px;
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  border: 1.5px solid var(--accent-dim);
+  background: rgba(110, 203, 139, 0.12);
+  border: 1px solid var(--accent-dim);
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 700;
   flex-shrink: 0;
-  vertical-align: middle;
 }
 
-.dot.filled {
-  background: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 0 6px rgba(110, 203, 139, 0.35);
+.step-body {
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--text-main);
+  padding-left: 0.3rem;
 }
 
-.dot.empty {
-  background: rgba(110, 203, 139, 0.08);
-  border-color: var(--accent-dim);
+/* ── Two columns ── */
+
+.two-cols {
+  display: flex;
+  gap: 1rem;
 }
 
-.intensite-text {
-  font-family: 'Georgia', serif;
+.two-cols .col {
+  flex: 1;
+}
+
+.info-text {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  line-height: 1.5;
   font-style: italic;
-  font-size: 0.8rem;
-  color: var(--accent-dim);
-  margin-left: 0.3rem;
 }
 
 /* ── Associations ── */
-
-.associations {
-  margin: 0.8rem 0;
-}
 
 .assoc-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+  margin-bottom: 0.6rem;
 }
 
 .assoc-tag {
@@ -216,25 +258,28 @@
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--glow);
-  transition: all 0.2s ease;
 }
 
-/* ── Usage ── */
+/* ── Notes ── */
 
-.usage {
+.notes-section {
   margin: 0.8rem 0;
 }
 
-.usage-text {
+.notes-text {
   font-family: 'Georgia', serif;
-  font-style: italic;
-  font-size: 0.85rem;
-  color: var(--text-main);
-  line-height: 1.6;
-  padding: 0.6rem 1rem;
-  border-left: 2px solid var(--accent-dim);
-  background: linear-gradient(90deg, var(--glow) 0%, transparent 100%);
-  border-radius: 0 4px 4px 0;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  padding: 0.4rem 0;
+}
+
+.notes-text:empty {
+  display: none;
+}
+
+.notes-section:has(.notes-text:empty) {
+  display: none;
 }
 
 /* ── Footer ── */
@@ -248,18 +293,4 @@
   text-transform: uppercase;
   color: var(--text-muted);
   opacity: 0.7;
-}
-
-/* ── Notes personnelles ── */
-
-.notes {
-  margin: 0.8rem 0;
-}
-
-.notes-text {
-  font-family: 'Georgia', serif;
-  font-size: 0.82rem;
-  color: var(--text-dim);
-  line-height: 1.5;
-  padding: 0.4rem 0;
 }
