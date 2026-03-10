@@ -1,0 +1,57 @@
+<div class="card recipe-card" data-icon="{{icon}}">
+
+  <div class="header">
+    <div class="meta">Recette N°{{fiche_num}}</div>
+    <div class="title">{{title}}</div>
+    <div class="subtitle">{{subtitle}}</div>
+  </div>
+
+  <div class="info-bar">
+    {{infos_display}}
+  </div>
+
+  <hr class="divider">
+
+  <div class="section-label">Ingrédients</div>
+  <div class="ingredients-list">
+    {{ingredients_display}}
+  </div>
+
+  <div class="section-label">Ustensiles</div>
+  <div class="ustensiles-list">
+    {{ustensiles_tags}}
+  </div>
+
+  <hr class="divider">
+
+  <div class="section-label">Préparation</div>
+  <div class="steps">
+    {{etapes_display}}
+  </div>
+
+  <hr class="divider">
+
+  <div class="two-cols">
+    <div class="col">
+      <div class="section-label">Conservation</div>
+      <div class="info-text">{{conservation}}</div>
+    </div>
+    <div class="col">
+      <div class="section-label">Dégustation</div>
+      <div class="info-text">{{degustation}}</div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section-label">Associations</div>
+  <div class="assoc-grid">{{associations_tags}}</div>
+
+  <div class="notes-section">
+    <div class="section-label">Notes personnelles</div>
+    <div class="notes-text">{{notes_personnelles}}</div>
+  </div>
+
+  <div class="footer">{{footer}}</div>
+
+</div>

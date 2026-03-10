@@ -1,18 +1,18 @@
-/* Fiche Épice — Symbion Knowledge Library */
-/* Botanical theme */
+/* Fiche Cocktail — Symbion Knowledge Library */
+/* Botanical theme — rose/magenta accent */
 
-.card {
+.cocktail-card {
   --bg:        #0a1410;
   --card-bg:   #101e18;
-  --accent:    #6ecb8b;
-  --accent-soft: #5cb87a;
-  --accent-dim: #3d8a5c;
+  --accent:    #e05580;
+  --accent-soft: #d04870;
+  --accent-dim: #9a3858;
   --border:    #2a4a38;
   --border-inner: #1e3828;
   --text-main: #d8e8dc;
   --text-dim:  #8aaa94;
   --text-muted: #5a7d68;
-  --glow:      rgba(110, 203, 139, 0.08);
+  --glow:      rgba(224, 85, 128, 0.08);
 
   position: relative;
   max-width: 520px;
@@ -24,11 +24,10 @@
   overflow: hidden;
   font-family: 'Georgia', 'Times New Roman', serif;
   color: var(--text-main);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(110, 203, 139, 0.06);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(224, 85, 128, 0.06);
 }
 
-/* Inner frame */
-.card::before {
+.cocktail-card::before {
   content: '';
   position: absolute;
   inset: 6px;
@@ -37,8 +36,7 @@
   pointer-events: none;
 }
 
-/* Watermark icon */
-.card::after {
+.cocktail-card::after {
   content: attr(data-icon);
   position: absolute;
   top: 50%;
@@ -70,11 +68,11 @@
 
 .header .title {
   font-family: 'Georgia', 'Times New Roman', serif;
-  font-size: 1.9rem;
+  font-size: 1.7rem;
   font-weight: 700;
   color: var(--accent);
-  line-height: 1.15;
-  text-shadow: 0 1px 8px rgba(110, 203, 139, 0.15);
+  line-height: 1.2;
+  text-shadow: 0 1px 8px rgba(224, 85, 128, 0.15);
 }
 
 .header .subtitle {
@@ -84,6 +82,20 @@
   color: var(--accent-dim);
   margin-top: 0.4rem;
   letter-spacing: 0.02em;
+}
+
+.type-badge {
+  display: inline-block;
+  margin-top: 0.6rem;
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 0.6rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.7rem;
+  border-radius: 20px;
+  border: 1px solid rgba(224, 85, 128, 0.3);
+  color: var(--accent);
+  background: rgba(224, 85, 128, 0.08);
 }
 
 /* ── Dividers ── */
@@ -105,136 +117,65 @@
   color: var(--accent-dim);
   margin-bottom: 0.8rem;
   padding-bottom: 0.4rem;
-  border-bottom: 1px solid rgba(110, 203, 139, 0.12);
+  border-bottom: 1px solid rgba(224, 85, 128, 0.12);
   display: block;
 }
 
-/* ── Profil Sensoriel ── */
+/* ── Ingredients ── */
 
-.profil {
-  margin-bottom: 0.6rem;
-  margin-top: 0.3rem;
+.ingredients-list {
+  margin: 0.3rem 0 0.6rem;
 }
 
-.profil-row {
+.ing-item {
   display: flex;
-  gap: 0.8rem;
-  margin-bottom: 0.5rem;
-  align-items: baseline;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(224, 85, 128, 0.06);
 }
 
-.profil-label {
+.ing-item:last-child {
+  border-bottom: none;
+}
+
+.ing-name {
+  font-size: 0.88rem;
+  color: var(--text-main);
+}
+
+.ing-qty {
   font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
-  font-size: 0.68rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  min-width: 7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+  padding-left: 0.8rem;
 }
 
-.profil-value {
+/* ── Preparation ── */
+
+.prep-text {
   font-family: 'Georgia', serif;
   font-size: 0.88rem;
   color: var(--text-main);
-  line-height: 1.4;
-}
-
-/* ── Intensité (dots) ── */
-
-.intensite {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin: 0.6rem 0;
-  flex-wrap: wrap;
-}
-
-.intensite-label {
-  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
-  font-size: 0.68rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  min-width: 7rem;
-}
-
-.dots {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.dot {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  min-width: 12px;
-  min-height: 12px;
-  border-radius: 50%;
-  border: 1.5px solid var(--accent-dim);
-  flex-shrink: 0;
-  vertical-align: middle;
-}
-
-.dot.filled {
-  background: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 0 6px rgba(110, 203, 139, 0.35);
-}
-
-.dot.empty {
-  background: rgba(110, 203, 139, 0.08);
-  border-color: var(--accent-dim);
-}
-
-.intensite-text {
-  font-family: 'Georgia', serif;
-  font-style: italic;
-  font-size: 0.8rem;
-  color: var(--accent-dim);
-  margin-left: 0.3rem;
-}
-
-/* ── Associations ── */
-
-.associations {
-  margin: 0.8rem 0;
-}
-
-.assoc-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.assoc-tag {
-  font-family: 'Georgia', serif;
-  font-size: 0.78rem;
-  color: var(--accent-soft);
-  padding: 0.25rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--glow);
-  transition: all 0.2s ease;
-}
-
-/* ── Usage ── */
-
-.usage {
-  margin: 0.8rem 0;
-}
-
-.usage-text {
-  font-family: 'Georgia', serif;
-  font-style: italic;
-  font-size: 0.85rem;
-  color: var(--text-main);
-  line-height: 1.6;
-  padding: 0.6rem 1rem;
+  line-height: 1.7;
+  padding: 0.5rem 0.8rem;
   border-left: 2px solid var(--accent-dim);
   background: linear-gradient(90deg, var(--glow) 0%, transparent 100%);
   border-radius: 0 4px 4px 0;
+  margin: 0.3rem 0;
+}
+
+/* ── Notes ── */
+
+.notes-text {
+  font-family: 'Georgia', serif;
+  font-style: italic;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  padding: 0.4rem 0;
 }
 
 /* ── Footer ── */
@@ -248,18 +189,4 @@
   text-transform: uppercase;
   color: var(--text-muted);
   opacity: 0.7;
-}
-
-/* ── Notes personnelles ── */
-
-.notes {
-  margin: 0.8rem 0;
-}
-
-.notes-text {
-  font-family: 'Georgia', serif;
-  font-size: 0.82rem;
-  color: var(--text-dim);
-  line-height: 1.5;
-  padding: 0.4rem 0;
 }

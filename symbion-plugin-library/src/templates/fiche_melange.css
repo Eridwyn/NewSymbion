@@ -1,18 +1,18 @@
-/* Fiche Épice — Symbion Knowledge Library */
-/* Botanical theme */
+/* Fiche Mélange d'épices — Symbion Knowledge Library */
+/* Botanical theme — warm gold accent for blends */
 
-.card {
+.melange-card {
   --bg:        #0a1410;
   --card-bg:   #101e18;
-  --accent:    #6ecb8b;
-  --accent-soft: #5cb87a;
-  --accent-dim: #3d8a5c;
+  --accent:    #d4a84a;
+  --accent-soft: #c89a40;
+  --accent-dim: #8a7030;
   --border:    #2a4a38;
   --border-inner: #1e3828;
   --text-main: #d8e8dc;
   --text-dim:  #8aaa94;
   --text-muted: #5a7d68;
-  --glow:      rgba(110, 203, 139, 0.08);
+  --glow:      rgba(212, 168, 74, 0.08);
 
   position: relative;
   max-width: 520px;
@@ -24,11 +24,10 @@
   overflow: hidden;
   font-family: 'Georgia', 'Times New Roman', serif;
   color: var(--text-main);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(110, 203, 139, 0.06);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(212, 168, 74, 0.06);
 }
 
-/* Inner frame */
-.card::before {
+.melange-card::before {
   content: '';
   position: absolute;
   inset: 6px;
@@ -37,8 +36,7 @@
   pointer-events: none;
 }
 
-/* Watermark icon */
-.card::after {
+.melange-card::after {
   content: attr(data-icon);
   position: absolute;
   top: 50%;
@@ -70,11 +68,11 @@
 
 .header .title {
   font-family: 'Georgia', 'Times New Roman', serif;
-  font-size: 1.9rem;
+  font-size: 1.7rem;
   font-weight: 700;
   color: var(--accent);
-  line-height: 1.15;
-  text-shadow: 0 1px 8px rgba(110, 203, 139, 0.15);
+  line-height: 1.2;
+  text-shadow: 0 1px 8px rgba(212, 168, 74, 0.15);
 }
 
 .header .subtitle {
@@ -105,8 +103,63 @@
   color: var(--accent-dim);
   margin-bottom: 0.8rem;
   padding-bottom: 0.4rem;
-  border-bottom: 1px solid rgba(110, 203, 139, 0.12);
+  border-bottom: 1px solid rgba(212, 168, 74, 0.12);
   display: block;
+}
+
+/* ── Composition ── */
+
+.composition {
+  margin: 0.3rem 0 0.6rem;
+}
+
+.compo-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.3rem;
+  border-radius: 6px;
+  background: rgba(212, 168, 74, 0.04);
+  border: 1px solid rgba(212, 168, 74, 0.08);
+}
+
+.compo-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-dim) 100%);
+  flex-shrink: 0;
+}
+
+.compo-name {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--text-main);
+  flex: 1;
+}
+
+.compo-role {
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  border: 1px solid rgba(212, 168, 74, 0.2);
+  color: var(--accent-soft);
+  background: rgba(212, 168, 74, 0.06);
+}
+
+.compo-role.dominante { border-color: rgba(212, 168, 74, 0.4); color: var(--accent); background: rgba(212, 168, 74, 0.1); }
+.compo-role.surprise { border-color: rgba(110, 203, 139, 0.3); color: #6ecb8b; background: rgba(110, 203, 139, 0.08); }
+
+.compo-pct {
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 2.5rem;
+  text-align: right;
 }
 
 /* ── Profil Sensoriel ── */
@@ -140,7 +193,7 @@
   line-height: 1.4;
 }
 
-/* ── Intensité (dots) ── */
+/* ── Intensité ── */
 
 .intensite {
   display: flex;
@@ -163,29 +216,6 @@
   display: flex;
   align-items: center;
   gap: 0.4rem;
-}
-
-.dot {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  min-width: 12px;
-  min-height: 12px;
-  border-radius: 50%;
-  border: 1.5px solid var(--accent-dim);
-  flex-shrink: 0;
-  vertical-align: middle;
-}
-
-.dot.filled {
-  background: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 0 6px rgba(110, 203, 139, 0.35);
-}
-
-.dot.empty {
-  background: rgba(110, 203, 139, 0.08);
-  border-color: var(--accent-dim);
 }
 
 .intensite-text {
@@ -216,7 +246,6 @@
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--glow);
-  transition: all 0.2s ease;
 }
 
 /* ── Usage ── */
@@ -248,18 +277,4 @@
   text-transform: uppercase;
   color: var(--text-muted);
   opacity: 0.7;
-}
-
-/* ── Notes personnelles ── */
-
-.notes {
-  margin: 0.8rem 0;
-}
-
-.notes-text {
-  font-family: 'Georgia', serif;
-  font-size: 0.82rem;
-  color: var(--text-dim);
-  line-height: 1.5;
-  padding: 0.4rem 0;
 }
