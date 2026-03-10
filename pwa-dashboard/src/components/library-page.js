@@ -271,18 +271,66 @@ export class LibraryPage extends LitElement {
 
     .canvas svg { max-height: 100%; }
 
-    .canvas svg polygon { transition: all 0.3s ease; }
-    .canvas svg g:hover polygon {
-      filter: drop-shadow(0 0 10px rgba(110, 203, 139, 0.35));
-      fill: rgba(110, 203, 139, 0.12) !important;
+    .canvas svg polygon, .canvas svg circle { transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1); }
+
+    .hex-aisle { cursor: pointer; }
+    .hex-aisle:hover polygon {
+      filter: drop-shadow(0 0 14px var(--hover-glow, rgba(110, 203, 139, 0.45)));
+      fill-opacity: 0.2 !important;
     }
-    .canvas svg g:hover text { fill: #d8e8dc !important; }
+    .hex-aisle:hover .hex-label { fill: #e0f0e4 !important; }
+    .hex-aisle:hover .hex-count { fill: #b0d8b8 !important; }
+    .hex-aisle:hover .hex-icon { opacity: 0.9 !important; }
+
+    .hex-shelf { cursor: pointer; }
+    .hex-shelf:hover polygon {
+      filter: drop-shadow(0 0 10px var(--hover-glow, rgba(110, 203, 139, 0.35)));
+      fill-opacity: 0.18 !important;
+    }
+    .hex-shelf:hover .hex-label { fill: #e0f0e4 !important; }
+
+    .hex-center { cursor: pointer; }
+    .hex-center:hover polygon {
+      filter: drop-shadow(0 0 16px rgba(110, 203, 139, 0.5));
+      fill: rgba(20, 50, 35, 0.95) !important;
+    }
 
     @keyframes shelfAppear {
-      from { opacity: 0; transform: scale(0.7); }
-      to { opacity: 1; transform: scale(1); }
+      from { opacity: 0; transform: translateY(8px) scale(0.8); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
     }
-    .shelf-group { animation: shelfAppear 0.4s ease-out both; }
+    .shelf-group { animation: shelfAppear 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 0.3; stroke-width: 0.5; }
+      50% { opacity: 0.7; stroke-width: 1.2; }
+    }
+    .center-pulse { animation: pulseGlow 4s ease-in-out infinite; }
+
+    @keyframes breatheGlow {
+      0%, 100% { r: 65; opacity: 0.6; }
+      50% { r: 72; opacity: 1; }
+    }
+    .center-aura { animation: breatheGlow 5s ease-in-out infinite; }
+
+    @keyframes spinSlow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes flowDash {
+      to { stroke-dashoffset: -24; }
+    }
+    .edge-flow {
+      animation: flowDash 1.2s linear infinite;
+    }
+
+    @keyframes flowDashSlow {
+      to { stroke-dashoffset: -32; }
+    }
+    .edge-flow-slow {
+      animation: flowDashSlow 2s linear infinite;
+    }
 
     /* Node list (when viewing shelf) */
     .node-list {
@@ -1305,87 +1353,307 @@ export class LibraryPage extends LitElement {
 
   renderHexMap() {
     const aisles = (this.graphData?.sections || [])
-    const CX = 250, CY = 250
-    const AISLE_R = 115, HEX_R = 48
-    const SHELF_R = 195, SHELF_HEX_R = 34
+    const interEdges = this.graphData?.inter_section_edges || []
+    const CX = 300, CY = 300
+    const AISLE_R = 145, HEX_R = 55
+    const SHELF_R = 240, SHELF_HEX_R = 38
     const activeAisle = this.selectedAisle
+    const n = Math.max(aisles.length, 1)
+    const totalNodes = aisles.reduce((s, a) => s + (a.node_count || 0), 0)
+    const maxNodes = Math.max(1, ...aisles.map(a => a.node_count || 0))
+
+    // Pre-compute aisle positions for inter-section edges
+    const aislePos = aisles.map((a, i) => {
+      const angle = (2 * Math.PI / n) * i - Math.PI / 2
+      return { id: a.section.id, x: CX + AISLE_R * Math.cos(angle), y: CY + AISLE_R * Math.sin(angle), color: this._safeColor(a.section.color), section: a }
+    })
+
+    // Build inter-section edge data: find which aisles connect
+    const interLinks = []
+    for (const edge of interEdges) {
+      // Find which top-level section each node belongs to
+      const findAisle = (nodeId) => {
+        for (const ap of aislePos) {
+          const a = ap.section
+          // Check direct nodes in this aisle
+          if (a.node_ids?.includes(nodeId)) return ap
+          // Check children sections
+          for (const child of (a.children || [])) {
+            if (child.node_ids?.includes(nodeId)) return ap
+          }
+        }
+        return null
+      }
+      const from = findAisle(edge.node_from)
+      const to = findAisle(edge.node_to)
+      if (from && to && from.id !== to.id) {
+        const key = [from.id, to.id].sort().join('-')
+        const existing = interLinks.find(l => l.key === key)
+        if (existing) { existing.count++ }
+        else { interLinks.push({ key, from, to, count: 1 }) }
+      }
+    }
 
     return html`
-      <svg viewBox="0 0 500 500" width="100%" style="max-width:500px;">
+      <svg viewBox="0 0 600 600" width="100%" style="max-width:600px;">
         <defs>
           <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="rgba(110,203,139,0.15)"/>
+            <stop offset="0%" stop-color="rgba(110,203,139,0.25)"/>
+            <stop offset="40%" stop-color="rgba(110,203,139,0.08)"/>
             <stop offset="100%" stop-color="rgba(110,203,139,0)"/>
           </radialGradient>
           <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stop-color="rgba(40,100,70,0.06)"/>
             <stop offset="100%" stop-color="transparent"/>
           </radialGradient>
-          <filter id="webGlow">
-            <feGaussianBlur stdDeviation="1.5" result="blur"/>
+
+          <!-- Enhanced glow filter: double-layer for neon effect -->
+          <filter id="neonGlow" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur1"/>
+            <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur2"/>
+            <feMerge>
+              <feMergeNode in="blur1"/>
+              <feMergeNode in="blur2"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+          <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
             <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
+          <filter id="particleGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+
+          <!-- Aisle-specific gradients -->
+          ${aisles.map((a, i) => {
+            const c = this._safeColor(a.section.color)
+            return svg`
+              <radialGradient id="aisleGlow${i}" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="${c}" stop-opacity="0.18"/>
+                <stop offset="70%" stop-color="${c}" stop-opacity="0.04"/>
+                <stop offset="100%" stop-color="${c}" stop-opacity="0"/>
+              </radialGradient>`
+          })}
+
+          <!-- Edge gradients for center→aisle connections -->
+          ${aislePos.map((ap, i) => svg`
+            <linearGradient id="edgeGrad${i}" gradientUnits="userSpaceOnUse"
+              x1="${CX}" y1="${CY}" x2="${ap.x}" y2="${ap.y}">
+              <stop offset="0%" stop-color="rgba(110,203,139,0.1)"/>
+              <stop offset="40%" stop-color="${ap.color}" stop-opacity="0.5"/>
+              <stop offset="100%" stop-color="${ap.color}" stop-opacity="0.2"/>
+            </linearGradient>
+          `)}
+
+          <!-- Inter-section edge gradients -->
+          ${interLinks.map((link, i) => svg`
+            <linearGradient id="interGrad${i}" gradientUnits="userSpaceOnUse"
+              x1="${link.from.x}" y1="${link.from.y}" x2="${link.to.x}" y2="${link.to.y}">
+              <stop offset="0%" stop-color="${link.from.color}" stop-opacity="0.6"/>
+              <stop offset="50%" stop-color="#fff" stop-opacity="0.15"/>
+              <stop offset="100%" stop-color="${link.to.color}" stop-opacity="0.6"/>
+            </linearGradient>
+          `)}
         </defs>
 
-        <!-- Subtle background glow -->
-        <circle cx="${CX}" cy="${CY}" r="250" fill="url(#bgGlow)"/>
+        <!-- Background glow -->
+        <circle cx="${CX}" cy="${CY}" r="295" fill="url(#bgGlow)"/>
 
-        <!-- Web pattern (vine-like) -->
+        <!-- Subtle orbital rings -->
+        ${[80, AISLE_R, SHELF_R].map((r, ri) => svg`
+          <circle cx="${CX}" cy="${CY}" r="${r}" fill="none"
+            stroke="rgba(110,203,139,${ri === 1 ? 0.08 : 0.04})"
+            stroke-width="${ri === 1 ? 0.8 : 0.5}"
+            stroke-dasharray="${ri === 0 ? '2,8' : ri === 1 ? '4,8' : '3,10'}"/>
+        `)}
+
+        <!-- Radial web lines (very subtle) -->
         ${aisles.map((_, i) => {
-          const angle = (2 * Math.PI / Math.max(aisles.length, 1)) * i - Math.PI / 2
-          return svg`<line x1="${CX}" y1="${CY}" x2="${CX + 240 * Math.cos(angle)}" y2="${CY + 240 * Math.sin(angle)}" stroke="rgba(110,203,139,0.07)" stroke-width="1"/>`
-        })}
-        <circle cx="${CX}" cy="${CY}" r="115" fill="none" stroke="rgba(110,203,139,0.08)" stroke-width="0.5" stroke-dasharray="4,4"/>
-        <circle cx="${CX}" cy="${CY}" r="195" fill="none" stroke="rgba(110,203,139,0.05)" stroke-width="0.5" stroke-dasharray="4,4"/>
-
-        <!-- Center -->
-        <circle cx="${CX}" cy="${CY}" r="60" fill="url(#centerGlow)"/>
-        <polygon points="${this._hexPoints(CX, CY, 38)}" fill="rgba(15,26,20,0.92)" stroke="rgba(110,203,139,0.5)" stroke-width="1.5"/>
-        <text x="${CX}" y="${CY - 4}" text-anchor="middle" fill="rgba(110,203,139,0.8)" font-size="16" style="pointer-events:none;">🔍</text>
-        <text x="${CX}" y="${CY + 12}" text-anchor="middle" fill="rgba(110,203,139,0.5)" font-size="7" font-family="Georgia,serif" style="pointer-events:none;">Bureau d'étude</text>
-
-        <!-- Lines: center → aisles -->
-        ${aisles.map((a, i) => {
-          const angle = (2 * Math.PI / Math.max(aisles.length, 1)) * i - Math.PI / 2
-          const ax = CX + AISLE_R * Math.cos(angle), ay = CY + AISLE_R * Math.sin(angle)
-          const active = activeAisle?.section?.id === a.section.id
-          return svg`<line x1="${CX}" y1="${CY}" x2="${ax}" y2="${ay}" stroke="${active ? 'rgba(110,203,139,0.55)' : 'rgba(110,203,139,0.18)'}" stroke-width="${active ? 2 : 1}" ${active ? 'filter="url(#webGlow)"' : ''}/>`
+          const angle = (2 * Math.PI / n) * i - Math.PI / 2
+          const ex = CX + 275 * Math.cos(angle), ey = CY + 275 * Math.sin(angle)
+          return svg`<line x1="${CX}" y1="${CY}" x2="${ex}" y2="${ey}" stroke="rgba(110,203,139,0.03)" stroke-width="0.5"/>`
         })}
 
-        <!-- Aisle hexagons -->
-        ${aisles.map((a, i) => {
-          const angle = (2 * Math.PI / Math.max(aisles.length, 1)) * i - Math.PI / 2
-          const ax = CX + AISLE_R * Math.cos(angle), ay = CY + AISLE_R * Math.sin(angle)
-          const color = this._safeColor(a.section.color)
-          const active = activeAisle?.section?.id === a.section.id
+        <!-- ═══ Inter-section edges (between aisles) ═══ -->
+        ${interLinks.map((link, i) => {
+          const mx = (link.from.x + link.to.x) / 2, my = (link.from.y + link.to.y) / 2
+          const dx = link.to.x - link.from.x, dy = link.to.y - link.from.y
+          // Curve outward from center for cleaner arc
+          const distFromCenter = Math.sqrt((mx - CX) ** 2 + (my - CY) ** 2)
+          const pushOut = distFromCenter < 60 ? 50 : 25
+          const normX = (mx - CX) / (distFromCenter || 1), normY = (my - CY) / (distFromCenter || 1)
+          const cx1 = mx + normX * pushOut, cy1 = my + normY * pushOut
+          const pathD = `M${link.from.x},${link.from.y} Q${cx1},${cy1} ${link.to.x},${link.to.y}`
+          const w = Math.min(3, 1 + link.count * 0.5)
           return svg`
-            <g style="cursor:pointer" @click=${() => this.openAisle(a)}>
-              <polygon points="${this._hexPoints(ax, ay, HEX_R)}" fill="${active ? 'rgba(110,203,139,0.12)' : 'rgba(15,26,20,0.88)'}" stroke="${color}" stroke-width="${active ? 2.5 : 1.5}"/>
-              <text x="${ax}" y="${ay - 4}" text-anchor="middle" fill="${color}" font-size="11" font-weight="600" font-family="Georgia,serif" style="pointer-events:none;">${a.section.name}</text>
-              <text x="${ax}" y="${ay + 10}" text-anchor="middle" fill="rgba(154,184,164,0.6)" font-size="8" font-family="sans-serif" style="pointer-events:none;">${a.node_count} fiche${a.node_count !== 1 ? 's' : ''}</text>
+            <!-- Base dim path -->
+            <path d="${pathD}" fill="none" stroke="url(#interGrad${i})"
+              stroke-width="${w}" stroke-linecap="round" opacity="0.5"/>
+            <!-- Flowing energy dashes -->
+            <path id="inter${i}" d="${pathD}" fill="none" stroke="url(#interGrad${i})"
+              stroke-width="${w}" stroke-linecap="round"
+              stroke-dasharray="6 18" class="edge-flow-slow" opacity="0.7"/>
+            <!-- Animated particles along the link -->
+            <circle r="2.5" fill="${link.from.color}" opacity="0.8" filter="url(#particleGlow)">
+              <animateMotion dur="3s" begin="0s" repeatCount="indefinite">
+                <mpath href="#inter${i}"/>
+              </animateMotion>
+            </circle>
+            <circle r="1.8" fill="${link.to.color}" opacity="0.5" filter="url(#particleGlow)">
+              <animateMotion dur="4s" begin="1.5s" repeatCount="indefinite">
+                <mpath href="#inter${i}"/>
+              </animateMotion>
+            </circle>
+            <!-- Edge count badge -->
+            ${link.count > 1 ? svg`
+              <text x="${cx1}" y="${cy1 - 6}" text-anchor="middle" fill="rgba(220,240,225,0.5)"
+                font-size="7" font-family="sans-serif" style="pointer-events:none;">
+                ${link.count} liens
+              </text>
+            ` : ''}
+          `
+        })}
+
+        <!-- ═══ Center → Aisle connections ═══ -->
+        ${aislePos.map((ap, i) => {
+          const a = ap.section
+          const active = activeAisle?.section?.id === a.section.id
+          const color = ap.color
+          const weight = (a.node_count || 0) / maxNodes
+          const lineW = active ? 2.5 : (0.8 + weight * 1.5)
+          const mx = (CX + ap.x) / 2, my = (CY + ap.y) / 2
+          const perpX = -(ap.y - CY) * 0.1, perpY = (ap.x - CX) * 0.1
+          const pathD = `M${CX},${CY} Q${mx + perpX},${my + perpY} ${ap.x},${ap.y}`
+          return svg`
+            <!-- Base connection path -->
+            <path id="conn${i}" d="${pathD}" fill="none"
+              stroke="${active ? color : `url(#edgeGrad${i})`}"
+              stroke-width="${lineW}" stroke-linecap="round"
+              opacity="${active ? 0.8 : 0.35}"
+              ${active ? svg`filter="url(#softGlow)"` : ''}/>
+            <!-- Animated energy flow -->
+            <path d="${pathD}" fill="none" stroke="${color}"
+              stroke-width="${active ? 2 : lineW * 0.8}" stroke-linecap="round"
+              stroke-dasharray="4 20" class="edge-flow" opacity="${active ? 0.6 : 0.2}"/>
+            <!-- Flowing particle -->
+            <circle r="${active ? 3 : 2}" fill="${color}" opacity="${active ? 0.9 : 0.4}" filter="url(#particleGlow)">
+              <animateMotion dur="${active ? '2s' : '3.5s'}" begin="${i * 0.3}s" repeatCount="indefinite">
+                <mpath href="#conn${i}"/>
+              </animateMotion>
+            </circle>
+            ${active ? svg`
+              <circle r="1.5" fill="${color}" opacity="0.5">
+                <animateMotion dur="2.5s" begin="${i * 0.3 + 1}s" repeatCount="indefinite">
+                  <mpath href="#conn${i}"/>
+                </animateMotion>
+              </circle>
+            ` : ''}`
+        })}
+
+        <!-- ═══ Center hub ═══ -->
+        <g class="hex-center" @click=${() => { this.showSearch = true; setTimeout(() => this.shadowRoot?.querySelector('.search-modal input')?.focus(), 50) }}>
+          <circle class="center-aura" cx="${CX}" cy="${CY}" r="65" fill="url(#centerGlow)"/>
+          <circle class="center-pulse" cx="${CX}" cy="${CY}" r="52" fill="none" stroke="rgba(110,203,139,0.2)" stroke-width="0.8"/>
+          <polygon points="${this._hexPoints(CX, CY, 44)}" fill="rgba(12,22,16,0.95)" stroke="rgba(110,203,139,0.5)" stroke-width="1.8" filter="url(#softGlow)"/>
+          <polygon points="${this._hexPoints(CX, CY, 37)}" fill="none" stroke="rgba(110,203,139,0.1)" stroke-width="0.6"/>
+          <polygon points="${this._hexPoints(CX, CY, 30)}" fill="none" stroke="rgba(110,203,139,0.04)" stroke-width="0.4"/>
+          <text x="${CX}" y="${CY - 5}" text-anchor="middle" fill="rgba(110,203,139,0.9)" font-size="17" style="pointer-events:none;">🔍</text>
+          <text x="${CX}" y="${CY + 9}" text-anchor="middle" fill="rgba(110,203,139,0.55)" font-size="7.5" font-family="Georgia,serif" style="pointer-events:none;">Bureau d'étude</text>
+          <text x="${CX}" y="${CY + 20}" text-anchor="middle" fill="rgba(154,184,164,0.4)" font-size="6.5" font-family="sans-serif" style="pointer-events:none;">${totalNodes} fiches</text>
+        </g>
+
+        <!-- ═══ Aisle hexagons ═══ -->
+        ${aislePos.map((ap, i) => {
+          const a = ap.section
+          const color = ap.color
+          const active = activeAisle?.section?.id === a.section.id
+          const hasChildren = (a.children || []).length > 0
+          // Count inter-edges involving this aisle
+          const edgeCount = interLinks.filter(l => l.from.id === a.section.id || l.to.id === a.section.id).reduce((s, l) => s + l.count, 0)
+          return svg`
+            <g class="hex-aisle" style="--hover-glow:${color}" @click=${() => this.openAisle(a)}>
+              <!-- Glow aura -->
+              <circle cx="${ap.x}" cy="${ap.y}" r="${HEX_R + 12}" fill="url(#aisleGlow${i})" opacity="${active ? 1 : 0.6}"/>
+              <!-- Main hex -->
+              <polygon points="${this._hexPoints(ap.x, ap.y, HEX_R)}"
+                fill="${active ? 'rgba(20,42,32,0.94)' : 'rgba(14,26,20,0.92)'}"
+                stroke="${color}" stroke-width="${active ? 2.5 : 1.5}"
+                ${active ? svg`filter="url(#neonGlow)"` : ''}/>
+              <!-- Inner border decorations -->
+              <polygon points="${this._hexPoints(ap.x, ap.y, HEX_R - 5)}" fill="none" stroke="${color}" stroke-width="0.4" stroke-opacity="${active ? 0.25 : 0.12}"/>
+              <polygon points="${this._hexPoints(ap.x, ap.y, HEX_R - 10)}" fill="none" stroke="${color}" stroke-width="0.2" stroke-opacity="0.06"/>
+              <!-- Section name -->
+              <text class="hex-label" x="${ap.x}" y="${ap.y - 4}" text-anchor="middle" fill="${color}" font-size="12" font-weight="600" font-family="Georgia,serif" style="pointer-events:none;">${a.section.name}</text>
+              <!-- Count -->
+              <text class="hex-count" x="${ap.x}" y="${ap.y + 10}" text-anchor="middle" fill="rgba(154,184,164,0.6)" font-size="8.5" font-family="sans-serif" style="pointer-events:none;">${a.node_count} fiche${a.node_count !== 1 ? 's' : ''}</text>
+              <!-- Edge indicator (if linked to other sections) -->
+              ${edgeCount > 0 ? svg`
+                <text x="${ap.x}" y="${ap.y + 20}" text-anchor="middle" fill="${color}" font-size="6" font-family="sans-serif" opacity="0.4" style="pointer-events:none;">⬡ ${edgeCount} lien${edgeCount > 1 ? 's' : ''}</text>
+              ` : ''}
+              <!-- Shelf indicator dots -->
+              ${hasChildren ? svg`
+                <g style="pointer-events:none;">
+                  ${(a.children || []).map((_, ci) => {
+                    const dotAngle = -Math.PI/2 + (ci - ((a.children.length-1)/2)) * 0.3
+                    const dotR = HEX_R + 4
+                    return svg`<circle cx="${ap.x + dotR * Math.cos(dotAngle)}" cy="${ap.y + dotR * Math.sin(dotAngle) + HEX_R * 0.55}" r="2.2" fill="${color}" opacity="0.4"/>`
+                  })}
+                </g>
+              ` : ''}
             </g>`
         })}
 
-        <!-- Shelf hexagons -->
+        <!-- ═══ Shelf hexagons (expand from active aisle) ═══ -->
         ${activeAisle ? (activeAisle.children || []).map((shelf, j) => {
           const parentIdx = aisles.findIndex(a => a.section.id === activeAisle.section.id)
-          const parentAngle = (2 * Math.PI / Math.max(aisles.length, 1)) * parentIdx - Math.PI / 2
+          const parentAngle = (2 * Math.PI / n) * parentIdx - Math.PI / 2
           const childCount = activeAisle.children?.length || 1
-          const spread = Math.min(Math.PI / 3, Math.PI / (childCount + 1))
+          const spread = Math.min(Math.PI / 2.5, Math.PI / (childCount + 0.5))
           const shelfAngle = parentAngle - (spread * (childCount - 1) / 2) + spread * j
           const sx = CX + SHELF_R * Math.cos(shelfAngle), sy = CY + SHELF_R * Math.sin(shelfAngle)
-          const px = CX + AISLE_R * Math.cos(parentAngle), py = CY + AISLE_R * Math.sin(parentAngle)
+          const px = aislePos[parentIdx]?.x || CX, py = aislePos[parentIdx]?.y || CY
           const sc = this._safeColor(shelf.section.color || activeAisle.section.color)
+          const mx = (px + sx) / 2, my = (py + sy) / 2
+          const perpX = -(sy - py) * 0.12, perpY = (sx - px) * 0.12
+          const pathD = `M${px},${py} Q${mx + perpX},${my + perpY} ${sx},${sy}`
           return svg`
-            <g class="shelf-group" style="animation-delay:${j * 0.08}s">
-              <line x1="${px}" y1="${py}" x2="${sx}" y2="${sy}" stroke="rgba(110,203,139,0.2)" stroke-width="1" stroke-dasharray="3,3"/>
-              <g style="cursor:pointer" @click=${() => this.openShelf(shelf)}>
-                <polygon points="${this._hexPoints(sx, sy, SHELF_HEX_R)}" fill="rgba(15,26,20,0.88)" stroke="${sc}" stroke-width="1.5"/>
-                <text x="${sx}" y="${sy - 2}" text-anchor="middle" fill="${sc}" font-size="9" font-weight="600" font-family="Georgia,serif" style="pointer-events:none;">${shelf.section.name}</text>
-                <text x="${sx}" y="${sy + 9}" text-anchor="middle" fill="rgba(154,184,164,0.5)" font-size="7" font-family="sans-serif" style="pointer-events:none;">${shelf.node_count}</text>
+            <g class="shelf-group" style="animation-delay:${j * 0.1}s">
+              <!-- Connection to parent: base -->
+              <path id="shelf${j}" d="${pathD}" fill="none" stroke="${sc}"
+                stroke-width="1.2" stroke-opacity="0.3" stroke-dasharray="4,6"/>
+              <!-- Flowing energy on shelf connection -->
+              <path d="${pathD}" fill="none" stroke="${sc}"
+                stroke-width="1" stroke-linecap="round"
+                stroke-dasharray="3 21" class="edge-flow" opacity="0.4"/>
+              <!-- Particle -->
+              <circle r="2" fill="${sc}" opacity="0.6" filter="url(#particleGlow)">
+                <animateMotion dur="2.5s" begin="${j * 0.4}s" repeatCount="indefinite">
+                  <mpath href="#shelf${j}"/>
+                </animateMotion>
+              </circle>
+              <g class="hex-shelf" style="--hover-glow:${sc}" @click=${() => this.openShelf(shelf)}>
+                <polygon points="${this._hexPoints(sx, sy, SHELF_HEX_R)}" fill="rgba(14,26,20,0.92)" stroke="${sc}" stroke-width="1.5"/>
+                <polygon points="${this._hexPoints(sx, sy, SHELF_HEX_R - 4)}" fill="none" stroke="${sc}" stroke-width="0.3" stroke-opacity="0.15"/>
+                <text class="hex-label" x="${sx}" y="${sy - 1}" text-anchor="middle" fill="${sc}" font-size="9.5" font-weight="600" font-family="Georgia,serif" style="pointer-events:none;">${shelf.section.name}</text>
+                <text class="hex-count" x="${sx}" y="${sy + 10}" text-anchor="middle" fill="rgba(154,184,164,0.5)" font-size="7" font-family="sans-serif" style="pointer-events:none;">${shelf.node_count}</text>
               </g>
             </g>`
         }) : ''}
+
+        <!-- ═══ Decorative fireflies ═══ -->
+        ${[0,1,2,3,4].map(fi => {
+          const baseAngle = (fi / 5) * Math.PI * 2
+          const r1 = 100 + fi * 30
+          const bx = CX + r1 * Math.cos(baseAngle), by = CY + r1 * Math.sin(baseAngle)
+          return svg`
+            <circle r="1.5" fill="rgba(110,203,139,0.6)" filter="url(#particleGlow)">
+              <animate attributeName="cx" values="${bx};${bx+15};${bx-10};${bx+8};${bx}" dur="${7+fi*2}s" repeatCount="indefinite"/>
+              <animate attributeName="cy" values="${by};${by-12};${by+8};${by-5};${by}" dur="${5+fi*1.5}s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0;0.6;0.2;0.8;0" dur="${4+fi}s" repeatCount="indefinite"/>
+            </circle>`
+        })}
       </svg>
     `
   }
