@@ -65,7 +65,7 @@ impl TemperatureMetrics {
     #[cfg(target_os = "windows")]
     fn collect_windows_wmi() -> Option<Self> {
         // MSAcpi_ThermalZoneTemperature returns temp in tenths of Kelvin
-        let output = std::process::Command::new("powershell")
+        let output = crate::windows_utils::silent_command("powershell")
             .args([
                 "-NonInteractive", "-WindowStyle", "Hidden", "-Command",
                 r#"Get-CimInstance -Namespace root/WMI -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue | Select-Object InstanceName, CurrentTemperature | ConvertTo-Json"#
