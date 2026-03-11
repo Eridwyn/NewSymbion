@@ -1079,7 +1079,11 @@ export class LibraryPage extends LitElement {
   // ── Template rendering helpers ──
 
   formatFieldValue(value) {
-    if (Array.isArray(value)) return value.join(', ')
+    if (Array.isArray(value)) {
+      if (value.length > 0 && typeof value[0] === 'object') return value.map(v => Object.values(v).join(' ')).join(', ')
+      return value.join(', ')
+    }
+    if (value && typeof value === 'object') return Object.entries(value).map(([k, v]) => `${k}: ${v}`).join(', ')
     if (typeof value === 'number') return String(value)
     return value || ''
   }
@@ -1323,12 +1327,20 @@ export class LibraryPage extends LitElement {
                   }
                 }}>
               <div class="search-results">
-                ${this.searchResults.length > 0 ? this.searchResults.map(node => html`
+                ${this.searchResults.length > 0 ? this.searchResults.map(node => {
+                  const tpl = node.template_id ? this.templates.find(t => t.id === node.template_id) : null
+                  const fields = node.fields && typeof node.fields === 'object' ? node.fields : null
+                  const snippet = fields ? Object.values(fields).filter(v => typeof v === 'string').join(' · ').slice(0, 80) : (node.content || '').slice(0, 80)
+                  return html`
                   <div class="search-result-item" @click=${() => { this.loadDeskNode(node.id); this.showSearch = false }}>
                     <div class="result-title">${node.title}</div>
-                    <div class="result-meta">${node.updated_at?.slice(0, 10) || ''}</div>
-                  </div>
-                `) : this.searchQuery ? html`
+                    <div class="result-meta">
+                      ${tpl ? html`<span style="color:var(--lib-accent);margin-right:0.4rem;">${tpl.name}</span>` : ''}
+                      ${node.updated_at?.slice(0, 10) || ''}
+                    </div>
+                    ${snippet ? html`<div style="font-size:0.7em;color:var(--lib-text-muted);margin-top:0.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${snippet}</div>` : ''}
+                  </div>`
+                }) : this.searchQuery ? html`
                   <div class="empty" style="padding:1rem;">Aucun résultat</div>
                 ` : html`
                   <div style="padding:0.8rem; color:var(--lib-text-muted); font-size:0.8em;">
@@ -1835,9 +1847,17 @@ export class LibraryPage extends LitElement {
         ${tpl.structure.map(field => {
           const name = field.name, label = field.label || name, type = field.type || 'text', val = fields[name]
           if (type === 'number') return html`<div class="form-field"><label>${label}</label><input type="number" .value=${val != null ? String(val) : ''} @input=${(e) => this._updateField(name, e.target.value ? Number(e.target.value) : null)}></div>`
+          // Array of objects or plain objects → JSON textarea editor
+          if (type === 'array' && Array.isArray(val) && val.length > 0 && typeof val[0] === 'object') {
+            return html`<div class="form-field"><label>${label} (JSON)</label><textarea style="min-height:80px;font-family:monospace;font-size:0.8em;" .value=${JSON.stringify(val, null, 2)} @input=${(e) => { try { this._updateField(name, JSON.parse(e.target.value)) } catch { /* wait for valid JSON */ } }}></textarea></div>`
+          }
           if (type === 'array') return html`<div class="form-field"><label>${label} (virgules)</label><input type="text" .value=${Array.isArray(val) ? val.join(', ') : (val || '')} @input=${(e) => this._updateField(name, e.target.value.split(',').map(v => v.trim()).filter(Boolean))}></div>`
           if (type === 'textarea') return html`<div class="form-field"><label>${label}</label><textarea style="min-height:60px;" .value=${val || ''} @input=${(e) => this._updateField(name, e.target.value)}></textarea></div>`
-          return html`<div class="form-field"><label>${label}</label><input type="text" .value=${val || ''} @input=${(e) => this._updateField(name, e.target.value)}></div>`
+          // Object value (like infos) → JSON textarea editor
+          if (val && typeof val === 'object' && !Array.isArray(val)) {
+            return html`<div class="form-field"><label>${label} (JSON)</label><textarea style="min-height:80px;font-family:monospace;font-size:0.8em;" .value=${JSON.stringify(val, null, 2)} @input=${(e) => { try { this._updateField(name, JSON.parse(e.target.value)) } catch { /* wait for valid JSON */ } }}></textarea></div>`
+          }
+          return html`<div class="form-field"><label>${label}</label><input type="text" .value=${val != null && typeof val === 'object' ? JSON.stringify(val) : (val || '')} @input=${(e) => this._updateField(name, e.target.value)}></div>`
         })}
       </div>
     `
