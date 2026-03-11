@@ -86,12 +86,26 @@ async fn handle_rejection(err: warp::Rejection) -> Result<impl warp::Reply, std:
             })),
             warp::http::StatusCode::TOO_MANY_REQUESTS,
         ))
+    } else if err.is_not_found() {
+        Ok(warp::reply::with_status(
+            warp::reply::json(&serde_json::json!({
+                "error": "Not found"
+            })),
+            warp::http::StatusCode::NOT_FOUND,
+        ))
+    } else if err.find::<warp::reject::MethodNotAllowed>().is_some() {
+        Ok(warp::reply::with_status(
+            warp::reply::json(&serde_json::json!({
+                "error": "Method not allowed"
+            })),
+            warp::http::StatusCode::METHOD_NOT_ALLOWED,
+        ))
     } else {
         Ok(warp::reply::with_status(
             warp::reply::json(&serde_json::json!({
-                "error": "Not found or unauthorized"
+                "error": "Unauthorized or bad request"
             })),
-            warp::http::StatusCode::METHOD_NOT_ALLOWED,
+            warp::http::StatusCode::BAD_REQUEST,
         ))
     }
 }
@@ -200,10 +214,9 @@ impl LocalApiServer {
                 .untuple_one()
         };
 
-        // GET /status - Agent status and metrics (auth required)
+        // GET /status - Agent status and metrics (public — localhost only, read-only)
         let status_route = warp::path("status")
             .and(warp::get())
-            .and(make_auth(api_token.clone()))
             .and(warp::any().map(move || status.clone()))
             .and_then(get_status);
 
@@ -228,11 +241,10 @@ impl LocalApiServer {
                 }
             });
 
-        // GET /logs - Agent logs from ring buffer (auth required)
+        // GET /logs - Agent logs from ring buffer (public — localhost only, read-only)
         let logs = self.logs.clone();
         let logs_route = warp::path("logs")
             .and(warp::get())
-            .and(make_auth(api_token.clone()))
             .and(warp::any().map(move || logs.clone()))
             .and_then(get_logs);
 
@@ -265,10 +277,9 @@ impl LocalApiServer {
             .and(make_auth(api_token.clone()))
             .and_then(open_dashboard_handler);
 
-        // GET /update/status - Check for updates (auth required)
+        // GET /update/status - Check for updates (public — localhost only, read-only)
         let update_status_route = warp::path!("update" / "status")
             .and(warp::get())
-            .and(make_auth(api_token.clone()))
             .and_then(update_status_handler);
 
         // POST /update/install - Install available update (auth + rate limited)
