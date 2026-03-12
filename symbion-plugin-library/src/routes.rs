@@ -376,7 +376,7 @@ async fn search(
     State(state): State<Arc<PluginState>>,
     Query(params): Query<SearchQuery>,
 ) -> impl IntoResponse {
-    match state.db.search(&params.q, params.section_id.as_deref(), params.tag.as_deref()).await {
+    match state.db.search(&params.q, params.section_id.as_deref(), params.tag.as_deref(), params.template_id.as_deref()).await {
         Ok(nodes) => {
             let total = nodes.len();
             Json(SearchResult { nodes, total }).into_response()

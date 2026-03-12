@@ -70,6 +70,10 @@ export class LibraryPage extends LitElement {
     showTrash: { type: Boolean },
     settingsTab: { type: String },  // 'sections' | 'templates'
     editingSection: { type: Object },
+    // Linking modal
+    showLinkModal: { type: Boolean },
+    linkSearchQuery: { type: String },
+    linkSearchResults: { type: Array },
   }
 
   static styles = [sharedAnimations, pageTransitionStyles, overlayStyles, pageHeaderStyles, formInputStyles, btnStyles, css`
@@ -484,11 +488,15 @@ export class LibraryPage extends LitElement {
       border: 1px solid var(--lib-border-subtle);
       border-radius: 6px;
       padding: 0.5rem 0.7rem;
-      cursor: pointer;
+      display: flex; align-items: center; gap: 0.4rem;
       transition: all 0.2s;
       font-size: 0.85em;
     }
     .connection-card:hover { border-color: var(--lib-accent-dim); background: var(--lib-surface-hover); }
+    .conn-title { cursor: pointer; flex: 1; }
+    .conn-remove { cursor: pointer; opacity: 0; color: var(--lib-text-muted); font-size: 1.1em; transition: opacity 0.2s; }
+    .connection-card:hover .conn-remove { opacity: 0.7; }
+    .conn-remove:hover { opacity: 1 !important; color: #ef4444; }
 
     .relation-badge {
       font-size: 0.7em;
@@ -497,8 +505,42 @@ export class LibraryPage extends LitElement {
       border: 1px solid rgba(110, 203, 139, 0.2);
       border-radius: 3px;
       color: var(--lib-accent);
-      margin-left: 0.4rem;
     }
+
+    /* ── Rating Editor ── */
+    .rating-editor { display: flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0; }
+    .rating-dot { font-size: 1.2em; cursor: pointer; color: var(--lib-border); transition: color 0.15s, transform 0.15s; user-select: none; }
+    .rating-dot.active { color: var(--lib-accent); text-shadow: 0 0 6px rgba(110, 203, 139, 0.4); }
+    .rating-dot:hover { transform: scale(1.3); color: var(--lib-accent); }
+    .rating-label { font-size: 0.75em; color: var(--lib-text-muted); margin-left: 0.3rem; }
+
+    /* ── Tags Editor ── */
+    .tags-editor { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0.4rem; background: var(--lib-surface); border: 1px solid var(--lib-border); border-radius: 6px; min-height: 36px; }
+    .tag-chip { display: inline-flex; align-items: center; gap: 0.25rem; background: rgba(110, 203, 139, 0.12); border: 1px solid rgba(110, 203, 139, 0.25); border-radius: 12px; padding: 0.15rem 0.5rem; font-size: 0.8em; color: var(--lib-accent); }
+    .tag-remove { cursor: pointer; font-size: 1em; opacity: 0.6; transition: opacity 0.15s; }
+    .tag-remove:hover { opacity: 1; color: #ef4444; }
+    .tag-input { border: none; background: transparent; color: var(--lib-text); font-size: 0.8em; outline: none; min-width: 80px; flex: 1; padding: 0.15rem; }
+    .tag-input::placeholder { color: var(--lib-text-muted); }
+
+    /* ── Object Editor ── */
+    .object-editor { display: flex; flex-direction: column; gap: 0.3rem; }
+    .obj-row { display: flex; gap: 0.3rem; align-items: center; }
+    .obj-key { width: 35%; font-size: 0.8em; padding: 0.3rem 0.4rem; background: var(--lib-surface); border: 1px solid var(--lib-border); border-radius: 4px; color: var(--lib-accent); }
+    .obj-val { flex: 1; font-size: 0.8em; padding: 0.3rem 0.4rem; background: var(--lib-surface); border: 1px solid var(--lib-border); border-radius: 4px; color: var(--lib-text); }
+    .obj-remove { cursor: pointer; color: var(--lib-text-muted); font-size: 1em; }
+    .obj-remove:hover { color: #ef4444; }
+    .btn-xs { font-size: 0.7em; padding: 0.2rem 0.6rem; background: transparent; border: 1px dashed var(--lib-border); border-radius: 4px; color: var(--lib-text-muted); cursor: pointer; }
+    .btn-xs:hover { border-color: var(--lib-accent); color: var(--lib-accent); }
+
+    /* ── Link Modal ── */
+    .btn-link-add { font-size: 0.7em; padding: 0.2rem 0.6rem; background: rgba(110, 203, 139, 0.1); border: 1px solid rgba(110, 203, 139, 0.3); border-radius: 4px; color: var(--lib-accent); cursor: pointer; transition: all 0.15s; }
+    .btn-link-add:hover { background: rgba(110, 203, 139, 0.2); }
+    .link-modal { margin-top: 0.5rem; background: var(--lib-surface); border: 1px solid var(--lib-accent-dim); border-radius: 8px; padding: 0.5rem; }
+    .link-search-input { width: 100%; box-sizing: border-box; padding: 0.4rem 0.6rem; background: var(--lib-bg); border: 1px solid var(--lib-border); border-radius: 4px; color: var(--lib-text); font-size: 0.85em; outline: none; }
+    .link-search-input:focus { border-color: var(--lib-accent); }
+    .link-results { max-height: 180px; overflow-y: auto; margin-top: 0.3rem; }
+    .link-result-item { padding: 0.4rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.82em; display: flex; justify-content: space-between; align-items: center; transition: background 0.15s; }
+    .link-result-item:hover { background: var(--lib-surface-hover); }
 
     .version-item {
       display: flex;
@@ -635,6 +677,17 @@ export class LibraryPage extends LitElement {
     }
     .search-modal input:focus { outline: none; }
 
+    .search-filters {
+      display: flex; gap: 0.4rem; padding: 0.4rem 0.8rem; border-bottom: 1px solid var(--lib-border-subtle); flex-wrap: wrap;
+    }
+    .filter-select {
+      flex: 1; min-width: 100px; padding: 0.3rem 0.4rem; background: var(--lib-bg); border: 1px solid var(--lib-border); border-radius: 4px; color: var(--lib-text); font-size: 0.75em;
+    }
+
+    .view-badge {
+      font-size: 0.65em; padding: 0.1rem 0.35rem; background: rgba(110, 203, 139, 0.1); border: 1px solid rgba(110, 203, 139, 0.2); border-radius: 10px; color: var(--lib-accent); margin-left: 0.3rem; vertical-align: middle;
+    }
+
     .search-results {
       overflow-y: auto;
       padding: 0.5rem;
@@ -720,6 +773,10 @@ export class LibraryPage extends LitElement {
     this.showTrash = false
     this.settingsTab = 'sections'
     this.editingSection = null
+    this._searchTimeout = null
+    this.showLinkModal = false
+    this.linkSearchQuery = ''
+    this.linkSearchResults = []
   }
 
   connectedCallback() {
@@ -968,11 +1025,65 @@ export class LibraryPage extends LitElement {
     } catch (err) { console.error('[library] Dismiss link error:', err) }
   }
 
+  // ── Manual Linking ──
+
+  _debounceLinkSearch() {
+    clearTimeout(this._linkSearchTimeout)
+    this._linkSearchTimeout = setTimeout(() => this._doLinkSearch(), 250)
+  }
+
+  async _doLinkSearch() {
+    if (!this.linkSearchQuery.trim()) { this.linkSearchResults = []; return }
+    try {
+      const data = await api(`/search?q=${encodeURIComponent(this.linkSearchQuery)}`)
+      this.linkSearchResults = data.nodes || []
+    } catch { this.linkSearchResults = [] }
+  }
+
+  async _createLink(targetId) {
+    if (!this.desk?.node?.id) return
+    try {
+      await api('/edges', { method: 'POST', body: JSON.stringify({ node_from: this.desk.node.id, node_to: targetId, relation: null }) })
+      this.showToast('Lien créé', 'success')
+      this.showLinkModal = false
+      this.loadDeskNode(this.desk.node.id)
+      this.loadGraphData()
+    } catch (err) {
+      this.showToast('Erreur création lien', 'error')
+      console.error('[library] Create link error:', err)
+    }
+  }
+
+  async _removeEdge(edgeId) {
+    if (!confirm('Supprimer ce lien ?')) return
+    try {
+      await api(`/edges/${edgeId}`, { method: 'DELETE' })
+      this.showToast('Lien supprimé', 'info')
+      this.loadDeskNode(this.desk.node.id)
+      this.loadGraphData()
+    } catch (err) { console.error('[library] Remove edge error:', err) }
+  }
+
+  _templateName(templateId) {
+    if (!templateId) return ''
+    const t = this.templates.find(t => t.id === templateId)
+    return t ? t.name : ''
+  }
+
   async doSearch() {
     if (!this.searchQuery.trim()) return
     try {
-      const data = await api(`/search?q=${encodeURIComponent(this.searchQuery)}`)
-      this.searchResults = data.nodes || []
+      let url = `/search?q=${encodeURIComponent(this.searchQuery)}`
+      if (this._searchSectionFilter) url += `&section_id=${this._searchSectionFilter}`
+      if (this._searchTemplateFilter) url += `&template_id=${this._searchTemplateFilter}`
+      const data = await api(url)
+      let results = data.nodes || []
+      // Client-side sort
+      const sort = this._searchSort || 'relevance'
+      if (sort === 'recent') results.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''))
+      else if (sort === 'views') results.sort((a, b) => (b.view_count || 0) - (a.view_count || 0))
+      else if (sort === 'alpha') results.sort((a, b) => a.title.localeCompare(b.title))
+      this.searchResults = results
     } catch (err) {
       this.searchResults = []
     }
@@ -1318,7 +1429,7 @@ export class LibraryPage extends LitElement {
             <div class="search-modal">
               <input type="text" placeholder="Rechercher dans la bibliothèque..."
                 .value=${this.searchQuery}
-                @input=${(e) => { this.searchQuery = e.target.value; this.doSearch() }}
+                @input=${(e) => { this.searchQuery = e.target.value; clearTimeout(this._searchTimeout); this._searchTimeout = setTimeout(() => this.doSearch(), 300) }}
                 @keydown=${(e) => {
                   if (e.key === 'Escape') this.showSearch = false
                   if (e.key === 'Enter' && this.searchResults.length > 0) {
@@ -1326,6 +1437,23 @@ export class LibraryPage extends LitElement {
                     this.showSearch = false
                   }
                 }}>
+              <!-- Search filters -->
+              <div class="search-filters">
+                <select class="filter-select" @change=${(e) => { this._searchTemplateFilter = e.target.value; this.doSearch() }}>
+                  <option value="">Tous les patrons</option>
+                  ${(this.templates || []).map(t => html`<option value="${t.id}">${t.name}</option>`)}
+                </select>
+                <select class="filter-select" @change=${(e) => { this._searchSectionFilter = e.target.value; this.doSearch() }}>
+                  <option value="">Toutes sections</option>
+                  ${(this.sections || []).map(s => html`<option value="${s.id}">${s.parent_id ? '  └ ' : ''}${s.name}</option>`)}
+                </select>
+                <select class="filter-select" @change=${(e) => { this._searchSort = e.target.value; this.doSearch() }}>
+                  <option value="relevance">Pertinence</option>
+                  <option value="recent">Plus récent</option>
+                  <option value="views">Plus consulté</option>
+                  <option value="alpha">A → Z</option>
+                </select>
+              </div>
               <div class="search-results">
                 ${this.searchResults.length > 0 ? this.searchResults.map(node => {
                   const tpl = node.template_id ? this.templates.find(t => t.id === node.template_id) : null
@@ -1333,7 +1461,10 @@ export class LibraryPage extends LitElement {
                   const snippet = fields ? Object.values(fields).filter(v => typeof v === 'string').join(' · ').slice(0, 80) : (node.content || '').slice(0, 80)
                   return html`
                   <div class="search-result-item" @click=${() => { this.loadDeskNode(node.id); this.showSearch = false }}>
-                    <div class="result-title">${node.title}</div>
+                    <div class="result-title">
+                      ${node.title}
+                      ${node.view_count > 0 ? html`<span class="view-badge" title="${node.view_count} consultation${node.view_count > 1 ? 's' : ''}">${node.view_count}×</span>` : ''}
+                    </div>
                     <div class="result-meta">
                       ${tpl ? html`<span style="color:var(--lib-accent);margin-right:0.4rem;">${tpl.name}</span>` : ''}
                       ${node.updated_at?.slice(0, 10) || ''}
@@ -1691,7 +1822,10 @@ export class LibraryPage extends LitElement {
       </div>
 
       <div class="panel-body">
-        <div class="desk-meta">${this._buildSectionPath(this.desk.sections || [])} · ${this.desk.versions_count} version${this.desk.versions_count !== 1 ? 's' : ''}</div>
+        <div class="desk-meta">
+          ${this._buildSectionPath(this.desk.sections || [])} · ${this.desk.versions_count} version${this.desk.versions_count !== 1 ? 's' : ''}
+          ${this.desk.node.view_count > 0 ? html` · <span class="view-badge" title="Dernière consultation : ${this.desk.node.last_viewed?.slice(0,16).replace('T',' ') || '?'}">${this.desk.node.view_count}× consultée</span>` : ''}
+        </div>
 
         <div class="tags-row">
           ${(this.desk.tags || []).map(t => html`<span class="tag">${t.name}</span>`)}
@@ -1715,14 +1849,37 @@ export class LibraryPage extends LitElement {
           <div class="content-preview">${this.desk.node.content}</div>
         ` : ''}
 
+        <h4 style="margin:1rem 0 0.4rem;font-size:0.85em;color:var(--lib-text-secondary);display:flex;align-items:center;justify-content:space-between;">
+          Connexions (${this.desk.connections.length})
+          <button class="btn-xs btn-link-add" @click=${() => { this.showLinkModal = true; this.linkSearchQuery = ''; this.linkSearchResults = [] }}>+ Lier</button>
+        </h4>
         ${this.desk.connections.length > 0 ? html`
-          <h4 style="margin:1rem 0 0.4rem;font-size:0.85em;color:var(--lib-text-secondary);">Connexions</h4>
           <div style="display:flex;flex-direction:column;gap:0.3rem;">
             ${this.desk.connections.map(c => html`
-              <div class="connection-card" @click=${() => this.loadDeskNode(c.node.id)}>
-                ${c.node.title} ${c.edge.relation ? html`<span class="relation-badge">${c.edge.relation}</span>` : ''}
+              <div class="connection-card">
+                <span class="conn-title" @click=${() => this.loadDeskNode(c.node.id)}>${c.node.title}</span>
+                ${c.edge.relation ? html`<span class="relation-badge">${c.edge.relation}</span>` : ''}
+                <span class="conn-remove" @click=${() => this._removeEdge(c.edge.id)} title="Supprimer le lien">×</span>
               </div>
             `)}
+          </div>
+        ` : html`<div style="font-size:0.8em;color:var(--lib-text-muted);font-style:italic;">Aucune connexion. Utilisez «+ Lier» pour relier cette fiche.</div>`}
+
+        ${this.showLinkModal ? html`
+          <div class="link-modal">
+            <input type="text" class="link-search-input" placeholder="Rechercher une fiche à lier..."
+              .value=${this.linkSearchQuery}
+              @input=${(e) => { this.linkSearchQuery = e.target.value; this._debounceLinkSearch() }}
+              @keydown=${(e) => { if (e.key === 'Escape') this.showLinkModal = false }}>
+            <div class="link-results">
+              ${this.linkSearchResults.filter(n => n.id !== this.desk.node.id && !this.desk.connections.some(c => c.node.id === n.id)).map(n => html`
+                <div class="link-result-item" @click=${() => this._createLink(n.id)}>
+                  ${n.title}
+                  <span style="font-size:0.7em;color:var(--lib-text-muted);">${this._templateName(n.template_id)}</span>
+                </div>
+              `)}
+              ${this.linkSearchQuery && this.linkSearchResults.length === 0 ? html`<div style="padding:0.4rem;color:var(--lib-text-muted);font-size:0.8em;">Aucun résultat</div>` : ''}
+            </div>
           </div>
         ` : ''}
 
@@ -1846,17 +2003,75 @@ export class LibraryPage extends LitElement {
         <div style="font-size:0.7em;color:var(--lib-text-muted);margin-bottom:0.6rem;text-transform:uppercase;letter-spacing:0.5px;">Champs : ${tpl.name}</div>
         ${tpl.structure.map(field => {
           const name = field.name, label = field.label || name, type = field.type || 'text', val = fields[name]
+
+          // Auto-generated field — read-only
+          if (name === 'fiche_num') return html`<div class="form-field"><label>${label}</label><input type="text" .value=${val || '(auto)'} disabled style="opacity:0.6;"></div>`
+
+          // Rating (clickable dots)
+          if (type === 'rating') {
+            const max = field.max || 5, current = Number(val) || 0
+            return html`<div class="form-field"><label>${label}</label>
+              <div class="rating-editor">
+                ${Array.from({length: max}, (_, i) => html`
+                  <span class="rating-dot ${i < current ? 'active' : ''}" @click=${() => this._updateField(name, i + 1 === current ? 0 : i + 1)}>●</span>
+                `)}
+                <span class="rating-label">${current}/${max}</span>
+              </div>
+            </div>`
+          }
+
           if (type === 'number') return html`<div class="form-field"><label>${label}</label><input type="number" .value=${val != null ? String(val) : ''} @input=${(e) => this._updateField(name, e.target.value ? Number(e.target.value) : null)}></div>`
-          // Array of objects or plain objects → JSON textarea editor
-          if (type === 'array' && Array.isArray(val) && val.length > 0 && typeof val[0] === 'object') {
-            return html`<div class="form-field"><label>${label} (JSON)</label><textarea style="min-height:80px;font-family:monospace;font-size:0.8em;" .value=${JSON.stringify(val, null, 2)} @input=${(e) => { try { this._updateField(name, JSON.parse(e.target.value)) } catch { /* wait for valid JSON */ } }}></textarea></div>`
+
+          // Tags / string arrays — visual tag editor with add/remove
+          if (type === 'tags' || type === 'array') {
+            // Array of objects → JSON editor (complex structures)
+            if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object') {
+              return html`<div class="form-field"><label>${label} (JSON)</label><textarea style="min-height:80px;font-family:monospace;font-size:0.8em;" .value=${JSON.stringify(val, null, 2)} @input=${(e) => { try { this._updateField(name, JSON.parse(e.target.value)) } catch {} }}></textarea></div>`
+            }
+            const items = Array.isArray(val) ? val : (val ? [val] : [])
+            return html`<div class="form-field"><label>${label}</label>
+              <div class="tags-editor">
+                ${items.map((item, i) => html`
+                  <span class="tag-chip">
+                    ${item}
+                    <span class="tag-remove" @click=${() => { const arr = [...items]; arr.splice(i, 1); this._updateField(name, arr) }}>×</span>
+                  </span>
+                `)}
+                <input type="text" class="tag-input" placeholder="Ajouter..."
+                  @keydown=${(e) => {
+                    if (e.key === 'Enter' && e.target.value.trim()) {
+                      e.preventDefault()
+                      this._updateField(name, [...items, e.target.value.trim()])
+                      e.target.value = ''
+                    }
+                  }}>
+              </div>
+            </div>`
           }
-          if (type === 'array') return html`<div class="form-field"><label>${label} (virgules)</label><input type="text" .value=${Array.isArray(val) ? val.join(', ') : (val || '')} @input=${(e) => this._updateField(name, e.target.value.split(',').map(v => v.trim()).filter(Boolean))}></div>`
+
           if (type === 'textarea') return html`<div class="form-field"><label>${label}</label><textarea style="min-height:60px;" .value=${val || ''} @input=${(e) => this._updateField(name, e.target.value)}></textarea></div>`
-          // Object value (like infos) → JSON textarea editor
+
+          // Object value (like infos, composition) → key/value visual editor
           if (val && typeof val === 'object' && !Array.isArray(val)) {
-            return html`<div class="form-field"><label>${label} (JSON)</label><textarea style="min-height:80px;font-family:monospace;font-size:0.8em;" .value=${JSON.stringify(val, null, 2)} @input=${(e) => { try { this._updateField(name, JSON.parse(e.target.value)) } catch { /* wait for valid JSON */ } }}></textarea></div>`
+            return html`<div class="form-field"><label>${label}</label>
+              <div class="object-editor">
+                ${Object.entries(val).map(([k, v]) => html`
+                  <div class="obj-row">
+                    <input type="text" class="obj-key" .value=${k} @input=${(e) => {
+                      const obj = {...val}; delete obj[k]; obj[e.target.value] = v; this._updateField(name, obj)
+                    }}>
+                    <input type="text" class="obj-val" .value=${typeof v === 'object' ? JSON.stringify(v) : String(v ?? '')} @input=${(e) => {
+                      let parsed = e.target.value; try { parsed = JSON.parse(parsed) } catch {}
+                      this._updateField(name, {...val, [k]: parsed})
+                    }}>
+                    <span class="obj-remove" @click=${() => { const obj = {...val}; delete obj[k]; this._updateField(name, obj) }}>×</span>
+                  </div>
+                `)}
+                <button class="btn-xs" @click=${() => this._updateField(name, {...val, '': ''})}>+ Ajouter</button>
+              </div>
+            </div>`
           }
+
           return html`<div class="form-field"><label>${label}</label><input type="text" .value=${val != null && typeof val === 'object' ? JSON.stringify(val) : (val || '')} @input=${(e) => this._updateField(name, e.target.value)}></div>`
         })}
       </div>

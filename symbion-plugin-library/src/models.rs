@@ -15,6 +15,10 @@ pub struct Node {
     pub deleted_at: Option<String>,
     pub is_pinned: bool,
     pub is_active: bool,
+    #[serde(default)]
+    pub view_count: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_viewed: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -188,6 +192,7 @@ pub struct SearchQuery {
     pub q: String,
     pub section_id: Option<String>,
     pub tag: Option<String>,
+    pub template_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

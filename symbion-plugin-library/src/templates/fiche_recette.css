@@ -1,18 +1,18 @@
 /* Fiche Recette — Symbion Knowledge Library */
-/* Botanical theme — warm green accent */
+/* Botanical theme — saffron/orange accent */
 
 .recipe-card {
-  --bg:        #0a1410;
-  --card-bg:   #101e18;
-  --accent:    #6ecb8b;
-  --accent-soft: #5cb87a;
-  --accent-dim: #3d8a5c;
-  --border:    #2a4a38;
-  --border-inner: #1e3828;
-  --text-main: #d8e8dc;
-  --text-dim:  #8aaa94;
-  --text-muted: #5a7d68;
-  --glow:      rgba(110, 203, 139, 0.08);
+  --bg:        #14100a;
+  --card-bg:   #1e1810;
+  --accent:    #d4a361;
+  --accent-soft: #c49450;
+  --accent-dim: #8a6a3d;
+  --border:    #4a3a2a;
+  --border-inner: #38281e;
+  --text-main: #e8dcd0;
+  --text-dim:  #aa9480;
+  --text-muted: #7d6850;
+  --glow:      rgba(212, 163, 97, 0.08);
 
   position: relative;
   max-width: 520px;
@@ -24,7 +24,7 @@
   overflow: hidden;
   font-family: 'Georgia', 'Times New Roman', serif;
   color: var(--text-main);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(110, 203, 139, 0.06);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(212, 163, 97, 0.06);
 }
 
 .recipe-card::before {
@@ -72,7 +72,7 @@
   font-weight: 700;
   color: var(--accent);
   line-height: 1.2;
-  text-shadow: 0 1px 8px rgba(110, 203, 139, 0.15);
+  text-shadow: 0 1px 8px rgba(212, 163, 97, 0.15);
 }
 
 .header .subtitle {
@@ -101,9 +101,9 @@
   text-transform: uppercase;
   padding: 0.2rem 0.6rem;
   border-radius: 20px;
-  border: 1px solid rgba(110, 203, 139, 0.25);
+  border: 1px solid rgba(212, 163, 97, 0.25);
   color: var(--accent-soft);
-  background: rgba(110, 203, 139, 0.06);
+  background: rgba(212, 163, 97, 0.06);
 }
 
 /* ── Dividers ── */
@@ -125,7 +125,7 @@
   color: var(--accent-dim);
   margin-bottom: 0.8rem;
   padding-bottom: 0.4rem;
-  border-bottom: 1px solid rgba(110, 203, 139, 0.12);
+  border-bottom: 1px solid rgba(212, 163, 97, 0.12);
   display: block;
 }
 
@@ -140,7 +140,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.35rem 0;
-  border-bottom: 1px solid rgba(110, 203, 139, 0.06);
+  border-bottom: 1px solid rgba(212, 163, 97, 0.06);
 }
 
 .ing-item:last-child {
@@ -175,9 +175,9 @@
   font-size: 0.72rem;
   color: var(--text-dim);
   padding: 0.2rem 0.5rem;
-  border: 1px solid rgba(110, 203, 139, 0.12);
+  border: 1px solid rgba(212, 163, 97, 0.12);
   border-radius: 4px;
-  background: rgba(110, 203, 139, 0.03);
+  background: rgba(212, 163, 97, 0.03);
 }
 
 /* ── Steps ── */
@@ -208,7 +208,7 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: rgba(110, 203, 139, 0.12);
+  background: rgba(212, 163, 97, 0.12);
   border: 1px solid var(--accent-dim);
   color: var(--accent);
   font-size: 0.7rem;

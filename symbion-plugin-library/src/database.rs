@@ -160,6 +160,31 @@ impl Database {
             }
         }
 
+        // Migration v4: Add view_count and last_viewed to nodes (engagement tracking)
+        let user_version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+        if user_version < 4 {
+            conn.execute_batch("BEGIN IMMEDIATE")?;
+            let mig4_result = (|| -> Result<()> {
+                let has_view_count: bool = conn
+                    .prepare("SELECT COUNT(*) FROM pragma_table_info('nodes') WHERE name='view_count'")?
+                    .query_row([], |r| r.get::<_, i64>(0))
+                    .map(|c| c > 0)?;
+                if !has_view_count {
+                    conn.execute_batch("ALTER TABLE nodes ADD COLUMN view_count INTEGER DEFAULT 0;")?;
+                    conn.execute_batch("ALTER TABLE nodes ADD COLUMN last_viewed DATETIME;")?;
+                }
+                conn.execute_batch("PRAGMA user_version = 4;")?;
+                Ok(())
+            })();
+            match mig4_result {
+                Ok(()) => conn.execute_batch("COMMIT")?,
+                Err(e) => {
+                    let _ = conn.execute_batch("ROLLBACK");
+                    return Err(e);
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -298,7 +323,24 @@ impl Database {
             )?;
 
             // Fields (structured data in node_fields table)
-            if let Some(ref fields) = input.fields {
+            // Auto-assign fiche_num if template has one and it's empty/missing
+            let fields = if let Some(ref template_id) = input.template_id {
+                let mut f = input.fields.clone().unwrap_or_else(|| serde_json::json!({}));
+                if let Some(obj) = f.as_object_mut() {
+                    let needs_num = match obj.get("fiche_num") {
+                        None => true,
+                        Some(v) => v.as_str().map_or(true, |s| s.is_empty()),
+                    };
+                    if needs_num {
+                        let next = self.next_fiche_num(&conn, template_id)?;
+                        obj.insert("fiche_num".to_string(), serde_json::Value::String(next));
+                    }
+                }
+                Some(f)
+            } else {
+                input.fields.clone()
+            };
+            if let Some(ref fields) = fields {
                 self.save_fields(&conn, &id, fields)?;
             }
 
@@ -325,7 +367,7 @@ impl Database {
 
             // Version 1 — snapshot content + fields
             let ver_id = Uuid::new_v4().to_string();
-            let version_snapshot = self.build_version_snapshot(input.content.as_deref(), input.fields.as_ref());
+            let version_snapshot = self.build_version_snapshot(input.content.as_deref(), fields.as_ref());
             conn.execute(
                 "INSERT INTO node_versions (id, node_id, content, version_num) VALUES (?1, ?2, ?3, 1)",
                 params![ver_id, id, version_snapshot],
@@ -364,7 +406,7 @@ impl Database {
 
     fn get_node_by_id_inner(&self, conn: &Connection, id: &str) -> Result<Node> {
         let mut node = conn.query_row(
-            "SELECT id, title, content, template_id, created_at, updated_at, deleted_at, is_pinned, is_active FROM nodes WHERE id = ?1 AND deleted_at IS NULL",
+            "SELECT id, title, content, template_id, created_at, updated_at, deleted_at, is_pinned, is_active, view_count, last_viewed FROM nodes WHERE id = ?1 AND deleted_at IS NULL",
             params![id],
             |row| {
                 Ok(Node {
@@ -378,6 +420,8 @@ impl Database {
                     deleted_at: row.get(6)?,
                     is_pinned: row.get(7)?,
                     is_active: row.get(8)?,
+                    view_count: row.get::<_, i64>(9).unwrap_or(0),
+                    last_viewed: row.get::<_, Option<String>>(10).unwrap_or(None),
                 })
             },
         )?;
@@ -386,6 +430,26 @@ impl Database {
     }
 
     // ── Node Fields helpers ──
+
+    /// Compute next fiche_num for a given template: finds max existing number and increments.
+    fn next_fiche_num(&self, conn: &Connection, template_id: &str) -> Result<String> {
+        let max: Option<String> = conn.query_row(
+            "SELECT MAX(nf.field_value) FROM node_fields nf
+             JOIN nodes n ON n.id = nf.node_id
+             WHERE n.template_id = ?1 AND n.deleted_at IS NULL AND nf.field_name = 'fiche_num'",
+            params![template_id],
+            |row| row.get(0),
+        )?;
+        let next_num = match max {
+            Some(ref s) => {
+                // field_value is stored as JSON string, e.g. "\"006\""
+                let clean = s.trim().trim_matches('"');
+                clean.parse::<u32>().unwrap_or(0) + 1
+            }
+            None => 1,
+        };
+        Ok(format!("{:03}", next_num))
+    }
 
     fn save_fields(&self, conn: &Connection, node_id: &str, fields: &serde_json::Value) -> Result<()> {
         // Delete existing fields
@@ -462,9 +526,9 @@ impl Database {
     pub async fn list_nodes(&self, include_deleted: bool, limit: i64, offset: i64) -> Result<Vec<Node>> {
         let conn = self.conn.lock().await;
         let sql = if include_deleted {
-            format!("SELECT id, title, content, template_id, created_at, updated_at, deleted_at, is_pinned, is_active FROM nodes ORDER BY updated_at DESC LIMIT {} OFFSET {}", limit, offset)
+            format!("SELECT id, title, content, template_id, created_at, updated_at, deleted_at, is_pinned, is_active, view_count, last_viewed FROM nodes ORDER BY updated_at DESC LIMIT {} OFFSET {}", limit, offset)
         } else {
-            format!("SELECT id, title, content, template_id, created_at, updated_at, deleted_at, is_pinned, is_active FROM nodes WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT {} OFFSET {}", limit, offset)
+            format!("SELECT id, title, content, template_id, created_at, updated_at, deleted_at, is_pinned, is_active, view_count, last_viewed FROM nodes WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT {} OFFSET {}", limit, offset)
         };
         let mut stmt = conn.prepare(&sql)?;
         let mut nodes: Vec<Node> = stmt.query_map([], map_node)?
@@ -640,7 +704,7 @@ impl Database {
     pub async fn list_trash(&self, limit: i64, offset: i64) -> Result<Vec<Node>> {
         let conn = self.conn.lock().await;
         let sql = format!(
-            "SELECT id, title, content, template_id, created_at, updated_at, deleted_at, is_pinned, is_active FROM nodes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT {} OFFSET {}",
+            "SELECT id, title, content, template_id, created_at, updated_at, deleted_at, is_pinned, is_active, view_count, last_viewed FROM nodes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT {} OFFSET {}",
             limit, offset
         );
         let mut stmt = conn.prepare(&sql)?;
@@ -731,7 +795,7 @@ impl Database {
 
     fn get_section_nodes_inner(&self, conn: &Connection, section_id: &str) -> Result<Vec<Node>> {
         let mut stmt = conn.prepare(
-            "SELECT n.id, n.title, n.content, n.template_id, n.created_at, n.updated_at, n.deleted_at, n.is_pinned, n.is_active \
+            "SELECT n.id, n.title, n.content, n.template_id, n.created_at, n.updated_at, n.deleted_at, n.is_pinned, n.is_active, n.view_count, n.last_viewed \
              FROM nodes n JOIN node_sections ns ON n.id = ns.node_id \
              WHERE ns.section_id = ?1 AND n.deleted_at IS NULL ORDER BY n.updated_at DESC"
         )?;
@@ -1021,12 +1085,12 @@ impl Database {
         format!("\"{}\"", escaped)
     }
 
-    pub async fn search(&self, query: &str, section_id: Option<&str>, tag: Option<&str>) -> Result<Vec<Node>> {
+    pub async fn search(&self, query: &str, section_id: Option<&str>, tag: Option<&str>, template_id: Option<&str>) -> Result<Vec<Node>> {
         let conn = self.conn.lock().await;
         let safe_query = Self::sanitize_fts_query(query);
 
         let base = if section_id.is_some() && tag.is_some() {
-            "SELECT n.id, n.title, n.content, n.template_id, n.created_at, n.updated_at, n.deleted_at, n.is_pinned, n.is_active \
+            "SELECT n.id, n.title, n.content, n.template_id, n.created_at, n.updated_at, n.deleted_at, n.is_pinned, n.is_active, n.view_count, n.last_viewed \
              FROM nodes n \
              JOIN nodes_fts fts ON n.id = fts.node_id \
              JOIN node_sections ns ON n.id = ns.node_id \
@@ -1035,14 +1099,14 @@ impl Database {
              WHERE nodes_fts MATCH ?1 AND n.deleted_at IS NULL AND ns.section_id = ?2 AND t.name = ?3 \
              ORDER BY rank LIMIT 50"
         } else if section_id.is_some() {
-            "SELECT n.id, n.title, n.content, n.template_id, n.created_at, n.updated_at, n.deleted_at, n.is_pinned, n.is_active \
+            "SELECT n.id, n.title, n.content, n.template_id, n.created_at, n.updated_at, n.deleted_at, n.is_pinned, n.is_active, n.view_count, n.last_viewed \
              FROM nodes n \
              JOIN nodes_fts fts ON n.id = fts.node_id \
              JOIN node_sections ns ON n.id = ns.node_id \
              WHERE nodes_fts MATCH ?1 AND n.deleted_at IS NULL AND ns.section_id = ?2 \
              ORDER BY rank LIMIT 50"
         } else if tag.is_some() {
-            "SELECT n.id, n.title, n.content, n.template_id, n.created_at, n.updated_at, n.deleted_at, n.is_pinned, n.is_active \
+            "SELECT n.id, n.title, n.content, n.template_id, n.created_at, n.updated_at, n.deleted_at, n.is_pinned, n.is_active, n.view_count, n.last_viewed \
              FROM nodes n \
              JOIN nodes_fts fts ON n.id = fts.node_id \
              JOIN node_tags nt ON n.id = nt.node_id \
@@ -1050,7 +1114,7 @@ impl Database {
              WHERE nodes_fts MATCH ?1 AND n.deleted_at IS NULL AND t.name = ?2 \
              ORDER BY rank LIMIT 50"
         } else {
-            "SELECT n.id, n.title, n.content, n.template_id, n.created_at, n.updated_at, n.deleted_at, n.is_pinned, n.is_active \
+            "SELECT n.id, n.title, n.content, n.template_id, n.created_at, n.updated_at, n.deleted_at, n.is_pinned, n.is_active, n.view_count, n.last_viewed \
              FROM nodes n \
              JOIN nodes_fts fts ON n.id = fts.node_id \
              WHERE nodes_fts MATCH ?1 AND n.deleted_at IS NULL \
@@ -1068,6 +1132,10 @@ impl Database {
             stmt.query_map(params![safe_query], map_node)?
         }.collect::<std::result::Result<Vec<_>, _>>()?;
 
+        // Post-filter by template_id if specified
+        if let Some(tid) = template_id {
+            nodes.retain(|n| n.template_id.as_deref() == Some(tid));
+        }
         // Hydrate fields for search results
         for node in &mut nodes {
             node.fields = Some(self.get_fields_as_json(&conn, &node.id)?);
@@ -1079,6 +1147,13 @@ impl Database {
 
     pub async fn get_study_desk(&self, node_id: &str) -> Result<Option<StudyDesk>> {
         let conn = self.conn.lock().await;
+
+        // Track engagement: increment view_count and set last_viewed
+        let now = chrono::Utc::now().to_rfc3339();
+        let _ = conn.execute(
+            "UPDATE nodes SET view_count = COALESCE(view_count, 0) + 1, last_viewed = ?1 WHERE id = ?2",
+            params![now, node_id],
+        );
 
         let node = match self.get_node_by_id_inner(&conn, node_id) {
             Ok(n) => n,
@@ -1314,6 +1389,8 @@ fn map_node(row: &rusqlite::Row) -> rusqlite::Result<Node> {
         fields: None,
         template_id: row.get(3)?, created_at: row.get(4)?, updated_at: row.get(5)?,
         deleted_at: row.get(6)?, is_pinned: row.get(7)?, is_active: row.get(8)?,
+        view_count: row.get::<_, i64>(9).unwrap_or(0),
+        last_viewed: row.get::<_, Option<String>>(10).unwrap_or(None),
     })
 }
 
@@ -1475,6 +1552,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_auto_fiche_num() {
+        let db = test_db().await;
+        let tmpl = db.create_template(&CreateTemplate { name: "Épice".into(), structure: None, preview_css: None, preview_html: None }).await.unwrap();
+        // First node without fiche_num → auto "001"
+        let n1 = db.create_node(&CreateNode {
+            title: "A".into(), content: None, template_id: Some(tmpl.id.clone()),
+            fields: Some(serde_json::json!({"gout": "amer"})),
+            section_ids: None, tag_names: None,
+        }).await.unwrap();
+        assert_eq!(n1.fields.as_ref().and_then(|f| f.get("fiche_num")).and_then(|v| v.as_str()), Some("001"));
+
+        // Second node → auto "002"
+        let n2 = db.create_node(&CreateNode {
+            title: "B".into(), content: None, template_id: Some(tmpl.id.clone()),
+            fields: None, section_ids: None, tag_names: None,
+        }).await.unwrap();
+        assert_eq!(n2.fields.as_ref().and_then(|f| f.get("fiche_num")).and_then(|v| v.as_str()), Some("002"));
+
+        // Explicit fiche_num should be preserved
+        let n3 = db.create_node(&CreateNode {
+            title: "C".into(), content: None, template_id: Some(tmpl.id.clone()),
+            fields: Some(serde_json::json!({"fiche_num": "099"})),
+            section_ids: None, tag_names: None,
+        }).await.unwrap();
+        assert_eq!(n3.fields.as_ref().and_then(|f| f.get("fiche_num")).and_then(|v| v.as_str()), Some("099"));
+
+        // Next auto after 099 → "100"
+        let n4 = db.create_node(&CreateNode {
+            title: "D".into(), content: None, template_id: Some(tmpl.id.clone()),
+            fields: Some(serde_json::json!({})),
+            section_ids: None, tag_names: None,
+        }).await.unwrap();
+        assert_eq!(n4.fields.as_ref().and_then(|f| f.get("fiche_num")).and_then(|v| v.as_str()), Some("100"));
+    }
+
+    #[tokio::test]
     async fn test_get_node_not_found() {
         let db = test_db().await;
         assert!(db.get_node("nonexistent").await.unwrap().is_none());
@@ -1583,13 +1696,13 @@ mod tests {
     async fn test_update_fts_after_title_change() {
         let db = test_db().await;
         let n = db.create_node(&node_with("Coriandre", "Herbe fraîche")).await.unwrap();
-        let r1 = db.search("Coriandre", None, None).await.unwrap();
+        let r1 = db.search("Coriandre", None, None, None).await.unwrap();
         assert_eq!(r1.len(), 1);
 
         db.update_node(&n.id, &UpdateNode { title: Some("Persil".into()), ..update() }).await.unwrap();
-        let r2 = db.search("Coriandre", None, None).await.unwrap();
+        let r2 = db.search("Coriandre", None, None, None).await.unwrap();
         assert_eq!(r2.len(), 0);
-        let r3 = db.search("Persil", None, None).await.unwrap();
+        let r3 = db.search("Persil", None, None, None).await.unwrap();
         assert_eq!(r3.len(), 1);
     }
 
@@ -1669,7 +1782,7 @@ mod tests {
             "arôme": "Méditerranéen boisé"
         }))).await.unwrap();
         // Search by field value
-        let results = db.search("Méditerranéen", None, None).await.unwrap();
+        let results = db.search("Méditerranéen", None, None, None).await.unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].title, "Romarin");
     }
@@ -1747,9 +1860,9 @@ mod tests {
         let db = test_db().await;
         let n = db.create_node(&node_with("Safran", "Épice précieuse")).await.unwrap();
         db.soft_delete_node(&n.id).await.unwrap();
-        assert_eq!(db.search("Safran", None, None).await.unwrap().len(), 0);
+        assert_eq!(db.search("Safran", None, None, None).await.unwrap().len(), 0);
         db.restore_node(&n.id).await.unwrap();
-        assert_eq!(db.search("Safran", None, None).await.unwrap().len(), 1);
+        assert_eq!(db.search("Safran", None, None, None).await.unwrap().len(), 1);
     }
 
     #[tokio::test]
@@ -2009,7 +2122,7 @@ mod tests {
         let db = test_db().await;
         db.create_node(&node_with("Paprika fumé", "Piment doux")).await.unwrap();
         db.create_node(&node_with("Poivre noir", "Baie noire")).await.unwrap();
-        let results = db.search("Paprika", None, None).await.unwrap();
+        let results = db.search("Paprika", None, None, None).await.unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].title, "Paprika fumé");
     }
@@ -2019,7 +2132,7 @@ mod tests {
         let db = test_db().await;
         db.create_node(&node_with("A", "saveur chocolat intense")).await.unwrap();
         db.create_node(&node_with("B", "note fruitée légère")).await.unwrap();
-        let results = db.search("chocolat", None, None).await.unwrap();
+        let results = db.search("chocolat", None, None, None).await.unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].title, "A");
     }
@@ -2028,7 +2141,7 @@ mod tests {
     async fn test_search_no_results() {
         let db = test_db().await;
         db.create_node(&node_with("A", "contenu")).await.unwrap();
-        let results = db.search("inexistant", None, None).await.unwrap();
+        let results = db.search("inexistant", None, None, None).await.unwrap();
         assert_eq!(results.len(), 0);
     }
 
@@ -2036,9 +2149,9 @@ mod tests {
     async fn test_search_excludes_deleted() {
         let db = test_db().await;
         let n = db.create_node(&node_with("Cannelle", "Épice douce")).await.unwrap();
-        assert_eq!(db.search("Cannelle", None, None).await.unwrap().len(), 1);
+        assert_eq!(db.search("Cannelle", None, None, None).await.unwrap().len(), 1);
         db.soft_delete_node(&n.id).await.unwrap();
-        assert_eq!(db.search("Cannelle", None, None).await.unwrap().len(), 0);
+        assert_eq!(db.search("Cannelle", None, None, None).await.unwrap().len(), 0);
     }
 
     #[tokio::test]
@@ -2049,7 +2162,7 @@ mod tests {
         db.create_node(&CreateNode { section_ids: Some(vec![s1.id.clone()]), ..node_with("Cumin", "épice") }).await.unwrap();
         db.create_node(&CreateNode { section_ids: Some(vec![s2.id.clone()]), ..node_with("Menthe", "épice") }).await.unwrap();
 
-        let r = db.search("épice", Some(&s1.id), None).await.unwrap();
+        let r = db.search("épice", Some(&s1.id), None, None).await.unwrap();
         assert_eq!(r.len(), 1);
         assert_eq!(r[0].title, "Cumin");
     }
@@ -2060,7 +2173,7 @@ mod tests {
         db.create_node(&CreateNode { tag_names: Some(vec!["chaud".into()]), ..node_with("Piment", "épice forte") }).await.unwrap();
         db.create_node(&CreateNode { tag_names: Some(vec!["doux".into()]), ..node_with("Vanille", "épice douce") }).await.unwrap();
 
-        let r = db.search("épice", None, Some("chaud")).await.unwrap();
+        let r = db.search("épice", None, Some("chaud"), None).await.unwrap();
         assert_eq!(r.len(), 1);
         assert_eq!(r[0].title, "Piment");
     }
@@ -2321,10 +2434,10 @@ mod tests {
         let db = test_db().await;
         db.create_node(&node_with("Test", "content")).await.unwrap();
         // These should not crash (FTS5 special chars)
-        assert!(db.search("test AND OR NOT", None, None).await.is_ok());
-        assert!(db.search("\"unclosed quote", None, None).await.is_ok());
-        assert!(db.search("col:value", None, None).await.is_ok());
-        assert!(db.search("*wild*", None, None).await.is_ok());
+        assert!(db.search("test AND OR NOT", None, None, None).await.is_ok());
+        assert!(db.search("\"unclosed quote", None, None, None).await.is_ok());
+        assert!(db.search("col:value", None, None, None).await.is_ok());
+        assert!(db.search("*wild*", None, None, None).await.is_ok());
     }
 
     #[tokio::test]
