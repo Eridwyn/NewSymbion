@@ -276,9 +276,23 @@ let app = Router::new()
 **Production** :
 - `https://symbion.local:3000` (PWA Dashboard via hostname)
 - `https://192.168.1.14:3000` (PWA Dashboard via IP locale)
+- `https://symbion.markcha.fr` (Accès externe via Cloudflare)
+- `https://192.168.1.14` (Nginx reverse proxy, sans port)
+- `https://localhost` (Nginx reverse proxy local)
 
 **Développement** :
 - `http://localhost:3000` (Dev frontend local)
+- `https://localhost:3000` (Dev frontend TLS)
+- `http://localhost:3002` / `https://localhost:3002` (Dev frontend secondaire)
+
+**Exception** : Le proxy public bibliothèque (`/v1/public/library`) utilise `CORS: *` (wildcard) car conçu pour accès public sans authentification (GET-only).
+
+**Routes publiques (bypass auth middleware)** :
+- `/health`, `/health/live`, `/health/ready` — Health checks
+- `/auth/*` — Login, MFA, WebAuthn
+- `/ca-certificate` — Certificat CA TLS
+- `/swagger-ui/*`, `/api-docs/*` — Documentation API interactive
+- `/v1/public/library/*` — Bibliothèque lecture seule (GET only)
 
 ### Preflight Requests
 

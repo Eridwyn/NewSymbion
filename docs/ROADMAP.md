@@ -2,7 +2,7 @@
 
 **Version** : 2026-03 (Post Audit + Sprint P0/P1/P2/P3 + Sprint 5/5 K3+K4+K8 + Sprint 7 SQLite + Sprint 8-9 Agent v2 + Sprint 10-14 Agent v2.5)
 **Statut** : Fondations complètes, Agent Host v2.5.0 (8 features, 5 sprints), 100% persistance SQLite, couverture tests renforcée
-**Dernière mise à jour** : 6 Mars 2026
+**Dernière mise à jour** : 13 Mars 2026
 **Score global** : 4.8/5
 
 ---
@@ -13,20 +13,20 @@
 
 | Composant | Langage | LOC | Fichiers | Score | Tests |
 |-----------|---------|----:|----------|-------|------:|
-| **symbion-kernel** | Rust | ~46,800 | 105 | 4.8/5 | 420 |
-| **pwa-dashboard** | JS (Lit) | ~36,400 | 75 | 4.5/5 | 744 |
-| **symbion-agent-host** | Rust | ~11,200 | 47 | 4.7/5 | 225 |
-| **Plugins** (5) | Rust | ~5,580 | 14 | 4.8/5 | 28 |
-| **Infra** (scripts/CI) | Bash/YAML | ~2,960 | 24 | 3.5/5 | - |
-| **Total** | | **~103,000** | **265** | **4.7/5** | **1,417** |
+| **symbion-kernel** | Rust | ~49,600 | 112 | 4.8/5 | 419 |
+| **pwa-dashboard** | JS (Lit) | ~36,400 | 75 | 4.5/5 | 751 |
+| **symbion-agent-host** | Rust | ~11,700 | 56 | 4.7/5 | 135 |
+| **Plugins** (7) | Rust | ~12,100 | 28 | 4.8/5 | 49 |
+| **Infra** (scripts/CI/bridge) | Bash/YAML/Py | ~3,500 | 30 | 3.5/5 | - |
+| **Total** | | **~113,300** | **301** | **4.7/5** | **1,354** |
 
 ### Chiffres Clés
 
 | Métrique | Valeur |
 |----------|--------|
-| Unit Tests | 1,417 (420 kernel + 744 PWA + 225 agent + 28 plugins) |
-| API Routes (http/) | 150+ endpoints across 7 modules + plugins |
-| MQTT Topics | 10 subscriptions |
+| Unit Tests | 1,354 (419 kernel + 751 PWA + 135 agent + 49 plugins) |
+| API Routes (http/) | 178+ endpoints across 10 modules + plugins |
+| MQTT Topics | 62 topics (18 core + 44 plugins) |
 | Automations actives | 16 (+ intelligence-managed) |
 | Modes contextuels | 4 système + custom |
 | Intelligence Samples | 34 (apprentissage continu) |
@@ -176,11 +176,35 @@
 
 | Plugin | LOC | Rôle |
 |--------|----:|------|
-| **symbion-plugin-sensors** | 821 | ESP32 BME280 monitoring |
+| **symbion-plugin-library** | 3,500 | Bibliothèque de connaissances (graph, templates, FTS5) |
+| **symbion-plugin-telegram** | 2,518 | Bot Telegram + intégration Claude Code |
+| **symbion-plugin-sensors** | 1,115 | ESP32 BME280 monitoring |
 | **symbion-plugin-notes** | 1,381 | Mémoire externe (markdown + tags) |
-| **symbion-plugin-ssl** | 1,797 | Monitoring certificats multi-domaines |
-| **symbion-plugin-freebox** | 1,267 | LAN discovery, présence, internet status |
+| **symbion-plugin-ssl** | 1,892 | Monitoring certificats multi-domaines |
+| **symbion-plugin-freebox** | 1,372 | LAN discovery, présence, internet status |
 | **symbion-plugin-common** | 313 | Shared utilities |
+
+---
+
+### Bibliothèque de Connaissances 🟢 100%
+**Complété** : Mars 2026
+
+- Plugin `symbion-plugin-library` : graphe de connaissances avec sections, tags, edges
+- Templates structurés (Fiche Épice, Fiche Recette) avec CSS thématique
+- Auto-numérotation fiche_num (MAX+1 par template)
+- Éditeur visuel champs (rating dots, tags chips, objets clé/valeur)
+- Liaison manuelle entre fiches avec recherche
+- Engagement tracking (view_count, last_viewed)
+- Recherche FTS5 avec filtres (template, section, tri)
+- Page publique lecture seule (`/lib`, proxy `/v1/public/library`)
+
+### Bot Telegram 🟢 100%
+**Complété** : Mars 2026
+
+- Plugin Rust `symbion-plugin-telegram` (teloxide + Claude integration)
+- Bridge Python `scripts/telegram-bridge/` pour Claude Code interactif
+- Commandes : `/new`, `/continue`, `/cancel`, `/model`, `/effort`, `/status`
+- Service systemd `symbion-telegram-bridge`
 
 ---
 

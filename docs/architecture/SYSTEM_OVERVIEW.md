@@ -22,7 +22,7 @@ Vue d'ensemble de l'architecture IoT distribuée.
 - ✅ **Plugin Orchestration** - Modules de vie (cuisine, santé, finance)
 - ✅ **Context Engine** - Apprentissage habitudes et détection situations
 - ✅ **Decision Engine** - Évaluation intelligente et garde-fous sécurité (trust scoring, validation multi-niveaux, audit trail)
-- ✅ **API REST** - Interface pour contrôles et automatisations (~107 endpoints)
+- ✅ **API REST** - Interface pour contrôles et automatisations (~178 endpoints)
 - ✅ **Health Monitoring** - Surveillance automatique + alertes proactives
 
 ### 🤖 symbion-agent-host - Assistants Domestiques
@@ -68,6 +68,45 @@ Vue d'ensemble de l'architecture IoT distribuée.
 - ✅ **Stockage distribué** - Notes accessibles sur tous appareils
 - ✅ **Apprentissage habitudes** - Suggestions basées sur historique
 
+### 📚 symbion-plugin-library - Bibliothèque de Connaissances
+
+**Rôle**: Base de connaissances structurée avec graphe de relations
+
+**Status**: ✅ Actif (3,500 LOC, SQLite + FTS5, 91 tests)
+
+**Fonctionnalités**:
+- ✅ **Graphe de connaissances** - Nodes, edges, sections hiérarchiques
+- ✅ **Templates structurés** - Fiches Épices, Recettes avec CSS thématique
+- ✅ **Recherche FTS5** - Full-text search avec filtres (template, section, tags)
+- ✅ **Auto fiche_num** - Numérotation automatique par template
+- ✅ **Éditeur visuel** - Rating dots, tags chips, objets clé/valeur
+- ✅ **Liaison manuelle** - Connexion entre fiches avec recherche
+- ✅ **Engagement tracking** - view_count, last_viewed par fiche
+- ✅ **Page publique** - Accès lecture seule via `/lib` et `/v1/public/library`
+
+### 🤖 symbion-plugin-telegram - Bot Telegram
+
+**Rôle**: Interface Telegram pour piloter Symbion à distance
+
+**Status**: ✅ Actif (2,518 LOC, teloxide + Claude)
+
+**Fonctionnalités**:
+- ✅ **Bot Telegram** - Plugin Rust avec teloxide
+- ✅ **Claude Code Bridge** - Bridge Python pour sessions interactives
+- ✅ **Commandes** - `/new`, `/continue`, `/cancel`, `/model`, `/effort`, `/status`
+- ✅ **Service systemd** - `symbion-telegram-bridge` (user eridwyn)
+
+### 🌐 public-lib - Page Publique Bibliothèque
+
+**Rôle**: Interface web publique (lecture seule) pour la bibliothèque
+
+**Status**: ✅ Actif (servie par Nginx sur `/lib`)
+
+**Fonctionnalités**:
+- ✅ **Lecture seule** - Consultation fiches sans authentification
+- ✅ **Proxy kernel** - `/v1/public/library` (GET only, CORS `*`)
+- ✅ **Cache Nginx** - Assets statiques cachés 1h
+
 ---
 
 ## ⚡ Modes Contextuels Intelligents
@@ -108,7 +147,7 @@ Vue d'ensemble de l'architecture IoT distribuée.
 
 ### Kernel (Rust - `symbion-kernel/src/`)
 
-**Note** : Le kernel contient 105 fichiers Rust au total (54 modules racine + 16 dans decision/ + 11 dans automations/ + 8 dans http/ + 16 dans database/).
+**Note** : Le kernel contient 112 fichiers Rust au total (~36 modules racine + 16 dans decision/ + 11 dans automations/ + 8 dans http/ + 14 dans database/sql/ + 9 dans intelligence/ + 7 dans bootstrap/ + 3 dans modes/ + 3 dans schedule/).
 
 ```
 symbion-kernel/src/
@@ -142,9 +181,38 @@ symbion-kernel/src/
 ├── notifications.rs       # Notification manager
 ├── notification_config.rs # Notification type configs
 ├── mobile.rs              # Mobile API endpoints
-├── plugin_proxy.rs        # Plugin HTTP proxy
+├── plugin_proxy.rs        # Plugin HTTP proxy + public library proxy
 ├── plugin_health.rs       # Plugin health monitoring
 ├── automations_http.rs    # Automations HTTP endpoints
+├── openapi.rs             # Swagger/OpenAPI spec generation (utoipa)
+├── rate_limiter.rs        # API rate limiting
+├── file_hub.rs            # File management
+├── mqtt_watchdog.rs       # MQTT connection monitoring
+├── bootstrap/             # Server initialization pipeline (7 modules)
+│   ├── mod.rs             # Pipeline orchestration
+│   ├── auth.rs            # Auth system init (JWT, bcrypt, CSRF)
+│   ├── database.rs        # SQLite init + migrations
+│   ├── decision.rs        # Decision engine bootstrap
+│   ├── intelligence.rs    # Intelligence engine bootstrap
+│   ├── server.rs          # TLS + HTTP server setup
+│   └── tasks.rs           # Background tasks init
+├── intelligence/          # Advanced Inference Engine (9 modules)
+│   ├── mod.rs             # Module exports
+│   ├── bootstrap.rs       # Engine initialization
+│   ├── classifier.rs      # Pattern classification
+│   ├── features.rs        # Feature extraction
+│   ├── inference.rs       # Core inference logic
+│   ├── sessions.rs        # Session management
+│   ├── types.rs           # Type definitions
+│   └── vector.rs          # Vector operations
+├── modes/                 # Dynamic Mode System (3 modules)
+│   ├── mod.rs             # Module exports
+│   ├── registry.rs        # Mode registry + persistence
+│   └── types.rs           # Mode type definitions
+├── schedule/              # Scheduled Automations (3 modules)
+│   ├── mod.rs             # Module exports
+│   ├── engine.rs          # Schedule execution
+│   └── types.rs           # Schedule types
 ├── decision/              # Decision Engine (16 modules)
 │   ├── mod.rs             # Module exports
 │   ├── engine.rs          # Decision evaluation core
@@ -267,8 +335,8 @@ pwa-dashboard/src/
 
 ### 📡 Bus de Communication
 
-- **MQTT**: Événements temps réel entre appareils (17 topics actifs documentés)
-- **REST API**: Contrôles synchrones et intégrations externes (~107 endpoints)
+- **MQTT**: Événements temps réel entre appareils (62 topics : 18 core + 44 plugins)
+- **REST API**: Contrôles synchrones et intégrations externes (~178 endpoints)
 - **WebSocket PWA**: Interface temps réel responsive
 - **Contracts Registry**: Validation et versioning événements IoT
 
@@ -314,10 +382,13 @@ Internet
 │ NGINX Reverse Proxy (192.168.1.14:443)                 │
 │ - Agrégation tous services sur port 443                │
 │ - Routing par path:                                     │
-│   • / → Kernel API (192.168.1.14:8443)                 │
-│   • /mobile → Mobile API (192.168.1.14:8444)           │
-│   • /dashboard → PWA (192.168.1.14:3000)               │
-│   • /mqtt → MQTT WSS (192.168.1.14:9001)               │
+│   • / → PWA Dashboard (192.168.1.14:3000)              │
+│   • /lib → Page publique bibliothèque (statique)       │
+│   • /v1/* → Kernel API (192.168.1.14:8443)             │
+│   • /auth/* → Auth routes (192.168.1.14:8443)          │
+│   • /ws/mqtt → MQTT WSS (192.168.1.14:9001)            │
+│   • /ws/notes/stream → Notes WebSocket                  │
+│   • /context|agents|plugins → API (192.168.1.14:8443)  │
 └─────────────────────────────────────────────────────────┘
    ↓
 ┌─────────────────────────────────────────────────────────┐

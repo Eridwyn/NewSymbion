@@ -1,6 +1,6 @@
 # MQTT Topics - Référence Complète
 
-> 📡 Documentation exhaustive des 18 topics actifs MQTT de l'écosystème Symbion
+> 📡 Documentation exhaustive des topics MQTT de l'écosystème Symbion (18 core + 44 plugins = 62 total)
 
 ## 🗂️ Classification des Topics
 
@@ -12,8 +12,14 @@
 | **Plugin Communication** | 2 | Bidirectionnel | Requêtes/réponses notes |
 | **Dashboard Updates** | 6 | Kernel → PWA | Événements temps réel |
 | **System Events** | 3 | Multicast | Health, notifications globales + ack |
+| **Plugin System** | 5 | Bidirectionnel | Manifest, health, events, status |
+| **SSL Plugin** | 4 | Plugin → Kernel | Certificats, domaines, fingerprints |
+| **Library Plugin** | 2 | Plugin → Kernel | Nodes events, pending links |
+| **Freebox Plugin** | 10 | Plugin → Kernel | Présence, devices, connection, downloads |
+| **Telegram Plugin** | 2 | Plugin → Kernel | Events, health |
+| **Features/Intelligence** | 2 | Bidirectionnel | Feature updates, notifications |
 
-**Total** : 18 topics actifs + 1 legacy (symbion/context/mode sans version)
+**Total** : 62 topics (18 core + 44 plugins) + 1 legacy (symbion/context/mode sans version)
 
 ---
 
@@ -1051,6 +1057,110 @@ else if p.topic == "symbion/notifications/acknowledge@v1" {
 
 ---
 
+## 🔌 Plugin System Topics
+
+> ✅ **IMPLEMENTED**: Contrat plugin v1.0 — tous les plugins publient manifest/health/events
+>
+> **Source**: `symbion-kernel/src/plugins/contract.rs`
+
+### `symbion/plugins/{plugin_id}/manifest`
+
+**Direction** : Plugin → Kernel
+**QoS** : 1
+**Fréquence** : Au démarrage plugin
+
+**Description** : Enregistrement du manifest plugin (nom, version, capabilities, socket path)
+
+**Plugins actifs** : `notes`, `ssl`, `sensors`, `library`, `telegram`, `freebox`
+
+---
+
+### `symbion/plugins/{plugin_id}/health`
+
+**Direction** : Plugin → Kernel
+**QoS** : 1
+**Fréquence** : Heartbeat périodique (30s)
+
+**Description** : Signal de vie du plugin avec statut santé
+
+---
+
+### `symbion/plugins/{plugin_id}/events`
+
+**Direction** : Plugin → Kernel
+**QoS** : 1
+**Fréquence** : À la demande
+
+**Description** : Événements métier émis par le plugin
+
+---
+
+### `symbion/features/update`
+
+**Direction** : Plugins → Kernel
+**QoS** : 1
+**Fréquence** : Mise à jour features Intelligence v2
+
+**Description** : Signal contextuel pour le moteur d'intelligence (TTL, signal_type, feature_id)
+
+**Utilisé par** : SSL plugin, Library plugin
+
+---
+
+## 🔐 SSL Plugin Topics
+
+> **Source**: `symbion-plugin-ssl/src/mqtt.rs:155-289`
+
+| Topic | Direction | Description |
+|-------|-----------|-------------|
+| `symbion/ssl/{domain_id}` | Plugin → Kernel | Status certificat par domaine |
+| `symbion/ssl/{domain_id}/online` | Plugin → Kernel | Domaine en ligne oui/non |
+| `symbion/ssl/{domain_id}/fingerprint-change` | Plugin → Kernel | Changement de certificat détecté |
+| `symbion/ssl/summary` | Plugin → Kernel | Résumé tous domaines |
+
+---
+
+## 📚 Library Plugin Topics
+
+> **Source**: `symbion-plugin-library/src/mqtt.rs:70-96`
+
+| Topic | Direction | Description |
+|-------|-----------|-------------|
+| `symbion/library/nodes/{event_type}` | Plugin → Kernel | Événements knowledge nodes (create/update/delete) |
+| `symbion/library/links/pending` | Plugin → Kernel | Liens en attente de confirmation |
+
+---
+
+## 📡 Freebox Plugin Topics
+
+> **Source**: `symbion-plugin-freebox/src/mqtt.rs:120-276`
+
+| Topic | Direction | Description |
+|-------|-----------|-------------|
+| `symbion/freebox/presence/{device_id}` | Plugin → Kernel | Détail présence appareil |
+| `symbion/freebox/presence/{device_id}/state` | Plugin → Kernel | État simple home/away |
+| `symbion/freebox/presence/summary` | Plugin → Kernel | Résumé présent/absent |
+| `symbion/freebox/devices/summary` | Plugin → Kernel | Résumé appareils réseau |
+| `symbion/freebox/devices/list` | Plugin → Kernel | Liste complète appareils |
+| `symbion/freebox/connection/status` | Plugin → Kernel | Status connexion internet |
+| `symbion/freebox/connection/metrics` | Plugin → Kernel | Métriques bande passante |
+| `symbion/freebox/downloads/summary` | Plugin → Kernel | Status téléchargements |
+| `symbion/freebox/downloads/active` | Plugin → Kernel | Téléchargements actifs |
+| `symbion/freebox/health` | Plugin → Kernel | Santé plugin |
+
+---
+
+## 🤖 Telegram Plugin Topics
+
+> **Source**: `symbion-plugin-telegram/src/events.rs:23-91`
+
+| Topic | Direction | Description |
+|-------|-----------|-------------|
+| `symbion/plugins/telegram/health` | Plugin → Kernel | Heartbeat plugin |
+| `symbion/plugins/telegram/events` | Plugin → Kernel | Événements Telegram (messages, commandes) |
+
+---
+
 ## 📖 Récapitulatif Topics
 
 ### Topics Actifs (Implémentés)
@@ -1071,12 +1181,12 @@ else if p.topic == "symbion/notifications/acknowledge@v1" {
 | `symbion/dashboard/health@v1` | Kernel → PWA | 1 | 5 min + événements | ✅ |
 | `symbion/dashboard/notes@v1` | Kernel → PWA | 1 | Événements | ✅ |
 | `symbion/dashboard/stats@v1` | Kernel → PWA | 1 | Mise à jour stats | ✅ |
-| `symbion/dashboard/pattern@v1` | Kernel → PWA | 1 | Détection pattern | ✅ |
+| `symbion/dashboard/pattern@v1` | Kernel → PWA | 1 | Détection pattern | ⚠️ Non publié (patterns via Intelligence Engine) |
 | `symbion/kernel/health@v1` | Kernel → Tous | 1 | 5 min | ✅ |
 | `symbion/notifications/acknowledge@v1` | PWA → Kernel | 1 | Événements | ✅ |
 | `symbion/context/mode` | Kernel → Tous | 1 (retain) | Temps réel | ⚠️ No version |
 
-**Total** : 18 topics actifs
+**Core** : 18 topics | **Plugins** : 44 topics | **Total** : 62 topics actifs
 
 ### Topics Planifiés (Non Implémentés)
 
@@ -1147,7 +1257,7 @@ else if p.topic == "symbion/notifications/acknowledge@v1" {
 
 ---
 
-**Dernière mise à jour** : 1 Février 2026 (Sync avec audit documentation)
+**Dernière mise à jour** : 13 Mars 2026 (Audit documentation complet — ajout 44 topics plugins)
 **Fichiers sources** :
 - `symbion-kernel/src/mqtt.rs` (subscriptions Kernel + sensor topics)
 - `symbion-kernel/src/dashboard_events.rs` (6 topics dashboard)

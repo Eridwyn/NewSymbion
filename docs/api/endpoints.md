@@ -2,16 +2,17 @@
 
 > 📍 Documentation exhaustive de l'API Symbion Kernel
 >
-> ✅ **Mise à jour complète (1 Février 2026)**: Documentation 100% synchronisée avec `symbion-kernel/src/http.rs` + Service Discovery
+> ✅ **Mise à jour (13 Mars 2026)**: Audit documentation complet
 >
-> **Endpoints documentés** : 107 endpoints (99 kernel + 8 plugin API)
-> - ✅ Tous les endpoints implémentés sont documentés
-> - ✅ Service Discovery Plugin API (+8 endpoints dynamiques)
-> - ✅ Parameterized routes supportés (`:room_id`, `:id`)
-> - ✅ 3 plugins actifs (sensors, notes, notifications)
+> **Endpoints documentés** : ~178 endpoints (114+ kernel + 13 intelligence + 5 environment + ~50 plugin routes)
+> - ✅ Service Discovery Plugin API (routes dynamiques via Unix socket proxy)
+> - ✅ 7 plugins actifs (sensors, notes, ssl, library, telegram, freebox, common)
 > - ✅ Automations Engine (10 endpoints)
 > - ✅ Modes Dynamiques (6 endpoints)
 > - ✅ Notifications Système (10 endpoints)
+> - ✅ Intelligence Engine (13 endpoints)
+> - ✅ Environment/Sensors (5 endpoints)
+> - ✅ Public Library (GET-only, no auth)
 
 ---
 
@@ -94,6 +95,31 @@ Les endpoints suivants sont **RETIRÉS** de la documentation car non implément�
 **Description** : Téléchargement certificat CA pour TLS
 **Auth** : Non requis
 **Response** : Fichier PEM (`symbion-ca.crt`)
+
+### `GET /swagger-ui/*`
+**Description** : Interface Swagger UI pour exploration API
+**Auth** : Non requis
+**Source** : `symbion-kernel/src/http/mod.rs:447`
+
+### `GET /api-docs/openapi.json`
+**Description** : Spécification OpenAPI JSON
+**Auth** : Non requis
+**Source** : `symbion-kernel/src/openapi.rs`
+
+### `GET /v1/public/library/*`
+**Description** : Proxy lecture seule vers le plugin bibliothèque
+**Auth** : Non requis (public)
+**Méthodes** : GET uniquement (405 pour POST/PUT/DELETE)
+**CORS** : `Access-Control-Allow-Origin: *`
+**Source** : `symbion-kernel/src/plugin_proxy.rs:508-606`
+
+**Sous-routes disponibles** :
+- `GET /v1/public/library/sections` — Liste sections
+- `GET /v1/public/library/nodes?limit=N&offset=N` — Liste nodes
+- `GET /v1/public/library/nodes/{id}` — Détail node
+- `GET /v1/public/library/search?q=...` — Recherche FTS5
+- `GET /v1/public/library/templates` — Liste templates
+- `GET /v1/public/library/graph` — Données graphe
 
 ---
 

@@ -145,7 +145,7 @@ curl -X POST https://localhost:8443/refresh \
 - Algorithme : **SHA1** (standard TOTP)
 - Fenêtre : **30 secondes**
 - Longueur code : **6 chiffres**
-- Backup codes : **3 codes** one-time (format `ABCD-1234`)
+- Backup codes : **10 codes** one-time (format numérique 8 chiffres)
 - Compatible : Google Authenticator, Authy, 1Password
 
 ### Flow Setup MFA
