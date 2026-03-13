@@ -352,7 +352,7 @@ impl PluginRegistry {
 **Socket** : `/tmp/symbion-plugin-notifications.sock`
 **MQTT Topics** : `symbion/notifications/#`
 
-**Fonctionnalité** : Système de notifications multi-canal (ntfy, PWA push)
+**Fonctionnalité** : Système de notifications multi-canal (MQTT → Telegram + PWA push)
 
 **Routes HTTP** :
 - `GET  /notifications` - Liste notifications
@@ -364,7 +364,7 @@ impl PluginRegistry {
 - `symbion/notifications/send@v1` - Envoyer notification (priorité MQTT)
 - `symbion/notifications/status@v1` - État notifications
 
-**Backend** : ntfy.sh (self-hosted recommandé)
+**Backend** : MQTT (notifications relayées vers Telegram avec boutons interactifs)
 
 ---
 
@@ -593,7 +593,7 @@ pub fn spawn_plugin_health_monitor(plugins: Shared<PluginManager>) {
 
 - ✅ **Notes** (F0) : Mémoire externe
 - ✅ **Sensors** (F1) : ESP32 capteurs environnementaux
-- ✅ **Notifications** (F4) : ntfy + PWA push
+- ✅ **Notifications** (F4) : Telegram + PWA push
 
 ### Organes Prochains (Q1 2026)
 

@@ -89,7 +89,7 @@ pub struct AppState {
     pub mode_registry: crate::modes::SharedModeRegistry,
     // Schedule Registry for time-based mode changes
     pub schedule_registry: crate::schedule::SharedScheduleRegistry,
-    // Notifications Manager (FCM, SMTP, ntfy.sh)
+    // Notifications Manager (FCM, SMTP, MQTT→Telegram)
     pub notifications_manager: crate::notifications::SharedNotificationManager,
     // Notification Configuration Manager
     pub notification_config: crate::notification_config::SharedNotificationConfigManager,

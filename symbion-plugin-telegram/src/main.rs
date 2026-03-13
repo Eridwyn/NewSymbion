@@ -10,7 +10,9 @@ use axum::Router;
 use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, QoS};
 use std::time::Duration;
 use symbion_plugin_common::PluginHttpServer;
+use teloxide::payloads::SendMessageSetters;
 use teloxide::prelude::*;
+use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use tokio::signal::unix::{signal, SignalKind};
 
 use crate::actions::{handle_action, health_handler};
@@ -166,7 +168,7 @@ async fn main() {
     println!("[telegram] Stopped.");
 }
 
-/// Forward MQTT notifications to Telegram
+/// Forward MQTT notifications to Telegram with interactive action buttons
 async fn handle_mqtt_message(state: &AppState, topic: &str, payload: &[u8]) {
     // Parse payload
     let json: serde_json::Value = match serde_json::from_slice(payload) {
@@ -174,50 +176,126 @@ async fn handle_mqtt_message(state: &AppState, topic: &str, payload: &[u8]) {
         Err(_) => return,
     };
 
-    let message = match topic {
+    match topic {
         "symbion/notifications/sent@v1" => {
-            // Kernel notification → forward to all allowed users
-            let notif = json.get("notification").unwrap_or(&json);
-            let title = notif.get("title").and_then(|v| v.as_str()).unwrap_or("Notification");
-            let body = notif.get("body").and_then(|v| v.as_str()).unwrap_or("");
-            let priority = notif.get("priority").and_then(|v| v.as_str()).unwrap_or("P2");
-            let source = notif.get("source").and_then(|v| v.as_str()).unwrap_or("symbion");
-
-            let icon = match priority {
-                "P0" => "🚨",
-                "P1" => "⚠️",
-                _ => "ℹ️",
-            };
-
-            Some(format!("{} [{}] {}\n{}\n\n📌 {}", icon, priority, title, body, source))
+            println!("[telegram] Received notification via MQTT");
+            handle_notification(state, &json).await;
         }
         t if t.starts_with("symbion/plugins/") && t.ends_with("/status") => {
-            // Plugin status change
-            let plugin_id = t
-                .strip_prefix("symbion/plugins/")
-                .and_then(|s| s.strip_suffix("/status"))
-                .unwrap_or("?");
-
-            // Only alert on unhealthy/degraded, skip our own status
-            if plugin_id == "telegram" {
-                return;
-            }
-
-            let status = json.get("status").and_then(|v| v.as_str()).unwrap_or("");
-            match status {
-                "unhealthy" | "degraded" => {
-                    let icon = if status == "unhealthy" { "🔴" } else { "🟡" };
-                    Some(format!("{} Plugin {} → {}", icon, plugin_id, status))
-                }
-                _ => None,
-            }
+            handle_plugin_status(state, t, &json).await;
         }
-        _ => None,
+        _ => {}
+    }
+}
+
+/// Handle kernel notification with optional inline action buttons
+async fn handle_notification(state: &AppState, json: &serde_json::Value) {
+    let notif = json.get("notification").unwrap_or(json);
+    let notif_id = notif.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    let title = notif.get("title").and_then(|v| v.as_str()).unwrap_or("Notification");
+    let body = notif.get("body").and_then(|v| v.as_str()).unwrap_or("");
+    let priority = notif.get("priority").and_then(|v| v.as_str()).unwrap_or("P2");
+    let source = notif.get("source").and_then(|v| v.as_str()).unwrap_or("symbion");
+
+    println!("[telegram] Notification: id={}, title={}, actions={}",
+        notif_id, title,
+        notif.get("actions").map(|a| a.to_string()).unwrap_or_else(|| "none".into()));
+
+    let icon = match priority {
+        "P0" => "🚨",
+        "P1" => "⚠️",
+        _ => "ℹ️",
     };
 
-    if let Some(text) = message {
-        for &user_id in &state.config.allowed_user_ids {
-            let _ = state.bot.send_message(ChatId(user_id), &text).await;
+    let text = format!("{} [{}] {}\n{}\n\n📌 {}", icon, priority, title, body, source);
+
+    // Extract actions for inline keyboard
+    let actions = notif.get("actions").and_then(|v| v.as_array());
+    let keyboard = if let Some(actions) = actions {
+        if actions.is_empty() || notif_id.is_empty() {
+            None
+        } else {
+            // Cache notification data for callback resolution
+            state.cache_notification(notif_id, notif.clone());
+
+            let buttons: Vec<InlineKeyboardButton> = actions
+                .iter()
+                .filter_map(|a| {
+                    let action_id = a.get("id").and_then(|v| v.as_str())?;
+                    let label = a.get("label").and_then(|v| v.as_str())?;
+                    let action_type = a.get("action_type");
+
+                    // Choose icon based on action type
+                    let btn_icon = match action_type {
+                        Some(serde_json::Value::String(s)) if s == "Reject" => "❌",
+                        Some(serde_json::Value::String(s)) if s == "Approve" => "✅",
+                        Some(serde_json::Value::String(s)) if s == "Snooze" => "⏰",
+                        Some(serde_json::Value::Object(m)) if m.contains_key("Custom") => "✅",
+                        _ => "▶️",
+                    };
+
+                    // Callback data: notif:{notif_id}:{action_id}
+                    // Telegram limits callback data to 64 bytes, so truncate if needed
+                    let callback = format!("notif:{}:{}", notif_id, action_id);
+                    if callback.len() > 64 {
+                        // Use short hash if too long
+                        let short_id = &notif_id[..notif_id.len().min(20)];
+                        let callback = format!("notif:{}:{}", short_id, action_id);
+                        Some(InlineKeyboardButton::callback(
+                            format!("{} {}", btn_icon, label),
+                            callback,
+                        ))
+                    } else {
+                        Some(InlineKeyboardButton::callback(
+                            format!("{} {}", btn_icon, label),
+                            callback,
+                        ))
+                    }
+                })
+                .collect();
+
+            if buttons.is_empty() {
+                None
+            } else {
+                Some(InlineKeyboardMarkup::new(vec![buttons]))
+            }
         }
+    } else {
+        None
+    };
+
+    // Send to all allowed users
+    for &user_id in &state.config.allowed_user_ids {
+        let msg = state.bot.send_message(ChatId(user_id), &text);
+        if let Some(ref kb) = keyboard {
+            let _ = msg.reply_markup(kb.clone()).await;
+        } else {
+            let _ = msg.await;
+        }
+    }
+}
+
+/// Handle plugin status changes
+async fn handle_plugin_status(state: &AppState, topic: &str, json: &serde_json::Value) {
+    let plugin_id = topic
+        .strip_prefix("symbion/plugins/")
+        .and_then(|s| s.strip_suffix("/status"))
+        .unwrap_or("?");
+
+    if plugin_id == "telegram" {
+        return;
+    }
+
+    let status = json.get("status").and_then(|v| v.as_str()).unwrap_or("");
+    let text = match status {
+        "unhealthy" | "degraded" => {
+            let icon = if status == "unhealthy" { "🔴" } else { "🟡" };
+            format!("{} Plugin {} → {}", icon, plugin_id, status)
+        }
+        _ => return,
+    };
+
+    for &user_id in &state.config.allowed_user_ids {
+        let _ = state.bot.send_message(ChatId(user_id), &text).await;
     }
 }

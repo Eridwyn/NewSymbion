@@ -22,7 +22,7 @@
  *
  * FUTURE :
  * - Logging intentions to F3 Intentions Log
- * - Notifications via F4 (PWA + ntfy)
+ * - Notifications via F4 (PWA + Telegram)
  * - ML prediction patterns (F6+)
  */
 

@@ -34,6 +34,13 @@ pub struct HistoryEntry {
     pub model: String,
 }
 
+/// Cached notification for interactive callbacks
+#[derive(Debug, Clone)]
+pub struct CachedNotification {
+    pub data: serde_json::Value,
+    pub created_at: Instant,
+}
+
 /// Shared application state
 #[derive(Clone)]
 pub struct AppState {
@@ -45,6 +52,8 @@ pub struct AppState {
     pub start_time: Instant,
     /// Per-user interaction history
     history: Arc<DashMap<i64, Vec<HistoryEntry>>>,
+    /// Cached notifications for interactive callbacks (notif_id → data)
+    pub pending_notifs: Arc<DashMap<String, CachedNotification>>,
 }
 
 impl AppState {
@@ -57,6 +66,7 @@ impl AppState {
             user_sessions: Arc::new(DashMap::new()),
             start_time: Instant::now(),
             history: Arc::new(DashMap::new()),
+            pending_notifs: Arc::new(DashMap::new()),
         }
     }
 
@@ -95,5 +105,27 @@ impl AppState {
             .get(&user_id)
             .map(|h| h.clone())
             .unwrap_or_default()
+    }
+
+    /// Store notification for interactive callbacks (auto-expire after 1h)
+    pub fn cache_notification(&self, notif_id: &str, data: serde_json::Value) {
+        // Cleanup expired entries (>1h)
+        let cutoff = Instant::now() - std::time::Duration::from_secs(3600);
+        self.pending_notifs.retain(|_, v| v.created_at > cutoff);
+
+        self.pending_notifs.insert(notif_id.to_string(), CachedNotification {
+            data,
+            created_at: Instant::now(),
+        });
+    }
+
+    /// Get cached notification data
+    pub fn get_cached_notif(&self, notif_id: &str) -> Option<CachedNotification> {
+        self.pending_notifs.get(notif_id).map(|v| v.clone())
+    }
+
+    /// Remove cached notification after action
+    pub fn remove_cached_notif(&self, notif_id: &str) {
+        self.pending_notifs.remove(notif_id);
     }
 }

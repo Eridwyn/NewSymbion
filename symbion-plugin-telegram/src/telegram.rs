@@ -175,7 +175,9 @@ async fn handle_callback(
 
     let msg_id = q.message.as_ref().map(|m| m.id());
 
-    if let Some(node_id) = data.strip_prefix("lib:") {
+    if let Some(rest) = data.strip_prefix("notif:") {
+        handle_notif_callback(&state, &bot, chat_id, msg_id, rest).await;
+    } else if let Some(node_id) = data.strip_prefix("lib:") {
         lib_show_node(&state, &bot, chat_id, msg_id, node_id).await;
     } else if let Some(action) = data.strip_prefix("model:") {
         if matches!(action, "haiku" | "sonnet" | "opus") {
@@ -255,6 +257,115 @@ async fn handle_callback(
     }
 
     Ok(())
+}
+
+// ── Notification Action Handler ──
+
+async fn handle_notif_callback(
+    state: &AppState,
+    bot: &Bot,
+    chat_id: ChatId,
+    msg_id: Option<MessageId>,
+    rest: &str,
+) {
+    // Format: {notif_id}:{action_id}
+    let parts: Vec<&str> = rest.splitn(2, ':').collect();
+    if parts.len() != 2 {
+        return;
+    }
+    let notif_id = parts[0];
+    let action_id = parts[1];
+
+    // Get cached notification data
+    let cached = match state.get_cached_notif(notif_id) {
+        Some(c) => c,
+        None => {
+            if let Some(mid) = msg_id {
+                let _ = bot.edit_message_text(chat_id, mid, "⏰ Notification expirée.").await;
+            }
+            return;
+        }
+    };
+
+    // Find the action in notification data
+    let notif_data = &cached.data;
+    let data_obj = notif_data.get("data");
+
+    // Determine what to do based on action_id and notification data
+    let result_text = match action_id {
+        "apply" => {
+            // Check if it's a mode suggestion
+            if let Some(mode) = data_obj
+                .and_then(|d| d.get("suggested_mode"))
+                .and_then(|v| v.as_str())
+            {
+                // Apply mode via kernel
+                let result = kernel_post(
+                    state,
+                    "/context/override",
+                    &json!({ "mode": mode, "duration_minutes": 480 }),
+                )
+                .await;
+
+                // Acknowledge notification
+                let _ = kernel_post(
+                    state,
+                    &format!("/notifications/{}/acknowledge", notif_id),
+                    &json!({}),
+                )
+                .await;
+
+                format!("✅ Mode → {} (8h)\n{}", mode, result)
+            } else {
+                // Generic approve action
+                let _ = kernel_post(
+                    state,
+                    &format!("/notifications/{}/acknowledge", notif_id),
+                    &json!({}),
+                )
+                .await;
+                "✅ Action appliquée".to_string()
+            }
+        }
+        "dismiss" | "reject" => {
+            // Just acknowledge
+            let _ = kernel_post(
+                state,
+                &format!("/notifications/{}/acknowledge", notif_id),
+                &json!({}),
+            )
+            .await;
+            "❌ Ignoré".to_string()
+        }
+        "snooze" => {
+            // Acknowledge (snooze = just dismiss for now)
+            let _ = kernel_post(
+                state,
+                &format!("/notifications/{}/acknowledge", notif_id),
+                &json!({}),
+            )
+            .await;
+            "⏰ Rappel ignoré".to_string()
+        }
+        _ => {
+            // Unknown action — just acknowledge
+            let _ = kernel_post(
+                state,
+                &format!("/notifications/{}/acknowledge", notif_id),
+                &json!({}),
+            )
+            .await;
+            format!("▶️ Action '{}' exécutée", action_id)
+        }
+    };
+
+    // Remove from cache
+    state.remove_cached_notif(notif_id);
+
+    // Update the message to show result (remove buttons)
+    if let Some(mid) = msg_id {
+        let _ = bot.edit_message_text(chat_id, mid, result_text).await;
+    }
 }
 
 // ── Command Handler ──

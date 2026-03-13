@@ -81,7 +81,7 @@ fn notifications_file() -> String {
     format!("{}/notifications.json", base)
 }
 
-/// Manager de notifications avec Firebase FCM + Email SMTP + ntfy.sh + MQTT
+/// Manager de notifications avec Firebase FCM + Email SMTP + MQTT (→ Telegram)
 pub struct NotificationManager {
     /// Tokens FCM enregistrés (user_id -> token)
     fcm_tokens: Arc<Mutex<HashMap<String, FcmToken>>>,
@@ -93,13 +93,7 @@ pub struct NotificationManager {
     fcm_server_key: Option<String>,
     /// Configuration Email SMTP
     smtp_config: Option<SmtpConfig>,
-    /// TEMPORAIRE: ntfy.sh topic en attendant l'app Symbion native
-    ntfy_topic: Option<String>,
-    /// URL externe Symbion pour les callbacks ntfy
-    external_url: Option<String>,
-    /// API key pour les callbacks ntfy
-    api_key: Option<String>,
-    /// Client MQTT pour publier vers PWA dashboard
+    /// Client MQTT pour publier vers PWA dashboard + Telegram
     mqtt_client: Option<AsyncClient>,
     /// Rate limiting: (source -> (last_reset, count))
     rate_limits: Arc<Mutex<HashMap<String, (Instant, u32)>>>,
@@ -154,24 +148,12 @@ impl NotificationManager {
             None
         };
 
-        // ntfy.sh configuration (temporary solution for mobile push)
-        let ntfy_topic = std::env::var("SYMBION_NTFY_TOPIC").ok();
-        if let Some(ref topic) = ntfy_topic {
-            println!("[notifications] ntfy.sh enabled - topic: {}", topic);
-        }
-
-        let external_url = std::env::var("SYMBION_EXTERNAL_URL").ok();
-        let api_key = std::env::var("SYMBION_API_KEY").ok();
-        if external_url.is_some() && api_key.is_some() {
-            println!("[notifications] ntfy.sh action buttons enabled");
-        }
-
         // Load persisted notifications
         let history = Self::load_from_file();
         let history_count = history.len();
 
         if mqtt_client.is_some() {
-            println!("[notifications] MQTT publishing enabled for PWA toasts");
+            println!("[notifications] MQTT publishing enabled for PWA + Telegram");
         }
 
         let manager = Self {
@@ -180,9 +162,6 @@ impl NotificationManager {
             history: Arc::new(Mutex::new(history)),
             fcm_server_key,
             smtp_config,
-            ntfy_topic,
-            external_url,
-            api_key,
             mqtt_client,
             rate_limits: Arc::new(Mutex::new(HashMap::new())),
             recent_hashes: Arc::new(Mutex::new(Vec::new())),
@@ -418,13 +397,6 @@ impl NotificationManager {
             eprintln!("[notifications] FCM send failed: {}", e);
         }
 
-        // TEMPORAIRE: Envoyer P0/P1 vers ntfy.sh en attendant l'app Symbion native
-        if notif.priority == NotificationPriority::P0 || notif.priority == NotificationPriority::P1 {
-            if let Err(e) = self.send_ntfy(&notif).await {
-                eprintln!("[notifications] ntfy.sh failed: {}", e);
-            }
-        }
-
         // P0 = email immédiat (alerte critique)
         if notif.priority == NotificationPriority::P0 {
             if let Err(e) = self.send_email(&notif).await {
@@ -443,7 +415,6 @@ impl NotificationManager {
                     if !self_clone.is_acknowledged(&notif_id) {
                         println!("[notifications] P0 retry after 5min: {}", notif_id);
                         let _ = self_clone.send_fcm(&notif).await;
-                        let _ = self_clone.send_ntfy(&notif).await;
                         let _ = self_clone.send_email(&notif).await;
                     }
                 });
@@ -457,82 +428,12 @@ impl NotificationManager {
                     if !self_clone.is_acknowledged(&notif_id) {
                         println!("[notifications] P1 retry after 15min: {}", notif_id);
                         let _ = self_clone.send_fcm(&notif).await;
-                        let _ = self_clone.send_ntfy(&notif).await;
                     }
                 });
             }
             NotificationPriority::P2 => {
                 // P2: best effort, pas de retry
             }
-        }
-
-        Ok(())
-    }
-
-    /// Sanitize header value to prevent HTTP header injection
-    fn sanitize_header(value: &str) -> String {
-        value
-            .replace('\n', " ")
-            .replace('\r', " ")
-            .replace('\0', "")
-            .trim()
-            .to_string()
-    }
-
-    /// Envoie notification via ntfy.sh (solution temporaire)
-    async fn send_ntfy(&self, notif: &Notification) -> Result<(), Box<dyn std::error::Error>> {
-        let topic = match &self.ntfy_topic {
-            Some(t) => t.clone(),
-            None => return Ok(()),
-        };
-
-        println!("[notifications] sending ntfy.sh to topic: {}", topic);
-
-        // Priority mapping pour ntfy
-        let priority = match notif.priority {
-            NotificationPriority::P0 => "5", // max
-            NotificationPriority::P1 => "4", // high
-            NotificationPriority::P2 => "3", // default
-        };
-
-        let url = format!("https://ntfy.sh/{}", topic);
-        let client = reqwest::Client::new();
-
-        // Sanitize user-controlled values for HTTP headers
-        let safe_title = Self::sanitize_header(&notif.title);
-
-        let mut request = client
-            .post(&url)
-            .header("Title", &safe_title)
-            .header("Priority", priority)
-            .header("Tags", match notif.priority {
-                NotificationPriority::P0 => "rotating_light,warning",
-                NotificationPriority::P1 => "bell,warning",
-                NotificationPriority::P2 => "bell",
-            });
-
-        // Add action buttons if external URL and API key are configured
-        if let (Some(ext_url), Some(api_key)) = (&self.external_url, &self.api_key) {
-            // Sanitize notification ID in URL to prevent injection
-            let safe_id = Self::sanitize_header(&notif.id);
-            let ack_url = format!("{}/v1/notifications/{}/acknowledge?api_key={}", ext_url, safe_id, api_key);
-            request = request.header("Actions", format!("http, Acquitter, {}, clear=true", ack_url));
-        }
-
-        // Sanitize body as well
-        let safe_body = Self::sanitize_header(&notif.body);
-        let response = request
-            .body(safe_body)
-            .timeout(Duration::from_secs(10))
-            .send()
-            .await?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await?;
-            eprintln!("[notifications] ntfy.sh failed: {} - {}", status, body);
-        } else {
-            println!("[notifications] ntfy.sh sent successfully");
         }
 
         Ok(())
