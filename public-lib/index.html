@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Symbion — Bibliothèque</title>
+  <link rel="icon" href="/favicon-transparent.png">
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --lib-bg: #0d1712;
+      --lib-surface: #131f1a;
+      --lib-surface-hover: #1a2b24;
+      --lib-surface-raised: #1e3028;
+      --lib-border: #2d4a3a;
+      --lib-border-subtle: #243830;
+      --lib-accent: #6ecb8b;
+      --lib-accent-hover: #85d9a0;
+      --lib-accent-dim: #3d8a5c;
+      --lib-text: #d8e8dc;
+      --lib-text-secondary: #9ab8a4;
+      --lib-text-muted: #5a7d68;
+      --lib-paper: #111e18;
+      --lib-paper-light: #182820;
+      --lib-leather: #2a5040;
+      --lib-leather-dark: #1a3828;
+      --lib-green: #5cb87a;
+      --lib-green-dim: rgba(92, 184, 122, 0.15);
+      --lib-red: #d06858;
+      --lib-amber: #d4a84a;
+      --lib-gold: #c8a46e;
+    }
+
+    body {
+      font-family: 'Georgia', 'Times New Roman', serif;
+      background: var(--lib-bg);
+      background-image:
+        radial-gradient(ellipse at 15% 10%, rgba(40, 100, 70, 0.12) 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 90%, rgba(30, 80, 55, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(20, 60, 40, 0.05) 0%, transparent 70%);
+      color: var(--lib-text);
+      min-height: 100vh;
+      line-height: 1.5;
+      overflow: hidden;
+    }
+
+    /* ── Layout ── */
+    .layout {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    /* ── Top Bar ── */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      padding: 0.7rem 1rem;
+      background: var(--lib-surface);
+      border-bottom: 1px solid var(--lib-border-subtle);
+      flex-shrink: 0;
+    }
+
+    .top-bar .menu-btn {
+      background: none;
+      border: 1px solid var(--lib-border);
+      color: var(--lib-accent);
+      border-radius: 6px;
+      padding: 0.35rem 0.7rem;
+      cursor: pointer;
+      font-size: 1em;
+      transition: all 0.2s;
+    }
+    .top-bar .menu-btn:hover { background: var(--lib-surface-hover); }
+
+    .top-bar h2 {
+      margin: 0;
+      font-size: 1.1em;
+      font-weight: 700;
+      color: var(--lib-accent);
+      white-space: nowrap;
+    }
+
+    .top-bar .stats {
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 0.72em;
+      color: var(--lib-text-muted);
+      margin-left: 0.5rem;
+    }
+
+    .search-trigger {
+      flex: 1;
+      max-width: 400px;
+      position: relative;
+    }
+    .search-trigger input {
+      width: 100%;
+      padding: 0.45rem 0.8rem 0.45rem 2rem;
+      background: var(--lib-paper);
+      border: 1px solid var(--lib-border);
+      border-radius: 20px;
+      color: var(--lib-text);
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 0.82em;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+      cursor: pointer;
+    }
+    .search-trigger input:focus { outline: none; border-color: var(--lib-accent); }
+    .search-trigger input::placeholder { color: var(--lib-text-muted); }
+    .search-trigger::before {
+      content: '\1F50D';
+      position: absolute;
+      left: 0.65rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.75em;
+      pointer-events: none;
+    }
+
+    .top-badge {
+      margin-left: auto;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 0.68em;
+      padding: 0.25rem 0.7rem;
+      border-radius: 12px;
+      background: rgba(110, 203, 139, 0.1);
+      border: 1px solid rgba(110, 203, 139, 0.2);
+      color: var(--lib-accent);
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Content ── */
+    .content {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 200px;
+      flex-shrink: 0;
+      background: var(--lib-surface);
+      border-right: 1px solid var(--lib-border-subtle);
+      overflow-y: auto;
+      padding: 0.6rem 0;
+      transition: width 0.3s ease;
+    }
+    .sidebar.collapsed { width: 0; padding: 0; overflow: hidden; }
+
+    .sidebar-section {
+      margin-top: 0.8rem;
+      padding: 0 0.8rem;
+      font-size: 0.65em;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--lib-text-muted);
+      margin-bottom: 0.3rem;
+    }
+
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.45rem 0.8rem;
+      cursor: pointer;
+      font-size: 0.82em;
+      color: var(--lib-text-secondary);
+      transition: all 0.15s;
+      border-left: 3px solid transparent;
+    }
+    .sidebar-item:hover { background: var(--lib-surface-hover); color: var(--lib-text); }
+    .sidebar-item.active { background: rgba(110,203,139,0.08); color: var(--lib-accent); border-left-color: var(--lib-accent); }
+    .sidebar-item.aisle { font-weight: 600; color: var(--lib-text); font-size: 0.85em; }
+    .sidebar-item.shelf { padding-left: 1.6rem; font-size: 0.78em; }
+    .sidebar-item .count { margin-left: auto; font-size: 0.7em; color: var(--lib-text-muted); }
+
+    /* ── Canvas (hex map) ── */
+    .canvas {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .canvas svg { max-height: 100%; }
+
+    .hex-aisle, .hex-shelf, .hex-center { cursor: pointer; }
+    .hex-aisle:hover polygon {
+      filter: drop-shadow(0 0 14px var(--hover-glow, rgba(110, 203, 139, 0.45)));
+      fill-opacity: 0.2 !important;
+    }
+    .hex-aisle:hover .hex-label { fill: #e0f0e4 !important; }
+    .hex-aisle:hover .hex-count { fill: #b0d8b8 !important; }
+    .hex-shelf:hover polygon {
+      filter: drop-shadow(0 0 10px var(--hover-glow, rgba(110, 203, 139, 0.35)));
+      fill-opacity: 0.18 !important;
+    }
+    .hex-shelf:hover .hex-label { fill: #e0f0e4 !important; }
+    .hex-center:hover polygon {
+      filter: drop-shadow(0 0 16px rgba(110, 203, 139, 0.5));
+      fill: rgba(20, 50, 35, 0.95) !important;
+    }
+
+    @keyframes shelfAppear {
+      from { opacity: 0; transform: translateY(8px) scale(0.8); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .shelf-group { animation: shelfAppear 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 0.3; stroke-width: 0.5; }
+      50% { opacity: 0.7; stroke-width: 1.2; }
+    }
+
+    @keyframes breatheGlow {
+      0%, 100% { r: 65; opacity: 0.6; }
+      50% { r: 72; opacity: 1; }
+    }
+
+    @keyframes flowDash { to { stroke-dashoffset: -24; } }
+    .edge-flow { animation: flowDash 1.2s linear infinite; }
+
+    @keyframes flowDashSlow { to { stroke-dashoffset: -32; } }
+    .edge-flow-slow { animation: flowDashSlow 2s linear infinite; }
+
+    @keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* ── Node list overlay ── */
+    .node-list {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      max-height: 40%;
+      background: linear-gradient(to top, var(--lib-surface) 80%, transparent);
+      padding: 1.2rem 1.5rem 1rem;
+      overflow-y: auto;
+      animation: slideUp 0.3s ease-out;
+    }
+    .node-list h4 {
+      margin: 0 0 0.6rem;
+      font-size: 0.9em;
+      color: var(--lib-text-secondary);
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+    .node-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .node-chip {
+      background: var(--lib-paper);
+      border: 1px solid var(--lib-border);
+      border-radius: 6px;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.82em;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--lib-text);
+    }
+    .node-chip:hover { border-color: var(--lib-accent); background: var(--lib-surface-hover); transform: translateY(-1px); }
+    .node-chip .chip-meta { font-size: 0.7em; color: var(--lib-text-muted); margin-top: 0.15rem; }
+
+    /* ── Panel (slide-in from right) ── */
+    .panel-overlay {
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: min(480px, 100%);
+      background: var(--lib-bg);
+      border-left: 1px solid var(--lib-border);
+      box-shadow: -4px 0 24px rgba(0, 0, 0, 0.4);
+      overflow-y: auto;
+      animation: panelSlideIn 0.3s ease-out;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+    }
+    @keyframes panelSlideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.8rem 1rem;
+      border-bottom: 1px solid var(--lib-border-subtle);
+      flex-shrink: 0;
+    }
+    .panel-header h3 {
+      margin: 0; flex: 1;
+      font-size: 1em;
+      color: var(--lib-text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .panel-close {
+      background: none;
+      border: none;
+      color: var(--lib-text-muted);
+      cursor: pointer;
+      font-size: 1.2em;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+    .panel-close:hover { color: var(--lib-text); background: var(--lib-surface-hover); }
+
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+    }
+
+    .desk-meta {
+      font-size: 0.78em;
+      color: var(--lib-text-muted);
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      margin-bottom: 0.6rem;
+    }
+
+    .tags-row { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.6rem; }
+    .tag {
+      background: rgba(110, 203, 139, 0.1);
+      color: var(--lib-accent);
+      padding: 0.18rem 0.55rem;
+      border-radius: 4px;
+      font-size: 0.73em;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      border: 1px solid rgba(110, 203, 139, 0.2);
+    }
+
+    .template-preview {
+      margin-top: 0.8rem;
+      padding: 1.2rem;
+      background: linear-gradient(160deg, #0f1a14 0%, #0a1410 100%);
+      border: 1px solid var(--lib-border);
+      border-radius: 8px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+      overflow: hidden;
+    }
+    .template-preview > style { display: none; }
+    .tpl-scope { max-width: 520px; margin: 0 auto; }
+
+    .content-preview {
+      background: var(--lib-paper);
+      border: 1px solid var(--lib-border-subtle);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 0.8rem;
+      white-space: pre-wrap;
+      font-size: 0.88em;
+      line-height: 1.6;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .connection-card {
+      background: var(--lib-surface);
+      border: 1px solid var(--lib-border-subtle);
+      border-radius: 6px;
+      padding: 0.5rem 0.7rem;
+      display: flex; align-items: center; gap: 0.4rem;
+      transition: all 0.2s;
+      font-size: 0.85em;
+      cursor: pointer;
+    }
+    .connection-card:hover { border-color: var(--lib-accent-dim); background: var(--lib-surface-hover); }
+    .conn-title { flex: 1; }
+    .relation-badge {
+      font-size: 0.7em;
+      padding: 0.1rem 0.35rem;
+      background: rgba(110, 203, 139, 0.1);
+      border: 1px solid rgba(110, 203, 139, 0.2);
+      border-radius: 3px;
+      color: var(--lib-accent);
+    }
+
+    .view-badge {
+      font-size: 0.65em; padding: 0.1rem 0.35rem;
+      background: rgba(110, 203, 139, 0.1);
+      border: 1px solid rgba(110, 203, 139, 0.2);
+      border-radius: 10px; color: var(--lib-accent);
+      margin-left: 0.3rem; vertical-align: middle;
+    }
+
+    .detail-meta {
+      margin-top: 1rem;
+      text-align: center;
+      font-size: 0.72em;
+      color: var(--lib-text-muted);
+      padding-top: 0.8rem;
+      border-top: 1px solid var(--lib-border-subtle);
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    /* Fallback fields */
+    .fields-list { margin-top: 0.5rem; }
+    .field-row {
+      display: flex; gap: 0.8rem; padding: 0.55rem 0;
+      border-bottom: 1px solid var(--lib-border-subtle);
+      font-size: 0.82rem; align-items: flex-start;
+    }
+    .field-row:last-child { border-bottom: none; }
+    .field-label {
+      color: var(--lib-accent-dim);
+      min-width: 110px; text-transform: capitalize;
+      font-size: 0.7rem; letter-spacing: 0.06em;
+      padding-top: 0.1rem; font-weight: 600;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+    .field-value { color: var(--lib-text); flex: 1; line-height: 1.5; }
+    .field-tags { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    .field-tag {
+      background: rgba(110, 203, 139, 0.08);
+      border: 1px solid rgba(110, 203, 139, 0.2);
+      color: var(--lib-accent);
+      padding: 0.12rem 0.5rem;
+      border-radius: 10px; font-size: 0.68rem;
+    }
+
+    /* ── Search overlay ── */
+    .search-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(8, 16, 12, 0.75);
+      z-index: 50;
+      display: flex;
+      justify-content: center;
+      padding-top: 15vh;
+      animation: fadeIn 0.15s ease-out;
+    }
+    .search-modal {
+      background: var(--lib-surface);
+      border: 1px solid var(--lib-border);
+      border-radius: 12px;
+      width: min(500px, 90%);
+      max-height: 60vh;
+      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .search-modal input {
+      width: 100%;
+      padding: 1rem 1.2rem;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--lib-border-subtle);
+      color: var(--lib-text);
+      font-family: 'Georgia', serif;
+      font-size: 1.1em;
+      box-sizing: border-box;
+    }
+    .search-modal input:focus { outline: none; }
+    .search-results {
+      overflow-y: auto;
+      padding: 0.5rem;
+    }
+    .search-result-item {
+      padding: 0.6rem 0.8rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .search-result-item:hover { background: var(--lib-surface-hover); }
+    .search-result-item .result-title { font-weight: 600; font-size: 0.9em; }
+    .search-result-item .result-meta { font-size: 0.72em; color: var(--lib-text-muted); font-family: sans-serif; }
+    .search-result-item .result-snippet { font-size: 0.7em; color: var(--lib-text-muted); margin-top: 0.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .empty {
+      text-align: center;
+      padding: 2rem 1rem;
+      color: var(--lib-text-muted);
+      font-style: italic;
+      font-size: 0.9em;
+    }
+    .loading-text {
+      text-align: center;
+      padding: 4rem 1rem;
+      color: var(--lib-text-muted);
+    }
+
+    /* ── Mobile ── */
+    @media (max-width: 768px) {
+      .sidebar { width: 0; padding: 0; overflow: hidden; }
+      .sidebar.open { width: 220px; position: absolute; z-index: 20; height: 100%; box-shadow: 4px 0 20px rgba(0,0,0,0.5); }
+      .panel-overlay { width: 100%; }
+      .top-bar h2 { display: none; }
+      .top-bar .stats { display: none; }
+      .node-list { max-height: 50%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout" id="app">
+    <div class="loading-text">Chargement de la bibliothèque...</div>
+  </div>
+
+  <script>
+    // ═══════════════════════════════════════════
+    // Symbion Public Library — Hex Map Read-Only
+    // ═══════════════════════════════════════════
+
+    const API = '/v1/public/library';
+
+    // ── State ──
+    let graphData = null;
+    let sections = [];
+    let templates = [];
+    let templateMap = {};
+    let selectedAisle = null;
+    let selectedSection = null;
+    let sectionNodes = [];
+    let deskData = null;
+    let showPanel = false;
+    let showSearch = false;
+    let searchResults = [];
+    let searchTimeout = null;
+    let sidebarOpen = window.innerWidth > 768;
+
+    // ── API ──
+    async function api(path) {
+      const res = await fetch(`${API}${path}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+
+    // ── Init ──
+    async function init() {
+      try {
+        const [gd, sd, td] = await Promise.all([
+          api('/graph'),
+          api('/sections'),
+          api('/templates'),
+        ]);
+        graphData = gd;
+        sections = sd.sections || [];
+        templates = td.templates || [];
+        templates.forEach(t => templateMap[t.id] = t);
+        render();
+      } catch (e) {
+        document.getElementById('app').innerHTML = `
+          <div class="empty" style="padding-top:20vh;">
+            <div style="font-size:3rem;margin-bottom:0.8rem;opacity:0.5;">📚</div>
+            <p>Bibliothèque indisponible</p>
+            <p style="font-size:0.72rem;margin-top:0.5rem;opacity:0.6">${esc(e.message)}</p>
+          </div>`;
+      }
+    }
+
+    // ── Helpers ──
+    function esc(str) {
+      const d = document.createElement('div');
+      d.textContent = str || '';
+      return d.innerHTML;
+    }
+
+    function safeColor(color) {
+      if (!color) return '#6ecb8b';
+      if (/^#([0-9a-f]{3,8})$/i.test(color)) return color;
+      if (/^(rgb|hsl)a?\([^)]+\)$/i.test(color)) return color;
+      if (/^[a-z]{3,20}$/i.test(color)) return color;
+      return '#6ecb8b';
+    }
+
+    function hexPoints(cx, cy, r) {
+      const pts = [];
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i - Math.PI / 6;
+        pts.push(`${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`);
+      }
+      return pts.join(' ');
+    }
+
+    function buildSectionPath(secs) {
+      if (!secs?.length) return '';
+      return secs.map(s => {
+        const parent = sections.find(p => p.id === s.parent_id);
+        return parent ? `${parent.name} › ${s.name}` : s.name;
+      }).join(' · ');
+    }
+
+    function sanitizeCSS(cssText) {
+      if (!cssText) return '';
+      return cssText
+        .replace(/@import\b[^;]*;?/gi, '')
+        .replace(/url\s*\([^)]*\)/gi, '')
+        .replace(/expression\s*\([^)]*\)/gi, '')
+        .replace(/javascript\s*:/gi, '');
+    }
+
+    // ── Template rendering ──
+    function renderTemplateHtml(node, fields, template) {
+      if (!template?.preview_html || !fields) return null;
+      let compiled = template.preview_html;
+      const fieldTypes = {};
+      if (Array.isArray(template.structure)) {
+        for (const f of template.structure) { if (f.name) fieldTypes[f.name] = f.type; }
+      }
+      for (const [key, value] of Object.entries(fields)) {
+        if (key === 'ingredients' && Array.isArray(value) && value.length && value[0]?.nom) {
+          const h = value.map(i => `<div class="ing-item"><span class="ing-name">${esc(i.nom)}</span><span class="ing-qty">${esc(i.quantite || '')}</span></div>`).join('');
+          compiled = compiled.replaceAll('{{ingredients_display}}', h);
+          compiled = compiled.replaceAll(`{{${key}}}`, value.map(i => `${i.quantite} ${i.nom}`).join(', '));
+          continue;
+        }
+        if (key === 'etapes' && Array.isArray(value) && value.length && value[0]?.titre) {
+          const h = value.map(e => `<div class="step"><div class="step-title"><span class="step-num">${e.num || ''}</span>${esc(e.titre)}</div><div class="step-body">${esc(e.description || '')}</div></div>`).join('');
+          compiled = compiled.replaceAll('{{etapes_display}}', h);
+          compiled = compiled.replaceAll(`{{${key}}}`, value.map(e => `${e.num}. ${e.titre}`).join(', '));
+          continue;
+        }
+        if (key === 'ustensiles' && Array.isArray(value)) {
+          compiled = compiled.replaceAll(`{{${key}_tags}}`, value.map(u => `<span class="ust-tag">${esc(u)}</span>`).join(''));
+          compiled = compiled.replaceAll(`{{${key}}}`, value.join(', '));
+          continue;
+        }
+        if (key === 'infos' && typeof value === 'object' && !Array.isArray(value)) {
+          const pills = [];
+          if (value.portions) pills.push(`<span class="info-pill">${esc(String(value.portions))} pers.</span>`);
+          if (value.temps_prep) pills.push(`<span class="info-pill">Prep ${esc(value.temps_prep)}</span>`);
+          if (value.temps_cuisson) pills.push(`<span class="info-pill">Cuisson ${esc(value.temps_cuisson)}</span>`);
+          if (value.difficulte) pills.push(`<span class="info-pill">${esc(value.difficulte)}</span>`);
+          compiled = compiled.replaceAll('{{infos_display}}', pills.join(''));
+          compiled = compiled.replaceAll(`{{${key}}}`, Object.values(value).join(', '));
+          continue;
+        }
+        if (key === 'composition' && Array.isArray(value) && value.length && value[0]?.epice) {
+          const h = value.map(c => {
+            const pct = parseInt(c.proportion) || 0;
+            const barW = Math.max(8, pct * 1.2);
+            const roleClass = c.role === 'dominante' ? ' dominante' : c.role === 'surprise' ? ' surprise' : '';
+            return `<div class="compo-item"><div class="compo-bar" style="width:${barW}px"></div><span class="compo-name">${esc(c.epice)}</span><span class="compo-role${roleClass}">${esc(c.role || '')}</span><span class="compo-pct">${esc(c.proportion || '')}</span></div>`;
+          }).join('');
+          compiled = compiled.replaceAll('{{composition_display}}', h);
+          compiled = compiled.replaceAll(`{{${key}}}`, value.map(c => `${c.epice} (${c.proportion})`).join(', '));
+          continue;
+        }
+        if (Array.isArray(value)) {
+          compiled = compiled.replaceAll(`{{${key}_tags}}`, value.map(a => `<span class="assoc-tag">${esc(a)}</span>`).join(''));
+          compiled = compiled.replaceAll(`{{${key}}}`, value.map(a => esc(a)).join(', '));
+          continue;
+        }
+        if (key === 'intensite') {
+          const numVal = typeof value === 'number' ? value : parseInt(value, 10);
+          if (!isNaN(numVal)) {
+            const clamped = Math.max(0, Math.min(5, numVal));
+            const filledStyle = 'display:inline-block;width:13px;height:13px;border-radius:50%;background:#6ecb8b;border:1.5px solid #6ecb8b;box-shadow:0 0 6px rgba(110,203,139,0.4);margin-right:4px;vertical-align:middle;';
+            const emptyStyle = 'display:inline-block;width:13px;height:13px;border-radius:50%;background:rgba(110,203,139,0.1);border:1.5px solid #3d8a5c;margin-right:4px;vertical-align:middle;';
+            const dots = Array.from({ length: 5 }, (_, i) => `<span style="${i < clamped ? filledStyle : emptyStyle}"></span>`).join('');
+            compiled = compiled.replaceAll('{{intensite_dots}}', dots);
+            compiled = compiled.replaceAll('{{intensite_label}}', ['', 'Très doux', 'Doux', 'Moyen', 'Intense', 'Très intense'][clamped] || '');
+          }
+        }
+        const isHtmlContent = fieldTypes[key] === 'textarea' && typeof value === 'string' && value.includes('<');
+        compiled = compiled.replaceAll(`{{${key}}}`, isHtmlContent ? value : (typeof value === 'string' ? esc(value) : String(value)));
+      }
+      compiled = compiled.replaceAll('{{title}}', esc(node.title)).replace(/\{\{[^}]+\}\}/g, '');
+      return compiled;
+    }
+
+    // ── Hex Map SVG ──
+    function renderHexMapSVG() {
+      const aisles = graphData?.sections || [];
+      const interEdges = graphData?.inter_section_edges || [];
+      const CX = 300, CY = 300;
+      const AISLE_R = 145, HEX_R = 55;
+      const SHELF_R = 240, SHELF_HEX_R = 38;
+      const n = Math.max(aisles.length, 1);
+      const totalNodes = aisles.reduce((s, a) => s + (a.node_count || 0), 0);
+      const maxNodes = Math.max(1, ...aisles.map(a => a.node_count || 0));
+
+      const aislePos = aisles.map((a, i) => {
+        const angle = (2 * Math.PI / n) * i - Math.PI / 2;
+        return { id: a.section.id, x: CX + AISLE_R * Math.cos(angle), y: CY + AISLE_R * Math.sin(angle), color: safeColor(a.section.color), section: a };
+      });
+
+      // Inter-section edges
+      const interLinks = [];
+      for (const edge of interEdges) {
+        const findAisle = (nodeId) => {
+          for (const ap of aislePos) {
+            if (ap.section.node_ids?.includes(nodeId)) return ap;
+            for (const child of (ap.section.children || [])) {
+              if (child.node_ids?.includes(nodeId)) return ap;
+            }
+          }
+          return null;
+        };
+        const from = findAisle(edge.node_from), to = findAisle(edge.node_to);
+        if (from && to && from.id !== to.id) {
+          const key = [from.id, to.id].sort().join('-');
+          const existing = interLinks.find(l => l.key === key);
+          if (existing) existing.count++;
+          else interLinks.push({ key, from, to, count: 1 });
+        }
+      }
+
+      let svgContent = '';
+
+      // Defs
+      svgContent += `<defs>
+        <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="rgba(110,203,139,0.25)"/>
+          <stop offset="40%" stop-color="rgba(110,203,139,0.08)"/>
+          <stop offset="100%" stop-color="rgba(110,203,139,0)"/>
+        </radialGradient>
+        <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="rgba(40,100,70,0.06)"/>
+          <stop offset="100%" stop-color="transparent"/>
+        </radialGradient>
+        <filter id="neonGlow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur1"/>
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur2"/>
+          <feMerge><feMergeNode in="blur1"/><feMergeNode in="blur2"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="particleGlow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>`;
+
+      // Aisle gradients
+      aisles.forEach((a, i) => {
+        const c = safeColor(a.section.color);
+        svgContent += `
+          <radialGradient id="aisleGlow${i}" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="${c}" stop-opacity="0.18"/>
+            <stop offset="70%" stop-color="${c}" stop-opacity="0.04"/>
+            <stop offset="100%" stop-color="${c}" stop-opacity="0"/>
+          </radialGradient>`;
+      });
+
+      // Edge gradients
+      aislePos.forEach((ap, i) => {
+        svgContent += `
+          <linearGradient id="edgeGrad${i}" gradientUnits="userSpaceOnUse"
+            x1="${CX}" y1="${CY}" x2="${ap.x}" y2="${ap.y}">
+            <stop offset="0%" stop-color="rgba(110,203,139,0.1)"/>
+            <stop offset="40%" stop-color="${ap.color}" stop-opacity="0.5"/>
+            <stop offset="100%" stop-color="${ap.color}" stop-opacity="0.2"/>
+          </linearGradient>`;
+      });
+
+      // Inter-section edge gradients
+      interLinks.forEach((link, i) => {
+        svgContent += `
+          <linearGradient id="interGrad${i}" gradientUnits="userSpaceOnUse"
+            x1="${link.from.x}" y1="${link.from.y}" x2="${link.to.x}" y2="${link.to.y}">
+            <stop offset="0%" stop-color="${link.from.color}" stop-opacity="0.6"/>
+            <stop offset="50%" stop-color="#fff" stop-opacity="0.15"/>
+            <stop offset="100%" stop-color="${link.to.color}" stop-opacity="0.6"/>
+          </linearGradient>`;
+      });
+
+      svgContent += '</defs>';
+
+      // Background
+      svgContent += `<circle cx="${CX}" cy="${CY}" r="295" fill="url(#bgGlow)"/>`;
+
+      // Orbital rings
+      [80, AISLE_R, SHELF_R].forEach((r, ri) => {
+        svgContent += `<circle cx="${CX}" cy="${CY}" r="${r}" fill="none"
+          stroke="rgba(110,203,139,${ri === 1 ? 0.08 : 0.04})"
+          stroke-width="${ri === 1 ? 0.8 : 0.5}"
+          stroke-dasharray="${ri === 0 ? '2,8' : ri === 1 ? '4,8' : '3,10'}"/>`;
+      });
+
+      // Radial web lines
+      aisles.forEach((_, i) => {
+        const angle = (2 * Math.PI / n) * i - Math.PI / 2;
+        const ex = CX + 275 * Math.cos(angle), ey = CY + 275 * Math.sin(angle);
+        svgContent += `<line x1="${CX}" y1="${CY}" x2="${ex}" y2="${ey}" stroke="rgba(110,203,139,0.03)" stroke-width="0.5"/>`;
+      });
+
+      // Inter-section edges
+      interLinks.forEach((link, i) => {
+        const mx = (link.from.x + link.to.x) / 2, my = (link.from.y + link.to.y) / 2;
+        const distFromCenter = Math.sqrt((mx - CX) ** 2 + (my - CY) ** 2);
+        const pushOut = distFromCenter < 60 ? 50 : 25;
+        const normX = (mx - CX) / (distFromCenter || 1), normY = (my - CY) / (distFromCenter || 1);
+        const cx1 = mx + normX * pushOut, cy1 = my + normY * pushOut;
+        const pathD = `M${link.from.x},${link.from.y} Q${cx1},${cy1} ${link.to.x},${link.to.y}`;
+        const w = Math.min(3, 1 + link.count * 0.5);
+        svgContent += `
+          <path d="${pathD}" fill="none" stroke="url(#interGrad${i})" stroke-width="${w}" stroke-linecap="round" opacity="0.5"/>
+          <path id="inter${i}" d="${pathD}" fill="none" stroke="url(#interGrad${i})" stroke-width="${w}" stroke-linecap="round" stroke-dasharray="6 18" class="edge-flow-slow" opacity="0.7"/>
+          <circle r="2.5" fill="${link.from.color}" opacity="0.8" filter="url(#particleGlow)">
+            <animateMotion dur="3s" begin="0s" repeatCount="indefinite"><mpath href="#inter${i}"/></animateMotion>
+          </circle>
+          <circle r="1.8" fill="${link.to.color}" opacity="0.5" filter="url(#particleGlow)">
+            <animateMotion dur="4s" begin="1.5s" repeatCount="indefinite"><mpath href="#inter${i}"/></animateMotion>
+          </circle>
+          ${link.count > 1 ? `<text x="${cx1}" y="${cy1 - 6}" text-anchor="middle" fill="rgba(220,240,225,0.5)" font-size="7" font-family="sans-serif" style="pointer-events:none;">${link.count} liens</text>` : ''}`;
+      });
+
+      // Center → Aisle connections
+      aislePos.forEach((ap, i) => {
+        const a = ap.section;
+        const active = selectedAisle?.section?.id === a.section.id;
+        const color = ap.color;
+        const weight = (a.node_count || 0) / maxNodes;
+        const lineW = active ? 2.5 : (0.8 + weight * 1.5);
+        const mx = (CX + ap.x) / 2, my = (CY + ap.y) / 2;
+        const perpX = -(ap.y - CY) * 0.1, perpY = (ap.x - CX) * 0.1;
+        const pathD = `M${CX},${CY} Q${mx + perpX},${my + perpY} ${ap.x},${ap.y}`;
+        svgContent += `
+          <path id="conn${i}" d="${pathD}" fill="none"
+            stroke="${active ? color : `url(#edgeGrad${i})`}"
+            stroke-width="${lineW}" stroke-linecap="round"
+            opacity="${active ? 0.8 : 0.35}"
+            ${active ? 'filter="url(#softGlow)"' : ''}/>
+          <path d="${pathD}" fill="none" stroke="${color}"
+            stroke-width="${active ? 2 : lineW * 0.8}" stroke-linecap="round"
+            stroke-dasharray="4 20" class="edge-flow" opacity="${active ? 0.6 : 0.2}"/>
+          <circle r="${active ? 3 : 2}" fill="${color}" opacity="${active ? 0.9 : 0.4}" filter="url(#particleGlow)">
+            <animateMotion dur="${active ? '2s' : '3.5s'}" begin="${i * 0.3}s" repeatCount="indefinite"><mpath href="#conn${i}"/></animateMotion>
+          </circle>
+          ${active ? `<circle r="1.5" fill="${color}" opacity="0.5">
+            <animateMotion dur="2.5s" begin="${i * 0.3 + 1}s" repeatCount="indefinite"><mpath href="#conn${i}"/></animateMotion>
+          </circle>` : ''}`;
+      });
+
+      // Center hub
+      svgContent += `
+        <g class="hex-center" data-action="search">
+          <circle class="center-aura" cx="${CX}" cy="${CY}" r="65" fill="url(#centerGlow)" style="animation: breatheGlow 5s ease-in-out infinite;"/>
+          <circle class="center-pulse" cx="${CX}" cy="${CY}" r="52" fill="none" stroke="rgba(110,203,139,0.2)" stroke-width="0.8" style="animation: pulseGlow 4s ease-in-out infinite;"/>
+          <polygon points="${hexPoints(CX, CY, 44)}" fill="rgba(12,22,16,0.95)" stroke="rgba(110,203,139,0.5)" stroke-width="1.8" filter="url(#softGlow)"/>
+          <polygon points="${hexPoints(CX, CY, 37)}" fill="none" stroke="rgba(110,203,139,0.1)" stroke-width="0.6"/>
+          <polygon points="${hexPoints(CX, CY, 30)}" fill="none" stroke="rgba(110,203,139,0.04)" stroke-width="0.4"/>
+          <text x="${CX}" y="${CY - 5}" text-anchor="middle" fill="rgba(110,203,139,0.9)" font-size="17" style="pointer-events:none;">&#128269;</text>
+          <text x="${CX}" y="${CY + 9}" text-anchor="middle" fill="rgba(110,203,139,0.55)" font-size="7.5" font-family="Georgia,serif" style="pointer-events:none;">Bureau d'étude</text>
+          <text x="${CX}" y="${CY + 20}" text-anchor="middle" fill="rgba(154,184,164,0.4)" font-size="6.5" font-family="sans-serif" style="pointer-events:none;">${totalNodes} fiches</text>
+        </g>`;
+
+      // Aisle hexagons
+      aislePos.forEach((ap, i) => {
+        const a = ap.section;
+        const color = ap.color;
+        const active = selectedAisle?.section?.id === a.section.id;
+        const hasChildren = (a.children || []).length > 0;
+        const edgeCount = interLinks.filter(l => l.from.id === a.section.id || l.to.id === a.section.id).reduce((s, l) => s + l.count, 0);
+        svgContent += `
+          <g class="hex-aisle" style="--hover-glow:${color}" data-aisle="${i}">
+            <circle cx="${ap.x}" cy="${ap.y}" r="${HEX_R + 12}" fill="url(#aisleGlow${i})" opacity="${active ? 1 : 0.6}"/>
+            <polygon points="${hexPoints(ap.x, ap.y, HEX_R)}"
+              fill="${active ? 'rgba(20,42,32,0.94)' : 'rgba(14,26,20,0.92)'}"
+              stroke="${color}" stroke-width="${active ? 2.5 : 1.5}"
+              ${active ? 'filter="url(#neonGlow)"' : ''}/>
+            <polygon points="${hexPoints(ap.x, ap.y, HEX_R - 5)}" fill="none" stroke="${color}" stroke-width="0.4" stroke-opacity="${active ? 0.25 : 0.12}"/>
+            <polygon points="${hexPoints(ap.x, ap.y, HEX_R - 10)}" fill="none" stroke="${color}" stroke-width="0.2" stroke-opacity="0.06"/>
+            <text class="hex-label" x="${ap.x}" y="${ap.y - 4}" text-anchor="middle" fill="${color}" font-size="12" font-weight="600" font-family="Georgia,serif" style="pointer-events:none;">${esc(a.section.name)}</text>
+            <text class="hex-count" x="${ap.x}" y="${ap.y + 10}" text-anchor="middle" fill="rgba(154,184,164,0.6)" font-size="8.5" font-family="sans-serif" style="pointer-events:none;">${a.node_count} fiche${a.node_count !== 1 ? 's' : ''}</text>
+            ${edgeCount > 0 ? `<text x="${ap.x}" y="${ap.y + 20}" text-anchor="middle" fill="${color}" font-size="6" font-family="sans-serif" opacity="0.4" style="pointer-events:none;">⬡ ${edgeCount} lien${edgeCount > 1 ? 's' : ''}</text>` : ''}
+            ${hasChildren ? (() => {
+              let dots = '';
+              (a.children || []).forEach((_, ci) => {
+                const dotAngle = -Math.PI/2 + (ci - ((a.children.length-1)/2)) * 0.3;
+                const dotR = HEX_R + 4;
+                dots += `<circle cx="${ap.x + dotR * Math.cos(dotAngle)}" cy="${ap.y + dotR * Math.sin(dotAngle) + HEX_R * 0.55}" r="2.2" fill="${color}" opacity="0.4"/>`;
+              });
+              return `<g style="pointer-events:none;">${dots}</g>`;
+            })() : ''}
+          </g>`;
+      });
+
+      // Shelf hexagons (expand from active aisle)
+      if (selectedAisle) {
+        const parentIdx = (graphData?.sections || []).findIndex(a => a.section.id === selectedAisle.section.id);
+        const parentAngle = (2 * Math.PI / n) * parentIdx - Math.PI / 2;
+        const childCount = selectedAisle.children?.length || 1;
+        const spread = Math.min(Math.PI / 2.5, Math.PI / (childCount + 0.5));
+        (selectedAisle.children || []).forEach((shelf, j) => {
+          const shelfAngle = parentAngle - (spread * (childCount - 1) / 2) + spread * j;
+          const sx = CX + SHELF_R * Math.cos(shelfAngle), sy = CY + SHELF_R * Math.sin(shelfAngle);
+          const px = aislePos[parentIdx]?.x || CX, py = aislePos[parentIdx]?.y || CY;
+          const sc = safeColor(shelf.section.color || selectedAisle.section.color);
+          const mx = (px + sx) / 2, my = (py + sy) / 2;
+          const perpX = -(sy - py) * 0.12, perpY = (sx - px) * 0.12;
+          const pathD = `M${px},${py} Q${mx + perpX},${my + perpY} ${sx},${sy}`;
+          svgContent += `
+            <g class="shelf-group" style="animation-delay:${j * 0.1}s">
+              <path id="shelf${j}" d="${pathD}" fill="none" stroke="${sc}" stroke-width="1.2" stroke-opacity="0.3" stroke-dasharray="4,6"/>
+              <path d="${pathD}" fill="none" stroke="${sc}" stroke-width="1" stroke-linecap="round" stroke-dasharray="3 21" class="edge-flow" opacity="0.4"/>
+              <circle r="2" fill="${sc}" opacity="0.6" filter="url(#particleGlow)">
+                <animateMotion dur="2.5s" begin="${j * 0.4}s" repeatCount="indefinite"><mpath href="#shelf${j}"/></animateMotion>
+              </circle>
+              <g class="hex-shelf" style="--hover-glow:${sc}" data-shelf="${j}">
+                <polygon points="${hexPoints(sx, sy, SHELF_HEX_R)}" fill="rgba(14,26,20,0.92)" stroke="${sc}" stroke-width="1.5"/>
+                <polygon points="${hexPoints(sx, sy, SHELF_HEX_R - 4)}" fill="none" stroke="${sc}" stroke-width="0.3" stroke-opacity="0.15"/>
+                <text class="hex-label" x="${sx}" y="${sy - 1}" text-anchor="middle" fill="${sc}" font-size="9.5" font-weight="600" font-family="Georgia,serif" style="pointer-events:none;">${esc(shelf.section.name)}</text>
+                <text class="hex-count" x="${sx}" y="${sy + 10}" text-anchor="middle" fill="rgba(154,184,164,0.5)" font-size="7" font-family="sans-serif" style="pointer-events:none;">${shelf.node_count}</text>
+              </g>
+            </g>`;
+        });
+      }
+
+      // Decorative fireflies
+      for (let fi = 0; fi < 5; fi++) {
+        const baseAngle = (fi / 5) * Math.PI * 2;
+        const r1 = 100 + fi * 30;
+        const bx = CX + r1 * Math.cos(baseAngle), by = CY + r1 * Math.sin(baseAngle);
+        svgContent += `
+          <circle r="1.5" fill="rgba(110,203,139,0.6)" filter="url(#particleGlow)">
+            <animate attributeName="cx" values="${bx};${bx+15};${bx-10};${bx+8};${bx}" dur="${7+fi*2}s" repeatCount="indefinite"/>
+            <animate attributeName="cy" values="${by};${by-12};${by+8};${by-5};${by}" dur="${5+fi*1.5}s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0;0.6;0.2;0.8;0" dur="${4+fi}s" repeatCount="indefinite"/>
+          </circle>`;
+      }
+
+      return `<svg viewBox="0 0 600 600" width="100%" style="max-width:600px;">${svgContent}</svg>`;
+    }
+
+    // ── Sidebar HTML ──
+    function renderSidebar() {
+      const aislesData = graphData?.sections || [];
+      let html = '<div class="sidebar-section">Allées</div>';
+      aislesData.forEach(a => {
+        const active = selectedAisle?.section?.id === a.section.id;
+        html += `
+          <div class="sidebar-item aisle ${active ? 'active' : ''}" data-sidebar-aisle="${a.section.id}">
+            <span style="color:${safeColor(a.section.color)}">●</span>
+            ${esc(a.section.name)}
+            <span class="count">${a.node_count}</span>
+          </div>`;
+        if (active && a.children) {
+          a.children.forEach(shelf => {
+            const shelfActive = selectedSection?.id === shelf.section.id;
+            html += `
+              <div class="sidebar-item shelf ${shelfActive ? 'active' : ''}" data-sidebar-shelf="${shelf.section.id}">
+                ${esc(shelf.section.name)}
+                <span class="count">${shelf.node_count}</span>
+              </div>`;
+          });
+        }
+      });
+      return html;
+    }
+
+    // ── Desk Panel HTML ──
+    function renderDeskPanel() {
+      if (!deskData) return `<div class="panel-header"><h3>Chargement...</h3><button class="panel-close" data-action="close-panel">×</button></div>`;
+
+      const node = deskData.node;
+      const fields = deskData.fields || node.fields || null;
+      const template = node.template_id ? templateMap[node.template_id] : null;
+      const compiledHtml = renderTemplateHtml(node, fields, template);
+      const deskSections = deskData.sections || [];
+      const connections = deskData.connections || [];
+
+      let body = '';
+
+      // Meta
+      body += `<div class="desk-meta">${esc(buildSectionPath(deskSections))} · ${deskData.versions_count || 0} version${(deskData.versions_count || 0) !== 1 ? 's' : ''}`;
+      if (node.view_count > 0) body += ` · <span class="view-badge" title="Dernière consultation : ${node.last_viewed?.slice(0,16).replace('T',' ') || '?'}">${node.view_count}× consultée</span>`;
+      body += '</div>';
+
+      // Tags
+      if (deskData.tags?.length > 0) {
+        body += '<div class="tags-row">';
+        deskData.tags.forEach(t => { body += `<span class="tag">${esc(t.name)}</span>`; });
+        body += '</div>';
+      }
+
+      // Template preview or fallback
+      if (compiledHtml) {
+        body += `<div class="template-preview">`;
+        if (template?.preview_css) body += `<style>${sanitizeCSS(template.preview_css)}</style>`;
+        body += `<div class="tpl-scope">${compiledHtml}</div></div>`;
+      } else if (fields && Object.keys(fields).length > 0) {
+        body += '<div class="content-preview">';
+        const hidden = new Set(['icon', 'subtitle', 'fiche_num', 'footer']);
+        Object.entries(fields).filter(([k]) => !hidden.has(k)).forEach(([key, val]) => {
+          const label = key.replace(/_/g, ' ');
+          let valueHtml;
+          if (Array.isArray(val)) {
+            if (val.length > 0 && typeof val[0] === 'object') valueHtml = val.map(v => esc(Object.values(v).join(' '))).join(', ');
+            else valueHtml = `<div class="field-tags">${val.map(v => `<span class="field-tag">${esc(String(v))}</span>`).join('')}</div>`;
+          } else {
+            valueHtml = esc(String(val));
+          }
+          body += `<div class="field-row"><div class="field-label">${esc(label)}</div><div class="field-value">${valueHtml}</div></div>`;
+        });
+        body += '</div>';
+      } else if (node.content) {
+        body += `<div class="content-preview">${esc(node.content)}</div>`;
+      }
+
+      // Connections (read-only)
+      if (connections.length > 0) {
+        body += `<h4 style="margin:1rem 0 0.4rem;font-size:0.85em;color:var(--lib-text-secondary);font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;">Connexions (${connections.length})</h4>`;
+        body += '<div style="display:flex;flex-direction:column;gap:0.3rem;">';
+        connections.forEach(c => {
+          body += `<div class="connection-card" data-conn-id="${c.node.id}">
+            <span class="conn-title">${esc(c.node.title)}</span>
+            ${c.edge.relation ? `<span class="relation-badge">${esc(c.edge.relation)}</span>` : ''}
+          </div>`;
+        });
+        body += '</div>';
+      }
+
+      // Date
+      const dateStr = node.created_at ? new Date(node.created_at).toLocaleDateString('fr-FR', {
+        year: 'numeric', month: 'long', day: 'numeric'
+      }) : '';
+      body += `<div class="detail-meta">${deskSections.map(s => `<span style="color:${safeColor(s.color)}">${esc(s.name)}</span>`).join(' · ')}${dateStr ? ` — ${dateStr}` : ''}</div>`;
+
+      return `
+        <div class="panel-header">
+          <h3>${esc(node.title)}</h3>
+          <button class="panel-close" data-action="close-panel">×</button>
+        </div>
+        <div class="panel-body">${body}</div>`;
+    }
+
+    // ── Node list overlay ──
+    function renderNodeList() {
+      if (!selectedSection || sectionNodes.length === 0) return '';
+      return `
+        <div class="node-list">
+          <h4>${esc(selectedSection.name)} — ${sectionNodes.length} fiche${sectionNodes.length !== 1 ? 's' : ''}</h4>
+          <div class="node-chips">
+            ${sectionNodes.map(node => `
+              <div class="node-chip" data-node-id="${node.id}">
+                <div>${esc(node.title)}</div>
+                <div class="chip-meta">${node.updated_at?.slice(0, 10) || ''}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>`;
+    }
+
+    // ── Search overlay ──
+    function renderSearchOverlay() {
+      if (!showSearch) return '';
+      return `
+        <div class="search-overlay" data-action="close-search-bg">
+          <div class="search-modal">
+            <input type="text" id="search-input" placeholder="Rechercher dans la bibliothèque..." autocomplete="off">
+            <div class="search-results" id="search-results">
+              <div style="padding:0.8rem;color:var(--lib-text-muted);font-size:0.8em;">
+                Tapez pour chercher · Entrée pour ouvrir · Échap pour fermer
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    // ══════════════════════════════════════
+    // ── MAIN RENDER
+    // ══════════════════════════════════════
+
+    function render() {
+      const aisles = graphData?.sections || [];
+      const totalNodes = aisles.reduce((s, a) => s + (a.node_count || 0), 0);
+
+      const appEl = document.getElementById('app');
+      appEl.innerHTML = `
+        <div class="top-bar">
+          <button class="menu-btn" data-action="toggle-sidebar">☰</button>
+          <h2>📚 Bibliothèque</h2>
+          <span class="stats">${totalNodes} fiches · ${sections.length} sections</span>
+          <div class="search-trigger">
+            <input type="text" placeholder="Rechercher… (Ctrl+K)" data-action="open-search" readonly>
+          </div>
+          <span class="top-badge">Consultation publique</span>
+        </div>
+        <div class="content">
+          <div class="sidebar ${sidebarOpen ? '' : 'collapsed'} ${sidebarOpen ? 'open' : ''}" id="sidebar">
+            ${renderSidebar()}
+          </div>
+          <div class="canvas" id="canvas">
+            ${renderHexMapSVG()}
+            ${renderNodeList()}
+            ${showPanel ? `<div class="panel-overlay" id="panel">${renderDeskPanel()}</div>` : ''}
+          </div>
+        </div>
+        ${renderSearchOverlay()}
+      `;
+
+      bindEvents();
+    }
+
+    // ── Event Binding ──
+    function bindEvents() {
+      // Sidebar toggle
+      document.querySelector('[data-action="toggle-sidebar"]')?.addEventListener('click', () => {
+        sidebarOpen = !sidebarOpen;
+        render();
+      });
+
+      // Search trigger
+      document.querySelector('[data-action="open-search"]')?.addEventListener('click', openSearch);
+      document.querySelector('[data-action="open-search"]')?.addEventListener('focus', openSearch);
+
+      // Search overlay close
+      document.querySelector('[data-action="close-search-bg"]')?.addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) { showSearch = false; render(); }
+      });
+
+      // Search input
+      const searchInput = document.getElementById('search-input');
+      if (searchInput) {
+        searchInput.focus();
+        searchInput.addEventListener('input', (e) => {
+          clearTimeout(searchTimeout);
+          searchTimeout = setTimeout(() => doSearch(e.target.value), 300);
+        });
+        searchInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') { showSearch = false; render(); }
+          if (e.key === 'Enter' && searchResults.length > 0) {
+            loadDeskNode(searchResults[0].id);
+            showSearch = false;
+            render();
+          }
+        });
+      }
+
+      // Hex aisle clicks
+      document.querySelectorAll('.hex-aisle').forEach(g => {
+        g.addEventListener('click', () => {
+          const idx = parseInt(g.dataset.aisle);
+          openAisle(graphData.sections[idx]);
+        });
+      });
+
+      // Hex shelf clicks
+      document.querySelectorAll('.hex-shelf').forEach(g => {
+        g.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = parseInt(g.dataset.shelf);
+          const shelf = selectedAisle?.children?.[idx];
+          if (shelf) openShelf(shelf);
+        });
+      });
+
+      // Center hex (search)
+      document.querySelector('.hex-center')?.addEventListener('click', openSearch);
+
+      // Sidebar aisle clicks
+      document.querySelectorAll('[data-sidebar-aisle]').forEach(el => {
+        el.addEventListener('click', () => {
+          const id = el.dataset.sidebarAisle;
+          const aisle = (graphData?.sections || []).find(a => a.section.id === id);
+          if (aisle) openAisle(aisle);
+        });
+      });
+
+      // Sidebar shelf clicks
+      document.querySelectorAll('[data-sidebar-shelf]').forEach(el => {
+        el.addEventListener('click', () => {
+          const id = el.dataset.sidebarShelf;
+          const shelf = selectedAisle?.children?.find(c => c.section.id === id);
+          if (shelf) openShelf(shelf);
+        });
+      });
+
+      // Node chips
+      document.querySelectorAll('.node-chip').forEach(chip => {
+        chip.addEventListener('click', () => loadDeskNode(chip.dataset.nodeId));
+      });
+
+      // Panel close
+      document.querySelector('[data-action="close-panel"]')?.addEventListener('click', () => {
+        showPanel = false;
+        deskData = null;
+        render();
+      });
+
+      // Connection clicks (navigate to connected node)
+      document.querySelectorAll('.connection-card').forEach(card => {
+        card.addEventListener('click', () => loadDeskNode(card.dataset.connId));
+      });
+
+      // Search results
+      document.querySelectorAll('.search-result-item').forEach(item => {
+        item.addEventListener('click', () => {
+          loadDeskNode(item.dataset.nodeId);
+          showSearch = false;
+          render();
+        });
+      });
+    }
+
+    // ── Actions ──
+    function openSearch() {
+      showSearch = true;
+      searchResults = [];
+      render();
+    }
+
+    async function openAisle(aisleData) {
+      selectedAisle = aisleData;
+      selectedSection = null;
+      sectionNodes = [];
+      if (!aisleData.children || aisleData.children.length === 0) {
+        selectedSection = aisleData.section;
+        try {
+          const data = await api(`/sections/${aisleData.section.id}/nodes`);
+          sectionNodes = data.nodes || [];
+        } catch (e) { console.error('[lib] Aisle nodes error:', e); }
+      }
+      render();
+    }
+
+    async function openShelf(shelfData) {
+      selectedSection = shelfData.section;
+      try {
+        const data = await api(`/sections/${shelfData.section.id}/nodes`);
+        sectionNodes = data.nodes || [];
+      } catch (e) { console.error('[lib] Shelf nodes error:', e); }
+      render();
+    }
+
+    async function loadDeskNode(nodeId) {
+      showPanel = true;
+      deskData = null;
+      render();
+      try {
+        deskData = await api(`/nodes/${nodeId}/desk`);
+        render();
+      } catch (e) {
+        console.error('[lib] Desk error:', e);
+        deskData = null;
+        render();
+      }
+    }
+
+    async function doSearch(query) {
+      if (!query || query.length < 2) {
+        searchResults = [];
+        updateSearchResults();
+        return;
+      }
+      try {
+        const data = await api(`/search?q=${encodeURIComponent(query)}`);
+        searchResults = data.results || data.nodes || [];
+        updateSearchResults();
+      } catch (e) {
+        console.error('[lib] Search error:', e);
+        searchResults = [];
+        updateSearchResults();
+      }
+    }
+
+    function updateSearchResults() {
+      const container = document.getElementById('search-results');
+      if (!container) return;
+      if (searchResults.length === 0) {
+        container.innerHTML = '<div style="padding:0.8rem;color:var(--lib-text-muted);font-size:0.8em;">Aucun résultat</div>';
+        return;
+      }
+      container.innerHTML = searchResults.map(node => {
+        const tpl = node.template_id ? templateMap[node.template_id] : null;
+        const fields = node.fields && typeof node.fields === 'object' ? node.fields : null;
+        const snippet = fields ? Object.values(fields).filter(v => typeof v === 'string').join(' · ').slice(0, 80) : (node.content || '').slice(0, 80);
+        return `
+          <div class="search-result-item" data-node-id="${node.id}">
+            <div class="result-title">${esc(node.title)}
+              ${node.view_count > 0 ? `<span class="view-badge">${node.view_count}×</span>` : ''}
+            </div>
+            <div class="result-meta">
+              ${tpl ? `<span style="color:var(--lib-accent);margin-right:0.4rem;">${esc(tpl.name)}</span>` : ''}
+              ${node.updated_at?.slice(0, 10) || ''}
+            </div>
+            ${snippet ? `<div class="result-snippet">${esc(snippet)}</div>` : ''}
+          </div>`;
+      }).join('');
+
+      // Bind click events on results
+      container.querySelectorAll('.search-result-item').forEach(item => {
+        item.addEventListener('click', () => {
+          loadDeskNode(item.dataset.nodeId);
+          showSearch = false;
+          render();
+        });
+      });
+    }
+
+    // ── Keyboard shortcuts ──
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        if (!showSearch) openSearch();
+      }
+      if (e.key === 'Escape') {
+        if (showSearch) { showSearch = false; render(); return; }
+        if (showPanel) { showPanel = false; deskData = null; render(); return; }
+      }
+    });
+
+    // ── Start ──
+    init();
+  </script>
+</body>
+</html>

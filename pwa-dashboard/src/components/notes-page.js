@@ -885,6 +885,14 @@ class NotesPage extends LitElement {
     this._cleanupReveal = setupScrollReveal(this.shadowRoot)
   }
 
+  updated(changedProperties) {
+    if (changedProperties.has('notes') || changedProperties.has('loading')) {
+      // Re-observe new .scroll-reveal elements added after notes load via WebSocket
+      this._cleanupReveal?.()
+      this._cleanupReveal = setupScrollReveal(this.shadowRoot)
+    }
+  }
+
   disconnectedCallback() {
     super.disconnectedCallback()
     document.removeEventListener('keydown', this.handleEscape)

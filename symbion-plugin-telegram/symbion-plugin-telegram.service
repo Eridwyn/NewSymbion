@@ -1,0 +1,27 @@
+[Unit]
+Description=Symbion Plugin Telegram - Claude Code Bridge
+After=network.target mosquitto.service symbion-kernel.service
+Wants=mosquitto.service
+
+[Service]
+Type=simple
+User=eridwyn
+Group=eridwyn
+WorkingDirectory=/home/eridwyn/RustroverProjects/NewSymbion
+ExecStart=/home/eridwyn/RustroverProjects/NewSymbion/target/release/symbion-plugin-telegram
+Restart=on-failure
+RestartSec=5
+
+# Socket directory
+ExecStartPre=/bin/bash -c 'mkdir -p /run/symbion-plugins && chown eridwyn:eridwyn /run/symbion-plugins'
+
+# Environment
+EnvironmentFile=-/home/eridwyn/RustroverProjects/NewSymbion/scripts/telegram-bridge/config.env
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/home/eridwyn /run/symbion-plugins /tmp
+
+[Install]
+WantedBy=multi-user.target

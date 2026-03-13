@@ -503,6 +503,108 @@ pub async fn proxy_to_plugin(
     }
 }
 
+/// Public read-only proxy handler for library plugin
+/// Only allows GET requests, no authentication required
+pub async fn public_library_proxy(
+    State(app_state): State<crate::http::AppState>,
+    req: Request,
+) -> Response {
+    // Only allow GET requests
+    if req.method() != axum::http::Method::GET {
+        return (StatusCode::METHOD_NOT_ALLOWED, "Public library access is read-only").into_response();
+    }
+
+    let path = req.uri().path();
+
+    // Axum already strips the nest prefix (/v1/public/library)
+    // so path is already the forwarded path (e.g., /sections, /nodes, etc.)
+    let forwarded_path = if path.is_empty() || path == "/" {
+        "/health".to_string()
+    } else {
+        path.to_string()
+    };
+
+    // Find library plugin socket
+    let socket_path = match app_state.plugin_registry.find_socket("/v1/plugin-api/library/health").await {
+        Some(s) => s,
+        None => {
+            return (StatusCode::SERVICE_UNAVAILABLE, "Library plugin not available").into_response();
+        }
+    };
+
+    println!("[plugin-proxy] Public library proxy: {} -> {}", path, forwarded_path);
+
+    // Connect to Unix socket
+    let stream = match tokio::net::UnixStream::connect(&socket_path).await {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("[plugin-proxy] Failed to connect to library socket: {}", e);
+            return (StatusCode::BAD_GATEWAY, "Library plugin unreachable").into_response();
+        }
+    };
+
+    // Build forwarded request with query string
+    let original_query = req.uri().query().map(|q| format!("?{}", q)).unwrap_or_default();
+    let forwarded_with_query = format!("{}{}", forwarded_path, original_query);
+
+    let forwarded_req = match hyper::Request::builder()
+        .method(axum::http::Method::GET)
+        .uri(&forwarded_with_query)
+        .body(Empty::<Bytes>::new())
+    {
+        Ok(req) => req,
+        Err(e) => {
+            eprintln!("[plugin-proxy] Failed to build public library request: {}", e);
+            return (StatusCode::BAD_REQUEST, "Invalid request").into_response();
+        }
+    };
+
+    // Send via Unix socket
+    let io = TokioIo::new(stream);
+    let (mut sender, conn) = match hyper::client::conn::http1::handshake(io).await {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("[plugin-proxy] Public library handshake failed: {}", e);
+            return (StatusCode::BAD_GATEWAY, "Plugin handshake failed").into_response();
+        }
+    };
+
+    tokio::spawn(async move { let _ = conn.await; });
+
+    let plugin_response = match sender.send_request(forwarded_req).await {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("[plugin-proxy] Public library request failed: {}", e);
+            return (StatusCode::BAD_GATEWAY, "Plugin request failed").into_response();
+        }
+    };
+
+    // Convert response
+    let (parts, body) = plugin_response.into_parts();
+    let body_bytes = match body.collect().await {
+        Ok(collected) => collected.to_bytes(),
+        Err(e) => {
+            eprintln!("[plugin-proxy] Failed to read library response: {}", e);
+            return (StatusCode::BAD_GATEWAY, "Failed to read response").into_response();
+        }
+    };
+
+    let mut response = Response::builder().status(parts.status);
+    for (name, value) in parts.headers.iter() {
+        response = response.header(name, value);
+    }
+    // Add CORS header for public access
+    response = response.header("Access-Control-Allow-Origin", "*");
+
+    match response.body(Body::from(body_bytes)) {
+        Ok(resp) => resp,
+        Err(e) => {
+            eprintln!("[plugin-proxy] Failed to build public response: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to build response").into_response()
+        }
+    }
+}
+
 /// HTTP handler for plugin registration endpoint
 /// POST /v1/plugins/register
 pub async fn handle_plugin_registration(

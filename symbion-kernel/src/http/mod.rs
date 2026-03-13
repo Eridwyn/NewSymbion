@@ -116,9 +116,10 @@ async fn require_auth(
 ) -> Result<Response, StatusCode> {
     let path = req.uri().path();
 
-    // Health check, auth routes, CA certificate et Swagger UI toujours accessibles
+    // Health check, auth routes, CA certificate, Swagger UI et routes publiques toujours accessibles
     if path.starts_with("/health") || path.starts_with("/auth") || path.starts_with("/ca-certificate")
-        || path.starts_with("/swagger-ui") || path.starts_with("/api-docs") {
+        || path.starts_with("/swagger-ui") || path.starts_with("/api-docs")
+        || path.starts_with("/public/") {
         return Ok(next.run(req).await);
     }
 
@@ -437,12 +438,19 @@ pub fn build_router(app_state: AppState) -> Router {
         .join()
         .expect("openapi thread panicked");
 
+    // Public read-only library access (no auth, GET only)
+    let public_library_routes = Router::new()
+        .fallback(crate::plugin_proxy::public_library_proxy)
+        .with_state(app_state.clone());
+
     // Router principal avec versioning
     Router::new()
         // K8: Swagger UI + OpenAPI JSON (public, no auth)
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", openapi_spec))
         // Routes publiques (toujours accessibles)
         .merge(public_routes)
+        // Public library (read-only, no auth) — must be before v1 nest to avoid plugin_router fallback
+        .nest("/v1/public/library", public_library_routes)
         // File transfer data (token-authenticated, bypasses JWT for agent access)
         .merge(file_transfer_data_routes)
         // API v1 sous namespace /v1/

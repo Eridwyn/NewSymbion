@@ -104,3 +104,6 @@ test-integration/
 incidents/resolu/
 context-state.json
 learned_patterns.json
+
+# Telegram bridge secrets
+scripts/telegram-bridge/config.env
