@@ -107,3 +107,6 @@ learned_patterns.json
 
 # Telegram bridge secrets
 scripts/telegram-bridge/config.env
+
+# Coffee plugin secrets
+symbion-plugin-coffee/coffee.toml

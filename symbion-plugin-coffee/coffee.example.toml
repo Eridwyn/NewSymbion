@@ -1,0 +1,21 @@
+# Symbion Coffee Plugin — Configuration
+# Philips EP2520/10 via Condor LAN Protocol
+#
+# Copier ce fichier vers coffee.toml et remplir les credentials:
+#   cp coffee.example.toml coffee.toml
+
+[machine]
+ip = "192.168.1.XXX"
+port = 443
+client_id = "VOTRE_CLIENT_ID_BASE64"
+client_secret = "VOTRE_CLIENT_SECRET_BASE64"
+
+[mqtt]
+host = "127.0.0.1"
+port = 1883
+
+[polling]
+# Intervalle polling status machine (secondes)
+status_interval_secs = 10
+# Intervalle publication features MQTT (secondes)
+features_interval_secs = 30
