@@ -61,6 +61,8 @@ pub enum BotCommand {
     Ssl,
     #[command(description = "Décisions en attente")]
     Decision(String),
+    #[command(description = "Cafetière (espresso/long/eau/stop/status)")]
+    Cafe(String),
 }
 
 pub fn build_dispatcher(
@@ -254,6 +256,24 @@ async fn handle_callback(
                 }
             }
         }
+    } else if let Some(drink) = data.strip_prefix("cafe:") {
+        // Coffee inline keyboard callbacks
+        let result = match drink {
+            "espresso" => plugin_post(&state, "coffee", "/brew", &json!({"drink": "espresso", "temperature": 2, "cups": 1})).await,
+            "coffee" => plugin_post(&state, "coffee", "/brew", &json!({"drink": "coffee", "temperature": 2, "cups": 1})).await,
+            "hot_water" => plugin_post(&state, "coffee", "/brew", &json!({"drink": "hot_water", "temperature": 2, "cups": 1})).await,
+            "stop" => plugin_post(&state, "coffee", "/stop", &json!({})).await,
+            _ => "❌ Action inconnue".to_string(),
+        };
+        let icon = match drink {
+            "espresso" | "coffee" => "☕",
+            "hot_water" => "💧",
+            "stop" => "⛔",
+            _ => "❓",
+        };
+        if let Some(mid) = msg_id {
+            let _ = bot.edit_message_text(chat_id, mid, format!("{} {}", icon, result)).await;
+        }
     }
 
     Ok(())
@@ -415,7 +435,13 @@ async fn handle_command(
                  /decision — Décisions en attente\n\n\
                  ── Données ──\n\
                  /lib <recherche> — Bibliothèque\n\
-                 /notes — Notes récentes",
+                 /notes — Notes récentes\n\n\
+                 ── Cafetière ──\n\
+                 /cafe — Menu interactif\n\
+                 /cafe espresso — Espresso\n\
+                 /cafe long — Café long\n\
+                 /cafe eau — Eau chaude\n\
+                 /cafe stop — Arrêter",
             )
             .await?;
         }
@@ -705,8 +731,89 @@ async fn handle_command(
                 .await?;
             }
         }
+        BotCommand::Cafe(arg) => {
+            handle_cafe_command(&state, &bot, chat_id, &arg).await?;
+        }
     }
 
+    Ok(())
+}
+
+// ── Coffee Command Handler ──
+
+async fn handle_cafe_command(
+    state: &AppState,
+    bot: &Bot,
+    chat_id: ChatId,
+    arg: &str,
+) -> Result<(), teloxide::RequestError> {
+    let arg = arg.trim().to_lowercase();
+
+    match arg.as_str() {
+        "" => {
+            // Show inline keyboard with drink choices
+            let keyboard = InlineKeyboardMarkup::new(vec![
+                vec![
+                    InlineKeyboardButton::callback("☕ Espresso", "cafe:espresso"),
+                    InlineKeyboardButton::callback("☕ Café long", "cafe:coffee"),
+                ],
+                vec![
+                    InlineKeyboardButton::callback("💧 Eau chaude", "cafe:hot_water"),
+                    InlineKeyboardButton::callback("⛔ Arrêter", "cafe:stop"),
+                ],
+            ]);
+            bot.send_message(chat_id, "☕ Cafetière — Que veux-tu ?")
+                .reply_markup(keyboard)
+                .await?;
+        }
+        "espresso" | "expresso" => {
+            let result = plugin_post(state, "coffee", "/brew", &json!({"drink": "espresso", "temperature": 2, "cups": 1})).await;
+            bot.send_message(chat_id, format!("☕ Espresso\n{}", result)).await?;
+        }
+        "long" | "cafe" | "coffee" => {
+            let result = plugin_post(state, "coffee", "/brew", &json!({"drink": "coffee", "temperature": 2, "cups": 1})).await;
+            bot.send_message(chat_id, format!("☕ Café long\n{}", result)).await?;
+        }
+        "eau" | "water" | "hot_water" | "eau_chaude" => {
+            let result = plugin_post(state, "coffee", "/brew", &json!({"drink": "hot_water", "temperature": 2, "cups": 1})).await;
+            bot.send_message(chat_id, format!("💧 Eau chaude\n{}", result)).await?;
+        }
+        "stop" | "arreter" => {
+            let result = plugin_post(state, "coffee", "/stop", &json!({})).await;
+            bot.send_message(chat_id, format!("⛔ {}", result)).await?;
+        }
+        "status" | "statut" => {
+            let raw = plugin_get(state, "coffee", "/status").await;
+            bot.send_message(chat_id, format!("☕ Cafetière\n{}", raw)).await?;
+        }
+        "info" => {
+            let raw = plugin_get(state, "coffee", "/info").await;
+            bot.send_message(chat_id, format!("☕ Info machine\n{}", raw)).await?;
+        }
+        "on" | "allumer" => {
+            let result = plugin_post(state, "coffee", "/power", &json!({"on": true})).await;
+            bot.send_message(chat_id, format!("🔌 {}", result)).await?;
+        }
+        "off" | "eteindre" => {
+            let result = plugin_post(state, "coffee", "/power", &json!({"on": false})).await;
+            bot.send_message(chat_id, format!("🔌 {}", result)).await?;
+        }
+        _ => {
+            bot.send_message(
+                chat_id,
+                "☕ Usage:\n\
+                 /cafe — Menu interactif\n\
+                 /cafe espresso — Espresso\n\
+                 /cafe long — Café long\n\
+                 /cafe eau — Eau chaude\n\
+                 /cafe stop — Arrêter\n\
+                 /cafe status — Statut machine\n\
+                 /cafe on — Allumer\n\
+                 /cafe off — Éteindre",
+            )
+            .await?;
+        }
+    }
     Ok(())
 }
 
@@ -1251,6 +1358,21 @@ async fn plugin_get(state: &AppState, plugin: &str, path: &str) -> String {
     match client
         .get(&url)
         .header("x-api-key", &state.config.kernel_api_key)
+        .send()
+        .await
+    {
+        Ok(resp) => format_api_response(resp).await,
+        Err(e) => format!("❌ Plugin {} inaccessible: {}", plugin, e),
+    }
+}
+
+async fn plugin_post(state: &AppState, plugin: &str, path: &str, body: &serde_json::Value) -> String {
+    let url = format!("https://localhost:8443/v1/plugin-api/{}{}", plugin, path);
+    let client = make_client();
+    match client
+        .post(&url)
+        .header("x-api-key", &state.config.kernel_api_key)
+        .json(body)
         .send()
         .await
     {
