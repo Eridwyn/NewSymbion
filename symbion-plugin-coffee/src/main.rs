@@ -127,6 +127,8 @@ pub struct MachineStatus {
     pub maintenance_needed: bool,
     pub maintenance_reason: Option<String>,
     pub last_error: u8,
+    pub aquaclean_installed: bool,
+    pub aquaclean_remaining: Option<u8>,
     pub last_update: String,
 }
 
@@ -528,6 +530,13 @@ async fn poll_status(state: Arc<PluginState>) {
                         s.descale_status = data["Descalestat"].as_u64().unwrap_or(0) as u8;
                         s.switch_stat = data["switchstat"].as_u64().unwrap_or(0) as u8;
                         s.last_error = data["lasterror"].as_u64().unwrap_or(0) as u8;
+                        let filternr = data["Filternr"].as_u64().unwrap_or(0) as u8;
+                        s.aquaclean_installed = filternr > 0;
+                        s.aquaclean_remaining = if filternr > 0 {
+                            Some(data["Filterstat"].as_u64().unwrap_or(0) as u8)
+                        } else {
+                            None
+                        };
                         s.last_update = chrono::Utc::now().to_rfc3339();
                         s.check_maintenance();
 
@@ -568,6 +577,8 @@ async fn poll_status(state: Arc<PluginState>) {
                             "descale_status": s.descale_status,
                             "maintenance_needed": s.maintenance_needed,
                             "maintenance_reason": &s.maintenance_reason,
+                            "aquaclean_installed": s.aquaclean_installed,
+                            "aquaclean_remaining": s.aquaclean_remaining,
                             "last_update": &s.last_update,
                         })).await;
                         drop(s);

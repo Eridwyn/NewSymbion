@@ -1,15 +1,17 @@
 /**
- * Widget Coffee Machine
+ * Widget Coffee Machine — Philips EP2520/10
  *
- * Affiche le statut de la machine a cafe Philips EP2520/10
- * et permet de lancer des boissons depuis le dashboard.
- * Mise a jour temps reel via MQTT.
+ * Dashboard widget with real-time status, brew controls,
+ * auto power-on sequence, level indicators and toast feedback.
+ * MQTT real-time + HTTP polling fallback.
  */
 
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles, widgetSectionStyles } from '../styles/shared-widget.js'
 import { statusBadgeStyles, statusDotStyles } from '../styles/shared-patterns.js'
+import { getApiBase } from '../services/config.js'
+import csrfService from '../services/csrf-service.js'
 import '../components/organic-loader.js'
 
 class CoffeeWidget extends LitElement {
@@ -18,205 +20,264 @@ class CoffeeWidget extends LitElement {
       display: block;
     }
 
-    .content-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-    }
-
-    .section-card {
-      background: linear-gradient(135deg, var(--surface-glass-hover) 0%, var(--surface-glass-subtle) 100%);
-      border: 1px solid var(--border-medium);
-      border-radius: var(--radius-md);
-      padding: 1rem;
-    }
-
-    .section-card.full-width {
-      grid-column: 1 / -1;
-    }
-
-    /* Levels bars */
-    .levels-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.75rem;
-    }
-
-    .level-item {
+    /* ── Drink List ── */
+    .drink-list {
       display: flex;
       flex-direction: column;
-      gap: 0.35rem;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
     }
 
-    .level-label {
-      font-size: 0.8em;
-      color: var(--color-dark-text-tertiary, #94a3b8);
+    .drink-row {
       display: flex;
       align-items: center;
-      gap: 0.4rem;
+      gap: 0.6rem;
+      padding: 0.55rem 0.7rem;
+      background: var(--surface-glass, rgba(255, 255, 255, 0.04));
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      transition: all 0.2s ease;
     }
 
-    .level-bar {
+    .drink-row.disabled {
+      opacity: 0.35;
+    }
+
+    .drink-icon {
+      font-size: 1.4em;
+      flex-shrink: 0;
+    }
+
+    .drink-name {
+      font-size: 0.88em;
+      font-weight: 600;
+      color: var(--color-dark-text-primary, #f8f9fa);
+      flex: 1;
+    }
+
+    /* Cups toggle */
+    .cups-toggle {
+      display: flex;
+      background: var(--surface-glass, rgba(255, 255, 255, 0.06));
+      border-radius: var(--radius-base);
+      border: 1px solid var(--border-subtle);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .cups-toggle .cup-opt {
+      padding: 0.25rem 0.55rem;
+      font-size: 0.75em;
+      font-weight: 600;
+      color: var(--color-dark-text-tertiary, #94a3b8);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+      background: transparent;
+      user-select: none;
+    }
+
+    .cups-toggle .cup-opt:first-child {
+      border-right: 1px solid var(--border-subtle);
+    }
+
+    .cups-toggle .cup-opt.active {
+      background: var(--context-primary);
+      color: #fff;
+    }
+
+    .cups-toggle .cup-opt:hover:not(.active) {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    /* Go button */
+    .go-btn {
+      padding: 0.3rem 0.65rem;
+      border-radius: var(--radius-base);
+      border: 1px solid var(--context-primary);
+      background: rgba(var(--ctx-rgb, 0,212,170), 0.15);
+      color: var(--context-primary);
+      cursor: pointer;
+      font-size: 0.78em;
+      font-weight: 700;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .go-btn:hover:not(:disabled) {
+      background: rgba(var(--ctx-rgb, 0,212,170), 0.25);
+      transform: scale(1.05);
+    }
+
+    .go-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    /* ── Brewing State ── */
+    .brewing-state {
+      text-align: center;
+      padding: 1rem;
+      background: linear-gradient(135deg, rgba(var(--ctx-rgb, 0,212,170), 0.08) 0%, transparent 100%);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-md);
+      margin-bottom: 0.75rem;
+    }
+
+    .brewing-icon {
+      font-size: 2.5em;
+      animation: steam 2s ease-in-out infinite;
+    }
+
+    @keyframes steam {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+
+    .brewing-label {
+      font-size: 0.95em;
+      font-weight: 600;
+      color: var(--context-primary);
+      margin: 0.5rem 0;
+    }
+
+    .brewing-progress {
       height: 6px;
       background: var(--surface-glass, rgba(255, 255, 255, 0.08));
       border-radius: 3px;
       overflow: hidden;
+      margin: 0.5rem 0;
     }
 
-    .level-fill {
+    .brewing-progress-fill {
       height: 100%;
+      background: linear-gradient(90deg, var(--context-primary), var(--context-secondary, var(--context-primary)));
       border-radius: 3px;
-      transition: width 0.6s ease;
+      transition: width 1s ease;
+      position: relative;
     }
 
-    .level-fill.water { background: #38bdf8; }
-    .level-fill.beans { background: #a78bfa; }
-    .level-fill.waste { background: #fb923c; }
-    .level-fill.descale { background: #34d399; }
-
-    .level-fill.low { background: #ef4444; }
-
-    .level-value {
-      font-size: 0.75em;
-      color: var(--color-dark-text-secondary, #cbd5e1);
-      text-align: right;
+    .brewing-progress-fill::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      animation: shimmer 1.5s ease-in-out infinite;
     }
 
-    /* Brew buttons */
-    .brew-buttons {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
     }
 
-    .brew-btn {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.65rem 0.85rem;
-      background: var(--surface-glass, rgba(255, 255, 255, 0.04));
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-base);
-      color: var(--color-dark-text-primary, #f8f9fa);
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-size: 0.9em;
-    }
-
-    .brew-btn:hover:not(:disabled) {
-      background: var(--surface-glass-hover, rgba(255, 255, 255, 0.08));
-      border-color: var(--context-primary);
-      transform: translateY(-1px);
-    }
-
-    .brew-btn:active:not(:disabled) {
-      transform: translateY(0);
-    }
-
-    .brew-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    .brew-btn .icon {
-      font-size: 1.3em;
-    }
-
-    .brew-btn .label {
-      flex: 1;
-    }
-
-    .brew-btn .shortcut {
-      font-size: 0.75em;
-      color: var(--color-dark-text-tertiary, #94a3b8);
-    }
-
-    /* Status info */
-    .status-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.4rem 0;
-      border-bottom: 1px solid var(--border-subtle);
-    }
-
-    .status-row:last-child {
-      border-bottom: none;
-    }
-
-    .status-key {
-      font-size: 0.85em;
-      color: var(--color-dark-text-tertiary, #94a3b8);
-    }
-
-    .status-val {
-      font-size: 0.85em;
-      font-weight: 600;
-      color: var(--color-dark-text-primary, #f8f9fa);
-    }
-
-    .status-val.brewing {
-      color: var(--context-primary);
-      animation: pulse-text 1.5s ease-in-out infinite;
-    }
-
-    @keyframes pulse-text {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.6; }
-    }
-
-    /* Maintenance alert */
-    .maintenance-alert {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.6rem 0.75rem;
-      background: rgba(251, 146, 60, 0.15);
-      border: 1px solid rgba(251, 146, 60, 0.3);
-      border-radius: var(--radius-base);
-      margin-top: 0.5rem;
-      font-size: 0.85em;
-      color: #fb923c;
-    }
-
-    /* Stop button */
     .stop-btn {
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      padding: 0.65rem;
+      gap: 0.4rem;
+      padding: 0.45rem 1rem;
       background: rgba(239, 68, 68, 0.15);
       border: 1px solid rgba(239, 68, 68, 0.4);
       border-radius: var(--radius-base);
       color: #ef4444;
       cursor: pointer;
-      font-size: 0.9em;
+      font-size: 0.85em;
       font-weight: 600;
       transition: all 0.2s ease;
-      width: 100%;
+      margin-top: 0.25rem;
     }
 
     .stop-btn:hover {
       background: rgba(239, 68, 68, 0.25);
     }
 
-    /* Power button */
-    .power-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+    /* ── Power-on Sequence ── */
+    .powering-on {
+      text-align: center;
+      padding: 1.5rem;
+    }
+
+    .powering-on .spin-icon {
+      font-size: 2em;
+      animation: spin 1.5s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .powering-on-label {
+      font-size: 0.85em;
+      color: var(--color-dark-text-tertiary, #94a3b8);
       margin-top: 0.5rem;
     }
 
+    /* ── Levels ── */
+    .levels-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .level-chip {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.45rem 0.6rem;
+      background: var(--surface-glass, rgba(255, 255, 255, 0.04));
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-base);
+      font-size: 0.78em;
+      color: var(--color-dark-text-secondary, #cbd5e1);
+    }
+
+    .level-chip .chip-icon {
+      font-size: 1.1em;
+    }
+
+    .level-chip .chip-val {
+      font-weight: 600;
+      color: var(--color-dark-text-primary, #f8f9fa);
+    }
+
+    .level-chip .chip-val.low {
+      color: #ef4444;
+    }
+
+    .level-chip .chip-val.warn {
+      color: #fb923c;
+    }
+
+    .level-chip .chip-val.ok {
+      color: #34d399;
+    }
+
+    /* ── Footer Row ── */
+    .footer-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .machine-state {
+      font-size: 0.78em;
+      color: var(--color-dark-text-tertiary, #94a3b8);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
     .power-btn {
-      padding: 0.4rem 0.8rem;
+      padding: 0.35rem 0.7rem;
       border-radius: var(--radius-base);
       border: 1px solid var(--border-subtle);
       background: var(--surface-glass, rgba(255, 255, 255, 0.04));
       color: var(--color-dark-text-primary, #f8f9fa);
       cursor: pointer;
-      font-size: 0.8em;
+      font-size: 0.78em;
       transition: all 0.2s ease;
     }
 
@@ -225,69 +286,73 @@ class CoffeeWidget extends LitElement {
     }
 
     .power-btn.on {
-      background: rgba(52, 211, 153, 0.15);
-      border-color: rgba(52, 211, 153, 0.4);
+      background: rgba(52, 211, 153, 0.12);
+      border-color: rgba(52, 211, 153, 0.35);
       color: #34d399;
     }
 
     .power-btn.off {
-      background: rgba(239, 68, 68, 0.15);
-      border-color: rgba(239, 68, 68, 0.4);
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.35);
       color: #ef4444;
     }
 
-    /* Brewing progress */
-    .brew-progress {
-      margin-top: 0.5rem;
+    /* ── Maintenance ── */
+    .maintenance-alert {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.65rem;
+      background: rgba(251, 146, 60, 0.12);
+      border: 1px solid rgba(251, 146, 60, 0.25);
+      border-radius: var(--radius-base);
+      margin-bottom: 0.75rem;
+      font-size: 0.8em;
+      color: #fb923c;
     }
 
-    .brew-progress-bar {
-      height: 4px;
-      background: var(--surface-glass, rgba(255, 255, 255, 0.08));
-      border-radius: 2px;
-      overflow: hidden;
+    /* ── Error / Toast ── */
+    .error-msg {
+      font-size: 0.78em;
+      color: #ef4444;
+      margin-top: 0.35rem;
+      padding: 0.35rem 0.5rem;
+      background: rgba(239, 68, 68, 0.1);
+      border-radius: var(--radius-base);
     }
 
-    .brew-progress-fill {
-      height: 100%;
-      background: var(--context-primary);
-      border-radius: 2px;
-      transition: width 1s ease;
-      animation: brew-glow 2s ease-in-out infinite;
+    .success-msg {
+      font-size: 0.78em;
+      color: #34d399;
+      margin-top: 0.35rem;
+      padding: 0.35rem 0.5rem;
+      background: rgba(52, 211, 153, 0.1);
+      border-radius: var(--radius-base);
+      animation: fadeOut 3s ease-in-out forwards;
     }
 
-    @keyframes brew-glow {
-      0%, 100% { box-shadow: 0 0 4px var(--context-primary); }
-      50% { box-shadow: 0 0 12px var(--context-primary); }
-    }
-
-    .brew-progress-label {
-      font-size: 0.75em;
-      color: var(--context-primary);
-      text-align: center;
-      margin-top: 0.25rem;
+    @keyframes fadeOut {
+      0%, 70% { opacity: 1; }
+      100% { opacity: 0; }
     }
 
     .loader-container {
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 200px;
+      min-height: 180px;
       padding: 2rem;
     }
 
-    .error-msg {
-      font-size: 0.8em;
-      color: #ef4444;
-      margin-top: 0.5rem;
-      padding: 0.4rem 0.6rem;
-      background: rgba(239, 68, 68, 0.1);
-      border-radius: var(--radius-base);
-    }
-
     @media (max-width: 768px) {
-      .content-grid {
-        grid-template-columns: 1fr;
+      .drink-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+      .levels-row {
+        flex-wrap: wrap;
+      }
+      .level-chip {
+        min-width: calc(50% - 0.25rem);
       }
     }
   `]
@@ -297,7 +362,10 @@ class CoffeeWidget extends LitElement {
     loading: { type: Boolean },
     mqttConnected: { type: Boolean },
     brewError: { type: String },
-    brewLoading: { type: Boolean }
+    brewSuccess: { type: String },
+    brewLoading: { type: Boolean },
+    poweringOn: { type: Boolean },
+    cupsSel: { type: Object }
   }
 
   constructor() {
@@ -306,8 +374,11 @@ class CoffeeWidget extends LitElement {
     this.loading = true
     this.mqttConnected = false
     this.brewError = null
+    this.brewSuccess = null
     this.brewLoading = false
-    this._mqttSubscriptions = []
+    this.poweringOn = false
+    // Cups selection per drink (default 1)
+    this.cupsSel = { espresso: 1, coffee: 1 }
   }
 
   connectedCallback() {
@@ -315,12 +386,10 @@ class CoffeeWidget extends LitElement {
     this._retrySetup()
     this._loadingTimeout = setTimeout(() => {
       if (this.loading) {
-        console.warn('[coffee-widget] Timeout waiting for data, stopping loader')
         this.loading = false
         this.requestUpdate()
       }
     }, 10000)
-    // Also fetch via HTTP as fallback
     this._fetchStatus()
   }
 
@@ -329,7 +398,10 @@ class CoffeeWidget extends LitElement {
     this._cleanupEventListeners()
     if (this._loadingTimeout) clearTimeout(this._loadingTimeout)
     if (this._refreshInterval) clearInterval(this._refreshInterval)
+    if (this._powerPollInterval) clearInterval(this._powerPollInterval)
   }
+
+  // ── MQTT Setup ──
 
   _retrySetup(attempts = 0) {
     const mqttService = document.querySelector('mqtt-service')
@@ -338,7 +410,6 @@ class CoffeeWidget extends LitElement {
     } else if (attempts < 10) {
       setTimeout(() => this._retrySetup(attempts + 1), 500)
     } else {
-      console.warn('[coffee-widget] MQTT service not found after retries')
       this.loading = false
       this.requestUpdate()
     }
@@ -348,22 +419,15 @@ class CoffeeWidget extends LitElement {
     const mqttService = document.querySelector('mqtt-service')
     if (!mqttService) return
 
-    this._boundStatusHandler = (e) => {
-      this._handleStatusEvent(e.detail)
-    }
-    this._boundBrewingHandler = (e) => {
-      this._handleBrewingEvent(e.detail)
-    }
-    this._boundMaintenanceHandler = (e) => {
-      this._handleMaintenanceEvent(e.detail)
-    }
+    this._boundStatusHandler = (e) => this._handleStatusEvent(e.detail)
+    this._boundBrewingHandler = (e) => this._handleBrewingEvent(e.detail)
+    this._boundMaintenanceHandler = (e) => this._handleMaintenanceEvent(e.detail)
 
     mqttService.addEventListener('coffee-status', this._boundStatusHandler)
     mqttService.addEventListener('coffee-brewing', this._boundBrewingHandler)
     mqttService.addEventListener('coffee-maintenance', this._boundMaintenanceHandler)
     this._mqttService = mqttService
 
-    // Load cached data
     if (typeof mqttService.getCoffeeCache === 'function') {
       const cache = mqttService.getCoffeeCache()
       if (cache.status) {
@@ -385,20 +449,41 @@ class CoffeeWidget extends LitElement {
   }
 
   _handleStatusEvent({ payload }) {
+    const wasBrewing = this.status?.brewing
     this.status = payload
     this.loading = false
     this.mqttConnected = true
     if (this._loadingTimeout) clearTimeout(this._loadingTimeout)
+
+    // Detect brew completed → show toast
+    if (wasBrewing && !payload.brewing) {
+      this._showSuccess('Cafe pret !')
+      this._sendToast('Cafe pret !', 'success')
+    }
+
+    // Auto power-on: machine reached ready → stop polling
+    if (this.poweringOn && payload.mainstate === 2) {
+      this.poweringOn = false
+      if (this._powerPollInterval) clearInterval(this._powerPollInterval)
+      // If pending brew, execute it now
+      if (this._pendingBrew) {
+        const { drink, cups } = this._pendingBrew
+        this._pendingBrew = null
+        this._executeBrew(drink, cups)
+      }
+    }
+
     this.requestUpdate()
   }
 
   _handleBrewingEvent({ payload }) {
-    // Update brewing status from event
     if (this.status) {
       if (payload.event_type === 'brewing/started') {
         this.status = { ...this.status, brewing: true, mainstate: 3, mainstate_text: 'brewing' }
       } else if (payload.event_type === 'brewing/completed') {
         this.status = { ...this.status, brewing: false, mainstate: 2, mainstate_text: 'ready', brew_progress: 0 }
+        this._showSuccess('Cafe pret !')
+        this._sendToast('Cafe pret !', 'success')
       }
     }
     this.requestUpdate()
@@ -411,60 +496,83 @@ class CoffeeWidget extends LitElement {
     this.requestUpdate()
   }
 
+  // ── HTTP Fetch ──
+
   async _fetchStatus() {
     try {
-      const apiService = document.querySelector('api-service')
-      if (!apiService) return
-      const resp = await fetch(`${apiService.baseUrl || ''}/v1/plugin-api/coffee/status`)
+      const resp = await fetch(`${getApiBase()}/v1/plugin-api/coffee/status`)
       if (resp.ok) {
         this.status = await resp.json()
         this.loading = false
         if (this._loadingTimeout) clearTimeout(this._loadingTimeout)
         this.requestUpdate()
       }
-    } catch (e) {
-      console.warn('[coffee-widget] HTTP fallback failed:', e)
-    }
+    } catch (_) { /* silent */ }
 
-    // Refresh every 15s via HTTP
     this._refreshInterval = setInterval(() => this._fetchStatusSilent(), 15000)
   }
 
   async _fetchStatusSilent() {
     try {
-      const apiService = document.querySelector('api-service')
-      if (!apiService) return
-      const resp = await fetch(`${apiService.baseUrl || ''}/v1/plugin-api/coffee/status`)
+      const resp = await fetch(`${getApiBase()}/v1/plugin-api/coffee/status`)
       if (resp.ok) {
+        const prev = this.status
         this.status = await resp.json()
+        // Detect state changes via polling too
+        if (prev?.brewing && !this.status.brewing) {
+          this._showSuccess('Cafe pret !')
+          this._sendToast('Cafe pret !', 'success')
+        }
+        if (this.poweringOn && this.status.mainstate === 2) {
+          this.poweringOn = false
+          if (this._powerPollInterval) clearInterval(this._powerPollInterval)
+          if (this._pendingBrew) {
+            const { drink, cups } = this._pendingBrew
+            this._pendingBrew = null
+            this._executeBrew(drink, cups)
+          }
+        }
         this.requestUpdate()
       }
     } catch (_) { /* silent */ }
   }
 
-  async _brew(drink) {
+  // ── Actions ──
+
+  async _brew(drink, cups = 1) {
+    // Auto power-on if machine is in standby
+    if (this.status?.online && this.status?.mainstate === 1) {
+      this._pendingBrew = { drink, cups }
+      await this._powerOn()
+      return
+    }
+    await this._executeBrew(drink, cups)
+  }
+
+  async _executeBrew(drink, cups) {
     this.brewError = null
+    this.brewSuccess = null
     this.brewLoading = true
     this.requestUpdate()
 
     try {
-      const apiService = document.querySelector('api-service')
-      const baseUrl = apiService?.baseUrl || ''
-      const resp = await fetch(`${baseUrl}/v1/plugin-api/coffee/brew`, {
+      const resp = await csrfService.fetchWithCsrf(`${getApiBase()}/v1/plugin-api/coffee/brew`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ drink, temperature: 2, cups: 1 })
+        body: JSON.stringify({ drink, temperature: 2, cups })
       })
       const data = await resp.json()
       if (!resp.ok) {
         this.brewError = data.error || `Erreur ${resp.status}`
+      } else {
+        const label = drink === 'espresso' ? 'Espresso' : drink === 'coffee' ? 'Cafe long' : 'Eau chaude'
+        this._showSuccess(`${label}${cups > 1 ? ' x2' : ''} lance !`)
       }
     } catch (e) {
-      this.brewError = `Erreur connexion: ${e.message}`
+      this.brewError = `Erreur: ${e.message}`
     } finally {
       this.brewLoading = false
       this.requestUpdate()
-      // Clear error after 5s
       if (this.brewError) {
         setTimeout(() => { this.brewError = null; this.requestUpdate() }, 5000)
       }
@@ -473,31 +581,76 @@ class CoffeeWidget extends LitElement {
 
   async _stop() {
     try {
-      const apiService = document.querySelector('api-service')
-      const baseUrl = apiService?.baseUrl || ''
-      await fetch(`${baseUrl}/v1/plugin-api/coffee/stop`, { method: 'POST' })
+      await csrfService.fetchWithCsrf(`${getApiBase()}/v1/plugin-api/coffee/stop`, { method: 'POST' })
+      this._showSuccess('Arrete')
     } catch (e) {
-      console.error('[coffee-widget] Stop failed:', e)
+      this.brewError = 'Erreur arret'
+      this.requestUpdate()
     }
   }
 
-  async _power(on) {
+  async _powerOn() {
+    this.poweringOn = true
+    this.requestUpdate()
     try {
-      const apiService = document.querySelector('api-service')
-      const baseUrl = apiService?.baseUrl || ''
-      await fetch(`${baseUrl}/v1/plugin-api/coffee/power`, {
+      await csrfService.fetchWithCsrf(`${getApiBase()}/v1/plugin-api/coffee/power`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ on })
+        body: JSON.stringify({ on: true })
       })
+      // Poll status every 2s waiting for ready (max 60s)
+      let attempts = 0
+      this._powerPollInterval = setInterval(async () => {
+        attempts++
+        if (attempts > 30) {
+          clearInterval(this._powerPollInterval)
+          this.poweringOn = false
+          this._pendingBrew = null
+          this.brewError = 'Delai allumage depasse'
+          this.requestUpdate()
+        }
+        await this._fetchStatusSilent()
+      }, 2000)
     } catch (e) {
-      console.error('[coffee-widget] Power failed:', e)
+      this.poweringOn = false
+      this.brewError = 'Erreur allumage'
+      this.requestUpdate()
     }
   }
 
+  async _powerOff() {
+    try {
+      await csrfService.fetchWithCsrf(`${getApiBase()}/v1/plugin-api/coffee/power`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ on: false })
+      })
+      this._showSuccess('Machine eteinte')
+    } catch (_) { /* silent */ }
+  }
+
+  _showSuccess(msg) {
+    this.brewSuccess = msg
+    this.requestUpdate()
+    setTimeout(() => { this.brewSuccess = null; this.requestUpdate() }, 3500)
+  }
+
+  _setCups(drink, n) {
+    this.cupsSel = { ...this.cupsSel, [drink]: n }
+    this.requestUpdate()
+  }
+
+  _sendToast(msg, type) {
+    const toast = document.querySelector('toast-notifications')
+    if (toast && typeof toast.addToast === 'function') {
+      toast.addToast(msg, type)
+    }
+  }
+
+  // ── Helpers ──
+
   _getOverallStatus() {
-    if (!this.status) return 'unknown'
-    if (!this.status.online) return 'away'
+    if (!this.status?.online) return 'away'
     if (this.status.brewing) return 'home'
     if (this.status.maintenance_needed) return 'unknown'
     if (this.status.mainstate === 2) return 'home'
@@ -505,23 +658,40 @@ class CoffeeWidget extends LitElement {
   }
 
   _getStatusLabel() {
-    if (!this.status) return 'Hors ligne'
-    if (!this.status.online) return 'Hors ligne'
-    if (this.status.brewing) return 'En cours...'
+    if (!this.status?.online) return 'Hors ligne'
+    if (this.poweringOn) return 'Allumage...'
+    if (this.status.brewing) return 'Preparation...'
     if (this.status.mainstate === 2) return 'Prete'
     if (this.status.mainstate === 1) return 'Veille'
     if (this.status.mainstate === 5) return 'Maintenance'
     return this.status.mainstate_text || 'Inconnu'
   }
 
-  _levelPercent(val, max = 15) {
+  _levelVal(val) {
     if (!val && val !== 0) return 0
-    return Math.min(100, Math.round((val / max) * 100))
+    return Math.min(100, Math.max(0, val))
   }
 
-  _isReady() {
-    return this.status?.online && this.status?.mainstate === 2 && !this.status?.brewing
+  _levelClass(val, warnThreshold = 30) {
+    if (!val && val !== 0) return ''
+    if (val < warnThreshold / 2) return 'low'
+    if (val < warnThreshold) return 'warn'
+    return 'ok'
   }
+
+  _levelText(val, type) {
+    if (!val && val !== 0) return '—'
+    if ((type === 'water' || type === 'beans') && val >= 50) return 'OK'
+    return `${Math.min(100, val)}%`
+  }
+
+  _canBrew() {
+    if (!this.status?.online || this.brewLoading || this.poweringOn) return false
+    // Allow brew from standby (auto power-on) or ready
+    return this.status.mainstate === 1 || this.status.mainstate === 2
+  }
+
+  // ── Render ──
 
   render() {
     if (this.loading) {
@@ -532,113 +702,113 @@ class CoffeeWidget extends LitElement {
       `
     }
 
-    const overallStatus = this._getOverallStatus()
-    const isReady = this._isReady()
+    const canBrew = this._canBrew()
     const isBrewing = this.status?.brewing
+    const isStandby = this.status?.online && this.status?.mainstate === 1
+    const isReady = this.status?.online && this.status?.mainstate === 2
 
     return html`
       <div class="widget-header">
         <span class="widget-title">Cafetiere</span>
-        <span class="status-badge ${overallStatus}">${this._getStatusLabel()}</span>
+        <span class="status-badge ${this._getOverallStatus()}">${this._getStatusLabel()}</span>
       </div>
 
-      <div class="content-grid">
-        <!-- Brew controls -->
-        <div class="section-card">
-          <div class="section-title">
-            <svg viewBox="0 0 24 24"><path d="M2 21V19H20V21H2ZM20 8V5H18V8H20ZM20 3C20.5523 3 21 3.44772 21 4V9C21 9.55228 20.5523 10 20 10H18V13C18 14.6569 16.6569 16 15 16H7C5.34315 16 4 14.6569 4 13V3H20ZM16 5H6V13C6 13.5523 6.44772 14 7 14H15C15.5523 14 16 13.5523 16 13V5Z"/></svg>
-            Boissons
-          </div>
+      ${this.status?.maintenance_needed ? html`
+        <div class="maintenance-alert">
+          &#9888; ${this.status.maintenance_reason || 'Maintenance requise'}
+        </div>
+      ` : ''}
 
-          ${isBrewing ? html`
-            <button class="stop-btn" @click="${this._stop}">Arreter</button>
-            ${this.status?.brew_progress ? html`
-              <div class="brew-progress">
-                <div class="brew-progress-bar">
-                  <div class="brew-progress-fill" style="width: ${this.status.brew_progress}%"></div>
-                </div>
-                <div class="brew-progress-label">Preparation ${this.status.brew_progress}%</div>
-              </div>
-            ` : ''}
-          ` : html`
-            <div class="brew-buttons">
-              <button class="brew-btn" ?disabled="${!isReady || this.brewLoading}" @click="${() => this._brew('espresso')}">
-                <span class="icon">&#9749;</span>
-                <span class="label">Espresso</span>
-              </button>
-              <button class="brew-btn" ?disabled="${!isReady || this.brewLoading}" @click="${() => this._brew('coffee')}">
-                <span class="icon">&#9749;</span>
-                <span class="label">Cafe long</span>
-              </button>
-              <button class="brew-btn" ?disabled="${!isReady || this.brewLoading}" @click="${() => this._brew('hot_water')}">
-                <span class="icon">&#128167;</span>
-                <span class="label">Eau chaude</span>
-              </button>
-            </div>
-          `}
-
-          ${this.brewError ? html`<div class="error-msg">${this.brewError}</div>` : ''}
-
-          <div class="power-row">
-            <span class="status-key">Alimentation</span>
-            ${this.status?.online ? html`
-              <button class="power-btn off" @click="${() => this._power(false)}">Eteindre</button>
-            ` : html`
-              <button class="power-btn on" @click="${() => this._power(true)}">Allumer</button>
-            `}
+      ${this.poweringOn ? html`
+        <div class="brewing-state">
+          <div class="powering-on">
+            <div class="spin-icon">&#9749;</div>
+            <div class="powering-on-label">Allumage en cours...${this._pendingBrew ? ` puis ${this._pendingBrew.drink}` : ''}</div>
           </div>
         </div>
-
-        <!-- Levels -->
-        <div class="section-card">
-          <div class="section-title">
-            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-            Niveaux
-          </div>
-
-          <div class="levels-grid">
-            <div class="level-item">
-              <div class="level-label">&#128167; Eau</div>
-              <div class="level-bar">
-                <div class="level-fill water ${this._levelPercent(this.status?.water_level) < 20 ? 'low' : ''}"
-                     style="width: ${this._levelPercent(this.status?.water_level)}%"></div>
-              </div>
-              <div class="level-value">${this._levelPercent(this.status?.water_level)}%</div>
-            </div>
-
-            <div class="level-item">
-              <div class="level-label">&#127793; Grains</div>
-              <div class="level-bar">
-                <div class="level-fill beans ${this._levelPercent(this.status?.bean_level) < 20 ? 'low' : ''}"
-                     style="width: ${this._levelPercent(this.status?.bean_level)}%"></div>
-              </div>
-              <div class="level-value">${this._levelPercent(this.status?.bean_level)}%</div>
-            </div>
-
-            <div class="level-item">
-              <div class="level-label">&#128465; Marc</div>
-              <div class="level-bar">
-                <div class="level-fill waste" style="width: ${this._levelPercent(this.status?.waste_bean, 14)}%"></div>
-              </div>
-              <div class="level-value">${this.status?.waste_bean || 0}/14</div>
-            </div>
-
-            <div class="level-item">
-              <div class="level-label">&#128167; Detartrage</div>
-              <div class="level-bar">
-                <div class="level-fill descale ${this._levelPercent(this.status?.descale_status, 8) < 25 ? 'low' : ''}"
-                     style="width: ${this._levelPercent(this.status?.descale_status, 8)}%"></div>
-              </div>
-              <div class="level-value">${this.status?.descale_status || 0}/8</div>
-            </div>
-          </div>
-
-          ${this.status?.maintenance_needed ? html`
-            <div class="maintenance-alert">
-              &#9888; ${this.status.maintenance_reason || 'Maintenance requise'}
+      ` : isBrewing ? html`
+        <div class="brewing-state">
+          <div class="brewing-icon">&#9749;</div>
+          <div class="brewing-label">Preparation en cours</div>
+          ${this.status?.brew_progress ? html`
+            <div class="brewing-progress">
+              <div class="brewing-progress-fill" style="width: ${this.status.brew_progress}%"></div>
             </div>
           ` : ''}
+          <button class="stop-btn" @click="${this._stop}">&#9724; Arreter</button>
         </div>
+      ` : html`
+        <div class="drink-list">
+          <div class="drink-row ${canBrew ? '' : 'disabled'}">
+            <span class="drink-icon">&#9749;</span>
+            <span class="drink-name">Espresso</span>
+            <div class="cups-toggle">
+              <span class="cup-opt ${this.cupsSel.espresso === 1 ? 'active' : ''}" @click="${() => this._setCups('espresso', 1)}">1</span>
+              <span class="cup-opt ${this.cupsSel.espresso === 2 ? 'active' : ''}" @click="${() => this._setCups('espresso', 2)}">2</span>
+            </div>
+            <button class="go-btn" ?disabled="${!canBrew || this.brewLoading}" @click="${() => this._brew('espresso', this.cupsSel.espresso)}">GO</button>
+          </div>
+          <div class="drink-row ${canBrew ? '' : 'disabled'}">
+            <span class="drink-icon">&#9749;</span>
+            <span class="drink-name">Cafe long</span>
+            <div class="cups-toggle">
+              <span class="cup-opt ${this.cupsSel.coffee === 1 ? 'active' : ''}" @click="${() => this._setCups('coffee', 1)}">1</span>
+              <span class="cup-opt ${this.cupsSel.coffee === 2 ? 'active' : ''}" @click="${() => this._setCups('coffee', 2)}">2</span>
+            </div>
+            <button class="go-btn" ?disabled="${!canBrew || this.brewLoading}" @click="${() => this._brew('coffee', this.cupsSel.coffee)}">GO</button>
+          </div>
+          <div class="drink-row ${canBrew ? '' : 'disabled'}">
+            <span class="drink-icon">&#128167;</span>
+            <span class="drink-name">Eau chaude</span>
+            <button class="go-btn" ?disabled="${!canBrew || this.brewLoading}" @click="${() => this._brew('hot_water', 1)}">GO</button>
+          </div>
+        </div>
+        ${isStandby ? html`<div style="font-size:0.75em;color:var(--color-dark-text-tertiary);text-align:center;margin-bottom:0.5rem;">Machine en veille — allumage auto au lancement</div>` : ''}
+      `}
+
+      ${this.brewError ? html`<div class="error-msg">${this.brewError}</div>` : ''}
+      ${this.brewSuccess ? html`<div class="success-msg">${this.brewSuccess}</div>` : ''}
+
+      <!-- Levels -->
+      <div class="levels-row">
+        <div class="level-chip">
+          <span class="chip-icon">&#128167;</span>
+          <span>Eau</span>
+          <span class="chip-val ${this._levelClass(this.status?.water_level, 30)}">${this._levelText(this.status?.water_level, 'water')}</span>
+        </div>
+        <div class="level-chip">
+          <span class="chip-icon">&#127793;</span>
+          <span>Grains</span>
+          <span class="chip-val ${this._levelClass(this.status?.bean_level, 30)}">${this._levelText(this.status?.bean_level, 'beans')}</span>
+        </div>
+        <div class="level-chip">
+          <span class="chip-icon">&#128465;</span>
+          <span>Marc</span>
+          <span class="chip-val ${(this.status?.waste_bean || 0) >= 12 ? 'low' : (this.status?.waste_bean || 0) >= 10 ? 'warn' : 'ok'}">${this.status?.waste_bean || 0}/14</span>
+        </div>
+        <div class="level-chip">
+          <span class="chip-icon">&#128167;</span>
+          <span>Detartr.</span>
+          <span class="chip-val ${this._levelClass(this.status?.descale_status, 30)}">${this._levelText(this.status?.descale_status, 'descale')}</span>
+        </div>
+        <div class="level-chip">
+          <span class="chip-icon">&#128167;</span>
+          <span>Filtre</span>
+          <span class="chip-val ${this.status?.aquaclean_installed ? this._levelClass(this.status?.aquaclean_remaining, 30) : ''}">${this.status?.aquaclean_installed ? this._levelText(this.status?.aquaclean_remaining, 'filter') : 'Non'}</span>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="footer-row">
+        <div class="machine-state">
+          <span class="status-dot ${this.status?.online ? 'home' : 'away'}"></span>
+          ${this.status?.online ? 'Connectee' : 'Hors ligne'}
+        </div>
+        ${isReady || isBrewing ? html`
+          <button class="power-btn off" @click="${this._powerOff}">Eteindre</button>
+        ` : this.status?.online ? html`
+          <button class="power-btn on" @click="${this._powerOn}">Allumer</button>
+        ` : ''}
       </div>
     `
   }

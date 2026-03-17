@@ -1,4 +1,5 @@
 use crate::state::AppState;
+use reqwest::ClientBuilder;
 use serde_json::Value;
 use std::process::Stdio;
 use teloxide::prelude::*;
@@ -17,7 +18,7 @@ const MAX_MSG_LEN: usize = 4000;
 /// Typing indicator interval
 const TYPING_INTERVAL: Duration = Duration::from_secs(4);
 
-const SYSTEM_PROMPT: &str = "Tu es l'assistant Symbion, accessible via Telegram. \
+const BASE_SYSTEM_PROMPT: &str = "Tu es l'assistant Symbion, accessible via Telegram. \
 Réponds en français, concis, adapté au mobile. \
 \
 RÈGLES CRITIQUES: \
@@ -39,6 +40,103 @@ BIBLIOTHÈQUE SYMBION (API REST): \
 - Autres endpoints: GET /nodes, GET /search?q=..., GET /nodes/{id}/desk \
 - Ne modifie JAMAIS les fichiers de données directement.";
 
+/// Fetch current system context from kernel APIs
+async fn fetch_system_context(state: &AppState) -> String {
+    let client = ClientBuilder::new()
+        .danger_accept_invalid_certs(true)
+        .timeout(Duration::from_secs(3))
+        .build()
+        .unwrap_or_default();
+
+    let api_key = &state.config.kernel_api_key;
+    let base = "https://localhost:8443";
+
+    // Fetch context, agents, health in parallel
+    let (ctx_res, agents_res, health_res) = tokio::join!(
+        client.get(format!("{}/v1/context", base))
+            .header("x-api-key", api_key).send(),
+        client.get(format!("{}/v1/agents", base))
+            .header("x-api-key", api_key).send(),
+        client.get(format!("{}/health", base))
+            .header("x-api-key", api_key).send(),
+    );
+
+    let mut context_parts: Vec<String> = Vec::new();
+
+    // Current mode
+    if let Ok(resp) = ctx_res {
+        if let Ok(json) = resp.json::<Value>().await {
+            let mode = json.get("current_mode")
+                .or_else(|| json.get("mode"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("?");
+            let slug = json.get("mode_slug")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            context_parts.push(format!("Mode actuel: {} ({})", mode, slug));
+        }
+    }
+
+    // Agents
+    if let Ok(resp) = agents_res {
+        if let Ok(json) = resp.json::<Value>().await {
+            if let Some(agents) = json.as_array().or_else(|| json.get("agents").and_then(|a| a.as_array())) {
+                let summaries: Vec<String> = agents.iter().filter_map(|a| {
+                    let id = a.get("agent_id").or_else(|| a.get("id")).and_then(|v| v.as_str())?;
+                    let online = a.get("online").and_then(|v| v.as_bool()).unwrap_or(false);
+                    Some(format!("{}: {}", id, if online { "🟢" } else { "🔴" }))
+                }).collect();
+                if !summaries.is_empty() {
+                    context_parts.push(format!("Agents: {}", summaries.join(", ")));
+                }
+            }
+        }
+    }
+
+    // Health
+    if let Ok(resp) = health_res {
+        if let Ok(json) = resp.json::<Value>().await {
+            let status = json.get("status").and_then(|v| v.as_str()).unwrap_or("?");
+            let uptime = json.get("uptime_seconds").and_then(|v| v.as_u64()).unwrap_or(0);
+            let hours = uptime / 3600;
+            let mins = (uptime % 3600) / 60;
+            context_parts.push(format!("Kernel: {} (uptime {}h{}m)", status, hours, mins));
+        }
+    }
+
+    if context_parts.is_empty() {
+        return String::new();
+    }
+
+    format!("\n\nÉTAT SYSTÈME EN TEMPS RÉEL:\n{}", context_parts.join("\n"))
+}
+
+/// Build system prompt with live context and conversation history
+async fn build_system_prompt(state: &AppState, user_id: i64) -> String {
+    let mut prompt = String::from(BASE_SYSTEM_PROMPT);
+
+    // Inject live system context
+    let context = fetch_system_context(state).await;
+    if !context.is_empty() {
+        prompt.push_str(&context);
+    }
+
+    // Inject last 5 conversation entries
+    let history = state.get_history(user_id);
+    if !history.is_empty() {
+        let recent: Vec<&crate::state::HistoryEntry> = history.iter().rev().take(5).collect();
+        prompt.push_str("\n\nDERNIERS ÉCHANGES (du plus récent au plus ancien):");
+        for entry in &recent {
+            let status = if entry.success { "✓" } else { "✗" };
+            // Truncate prompt to 100 chars for context
+            let short: String = entry.prompt.chars().take(100).collect();
+            prompt.push_str(&format!("\n- [{}] {}", status, short));
+        }
+    }
+
+    prompt
+}
+
 /// Run Claude CLI and stream response to Telegram
 pub async fn run_claude(
     state: &AppState,
@@ -47,6 +145,9 @@ pub async fn run_claude(
     cancel: CancellationToken,
 ) -> Result<(), String> {
     let session = state.get_session(chat_id.0);
+
+    // Build dynamic system prompt with live context + history
+    let system_prompt = build_system_prompt(state, chat_id.0).await;
 
     // Build command
     let mut cmd = Command::new(state.config.claude_path.as_os_str());
@@ -58,7 +159,7 @@ pub async fn run_claude(
     cmd.arg("--model").arg(&session.model);
     cmd.arg("--effort").arg(&session.effort);
     cmd.arg("--max-turns").arg("15");
-    cmd.arg("--append-system-prompt").arg(SYSTEM_PROMPT);
+    cmd.arg("--append-system-prompt").arg(&system_prompt);
 
     // Session continuity
     if let Some(ref sid) = session.session_id {

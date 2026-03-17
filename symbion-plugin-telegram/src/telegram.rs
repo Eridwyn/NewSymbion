@@ -256,12 +256,15 @@ async fn handle_callback(
                 }
             }
         }
-    } else if let Some(drink) = data.strip_prefix("cafe:") {
-        // Coffee inline keyboard callbacks
+    } else if let Some(rest) = data.strip_prefix("cafe:") {
+        // Coffee inline keyboard callbacks — format: drink:cups
+        let parts: Vec<&str> = rest.splitn(2, ':').collect();
+        let drink = parts[0];
+        let cups: u8 = parts.get(1).and_then(|c| c.parse().ok()).unwrap_or(1);
         let result = match drink {
-            "espresso" => plugin_post(&state, "coffee", "/brew", &json!({"drink": "espresso", "temperature": 2, "cups": 1})).await,
-            "coffee" => plugin_post(&state, "coffee", "/brew", &json!({"drink": "coffee", "temperature": 2, "cups": 1})).await,
-            "hot_water" => plugin_post(&state, "coffee", "/brew", &json!({"drink": "hot_water", "temperature": 2, "cups": 1})).await,
+            "espresso" | "coffee" | "hot_water" => {
+                plugin_post(&state, "coffee", "/brew", &json!({"drink": drink, "temperature": 2, "cups": cups})).await
+            }
             "stop" => plugin_post(&state, "coffee", "/stop", &json!({})).await,
             _ => "❌ Action inconnue".to_string(),
         };
@@ -271,8 +274,9 @@ async fn handle_callback(
             "stop" => "⛔",
             _ => "❓",
         };
+        let label = if cups > 1 { format!(" x{}", cups) } else { String::new() };
         if let Some(mid) = msg_id {
-            let _ = bot.edit_message_text(chat_id, mid, format!("{} {}", icon, result)).await;
+            let _ = bot.edit_message_text(chat_id, mid, format!("{}{} {}", icon, label, result)).await;
         }
     }
 
@@ -754,12 +758,16 @@ async fn handle_cafe_command(
             // Show inline keyboard with drink choices
             let keyboard = InlineKeyboardMarkup::new(vec![
                 vec![
-                    InlineKeyboardButton::callback("☕ Espresso", "cafe:espresso"),
-                    InlineKeyboardButton::callback("☕ Café long", "cafe:coffee"),
+                    InlineKeyboardButton::callback("☕ Espresso", "cafe:espresso:1"),
+                    InlineKeyboardButton::callback("☕ Espresso x2", "cafe:espresso:2"),
                 ],
                 vec![
-                    InlineKeyboardButton::callback("💧 Eau chaude", "cafe:hot_water"),
-                    InlineKeyboardButton::callback("⛔ Arrêter", "cafe:stop"),
+                    InlineKeyboardButton::callback("☕ Café long", "cafe:coffee:1"),
+                    InlineKeyboardButton::callback("☕ Café long x2", "cafe:coffee:2"),
+                ],
+                vec![
+                    InlineKeyboardButton::callback("💧 Eau chaude", "cafe:hot_water:1"),
+                    InlineKeyboardButton::callback("⛔ Arrêter", "cafe:stop:0"),
                 ],
             ]);
             bot.send_message(chat_id, "☕ Cafetière — Que veux-tu ?")
@@ -770,9 +778,17 @@ async fn handle_cafe_command(
             let result = plugin_post(state, "coffee", "/brew", &json!({"drink": "espresso", "temperature": 2, "cups": 1})).await;
             bot.send_message(chat_id, format!("☕ Espresso\n{}", result)).await?;
         }
+        "espresso2" | "expresso2" | "espresso x2" | "2espresso" => {
+            let result = plugin_post(state, "coffee", "/brew", &json!({"drink": "espresso", "temperature": 2, "cups": 2})).await;
+            bot.send_message(chat_id, format!("☕ Espresso x2\n{}", result)).await?;
+        }
         "long" | "cafe" | "coffee" => {
             let result = plugin_post(state, "coffee", "/brew", &json!({"drink": "coffee", "temperature": 2, "cups": 1})).await;
             bot.send_message(chat_id, format!("☕ Café long\n{}", result)).await?;
+        }
+        "long2" | "cafe2" | "coffee2" | "long x2" | "2cafe" => {
+            let result = plugin_post(state, "coffee", "/brew", &json!({"drink": "coffee", "temperature": 2, "cups": 2})).await;
+            bot.send_message(chat_id, format!("☕ Café long x2\n{}", result)).await?;
         }
         "eau" | "water" | "hot_water" | "eau_chaude" => {
             let result = plugin_post(state, "coffee", "/brew", &json!({"drink": "hot_water", "temperature": 2, "cups": 1})).await;

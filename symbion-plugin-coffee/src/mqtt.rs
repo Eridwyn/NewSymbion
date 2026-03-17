@@ -70,6 +70,8 @@ impl MqttPublisher {
                 "coffee.bean_level": status.bean_level as i32,
                 "coffee.maintenance": status.maintenance_needed,
                 "coffee.descale_status": status.descale_status as i32,
+                "coffee.aquaclean_installed": status.aquaclean_installed,
+                "coffee.aquaclean_remaining": status.aquaclean_remaining.unwrap_or(0) as i32,
             }
         });
 
