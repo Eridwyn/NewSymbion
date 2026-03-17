@@ -131,7 +131,9 @@ class MqttService extends LitElement {
       'symbion/freebox/connection/metrics',
       // SSL plugin topics
       'symbion/ssl/summary',
-      'symbion/ssl/+'
+      'symbion/ssl/+',
+      // Coffee plugin topics
+      'symbion/coffee/#'
     ]
 
     // Storage pour agréger les agents reçus individuellement
@@ -220,6 +222,8 @@ class MqttService extends LitElement {
           this.handleFreeboxPresence(topic, payload)
         } else if (topic.startsWith('symbion/ssl/') && topic !== 'symbion/ssl/summary') {
           this.handleSslDomain(topic, payload)
+        } else if (topic.startsWith('symbion/coffee/')) {
+          this.handleCoffeeMessage(topic, payload)
         } else {
           console.log(`🤷 Unhandled topic: ${topic}`)
         }
@@ -266,6 +270,46 @@ class MqttService extends LitElement {
       bubbles: true,
       composed: true
     }))
+  }
+
+  // === Coffee plugin handlers ===
+
+  handleCoffeeMessage(topic, payload) {
+    const subTopic = topic.replace('symbion/coffee/', '')
+    console.log('☕ [mqtt] Coffee:', subTopic, payload)
+
+    if (subTopic === 'status') {
+      this._coffeeStatusCache = payload?.payload || payload
+      this.dispatchEvent(new CustomEvent('coffee-status', {
+        detail: { topic, payload: this._coffeeStatusCache },
+        bubbles: true,
+        composed: true
+      }))
+    } else if (subTopic.startsWith('brewing/')) {
+      this.dispatchEvent(new CustomEvent('coffee-brewing', {
+        detail: { topic, payload },
+        bubbles: true,
+        composed: true
+      }))
+    } else if (subTopic === 'maintenance/alert') {
+      this.dispatchEvent(new CustomEvent('coffee-maintenance', {
+        detail: { topic, payload },
+        bubbles: true,
+        composed: true
+      }))
+    } else if (subTopic === 'power') {
+      this.dispatchEvent(new CustomEvent('coffee-power', {
+        detail: { topic, payload },
+        bubbles: true,
+        composed: true
+      }))
+    }
+  }
+
+  getCoffeeCache() {
+    return {
+      status: this._coffeeStatusCache || null
+    }
   }
 
   handleSslDomain(topic, payload) {

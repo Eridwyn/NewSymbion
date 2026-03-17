@@ -1,0 +1,49 @@
+[package]
+name = "symbion-plugin-coffee"
+version = "0.1.0"
+edition = "2021"
+authors = ["Mark Chavatte <Markchavatte@gmail.com>"]
+description = "Symbion plugin for Philips EP2520 coffee machine - brew control, status monitoring, maintenance alerts"
+
+[[bin]]
+name = "symbion-plugin-coffee"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# HTTP client (for Condor HTTPS to coffee machine)
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# HTTP server (plugin routes)
+axum = "0.7"
+tower = "0.4"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# MQTT
+rumqttc = "0.24"
+
+# Symbion common plugin utilities
+symbion-plugin-common = { path = "../symbion-plugin-common" }
+
+# Crypto (SHA256 for Condor auth)
+sha2 = "0.10"
+base64 = "0.22"
+
+# Config
+toml = "0.8"
+
+# Time
+chrono = { version = "0.4.41", features = ["serde"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "1"

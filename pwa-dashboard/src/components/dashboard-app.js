@@ -29,6 +29,7 @@ const lazyWidgets = () => {
   import('../widgets/environment-widget.js')
   import('../widgets/context-engine-widget.js')
   import('../widgets/library-widget.js')
+  import('../widgets/coffee-widget.js')
 }
 const lazyPages = () => {
   import('./user-settings-page.js')
@@ -1501,6 +1502,9 @@ class DashboardApp extends LitElement {
               <context-engine-widget></context-engine-widget>
             </div>
             <div class="widget-container">
+              <coffee-widget></coffee-widget>
+            </div>
+            <div class="widget-container">
               <agents-network-widget
                 .connected="${this.connected}"
                 .agents="${this.agents}">
@@ -1596,6 +1600,11 @@ class DashboardApp extends LitElement {
           <!-- Widget bibliothèque -->
           <div class="widget-container">
             <library-widget></library-widget>
+          </div>
+
+          <!-- Widget cafetiere Philips -->
+          <div class="widget-container">
+            <coffee-widget></coffee-widget>
           </div>
 
           <!-- Widget agents network -->

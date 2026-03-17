@@ -1,0 +1,72 @@
+{
+  "spec_version": "1.0",
+  "plugin_id": "coffee",
+  "name": "Symbion Coffee Machine",
+  "version": "0.1.0",
+  "description": "Integration Philips EP2520 - preparation cafe a distance, monitoring, alertes maintenance",
+  "capabilities": [
+    {
+      "action_type": "get_status",
+      "description": "Obtenir l'etat complet de la machine (brassage, eau, grains, maintenance)",
+      "impact_level": "low",
+      "parameters": {}
+    },
+    {
+      "action_type": "brew",
+      "description": "Lancer la preparation d'une boisson",
+      "impact_level": "medium",
+      "parameters": {
+        "drink": { "type": "string", "required": true, "enum": ["espresso", "coffee", "hot_water"] },
+        "temperature": { "type": "integer", "required": false, "default": 2, "min": 1, "max": 3 },
+        "cups": { "type": "integer", "required": false, "default": 1, "min": 1, "max": 2 }
+      }
+    },
+    {
+      "action_type": "stop",
+      "description": "Arreter le brassage en cours",
+      "impact_level": "medium",
+      "parameters": {}
+    },
+    {
+      "action_type": "power",
+      "description": "Allumer ou eteindre la machine",
+      "impact_level": "medium",
+      "parameters": {
+        "on": { "type": "boolean", "required": true }
+      }
+    }
+  ],
+  "events": [
+    {
+      "event_type": "brewing_started",
+      "description": "La machine a commence a preparer un cafe",
+      "mqtt_topic": "symbion/coffee/brewing/started"
+    },
+    {
+      "event_type": "brewing_completed",
+      "description": "La preparation est terminee",
+      "mqtt_topic": "symbion/coffee/brewing/completed"
+    },
+    {
+      "event_type": "maintenance_alert",
+      "description": "Action maintenance necessaire (bac plein, eau vide, detartrage)",
+      "mqtt_topic": "symbion/coffee/maintenance/alert"
+    },
+    {
+      "event_type": "power_changed",
+      "description": "La machine a change d'etat (allumee/eteinte)",
+      "mqtt_topic": "symbion/coffee/power"
+    }
+  ],
+  "features": [
+    { "feature_id": "coffee.online", "type": "bool", "description": "Machine en ligne et joignable" },
+    { "feature_id": "coffee.ready", "type": "bool", "description": "Machine prete a brasser" },
+    { "feature_id": "coffee.brewing", "type": "bool", "description": "Brassage en cours" },
+    { "feature_id": "coffee.water_level", "type": "number", "description": "Niveau eau (0-100)" },
+    { "feature_id": "coffee.bean_level", "type": "number", "description": "Niveau grains (0-100)" },
+    { "feature_id": "coffee.maintenance", "type": "bool", "description": "Maintenance necessaire" },
+    { "feature_id": "coffee.descale_status", "type": "number", "description": "Compteur detartrage" }
+  ],
+  "health_endpoint": "/health",
+  "socket_path": "/run/symbion-plugins/coffee.sock"
+}

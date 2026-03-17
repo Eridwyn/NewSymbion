@@ -1,0 +1,22 @@
+[Unit]
+Description=Symbion Coffee Plugin (Philips EP2520/10)
+Documentation=https://github.com/Eridwyn/NewSymbion
+After=symbion-kernel.service
+Requires=symbion-kernel.service
+
+[Service]
+Type=simple
+User=eridwyn
+WorkingDirectory=/home/eridwyn/RustroverProjects/NewSymbion
+Environment="COFFEE_CONFIG=/opt/symbion/config/coffee.toml"
+Environment="SYMBION_MQTT_BROKER=127.0.0.1:1883"
+ExecStartPre=/bin/mkdir -p /run/symbion-plugins
+ExecStart=/bin/bash -c 'source ~/.cargo/env && ./target/release/symbion-plugin-coffee'
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=symbion-plugin-coffee
+
+[Install]
+WantedBy=default.target
