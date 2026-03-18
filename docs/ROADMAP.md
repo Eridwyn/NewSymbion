@@ -142,6 +142,52 @@
 
 ---
 
+### R4 — Plugin Cafetière v2 : Customisation Boissons 🔴 TODO
+
+**Objectif** : Débloquer la personnalisation complète des boissons (intensité, volume ml, température) via reverse engineering du protocole cloud Philips.
+
+**Contexte** : Le plugin `symbion-plugin-coffee` v1 contrôle la EP2520/10 en LAN via le protocole Condor (on/off, brew recettes fixes, statuts, AquaClean). Mais la machine **ignore** les paramètres `PrimDose`/`GrDose` envoyés en LAN — la customisation passe uniquement par le cloud RITA (protobuf). L'app officielle propose : intensité (légère/ordinaire/corsée), volume (espresso 30/40/70ml, long 100/120/200ml), température (basse/moyenne/élevée).
+
+**Approche — Reverse engineering via Frida + mitmproxy** :
+1. Téléphone Android rooté (vieux téléphone dédié)
+2. Frida pour bypass certificate pinning de l'app Philips
+3. mitmproxy pour capturer le trafic HTTPS vers les serveurs cloud
+4. pbtk pour extraire les définitions .proto de l'APK
+5. Décoder les requêtes protobuf de customisation
+6. Reproduire le protocole dans notre plugin Rust
+
+**Fonctionnalités visées** :
+- [ ] Extraction .proto depuis APK Philips (structures protobuf)
+- [ ] Capture trafic app → cloud lors de customisation café
+- [ ] Décodage protocole RITA (requêtes protobuf customisation)
+- [ ] Implémentation Rust : envoi direct des paramètres customisés
+- [ ] UI PWA : sliders intensité (1-3), volume (ml), température (1-3)
+- [ ] Telegram : `/cafe espresso corsé 50ml` — commande avec paramètres
+- [ ] Sauvegarde profils personnalisés (ex: "Mon espresso du matin")
+
+**Outils nécessaires** :
+- Frida (`pip install frida-tools`) — instrumentation runtime
+- mitmproxy (`pip install mitmproxy`) — proxy HTTPS
+- pbtk (`github.com/marin-m/pbtk`) — extraction protobuf depuis APK
+- Téléphone Android rooté avec ADB
+- frida-interception-and-unpinning (`github.com/httptoolkit/frida-interception-and-unpinning`)
+
+**Prérequis matériel** :
+- Téléphone Android rooté (vieux téléphone dédié — en cours de préparation)
+
+**Fichiers concernés** :
+- `symbion-plugin-coffee/src/condor.rs` — nouveau client cloud ou LAN étendu
+- `symbion-plugin-coffee/src/main.rs` — endpoints customisation
+- `pwa-dashboard/src/widgets/coffee-widget.js` — UI sliders
+- `symbion-plugin-telegram/src/telegram.rs` — commandes paramétrées
+
+**Références** :
+- [hcpy](https://github.com/hcpy2-0/hcpy) — approche similaire pour Home Connect (Bosch/Siemens)
+- [pbtk](https://github.com/marin-m/pbtk) — extraction .proto depuis APK
+- [frida-interception-and-unpinning](https://github.com/httptoolkit/frida-interception-and-unpinning)
+
+---
+
 ## Ordre de Priorité
 
 | # | Feature | Effort | Dépendances | Impact |
@@ -149,8 +195,9 @@
 | R1 | Notifications Telegram | Moyen | Plugin Telegram existant | Haut — alertes temps réel |
 | R2 | Formulaire public + validation | Moyen | Plugin Library + Public-lib existants | Moyen — collaboratif |
 | R3 | Lumières domotique v1 | Élevé | Matériel Zigbee/WiFi | Très haut — vraie domotique |
+| R4 | Cafetière v2 customisation | Élevé | Téléphone rooté + reverse eng. | Moyen — confort quotidien |
 
-**Suggestion** : R1 → R2 → R3 (le matériel pour R3 peut être commandé pendant R1/R2)
+**Suggestion** : R1 → R2 → R3 (le matériel pour R3 peut être commandé pendant R1/R2), R4 quand le téléphone rooté est prêt
 
 ---
 
@@ -169,6 +216,7 @@ Tout ce qui suit est **terminé et en production** :
 - **Plugin System** — 7 plugins (notes, ssl, sensors, library, telegram, freebox, common)
 - **Bibliothèque de Connaissances** — Graph, templates, FTS5, éditeur visuel, page publique
 - **Bot Telegram** — Bridge Python + plugin Rust, commandes Claude Code
+- **Plugin Cafetière v1** — Philips EP2520/10, Condor LAN, brew/power/status, AquaClean, widget PWA, Telegram
 - **OpenAPI/Swagger** — 109 paths, Swagger UI
 - **Thèmes Dynamiques** — 4 modes système + custom, logo colorisé
 - **Environment Monitoring** — ESP32/BME280, alertes température/humidité

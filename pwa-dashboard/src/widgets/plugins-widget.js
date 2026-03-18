@@ -2,11 +2,9 @@
  * Widget Affichage des Plugins
  *
  * Interface de contrôle et visualisation des plugins Symbion:
- * - État et statut des plugins
- * - Routes enregistrées
- * - Informations d'enregistrement
+ * - Mode compact par défaut (nom + status)
+ * - Détails dépliables par plugin (socket, routes, actions)
  * - Contrôle systemctl (start/stop/restart)
- * - Plugins autonomes gérés via systemd/processus
  */
 
 import { LitElement, html, css } from 'lit'
@@ -20,57 +18,86 @@ class PluginsWidget extends LitElement {
       display: block;
     }
 
-    /* widget-count provided by widgetHeaderStyles */
-    
     .plugins-list {
       display: flex;
       flex-direction: column;
-      gap: 1rem;
+      gap: 4px;
     }
-    
-    .plugin-card {
+
+    /* ── Compact row ── */
+    .plugin-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.55rem 0.75rem;
       background: var(--surface-glass-subtle);
       border: 1px solid var(--border-default);
       border-radius: var(--radius-base);
-      padding: 1rem;
+      cursor: pointer;
       transition: all var(--duration-base) var(--ease-out);
+      user-select: none;
     }
-    
-    .plugin-card:hover {
+
+    .plugin-row:hover {
       border-color: rgba(0, 122, 204, 0.3);
       background: var(--surface-glass);
-      box-shadow: 0 8px 32px var(--ctx-border-medium, rgba(0,212,170,0.2)),
-                  0 0 40px var(--ctx-bg-subtle, rgba(0,212,170,0.05));
     }
-    
-    .plugin-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 0.8rem;
+
+    .plugin-row.expanded {
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+      border-bottom-color: transparent;
     }
-    
+
+    .expand-chevron {
+      font-size: 0.7em;
+      opacity: 0.5;
+      transition: transform 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .plugin-row.expanded .expand-chevron {
+      transform: rotate(90deg);
+    }
+
     .plugin-name {
       font-weight: 600;
       color: var(--color-dark-text-primary, #f8f9fa);
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    
+
     .plugin-version {
-      font-size: 0.8em;
-      opacity: 0.6;
-      margin-left: 0.5rem;
+      font-size: 0.75em;
+      opacity: 0.45;
     }
-    
-    /* status-badge variants (.running, .stopped, .starting, etc.) from shared statusBadgeStyles */
-    
+
+    /* ── Expanded details ── */
+    .plugin-details {
+      background: var(--surface-glass-subtle);
+      border: 1px solid var(--border-default);
+      border-top: none;
+      border-radius: 0 0 var(--radius-base) var(--radius-base);
+      padding: 0.75rem;
+      margin-bottom: 4px;
+      animation: slideDown 0.15s ease-out;
+    }
+
+    @keyframes slideDown {
+      from { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; }
+      to { opacity: 1; max-height: 300px; }
+    }
+
     .plugin-description {
-      font-size: 0.9em;
+      font-size: 0.85em;
       opacity: 0.7;
-      margin-bottom: 1rem;
+      margin-bottom: 0.6rem;
     }
-    
+
     .plugin-info {
-      margin-top: 0.8rem;
       font-size: 0.8em;
       opacity: 0.6;
     }
@@ -78,7 +105,7 @@ class PluginsWidget extends LitElement {
     .info-row {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 0.4rem;
+      margin-bottom: 0.3rem;
     }
 
     .info-label {
@@ -91,35 +118,44 @@ class PluginsWidget extends LitElement {
       opacity: 0.9;
     }
 
-    .readonly-notice {
-      background: var(--ctx-bg-subtle);
-      border: 1px solid var(--ctx-bg-strong);
-      border-radius: var(--radius-sm);
-      padding: 0.8rem;
-      margin-bottom: 1rem;
-      font-size: 0.85em;
-      color: var(--context-primary, #00d4aa);
+    .plugin-contracts {
+      margin-top: 0.5rem;
+      font-size: 0.8em;
+      opacity: 0.6;
+    }
+
+    .contracts-list {
       display: flex;
-      align-items: center;
-      gap: 0.5rem;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      margin-top: 0.25rem;
+    }
+
+    .contract-tag {
+      background: var(--surface-glass-strong);
+      padding: 0.15rem 0.35rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.75em;
     }
 
     .plugin-actions {
       display: flex;
-      gap: 0.75rem;
-      margin-top: 1rem;
+      gap: 0.5rem;
+      margin-top: 0.6rem;
+      padding-top: 0.6rem;
+      border-top: 1px solid var(--border-default);
     }
 
     .action-btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 32px;
-      height: 32px;
+      width: 30px;
+      height: 30px;
       padding: 0;
       border: 1px solid transparent;
       border-radius: 50%;
-      font-size: 1em;
+      font-size: 0.9em;
       cursor: pointer;
       transition: all 0.25s cubic-bezier(0, 0, 0.2, 1);
     }
@@ -147,7 +183,6 @@ class PluginsWidget extends LitElement {
       background: rgba(239, 68, 68, 0.25);
       border-color: rgba(239, 68, 68, 0.4);
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
     }
 
     .action-btn.warning {
@@ -160,93 +195,54 @@ class PluginsWidget extends LitElement {
       background: rgba(245, 158, 11, 0.25);
       border-color: rgba(245, 158, 11, 0.4);
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
     }
 
     .action-btn:disabled {
       opacity: 0.4;
       cursor: not-allowed;
       transform: none;
-      box-shadow: none;
     }
 
-    .plugin-contracts {
-      margin-top: 0.8rem;
-      font-size: 0.8em;
-      opacity: 0.6;
-    }
-    
-    .contracts-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.3rem;
-      margin-top: 0.3rem;
-    }
-    
-    .contract-tag {
-      background: var(--surface-glass-strong);
-      padding: 0.2rem 0.4rem;
-      border-radius: var(--radius-sm);
-      font-size: 0.75em;
-    }
-    
-    /* empty-state provided by emptyStateStyles */
-    
     .error {
       text-align: center;
-      padding: 1rem;
+      padding: 0.6rem;
       color: var(--color-danger-text-muted, #ff6b6b);
       background: rgba(255, 107, 107, 0.1);
       border: 1px solid rgba(255, 107, 107, 0.3);
       border-radius: var(--radius-sm);
+      font-size: 0.85em;
+      margin-bottom: 0.5rem;
     }
 
-    .success {
+    .feedback {
       text-align: center;
-      padding: 1rem;
+      padding: 0.6rem;
       color: var(--context-primary, #00d4aa);
       background: var(--ctx-bg-subtle);
       border: 1px solid var(--ctx-bg-intense);
       border-radius: var(--radius-sm);
-      margin-bottom: 1rem;
+      font-size: 0.85em;
+      margin-bottom: 0.5rem;
     }
 
     /* Responsive */
     @media (max-width: 640px) {
-      .plugin-card {
-        padding: 0.75rem;
+      .plugin-row {
+        padding: 0.5rem 0.6rem;
       }
 
-      .plugin-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.4rem;
-        margin-bottom: 0.6rem;
-      }
-
-      .plugin-description {
-        font-size: 0.85em;
-        margin-bottom: 0.75rem;
+      .plugin-details {
+        padding: 0.6rem;
       }
 
       .info-row {
         flex-direction: column;
-        gap: 0.15rem;
+        gap: 0.1rem;
       }
 
       .info-value {
         font-size: 0.75em;
         word-break: break-all;
-      }
-
-      .readonly-notice {
-        padding: 0.6rem;
-        font-size: 0.8em;
-      }
-
-      .plugin-actions {
-        gap: 0.5rem;
-        margin-top: 0.75rem;
       }
     }
   `]
@@ -256,9 +252,10 @@ class PluginsWidget extends LitElement {
     apiService: { type: Object },
     loading: { type: Boolean },
     error: { type: String },
-    successMessage: { type: String }
+    successMessage: { type: String },
+    expandedPlugin: { type: String }
   }
-  
+
   constructor() {
     super()
     this.plugins = []
@@ -266,17 +263,12 @@ class PluginsWidget extends LitElement {
     this.loading = false
     this.error = null
     this.successMessage = null
+    this.expandedPlugin = null
   }
-  
-  // Normalize status (can be string "Running" or object {"Failed": "..."})
-  // Registered plugins (with registered_at timestamp) are assumed to be running
+
   normalizeStatus(status) {
-    if (typeof status === 'string') {
-      return status
-    } else if (typeof status === 'object' && status.Failed) {
-      return 'failed'
-    }
-    // If no status provided, assume plugin is running (it's registered)
+    if (typeof status === 'string') return status
+    if (typeof status === 'object' && status.Failed) return 'failed'
     return 'running'
   }
 
@@ -296,20 +288,21 @@ class PluginsWidget extends LitElement {
   formatTimestamp(timestamp) {
     if (!timestamp) return 'N/A'
     try {
-      const date = new Date(timestamp)
-      return date.toLocaleString('fr-FR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+      return new Date(timestamp).toLocaleString('fr-FR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
       })
     } catch {
       return timestamp
     }
   }
 
-  async handlePluginAction(pluginName, action) {
+  togglePlugin(name) {
+    this.expandedPlugin = this.expandedPlugin === name ? null : name
+  }
+
+  async handlePluginAction(pluginName, action, e) {
+    e.stopPropagation()
     if (!this.apiService) return
 
     this.loading = true
@@ -317,56 +310,28 @@ class PluginsWidget extends LitElement {
     this.successMessage = null
 
     try {
-      let result
-
-      // Use dedicated apiService methods instead of direct csrfService access
       switch (action) {
-        case 'start':
-          result = await this.apiService.startPlugin(pluginName)
-          break
-        case 'stop':
-          result = await this.apiService.stopPlugin(pluginName)
-          break
-        case 'restart':
-          result = await this.apiService.restartPlugin(pluginName)
-          break
-        case 'status':
-          result = await this.apiService.getPlugin(pluginName)
-          break
-        default:
-          throw new Error(`Unknown action: ${action}`)
+        case 'start': await this.apiService.startPlugin(pluginName); break
+        case 'stop': await this.apiService.stopPlugin(pluginName); break
+        case 'restart': await this.apiService.restartPlugin(pluginName); break
+        case 'status': await this.apiService.getPlugin(pluginName); break
+        default: throw new Error(`Unknown action: ${action}`)
       }
 
-      console.log(`[plugins-widget] ${action} ${pluginName}:`, result)
+      const label = { start: 'Démarrage', stop: 'Arrêt', restart: 'Redémarrage' }[action] || action
+      this.successMessage = `${label} de ${pluginName} en cours...`
+      setTimeout(() => { this.successMessage = null }, 5000)
 
-      // Show success message
-      const actionLabel = {
-        start: 'Démarrage',
-        stop: 'Arrêt',
-        restart: 'Redémarrage'
-      }[action] || action
-
-      this.successMessage = `${actionLabel} de ${pluginName} en cours... (vérifiez dans 2-3s)`
-
-      // Clear success message after 5 seconds
-      setTimeout(() => {
-        this.successMessage = null
-      }, 5000)
-
-      // Refresh plugin list after action
       if (action !== 'status') {
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('refresh-plugins'))
-        }, 2000)
+        setTimeout(() => window.dispatchEvent(new CustomEvent('refresh-plugins')), 2000)
       }
     } catch (err) {
-      console.error(`[plugins-widget] Failed to ${action} plugin ${pluginName}:`, err)
-      this.error = `Failed to ${action} plugin: ${err.message}`
+      this.error = `Échec ${action} ${pluginName}: ${err.message}`
     } finally {
       this.loading = false
     }
   }
-  
+
   render() {
     if (!Array.isArray(this.plugins) || this.plugins.length === 0) {
       return html`
@@ -380,98 +345,86 @@ class PluginsWidget extends LitElement {
       `
     }
 
-    const runningCount = this.plugins.filter(p => {
-      const status = this.normalizeStatus(p.status)
-      return status.toLowerCase() === 'running'
-    }).length
-    
+    const runningCount = this.plugins.filter(p =>
+      this.normalizeStatus(p.status).toLowerCase() === 'running'
+    ).length
+
     return html`
       <div class="widget-header">
         <h3 class="widget-title">🔌 Plugins</h3>
-        <span class="widget-count">
-          ${runningCount}/${this.plugins.length} actifs
-        </span>
+        <span class="widget-count">${runningCount}/${this.plugins.length} actifs</span>
       </div>
 
-      <div class="readonly-notice">
-        ⚙️ Plugins gérés via systemd - contrôle direct disponible
-      </div>
-
-      ${this.successMessage ? html`
-        <div class="success">✅ ${this.successMessage}</div>
-      ` : ''}
-
-      ${this.error ? html`
-        <div class="error">❌ ${this.error}</div>
-      ` : ''}
+      ${this.successMessage ? html`<div class="feedback">${this.successMessage}</div>` : ''}
+      ${this.error ? html`<div class="error">${this.error}</div>` : ''}
 
       <div class="plugins-list">
-        ${this.plugins.map(plugin => html`
-          <div class="plugin-card">
-            <div class="plugin-header">
-              <div>
-                <span class="plugin-name">${plugin.name}</span>
-                <span class="plugin-version">v${plugin.version || '0.1.0'}</span>
-              </div>
-              <span class="status-badge ${this.normalizeStatus(plugin.status).toLowerCase()}">
+        ${this.plugins.map(plugin => {
+          const expanded = this.expandedPlugin === plugin.name
+          const status = this.normalizeStatus(plugin.status).toLowerCase()
+          const routes = plugin.routes?.filter(r => r && r !== '') || []
+
+          return html`
+            <div class="plugin-row ${expanded ? 'expanded' : ''}"
+                 @click=${() => this.togglePlugin(plugin.name)}>
+              <span class="expand-chevron">▶</span>
+              <span class="plugin-name">
+                ${plugin.name}
+                <span class="plugin-version">v${plugin.version || '?'}</span>
+              </span>
+              <span class="status-badge ${status}">
                 ${this.getStatusLabel(plugin.status)}
               </span>
             </div>
 
-            ${plugin.description ? html`
-              <div class="plugin-description">
-                ${plugin.description}
+            ${expanded ? html`
+              <div class="plugin-details">
+                ${plugin.description ? html`
+                  <div class="plugin-description">${plugin.description}</div>
+                ` : ''}
+
+                <div class="plugin-info">
+                  ${plugin.socket_path ? html`
+                    <div class="info-row">
+                      <span class="info-label">Socket:</span>
+                      <span class="info-value">${plugin.socket_path}</span>
+                    </div>
+                  ` : ''}
+                  ${plugin.registered_at ? html`
+                    <div class="info-row">
+                      <span class="info-label">Enregistré:</span>
+                      <span class="info-value">${this.formatTimestamp(plugin.registered_at)}</span>
+                    </div>
+                  ` : ''}
+                </div>
+
+                ${routes.length > 0 ? html`
+                  <div class="plugin-contracts">
+                    <div>Routes:</div>
+                    <div class="contracts-list">
+                      ${routes.map(r => html`<span class="contract-tag">${r}</span>`)}
+                    </div>
+                  </div>
+                ` : ''}
+
+                <div class="plugin-actions">
+                  <button class="action-btn success"
+                    @click=${(e) => this.handlePluginAction(plugin.name, 'start', e)}
+                    ?disabled=${this.loading || status === 'running'}
+                    title="Démarrer">▶</button>
+                  <button class="action-btn danger"
+                    @click=${(e) => this.handlePluginAction(plugin.name, 'stop', e)}
+                    ?disabled=${this.loading || status !== 'running'}
+                    title="Arrêter">■</button>
+                  <button class="action-btn warning"
+                    @click=${(e) => this.handlePluginAction(plugin.name, 'restart', e)}
+                    ?disabled=${this.loading}
+                    title="Redémarrer">↻</button>
+                </div>
               </div>
             ` : ''}
-
-            <div class="plugin-info">
-              ${plugin.socket_path ? html`
-                <div class="info-row">
-                  <span class="info-label">Socket:</span>
-                  <span class="info-value">${plugin.socket_path}</span>
-                </div>
-              ` : ''}
-              ${plugin.registered_at ? html`
-                <div class="info-row">
-                  <span class="info-label">Enregistré le:</span>
-                  <span class="info-value">${this.formatTimestamp(plugin.registered_at)}</span>
-                </div>
-              ` : ''}
-            </div>
-
-            ${plugin.contracts && plugin.contracts.length > 0 ? html`
-              <div class="plugin-contracts">
-                <div>Routes enregistrées:</div>
-                <div class="contracts-list">
-                  ${plugin.contracts.map(contract => html`
-                    <span class="contract-tag">${contract}</span>
-                  `)}
-                </div>
-              </div>
-            ` : ''}
-
-            <div class="plugin-actions">
-              <button
-                class="action-btn success"
-                @click=${() => this.handlePluginAction(plugin.name, 'start')}
-                ?disabled=${this.loading || this.normalizeStatus(plugin.status).toLowerCase() === 'running'}
-                title="Démarrer"
-              >▶</button>
-              <button
-                class="action-btn danger"
-                @click=${() => this.handlePluginAction(plugin.name, 'stop')}
-                ?disabled=${this.loading || this.normalizeStatus(plugin.status).toLowerCase() !== 'running'}
-                title="Arrêter"
-              >■</button>
-              <button
-                class="action-btn warning"
-                @click=${() => this.handlePluginAction(plugin.name, 'restart')}
-                ?disabled=${this.loading}
-                title="Redémarrer"
-              >↻</button>
-            </div>
-          </div>
-        `)}
+          `
+        })}
       </div>
     `
   }
