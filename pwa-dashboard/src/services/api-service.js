@@ -29,7 +29,9 @@ class ApiService extends LitElement {
   // Lazy getters pour résoudre la config au moment de l'utilisation
   get baseUrl() {
     if (!this._baseUrl) {
-      this._baseUrl = window.SYMBION_CONFIG?.API_BASE || `https://${window.location.hostname}:8443`
+      const host = window.location.hostname
+      const isLocal = host === 'localhost' || host === '127.0.0.1'
+      this._baseUrl = window.SYMBION_CONFIG?.API_BASE || (isLocal ? `https://${host}:8443` : '')
     }
     return this._baseUrl
   }
