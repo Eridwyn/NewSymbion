@@ -261,8 +261,10 @@ import authService from './services/auth-service.js'
 // Écouter les événements d'expiration de session
 authService.addEventListener('auth:expired', () => {
   console.log('[lifecycle] 🔐 Authentication expired - reloading to login')
-  // Clear sessionStorage pour forcer retour au boot terminal
-  sessionStorage.clear()
+  // Vider le token du SW vault
+  navigator.serviceWorker?.controller?.postMessage({ type: 'AUTH_CLEAR' })
+  // Clear boot flag
+  sessionStorage.removeItem('symbion_boot_completed')
   // Reload page pour retourner au login
   window.location.reload()
 })

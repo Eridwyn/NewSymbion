@@ -86,7 +86,7 @@ describe('get()', () => {
     const [url, options] = mockFetch.mock.calls[0]
     expect(url).toContain('/v1/decision/stats')
     expect(options.method).toBe('GET')
-    expect(options.headers['Authorization']).toBe('Bearer jwt-test-token')
+    expect(options.headers['Authorization']).toBeUndefined() // SW injects it
     expect(options.headers['Content-Type']).toBe('application/json')
     expect(options.credentials).toBe('include')
   })
@@ -100,13 +100,6 @@ describe('get()', () => {
     const result = await decisionService.get('/v1/decision/validations/pending')
 
     expect(result).toEqual({ validations: [] })
-  })
-
-  it('throws if not authenticated', async () => {
-    mockAuthService.getToken.mockReturnValue(null)
-
-    await expect(decisionService.get('/v1/decision/stats'))
-      .rejects.toThrow('Not authenticated')
   })
 
   it('throws on HTTP error', async () => {
@@ -247,7 +240,7 @@ describe('resolveValidation()', () => {
 // deleteValidation()
 // =====================================================================
 describe('deleteValidation()', () => {
-  it('sends DELETE with auth and CSRF headers', async () => {
+  it('sends DELETE with CSRF header (SW injects auth)', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true })
 
     await decisionService.deleteValidation('val-to-delete')
@@ -255,16 +248,9 @@ describe('deleteValidation()', () => {
     const [url, options] = mockFetch.mock.calls[0]
     expect(url).toContain('/v1/decision/validation/val-to-delete')
     expect(options.method).toBe('DELETE')
-    expect(options.headers['Authorization']).toBe('Bearer jwt-test-token')
+    expect(options.headers['Authorization']).toBeUndefined() // SW injects it
     expect(options.headers['X-CSRF-Token']).toBe('csrf-nonce-123')
     expect(options.credentials).toBe('include')
-  })
-
-  it('throws if not authenticated', async () => {
-    mockAuthService.getToken.mockReturnValue(null)
-
-    await expect(decisionService.deleteValidation('val-1'))
-      .rejects.toThrow('Not authenticated')
   })
 
   it('throws on HTTP error', async () => {
@@ -293,12 +279,6 @@ describe('deleteAllExpiredValidations()', () => {
     expect(result).toEqual({ deleted: 5 })
   })
 
-  it('throws if not authenticated', async () => {
-    mockAuthService.getToken.mockReturnValue(null)
-
-    await expect(decisionService.deleteAllExpiredValidations())
-      .rejects.toThrow('Not authenticated')
-  })
 })
 
 // =====================================================================

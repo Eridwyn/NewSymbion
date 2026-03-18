@@ -524,13 +524,14 @@ class LogsViewer extends LitElement {
   }
 
   _checkAuth() {
-    const token = sessionStorage.getItem('symbion_auth_token')
-    this.authenticated = !!token
+    // Vérifier si le SW a un token — on checke via une requête test
+    // En attendant, on regarde si on a un userInfo en sessionStorage (legacy) ou on fait confiance au SW
+    this.authenticated = true // Le SW gère l'auth, on tente toujours
   }
 
   _getAuthHeader() {
-    const token = sessionStorage.getItem('symbion_auth_token')
-    return token ? { 'Authorization': `Bearer ${token}` } : {}
+    // Le SW injecte automatiquement le header Authorization
+    return {}
   }
 
   _setupBroadcastChannel() {

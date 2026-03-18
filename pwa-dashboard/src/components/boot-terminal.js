@@ -881,6 +881,9 @@ class BootTerminal extends LitElement {
   async connectedCallback() {
     super.connectedCallback()
 
+    // Wait for auth session restoration from IndexedDB
+    await authService.whenReady()
+
     // Check biometric availability
     await this.checkBiometricAvailability()
 
@@ -1049,20 +1052,20 @@ class BootTerminal extends LitElement {
 
       const authData = await finishResponse.json()
 
-      // Save session
-      authService.token = authData.token
-      authService.userInfo = {
+      // Save session — token goes to SW vault, only userInfo kept in memory
+      const userInfo = {
         username: authData.username,
         role: authData.role,
         expires_at: authData.expires_at
       }
+      await authService._persist(authData.token, userInfo)
+      authService.userInfo = userInfo
       authService.loginTime = Date.now()
 
       if (authData.device_token) {
         localStorage.setItem('symbion_device_token', authData.device_token)
       }
 
-      authService.saveToStorage()
       authService.scheduleTokenRefresh()
 
       authService.dispatchEvent(new CustomEvent('auth:login', {

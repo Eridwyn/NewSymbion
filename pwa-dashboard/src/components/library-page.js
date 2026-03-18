@@ -19,13 +19,12 @@ import { pageHeaderStyles, tabPillStyles } from '../styles/shared-page.js'
 import { formInputStyles, formGroupStyles, btnStyles } from '../styles/shared-forms.js'
 
 const API_BASE = () => window.location.origin
-const AUTH = () => sessionStorage.getItem('symbion_auth_token') || ''
+// SW injects Authorization header automatically
 
 async function api(path, options = {}) {
   const res = await fetch(`${API_BASE()}/v1/plugin-api/library${path}`, {
     ...options,
     headers: {
-      'Authorization': `Bearer ${AUTH()}`,
       'Content-Type': 'application/json',
       ...(options.headers || {})
     }

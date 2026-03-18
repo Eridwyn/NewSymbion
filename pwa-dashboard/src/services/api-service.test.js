@@ -9,12 +9,13 @@ vi.spyOn(console, 'log').mockImplementation(() => {})
 vi.spyOn(console, 'warn').mockImplementation(() => {})
 vi.spyOn(console, 'error').mockImplementation(() => {})
 
-// Mock auth-service
+// Mock auth-service (SW handles auth headers now)
 vi.mock('./auth-service.js', () => ({
   default: {
     getAuthHeader: vi.fn(() => ({})),
     isAuthenticated: vi.fn(() => false),
-    getToken: vi.fn(() => null)
+    getToken: vi.fn(() => null),
+    whenReady: vi.fn(() => Promise.resolve())
   }
 }))
 
@@ -51,7 +52,6 @@ function createService() {
 
 beforeEach(() => {
   mockFetch.mockReset()
-  authService.getAuthHeader.mockReturnValue({})
   offlineQueue.enqueue.mockReset()
 })
 
@@ -106,9 +106,8 @@ describe('request() success', () => {
     expect(result).toBe('OK')
   })
 
-  it('includes auth header when authenticated', async () => {
+  it('does not include auth header (SW injects it)', async () => {
     const svc = createService()
-    authService.getAuthHeader.mockReturnValue({ 'Authorization': 'Bearer jwt-abc' })
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -119,7 +118,7 @@ describe('request() success', () => {
     await svc.request('/v1/context')
 
     const config = mockFetch.mock.calls[0][1]
-    expect(config.headers['Authorization']).toBe('Bearer jwt-abc')
+    expect(config.headers['Authorization']).toBeUndefined()
   })
 
   it('includes api-key header when apiKey is configured', async () => {

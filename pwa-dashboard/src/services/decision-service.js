@@ -39,15 +39,11 @@ class DecisionService {
   async get(endpoint) {
     await this.init()
 
-    const token = this.authService.getToken()
-    if (!token) {
-      throw new Error('Not authenticated')
-    }
+    // SW injects Authorization header automatically
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
       credentials: 'include'
@@ -128,10 +124,7 @@ class DecisionService {
   async deleteValidation(validationId) {
     await this.init()
 
-    const token = this.authService.getToken()
-    if (!token) {
-      throw new Error('Not authenticated')
-    }
+    // SW injects Authorization header automatically
 
     // Récupérer CSRF nonce
     const csrfNonce = await this.csrfService.getNonce()
@@ -139,7 +132,6 @@ class DecisionService {
     const response = await fetch(`${API_BASE}/v1/decision/validation/${validationId}`, {
       method: 'DELETE',
       headers: {
-        'Authorization': `Bearer ${token}`,
         'X-CSRF-Token': csrfNonce
       },
       credentials: 'include'
@@ -157,10 +149,7 @@ class DecisionService {
   async deleteAllExpiredValidations() {
     await this.init()
 
-    const token = this.authService.getToken()
-    if (!token) {
-      throw new Error('Not authenticated')
-    }
+    // SW injects Authorization header automatically
 
     // Récupérer CSRF nonce
     const csrfNonce = await this.csrfService.getNonce()
@@ -168,7 +157,6 @@ class DecisionService {
     const response = await fetch(`${API_BASE}/v1/decision/validations/expired`, {
       method: 'DELETE',
       headers: {
-        'Authorization': `Bearer ${token}`,
         'X-CSRF-Token': csrfNonce
       },
       credentials: 'include'

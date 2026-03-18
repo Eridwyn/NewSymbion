@@ -255,11 +255,8 @@ class PasskeyManager extends LitElement {
 
   async loadPasskeys() {
     try {
-      const response = await fetch(`${this.baseUrl}/auth/webauthn/passkeys`, {
-        headers: {
-          ...authService.getAuthHeader()
-        }
-      })
+      // SW injects Authorization header automatically
+      const response = await fetch(`${this.baseUrl}/auth/webauthn/passkeys`)
 
       if (!response.ok) {
         console.warn('[passkey-manager] Failed to load passkeys:', response.status)
@@ -299,11 +296,11 @@ class PasskeyManager extends LitElement {
       console.log('[passkey-manager] Starting registration for:', friendlyName)
 
       // Étape 1: Démarrer l'enregistrement (obtenir le challenge du serveur)
+      // SW injects Authorization header automatically
       const startResponse = await fetch(`${this.baseUrl}/auth/webauthn/register-start`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          ...authService.getAuthHeader()
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ friendly_name: friendlyName })
       })
@@ -340,11 +337,11 @@ class PasskeyManager extends LitElement {
       console.log('[passkey-manager] Credential created:', credential)
 
       // Étape 3: Envoyer le credential au serveur pour validation
+      // SW injects Authorization header automatically
       const finishResponse = await fetch(`${this.baseUrl}/auth/webauthn/register-finish`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          ...authService.getAuthHeader()
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           friendly_name: friendlyName,
@@ -534,11 +531,9 @@ class PasskeyManager extends LitElement {
     try {
       console.log('[passkey-manager] Deleting passkey:', credentialId)
 
+      // SW injects Authorization header automatically
       const response = await fetch(`${this.baseUrl}/auth/webauthn/passkeys/${encodeURIComponent(credentialId)}`, {
-        method: 'DELETE',
-        headers: {
-          ...authService.getAuthHeader()
-        }
+        method: 'DELETE'
       })
 
       if (!response.ok) {

@@ -208,7 +208,7 @@ class FreeboxWidget extends LitElement {
       this._setupEventListeners()
     } else if (attempts < 10) {
       // Retry every 500ms for up to 5 seconds
-      setTimeout(() => this._retrySetup(attempts + 1), 500)
+      this._retryTimeout = setTimeout(() => this._retrySetup(attempts + 1), 500)
     } else {
       console.warn('[freebox-widget] MQTT service not found after retries')
       this.loading = false
@@ -229,6 +229,14 @@ class FreeboxWidget extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback()
+    if (this._retryTimeout) {
+      clearTimeout(this._retryTimeout)
+      this._retryTimeout = null
+    }
+    if (this._loadingTimeout) {
+      clearTimeout(this._loadingTimeout)
+      this._loadingTimeout = null
+    }
     this._cleanupEventListeners()
   }
 

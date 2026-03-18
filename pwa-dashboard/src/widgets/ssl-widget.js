@@ -653,6 +653,10 @@ export class SslWidget extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback()
+    if (this._mqttRetryInterval) {
+      clearInterval(this._mqttRetryInterval)
+      this._mqttRetryInterval = null
+    }
     if (this._mqttService) {
       this._mqttService.removeEventListener('ssl-summary', this._boundSummaryHandler)
       this._mqttService.removeEventListener('ssl-domain', this._boundDomainHandler)
@@ -662,16 +666,18 @@ export class SslWidget extends LitElement {
   setupMqttWithRetry() {
     let attempts = 0
     const maxAttempts = 10
-    const interval = setInterval(() => {
+    this._mqttRetryInterval = setInterval(() => {
       attempts++
       const mqttService = document.querySelector('mqtt-service')
       if (mqttService) {
-        clearInterval(interval)
+        clearInterval(this._mqttRetryInterval)
+        this._mqttRetryInterval = null
         this.setupMqttListeners(mqttService)
         this.mqttConnected = true
         this.loading = false
       } else if (attempts >= maxAttempts) {
-        clearInterval(interval)
+        clearInterval(this._mqttRetryInterval)
+        this._mqttRetryInterval = null
         console.warn('[ssl-widget] mqtt-service not found')
         this.loading = false
       }
@@ -687,10 +693,10 @@ export class SslWidget extends LitElement {
     if (typeof mqttService.getSslCache === 'function') {
       const cache = mqttService.getSslCache()
       if (cache.summary && cache.summary.domains) {
-        this.domains = cache.summary.domains
+        this.domains = [...cache.summary.domains]
         this.lastUpdate = new Date().toLocaleTimeString('fr-FR')
       } else if (Object.keys(cache.domains).length > 0) {
-        this.domains = Object.values(cache.domains)
+        this.domains = [...Object.values(cache.domains)]
         this.lastUpdate = new Date().toLocaleTimeString('fr-FR')
       }
     }
@@ -699,7 +705,7 @@ export class SslWidget extends LitElement {
   handleSslSummary(event) {
     const { payload } = event.detail
     if (payload && payload.domains) {
-      this.domains = payload.domains
+      this.domains = [...payload.domains]
       this.lastUpdate = new Date().toLocaleTimeString('fr-FR')
     }
   }
@@ -753,9 +759,9 @@ export class SslWidget extends LitElement {
     if (this._mqttService && typeof this._mqttService.getSslCache === 'function') {
       const cache = this._mqttService.getSslCache()
       if (cache.summary && cache.summary.domains) {
-        this.domains = cache.summary.domains
+        this.domains = [...cache.summary.domains]
       } else if (Object.keys(cache.domains).length > 0) {
-        this.domains = Object.values(cache.domains)
+        this.domains = [...Object.values(cache.domains)]
       }
     }
 
@@ -881,7 +887,7 @@ export class SslWidget extends LitElement {
       if (response.ok) {
         const data = await response.json()
         if (data.domains) {
-          this.domains = data.domains
+          this.domains = [...data.domains]
           this.lastUpdate = new Date().toLocaleTimeString('fr-FR')
         }
       }

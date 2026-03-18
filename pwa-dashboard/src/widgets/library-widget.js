@@ -10,10 +10,10 @@ import { widgetHeaderStyles, widgetSectionStyles, emptyStateStyles } from '../st
 import { statusDotStyles } from '../styles/shared-patterns.js'
 
 const API_BASE = () => window.location.origin
-const AUTH = () => sessionStorage.getItem('symbion_auth_token') || ''
+// SW injects Authorization header automatically
 
 async function api(path, options = {}) {
-  const headers = { 'Authorization': `Bearer ${AUTH()}`, ...(options.headers || {}) }
+  const headers = { ...(options.headers || {}) }
   if (options.body) headers['Content-Type'] = 'application/json'
   const res = await fetch(`${API_BASE()}/v1/plugin-api/library${path}`, { ...options, headers })
   if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`)

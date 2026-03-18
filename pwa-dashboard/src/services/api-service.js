@@ -83,8 +83,7 @@ class ApiService extends LitElement {
   async request(endpoint, options = {}) {
     const url = `${this.baseUrl}${endpoint}`
 
-    // Inclure le token JWT si l'utilisateur est authentifié
-    const authHeader = authService.getAuthHeader()
+    // SW injects Authorization header automatically
 
     // Support timeout (30s par défaut pour notes, sinon pas de timeout)
     const timeout = options.timeout || null
@@ -94,7 +93,6 @@ class ApiService extends LitElement {
     // Build headers - only include x-api-key if explicitly configured
     const headers = {
       'Content-Type': 'application/json',
-      ...authHeader,  // Ajoute Authorization: Bearer {token} si présent
       ...options.headers
     }
 
@@ -113,9 +111,6 @@ class ApiService extends LitElement {
     delete config.timeout
 
     console.log(`[api-service] request: ${options.method || 'GET'} ${url}${timeout ? ` (timeout: ${timeout}ms)` : ''}`)
-    console.log(`[api-service] baseUrl: ${this.baseUrl}`)
-    console.log(`[api-service] auth header:`, authHeader)
-    console.log(`[api-service] config:`, config)
 
     try {
       const response = await fetch(url, config)

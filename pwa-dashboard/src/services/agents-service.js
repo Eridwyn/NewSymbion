@@ -218,10 +218,8 @@ class AgentsService extends LitElement {
     // Direct fetch with auth (bypass apiService to avoid null reference during polling)
     const url = `${API_BASE}/v1/commands/${encodeURIComponent(commandId)}/status`
 
+    // SW injects Authorization header automatically
     const headers = { 'Content-Type': 'application/json' }
-    if (authService.isAuthenticated()) {
-      headers['Authorization'] = `Bearer ${authService.getToken()}`
-    }
 
     const response = await fetch(url, { headers })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)

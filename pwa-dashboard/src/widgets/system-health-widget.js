@@ -262,7 +262,7 @@ class SystemHealthWidget extends LitElement {
   }
   
   handleHealthUpdate(event) {
-    this.health = event.detail.health
+    this.health = { ...event.detail.health }
     this.lastUpdate = new Date().toLocaleTimeString()
     this.requestUpdate()
   }

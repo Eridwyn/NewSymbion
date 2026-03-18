@@ -58,22 +58,13 @@ class CsrfService extends EventTarget {
         return null
       }
 
-      const token = this.authService.getToken()
-      if (!token) {
-        console.error('[csrf] No JWT token available')
-        return null
-      }
-
       // Requête au backend pour obtenir un nonce
+      // Le SW injecte automatiquement le header Authorization
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000)
       const response = await fetch(`${API_BASE}/auth/csrf/nonce`, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         signal: controller.signal
       })
       clearTimeout(timeoutId)
@@ -176,10 +167,7 @@ class CsrfService extends EventTarget {
       'X-CSRF-Token': nonce
     }
 
-    // Ajouter JWT token si disponible
-    if (this.authService && this.authService.isAuthenticated()) {
-      headers['Authorization'] = `Bearer ${this.authService.getToken()}`
-    }
+    // Le SW injecte automatiquement le header Authorization
 
     // Construire URL complète si relative
     const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`

@@ -18,19 +18,19 @@ import '../services/context-service.js'
 import themeService from '../services/theme-service.js'
 import themeTransition from '../animations/theme-transition.js'
 // PWA8: Lazy-load widgets and pages (loaded on first render, not at parse time)
-const lazyWidgets = () => {
-  import('../widgets/system-health-widget.js')
-  import('../widgets/freebox-widget.js')
-  import('../widgets/ssl-widget.js')
-  import('../widgets/plugins-widget.js')
-  import('../widgets/notes-widget.js')
-  import('../widgets/agents-network-widget.js')
-  import('../widgets/agent-control-widget.js')
-  import('../widgets/environment-widget.js')
-  import('../widgets/context-engine-widget.js')
-  import('../widgets/library-widget.js')
+const lazyWidgets = () => Promise.all([
+  import('../widgets/system-health-widget.js'),
+  import('../widgets/freebox-widget.js'),
+  import('../widgets/ssl-widget.js'),
+  import('../widgets/plugins-widget.js'),
+  import('../widgets/notes-widget.js'),
+  import('../widgets/agents-network-widget.js'),
+  import('../widgets/agent-control-widget.js'),
+  import('../widgets/environment-widget.js'),
+  import('../widgets/context-engine-widget.js'),
+  import('../widgets/library-widget.js'),
   import('../widgets/coffee-widget.js')
-}
+])
 const lazyPages = () => {
   import('./user-settings-page.js')
   import('./notes-page.js')
@@ -1107,8 +1107,8 @@ class DashboardApp extends LitElement {
   async connectedCallback() {
     super.connectedCallback()
 
-    // PWA8: Start loading widgets/pages in background (non-blocking)
-    lazyWidgets()
+    // Load widget definitions before rendering data
+    await lazyWidgets()
     lazyPages()
 
     // Démarrer l'horloge
@@ -1377,7 +1377,7 @@ class DashboardApp extends LitElement {
   }
   
   handleSystemHealth(event) {
-    this.systemHealth = event.detail.health
+    this.systemHealth = { ...event.detail.health }
     this.requestUpdate()
   }
   
@@ -1786,7 +1786,7 @@ class DashboardApp extends LitElement {
   handleAuthExpired(event) {
     console.warn('[dashboard] Session expirée - redirection vers login', event.detail)
     // Clear auth state
-    authService.clearStorage()
+    authService.logout()
     // Redirect to login
     this.isAuthenticated = false
     this.currentUser = null

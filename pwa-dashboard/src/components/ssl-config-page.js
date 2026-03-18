@@ -475,21 +475,19 @@ export class SslConfigPage extends LitElement {
   }
 
   getAuthToken() {
-    // Le token est stocké dans sessionStorage par auth-service
-    return sessionStorage.getItem('symbion_auth_token') || ''
+    // SW injects Authorization header automatically
+    return ''
   }
 
   async fetchDomains() {
     this.loading = true
-    const token = this.getAuthToken()
     const baseUrl = this.getApiBaseUrl()
 
-    console.log('[ssl-config] Fetching domains...', { baseUrl, hasToken: !!token })
+    console.log('[ssl-config] Fetching domains...', { baseUrl })
 
     try {
-      const response = await fetch(`${baseUrl}/v1/plugin-api/ssl/domains`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
+      // SW injects Authorization header automatically
+      const response = await fetch(`${baseUrl}/v1/plugin-api/ssl/domains`)
 
       console.log('[ssl-config] Response status:', response.status)
 
@@ -542,11 +540,10 @@ export class SslConfigPage extends LitElement {
 
   async saveDomain() {
     this.isSaving = true
-    const token = this.getAuthToken()
     const baseUrl = this.getApiBaseUrl()
+    // SW injects Authorization header automatically
     const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
+      'Content-Type': 'application/json'
     }
 
     try {
@@ -585,13 +582,12 @@ export class SslConfigPage extends LitElement {
   async deleteDomain(domain) {
     if (!confirm(`Supprimer "${domain.label || domain.hostname}" ?`)) return
 
-    const token = this.getAuthToken()
     const baseUrl = this.getApiBaseUrl()
 
     try {
+      // SW injects Authorization header automatically
       const response = await fetch(`${baseUrl}/v1/plugin-api/ssl/domains/${domain.id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        method: 'DELETE'
       })
 
       if (response.ok) {
@@ -604,13 +600,12 @@ export class SslConfigPage extends LitElement {
 
   async triggerCheck() {
     this.checkingAll = true
-    const token = this.getAuthToken()
     const baseUrl = this.getApiBaseUrl()
 
     try {
+      // SW injects Authorization header automatically
       await fetch(`${baseUrl}/v1/plugin-api/ssl/check`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
+        method: 'POST'
       })
       // Wait and refresh
       setTimeout(() => {

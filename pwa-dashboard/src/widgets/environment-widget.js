@@ -510,7 +510,7 @@ class EnvironmentWidget extends LitElement {
     if (!this.isAuthenticated()) {
       return {}
     }
-    return authService.getAuthHeader()
+    return {}  // SW injects Authorization header automatically
   }
 
   async loadEnvironmentData() {

@@ -92,16 +92,21 @@ describe('fetchNewNonce', () => {
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
-  it('returns null if no JWT token', async () => {
+  it('fetches nonce even without explicit token (SW handles auth)', async () => {
     mockAuthService.getToken.mockReturnValue(null)
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ nonce: 'sw-auth-nonce', expires_in_seconds: 300 })
+    })
 
     const nonce = await csrfService.fetchNewNonce()
 
-    expect(nonce).toBeNull()
-    expect(mockFetch).not.toHaveBeenCalled()
+    expect(nonce).toBe('sw-auth-nonce')
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
-  it('fetches from /auth/csrf/nonce with correct headers', async () => {
+  it('fetches from /auth/csrf/nonce with correct headers (no Authorization — SW injects it)', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ nonce: 'test-nonce', expires_in_seconds: 300 })
@@ -113,9 +118,8 @@ describe('fetchNewNonce', () => {
     const [url, options] = mockFetch.mock.calls[0]
     expect(url).toContain('/auth/csrf/nonce')
     expect(options.method).toBe('GET')
-    expect(options.headers['Authorization']).toBe('Bearer test-jwt-token')
+    expect(options.headers['Authorization']).toBeUndefined() // SW handles this
     expect(options.headers['Content-Type']).toBe('application/json')
-    expect(options.credentials).toBe('include')
     expect(options.signal).toBeInstanceOf(AbortSignal)
   })
 
@@ -290,7 +294,7 @@ describe('fetchWithCsrf', () => {
     expect(options.headers['X-CSRF-Token']).toBe('csrf-token-abc')
   })
 
-  it('adds Authorization header if authenticated', async () => {
+  it('does not add Authorization header (SW injects it)', async () => {
     csrfService.currentNonce = 'csrf-token-xyz'
     csrfService.expiresAt = Date.now() + 60000
 
@@ -299,7 +303,7 @@ describe('fetchWithCsrf', () => {
     await csrfService.fetchWithCsrf('/v1/test', { method: 'POST' })
 
     const [, options] = mockFetch.mock.calls[0]
-    expect(options.headers['Authorization']).toBe('Bearer test-jwt-token')
+    expect(options.headers['Authorization']).toBeUndefined()
   })
 
   it('builds full URL from relative path', async () => {

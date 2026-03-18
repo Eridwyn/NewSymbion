@@ -8,8 +8,10 @@ vi.spyOn(console, 'error').mockImplementation(() => {})
 // ── Mock auth-service ────────────────────────────────────────────────
 vi.mock('./auth-service.js', () => ({
   default: {
-    getToken: vi.fn(() => 'jwt-test-token'),
-    isAuthenticated: vi.fn(() => true)
+    getToken: vi.fn(() => null),
+    getTokenForWebSocket: vi.fn(() => Promise.resolve('jwt-test-token')),
+    isAuthenticated: vi.fn(() => true),
+    whenReady: vi.fn(() => Promise.resolve())
   }
 }))
 
@@ -66,7 +68,8 @@ function createService() {
 
 beforeEach(() => {
   mockWsInstance = null
-  authService.getToken.mockReturnValue('jwt-test-token')
+  authService.getTokenForWebSocket.mockResolvedValue('jwt-test-token')
+  authService.isAuthenticated.mockReturnValue(true)
   vi.useFakeTimers()
 })
 
@@ -75,43 +78,42 @@ afterEach(() => {
 })
 
 // =====================================================================
-// wsUrl
+// _buildWsUrl()
 // =====================================================================
-describe('wsUrl', () => {
-  it('includes JWT token as query param', () => {
+describe('_buildWsUrl()', () => {
+  it('includes JWT token as query param', async () => {
     const svc = createService()
 
-    const url = svc.wsUrl
+    const url = await svc._buildWsUrl()
 
     expect(url).toContain('token=jwt-test-token')
     expect(url).toContain('/ws/notes/stream')
   })
 
-  it('uses wss when location is https', () => {
+  it('uses wss when location is https', async () => {
     const svc = createService()
 
-    // happy-dom uses http by default, but the code checks protocol
-    const url = svc.wsUrl
+    const url = await svc._buildWsUrl()
     expect(url).toMatch(/^wss?:\/\//)
   })
 
-  it('falls back to API_KEY if no token', () => {
-    authService.getToken.mockReturnValue(null)
+  it('falls back to API_KEY if no token', async () => {
+    authService.getTokenForWebSocket.mockResolvedValue(null)
     window.SYMBION_CONFIG = { API_KEY: 'test-key' }
     const svc = createService()
 
-    const url = svc.wsUrl
+    const url = await svc._buildWsUrl()
 
     expect(url).toContain('api_key=test-key')
 
     delete window.SYMBION_CONFIG
   })
 
-  it('returns bare URL if no auth available', () => {
-    authService.getToken.mockReturnValue(null)
+  it('returns bare URL if no auth available', async () => {
+    authService.getTokenForWebSocket.mockResolvedValue(null)
     const svc = createService()
 
-    const url = svc.wsUrl
+    const url = await svc._buildWsUrl()
 
     expect(url).toContain('/ws/notes/stream')
     expect(url).not.toContain('token=')
@@ -122,68 +124,68 @@ describe('wsUrl', () => {
 // connect()
 // =====================================================================
 describe('connect()', () => {
-  it('creates a WebSocket connection', () => {
+  it('creates a WebSocket connection', async () => {
     const svc = createService()
 
-    svc.connect()
+    await svc.connect()
 
     expect(mockWsInstance).not.toBeNull()
     expect(mockWsInstance.url).toContain('/ws/notes/stream')
   })
 
-  it('does not connect if already connected', () => {
+  it('does not connect if already connected', async () => {
     const svc = createService()
     svc.ws = { readyState: WebSocket.OPEN }
 
-    svc.connect()
+    await svc.connect()
 
     // mockWsInstance should not be set (no new WebSocket created)
     expect(mockWsInstance).toBeNull()
   })
 
-  it('does not connect if already connecting', () => {
+  it('does not connect if already connecting', async () => {
     const svc = createService()
     svc.ws = { readyState: WebSocket.CONNECTING }
 
-    svc.connect()
+    await svc.connect()
 
     expect(mockWsInstance).toBeNull()
   })
 
-  it('skips connection if no auth available', () => {
-    authService.getToken.mockReturnValue(null)
+  it('skips connection if no auth available', async () => {
+    authService.isAuthenticated.mockReturnValue(false)
     const svc = createService()
 
-    svc.connect()
+    await svc.connect()
 
     expect(mockWsInstance).toBeNull()
   })
 
-  it('sets connected=true on open', () => {
+  it('sets connected=true on open', async () => {
     const svc = createService()
 
-    svc.connect()
+    await svc.connect()
     mockWsInstance.onopen()
 
     expect(svc.connected).toBe(true)
   })
 
-  it('resets reconnectAttempts on open', () => {
+  it('resets reconnectAttempts on open', async () => {
     const svc = createService()
     svc.reconnectAttempts = 3
 
-    svc.connect()
+    await svc.connect()
     mockWsInstance.onopen()
 
     expect(svc.reconnectAttempts).toBe(0)
   })
 
-  it('dispatches ws-connected on open', () => {
+  it('dispatches ws-connected on open', async () => {
     const svc = createService()
     const handler = vi.fn()
     svc.addEventListener('ws-connected', handler)
 
-    svc.connect()
+    await svc.connect()
     mockWsInstance.onopen()
 
     expect(handler).toHaveBeenCalledTimes(1)
@@ -191,12 +193,12 @@ describe('connect()', () => {
     svc.removeEventListener('ws-connected', handler)
   })
 
-  it('dispatches ws-error on error', () => {
+  it('dispatches ws-error on error', async () => {
     const svc = createService()
     const handler = vi.fn()
     svc.addEventListener('ws-error', handler)
 
-    svc.connect()
+    await svc.connect()
     mockWsInstance.onerror(new Error('ws error'))
 
     expect(handler).toHaveBeenCalledTimes(1)
@@ -204,10 +206,10 @@ describe('connect()', () => {
     svc.removeEventListener('ws-error', handler)
   })
 
-  it('sets connected=false on close', () => {
+  it('sets connected=false on close', async () => {
     const svc = createService()
 
-    svc.connect()
+    await svc.connect()
     mockWsInstance.onopen()
     expect(svc.connected).toBe(true)
 
@@ -215,12 +217,12 @@ describe('connect()', () => {
     expect(svc.connected).toBe(false)
   })
 
-  it('dispatches ws-closed on close', () => {
+  it('dispatches ws-closed on close', async () => {
     const svc = createService()
     const handler = vi.fn()
     svc.addEventListener('ws-closed', handler)
 
-    svc.connect()
+    await svc.connect()
     mockWsInstance.onclose()
 
     expect(handler).toHaveBeenCalledTimes(1)
@@ -228,9 +230,9 @@ describe('connect()', () => {
     svc.removeEventListener('ws-closed', handler)
   })
 
-  it('attempts reconnection after close', () => {
+  it('attempts reconnection after close', async () => {
     const svc = createService()
-    svc.connect()
+    await svc.connect()
     mockWsInstance.onclose()
 
     expect(svc.reconnectAttempts).toBe(1)
@@ -241,11 +243,11 @@ describe('connect()', () => {
     expect(mockWsInstance).not.toBeNull()
   })
 
-  it('stops reconnecting after maxReconnectAttempts', () => {
+  it('stops reconnecting after maxReconnectAttempts', async () => {
     const svc = createService()
     svc.reconnectAttempts = svc.maxReconnectAttempts
 
-    svc.connect()
+    await svc.connect()
     mockWsInstance.onclose()
 
     // onclose checks `< max` so it skips the reconnect branch entirely
@@ -257,9 +259,9 @@ describe('connect()', () => {
 // disconnect()
 // =====================================================================
 describe('disconnect()', () => {
-  it('closes the WebSocket', () => {
+  it('closes the WebSocket', async () => {
     const svc = createService()
-    svc.connect()
+    await svc.connect()
     const ws = mockWsInstance
 
     svc.disconnect()
@@ -267,9 +269,9 @@ describe('disconnect()', () => {
     expect(ws.readyState).toBe(WebSocket.CLOSED)
   })
 
-  it('sets ws to null', () => {
+  it('sets ws to null', async () => {
     const svc = createService()
-    svc.connect()
+    await svc.connect()
 
     svc.disconnect()
 
@@ -391,12 +393,12 @@ describe('handleMessage()', () => {
 // onmessage handler (JSON parsing)
 // =====================================================================
 describe('WebSocket onmessage', () => {
-  it('parses JSON messages', () => {
+  it('parses JSON messages', async () => {
     const svc = createService()
     const handler = vi.fn()
     svc.addEventListener('note-received', handler)
 
-    svc.connect()
+    await svc.connect()
     mockWsInstance.onopen()
     mockWsInstance.onmessage({ data: JSON.stringify({ type: 'note', note: { id: 'n1' } }) })
 
@@ -405,10 +407,10 @@ describe('WebSocket onmessage', () => {
     svc.removeEventListener('note-received', handler)
   })
 
-  it('handles invalid JSON gracefully', () => {
+  it('handles invalid JSON gracefully', async () => {
     const svc = createService()
 
-    svc.connect()
+    await svc.connect()
     mockWsInstance.onopen()
 
     // Should not throw

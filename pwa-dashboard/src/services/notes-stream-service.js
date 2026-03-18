@@ -24,50 +24,50 @@ class NotesStreamService extends LitElement {
     this.reconnectDelay = 1000
   }
 
-  get wsUrl() {
-    // Construire l'URL WebSocket basée sur la config
+  /**
+   * Construire l'URL WebSocket avec token d'auth.
+   * WebSocket ne passe pas par le SW fetch handler, donc on demande
+   * le token au SW explicitement via postMessage.
+   */
+  async _buildWsUrl() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.SYMBION_CONFIG?.API_BASE?.replace(/^https?:\/\//, '') || `${window.location.hostname}:8443`
-
-    // WebSockets ne supportent pas les headers custom
-    // Use JWT token if authenticated, otherwise try explicit API key (no fallback)
-    const token = authService.getToken()
-    const apiKey = window.SYMBION_CONFIG?.API_KEY
-
     const url = `${protocol}//${host}/ws/notes/stream`
 
+    // Demander le token au SW vault (usage bref pour WS uniquement)
+    const token = await authService.getTokenForWebSocket()
     if (token) {
-      // Prefer JWT token for authentication
       return `${url}?token=${encodeURIComponent(token)}`
-    } else if (apiKey) {
-      // Fallback to explicit API key if configured
-      return `${url}?api_key=${encodeURIComponent(apiKey)}`
-    } else {
-      // No auth available - connection will likely fail with 401
-      console.warn('[notes-stream] No authentication available for WebSocket')
-      return url
     }
+
+    const apiKey = window.SYMBION_CONFIG?.API_KEY
+    if (apiKey) {
+      return `${url}?api_key=${encodeURIComponent(apiKey)}`
+    }
+
+    console.warn('[notes-stream] No authentication available for WebSocket')
+    return url
   }
 
   /**
    * Connexion au WebSocket
    */
-  connect() {
+  async connect() {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       console.log('[notes-stream] WebSocket already connected/connecting')
       return
     }
 
-    // Skip connection if no auth token available yet
-    const token = authService.getToken()
-    if (!token && !window.SYMBION_CONFIG?.API_KEY) {
-      console.log('[notes-stream] No auth token available, skipping connection')
+    // Skip si pas authentifié
+    if (!authService.isAuthenticated() && !window.SYMBION_CONFIG?.API_KEY) {
+      console.log('[notes-stream] Not authenticated, skipping connection')
       return
     }
 
     try {
-      console.log(`[notes-stream] Connecting to ${this.wsUrl}`)
-      this.ws = new WebSocket(this.wsUrl)
+      const wsUrl = await this._buildWsUrl()
+      console.log(`[notes-stream] Connecting to ${wsUrl}`)
+      this.ws = new WebSocket(wsUrl)
 
       this.ws.onopen = () => {
         console.log('[notes-stream] WebSocket connected')
@@ -156,22 +156,25 @@ class NotesStreamService extends LitElement {
         const onConnected = () => {
           this.removeEventListener('ws-connected', onConnected)
           this.removeEventListener('ws-error', onError)
+          clearTimeout(timeoutId)
           resolve()
         }
 
         const onError = () => {
           this.removeEventListener('ws-connected', onConnected)
           this.removeEventListener('ws-error', onError)
+          clearTimeout(timeoutId)
           reject(new Error('Failed to connect to WebSocket'))
         }
 
         this.addEventListener('ws-connected', onConnected)
         this.addEventListener('ws-error', onError)
 
+        // Lancer connect() — les listeners sont déjà en place
         this.connect()
 
         // Timeout après 10 secondes
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           if (!this.connected) {
             this.removeEventListener('ws-connected', onConnected)
             this.removeEventListener('ws-error', onError)
@@ -179,6 +182,11 @@ class NotesStreamService extends LitElement {
           }
         }, 10000)
       })
+    }
+
+    // Double-check : s'assurer que le WS est vraiment ouvert
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error('WebSocket not ready')
     }
 
     this.loading = true

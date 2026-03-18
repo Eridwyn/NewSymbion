@@ -27,39 +27,12 @@ export default defineConfig(({ mode }) => {
   return {
   plugins: [
     VitePWA({
-      // Auto-update du service worker pour déploiement seamless
-      registerType: 'autoUpdate',
-      workbox: {
-        // Cache tous les assets statiques pour fonctionnement offline
+      // injectManifest pour SW custom avec auth token vault
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        // Offline fallback: navigateFallback serves index.html for navigation requests;
-        // offline.html is precached via globPatterns and served by the catch handler
-        // when even index.html is unavailable (true offline scenario).
-        navigateFallbackDenylist: [/\/v1\//, /\/health$/, /\/auth\//],
-        runtimeCaching: [
-          {
-            urlPattern: /\/v1\/.*$/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 // 1 hour
-              },
-              networkTimeoutSeconds: 5,
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          {
-            urlPattern: /\/health$/,
-            handler: 'NetworkOnly',
-            options: {
-              cacheName: 'health-check'
-            }
-          }
-        ]
       },
       manifest: {
         name: 'Symbion Dashboard',

@@ -465,7 +465,7 @@ class AgentsNetworkWidget extends LitElement {
         this.agentsService.getAgents(),
         this.agentsService.getLatestAgentVersion()
       ])
-      this.agents = Array.isArray(agents) ? agents : []
+      this.agents = Array.isArray(agents) ? [...agents] : []
       if (latestVer) this.latestVersion = latestVer
     } catch (error) {
       console.error('Failed to load agents:', error)

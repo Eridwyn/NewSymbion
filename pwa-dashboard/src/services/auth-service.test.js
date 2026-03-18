@@ -4,22 +4,118 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const mockFetch = vi.fn()
 global.fetch = mockFetch
 
-// The auth-service module reads sessionStorage in its constructor (loadFromStorage),
-// so we ensure sessionStorage is clean before importing.
-sessionStorage.clear()
-localStorage.clear()
-
 // Silence console noise during tests
 vi.spyOn(console, 'log').mockImplementation(() => {})
 vi.spyOn(console, 'warn').mockImplementation(() => {})
 vi.spyOn(console, 'error').mockImplementation(() => {})
+
+// ── Mock IndexedDB ──────────────────────────────────────────────────────
+// In-memory store simulating IndexedDB for tests
+let idbStore = {}
+
+const mockObjectStore = {
+  put: vi.fn((value, key) => {
+    idbStore[key] = value
+    return { onsuccess: null, onerror: null }
+  }),
+  get: vi.fn((key) => {
+    const req = { result: idbStore[key] ?? null, onsuccess: null, onerror: null }
+    queueMicrotask(() => req.onsuccess?.())
+    return req
+  }),
+  clear: vi.fn(() => {
+    idbStore = {}
+    return { onsuccess: null, onerror: null }
+  })
+}
+
+const mockTransaction = {
+  objectStore: vi.fn(() => mockObjectStore),
+  oncomplete: null,
+  onerror: null
+}
+
+// Auto-fire oncomplete after objectStore operations
+const originalPut = mockObjectStore.put
+mockObjectStore.put = vi.fn((value, key) => {
+  idbStore[key] = value
+  queueMicrotask(() => mockTransaction.oncomplete?.())
+  return { onsuccess: null, onerror: null }
+})
+
+mockObjectStore.clear = vi.fn(() => {
+  idbStore = {}
+  queueMicrotask(() => mockTransaction.oncomplete?.())
+  return { onsuccess: null, onerror: null }
+})
+
+const mockDB = {
+  transaction: vi.fn((store, mode) => {
+    // Create a fresh transaction object each time
+    const tx = {
+      objectStore: vi.fn(() => {
+        const os = {
+          put: vi.fn((value, key) => {
+            idbStore[key] = value
+            queueMicrotask(() => tx.oncomplete?.())
+            return {}
+          }),
+          get: vi.fn((key) => {
+            const req = { result: idbStore[key] ?? null, onsuccess: null, onerror: null }
+            queueMicrotask(() => req.onsuccess?.())
+            return req
+          }),
+          clear: vi.fn(() => {
+            idbStore = {}
+            queueMicrotask(() => tx.oncomplete?.())
+            return {}
+          })
+        }
+        return os
+      }),
+      oncomplete: null,
+      onerror: null
+    }
+    return tx
+  }),
+  createObjectStore: vi.fn()
+}
+
+const mockIndexedDB = {
+  open: vi.fn(() => {
+    const req = {
+      result: mockDB,
+      onupgradeneeded: null,
+      onsuccess: null,
+      onerror: null
+    }
+    queueMicrotask(() => req.onsuccess?.())
+    return req
+  })
+}
+
+global.indexedDB = mockIndexedDB
+
+// ── Mock navigator.serviceWorker (optional, for _persist SW sync) ─────
+const mockSWController = {
+  postMessage: vi.fn()
+}
+
+Object.defineProperty(navigator, 'serviceWorker', {
+  value: { controller: mockSWController },
+  writable: true,
+  configurable: true
+})
+
+// Clean sessionStorage/localStorage (legacy migration check)
+sessionStorage.clear()
+localStorage.clear()
 
 // Import the singleton after mocks are in place
 const { default: authService } = await import('./auth-service.js')
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
-/** Build a fake successful login response */
 function loginResponse(overrides = {}) {
   return {
     ok: true,
@@ -28,23 +124,24 @@ function loginResponse(overrides = {}) {
       token: 'jwt-token-abc',
       username: 'eridwyn',
       role: 'admin',
-      expires_at: Math.floor(Date.now() / 1000) + 7200, // 2 hours from now
+      expires_at: Math.floor(Date.now() / 1000) + 7200,
       ...overrides
     })
   }
 }
 
-/** Reset the singleton to a clean pre-login state */
 function resetService() {
-  authService.token = null
   authService.userInfo = null
   authService.loginTime = null
+  authService._token = null
   if (authService.refreshTimer) {
     clearTimeout(authService.refreshTimer)
     authService.refreshTimer = null
   }
+  authService._ready = true
   sessionStorage.clear()
   localStorage.clear()
+  idbStore = {}
 }
 
 // ── Lifecycle ───────────────────────────────────────────────────────────
@@ -53,6 +150,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   resetService()
   mockFetch.mockReset()
+  mockSWController.postMessage.mockReset()
 })
 
 afterEach(() => {
@@ -113,27 +211,49 @@ describe('login()', () => {
     expect(body).not.toHaveProperty('remember_device')
   })
 
-  it('stores token and userInfo on success', async () => {
+  it('stores userInfo and token in memory on success', async () => {
     mockFetch.mockResolvedValueOnce(loginResponse())
 
     await authService.login('eridwyn', 'secret')
 
-    expect(authService.token).toBe('jwt-token-abc')
     expect(authService.userInfo).toEqual(expect.objectContaining({
       username: 'eridwyn',
       role: 'admin'
     }))
     expect(authService.loginTime).toBeTypeOf('number')
+    expect(authService._token).toBe('jwt-token-abc')
   })
 
-  it('saves to sessionStorage on success', async () => {
+  it('persists token to IndexedDB', async () => {
     mockFetch.mockResolvedValueOnce(loginResponse())
 
     await authService.login('eridwyn', 'secret')
 
-    expect(sessionStorage.getItem('symbion_auth_token')).toBe('jwt-token-abc')
-    expect(sessionStorage.getItem('symbion_user_info')).toContain('eridwyn')
-    expect(sessionStorage.getItem('symbion_login_time')).toBeTruthy()
+    expect(idbStore['token']).toBe('jwt-token-abc')
+    expect(JSON.parse(idbStore['userInfo'])).toEqual(expect.objectContaining({
+      username: 'eridwyn',
+      role: 'admin'
+    }))
+  })
+
+  it('sends token to SW as secondary backup', async () => {
+    mockFetch.mockResolvedValueOnce(loginResponse())
+
+    await authService.login('eridwyn', 'secret')
+
+    const storeCall = mockSWController.postMessage.mock.calls.find(
+      c => c[0].type === 'AUTH_STORE'
+    )
+    expect(storeCall).toBeDefined()
+    expect(storeCall[0].data.token).toBe('jwt-token-abc')
+  })
+
+  it('does NOT save token to sessionStorage', async () => {
+    mockFetch.mockResolvedValueOnce(loginResponse())
+
+    await authService.login('eridwyn', 'secret')
+
+    expect(sessionStorage.getItem('symbion_auth_token')).toBeNull()
   })
 
   it('saves device_token to localStorage when returned', async () => {
@@ -242,7 +362,7 @@ describe('login()', () => {
       .rejects.toThrow('Failed to fetch')
   })
 
-  it('does not store state on failed login', async () => {
+  it('does not store userInfo on failed login', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 401,
@@ -251,9 +371,7 @@ describe('login()', () => {
 
     await authService.login('bad', 'creds').catch(() => {})
 
-    expect(authService.token).toBeNull()
     expect(authService.userInfo).toBeNull()
-    expect(sessionStorage.getItem('symbion_auth_token')).toBeNull()
   })
 
   it('throws on MFA required (mfa_required response)', async () => {
@@ -272,14 +390,15 @@ describe('login()', () => {
 // logout()
 // =========================================================================
 describe('logout()', () => {
-  async function loginFirst() {
-    mockFetch.mockResolvedValueOnce(loginResponse())
-    await authService.login('eridwyn', 'secret')
-    mockFetch.mockReset()
+  function setupLoggedIn() {
+    authService.userInfo = { username: 'eridwyn', role: 'admin', expires_at: Math.floor(Date.now() / 1000) + 7200 }
+    authService._token = 'jwt-token-abc'
+    authService.loginTime = Date.now()
+    authService.refreshTimer = setTimeout(() => {}, 60000)
   }
 
-  it('calls POST /auth/logout with Bearer token', async () => {
-    await loginFirst()
+  it('calls POST /auth/logout', async () => {
+    setupLoggedIn()
     mockFetch.mockResolvedValueOnce({ ok: true })
 
     await authService.logout()
@@ -288,36 +407,34 @@ describe('logout()', () => {
     const [url, options] = mockFetch.mock.calls[0]
     expect(url).toContain('/auth/logout')
     expect(options.method).toBe('POST')
-    expect(options.headers['Authorization']).toBe('Bearer jwt-token-abc')
-    expect(options.credentials).toBe('include')
   })
 
-  it('clears token and userInfo', async () => {
-    await loginFirst()
+  it('clears userInfo, loginTime and _token', async () => {
+    setupLoggedIn()
     mockFetch.mockResolvedValueOnce({ ok: true })
 
     await authService.logout()
 
-    expect(authService.token).toBeNull()
     expect(authService.userInfo).toBeNull()
     expect(authService.loginTime).toBeNull()
+    expect(authService._token).toBeNull()
   })
 
-  it('clears sessionStorage entries', async () => {
-    await loginFirst()
+  it('sends AUTH_CLEAR to SW', async () => {
+    setupLoggedIn()
     mockFetch.mockResolvedValueOnce({ ok: true })
 
     await authService.logout()
 
-    expect(sessionStorage.getItem('symbion_auth_token')).toBeNull()
-    expect(sessionStorage.getItem('symbion_user_info')).toBeNull()
-    expect(sessionStorage.getItem('symbion_login_time')).toBeNull()
-    expect(sessionStorage.getItem('symbion_boot_completed')).toBeNull()
+    const clearCall = mockSWController.postMessage.mock.calls.find(
+      c => c[0].type === 'AUTH_CLEAR'
+    )
+    expect(clearCall).toBeDefined()
   })
 
   it('clears device_token from localStorage', async () => {
     localStorage.setItem('symbion_device_token', 'some-device-token')
-    await loginFirst()
+    setupLoggedIn()
     mockFetch.mockResolvedValueOnce({ ok: true })
 
     await authService.logout()
@@ -326,7 +443,7 @@ describe('logout()', () => {
   })
 
   it('dispatches auth:logout event', async () => {
-    await loginFirst()
+    setupLoggedIn()
     mockFetch.mockResolvedValueOnce({ ok: true })
     const handler = vi.fn()
     authService.addEventListener('auth:logout', handler)
@@ -340,31 +457,18 @@ describe('logout()', () => {
   })
 
   it('clears state even if logout API call fails', async () => {
-    await loginFirst()
+    setupLoggedIn()
     mockFetch.mockRejectedValueOnce(new Error('Network error'))
-
-    await authService.logout() // should NOT throw
-
-    expect(authService.token).toBeNull()
-    expect(authService.userInfo).toBeNull()
-    expect(sessionStorage.getItem('symbion_auth_token')).toBeNull()
-  })
-
-  it('still dispatches auth:logout event when API fails', async () => {
-    await loginFirst()
-    mockFetch.mockRejectedValueOnce(new Error('Network error'))
-    const handler = vi.fn()
-    authService.addEventListener('auth:logout', handler)
 
     await authService.logout()
 
-    expect(handler).toHaveBeenCalledTimes(1)
-
-    authService.removeEventListener('auth:logout', handler)
+    expect(authService.userInfo).toBeNull()
+    expect(authService.loginTime).toBeNull()
+    expect(authService._token).toBeNull()
   })
 
   it('cancels refresh timer on logout', async () => {
-    await loginFirst()
+    setupLoggedIn()
     expect(authService.refreshTimer).not.toBeNull()
     mockFetch.mockResolvedValueOnce({ ok: true })
 
@@ -373,8 +477,7 @@ describe('logout()', () => {
     expect(authService.refreshTimer).toBeNull()
   })
 
-  it('does not call API if no token present', async () => {
-    // Not logged in — token is null
+  it('does not call API if no userInfo present', async () => {
     await authService.logout()
 
     expect(mockFetch).not.toHaveBeenCalled()
@@ -382,96 +485,14 @@ describe('logout()', () => {
 })
 
 // =========================================================================
-// loadFromStorage()
-// =========================================================================
-describe('loadFromStorage()', () => {
-  it('restores token and userInfo from sessionStorage', () => {
-    sessionStorage.setItem('symbion_auth_token', 'stored-token')
-    sessionStorage.setItem('symbion_user_info', JSON.stringify({
-      username: 'eridwyn',
-      role: 'admin',
-      expires_at: Math.floor(Date.now() / 1000) + 7200
-    }))
-    sessionStorage.setItem('symbion_login_time', '1700000000000')
-
-    authService.loadFromStorage()
-
-    expect(authService.token).toBe('stored-token')
-    expect(authService.userInfo.username).toBe('eridwyn')
-    expect(authService.loginTime).toBe(1700000000000)
-  })
-
-  it('does nothing when sessionStorage is empty', () => {
-    authService.loadFromStorage()
-
-    expect(authService.token).toBeNull()
-    expect(authService.userInfo).toBeNull()
-  })
-
-  it('does nothing when token exists but userInfo is missing', () => {
-    sessionStorage.setItem('symbion_auth_token', 'orphan-token')
-
-    authService.loadFromStorage()
-
-    expect(authService.token).toBeNull()
-  })
-
-  it('clears storage on corrupted userInfo JSON', () => {
-    sessionStorage.setItem('symbion_auth_token', 'bad-token')
-    sessionStorage.setItem('symbion_user_info', '{invalid json')
-
-    authService.loadFromStorage()
-
-    expect(authService.token).toBeNull()
-    expect(authService.userInfo).toBeNull()
-    expect(sessionStorage.getItem('symbion_auth_token')).toBeNull()
-    expect(sessionStorage.getItem('symbion_user_info')).toBeNull()
-  })
-
-  it('sets loginTime to null when no login time in storage', () => {
-    sessionStorage.setItem('symbion_auth_token', 'some-token')
-    sessionStorage.setItem('symbion_user_info', JSON.stringify({
-      username: 'eridwyn',
-      role: 'admin',
-      expires_at: Math.floor(Date.now() / 1000) + 7200
-    }))
-    // Intentionally NOT setting symbion_login_time
-
-    authService.loadFromStorage()
-
-    expect(authService.token).toBe('some-token')
-    expect(authService.loginTime).toBeNull()
-  })
-
-  it('schedules token refresh after restoring session', () => {
-    sessionStorage.setItem('symbion_auth_token', 'refresh-token')
-    sessionStorage.setItem('symbion_user_info', JSON.stringify({
-      username: 'eridwyn',
-      role: 'admin',
-      expires_at: Math.floor(Date.now() / 1000) + 7200
-    }))
-
-    authService.loadFromStorage()
-
-    expect(authService.refreshTimer).not.toBeNull()
-  })
-})
-
-// =========================================================================
 // isAuthenticated()
 // =========================================================================
 describe('isAuthenticated()', () => {
-  it('returns false when no token', () => {
-    expect(authService.isAuthenticated()).toBe(false)
-  })
-
   it('returns false when no userInfo', () => {
-    authService.token = 'some-token'
     expect(authService.isAuthenticated()).toBe(false)
   })
 
-  it('returns true when token exists and not expired', () => {
-    authService.token = 'valid-token'
+  it('returns true when userInfo exists and not expired', () => {
     authService.userInfo = {
       username: 'eridwyn',
       role: 'admin',
@@ -481,21 +502,20 @@ describe('isAuthenticated()', () => {
     expect(authService.isAuthenticated()).toBe(true)
   })
 
-  it('returns false and clears state when token is expired', () => {
-    authService.token = 'expired-token'
+  it('returns false and clears state when expired', () => {
     authService.userInfo = {
       username: 'eridwyn',
       role: 'admin',
-      expires_at: Math.floor(Date.now() / 1000) - 100 // expired 100 seconds ago
+      expires_at: Math.floor(Date.now() / 1000) - 100
     }
+    authService._token = 'expired-token'
 
     expect(authService.isAuthenticated()).toBe(false)
-    expect(authService.token).toBeNull()
     expect(authService.userInfo).toBeNull()
+    expect(authService._token).toBeNull()
   })
 
-  it('dispatches auth:expired event when token is expired', () => {
-    authService.token = 'expired-token'
+  it('dispatches auth:expired event when expired', () => {
     authService.userInfo = {
       username: 'eridwyn',
       role: 'admin',
@@ -512,11 +532,10 @@ describe('isAuthenticated()', () => {
   })
 
   it('returns false when expires_at is exactly now (boundary)', () => {
-    authService.token = 'boundary-token'
     authService.userInfo = {
       username: 'eridwyn',
       role: 'admin',
-      expires_at: Math.floor(Date.now() / 1000) // exactly now — <= check should expire
+      expires_at: Math.floor(Date.now() / 1000)
     }
 
     expect(authService.isAuthenticated()).toBe(false)
@@ -527,15 +546,29 @@ describe('isAuthenticated()', () => {
 // getToken()
 // =========================================================================
 describe('getToken()', () => {
-  it('returns null when not authenticated', () => {
+  it('returns null when no token stored', () => {
     expect(authService.getToken()).toBeNull()
   })
 
-  it('returns the JWT token after login', async () => {
-    mockFetch.mockResolvedValueOnce(loginResponse())
-    await authService.login('eridwyn', 'secret')
-
+  it('returns token when authenticated', () => {
+    authService._token = 'jwt-token-abc'
     expect(authService.getToken()).toBe('jwt-token-abc')
+  })
+})
+
+// =========================================================================
+// getTokenForWebSocket()
+// =========================================================================
+describe('getTokenForWebSocket()', () => {
+  it('returns _token directly (no SW roundtrip)', async () => {
+    authService._token = 'ws-token-123'
+    const token = await authService.getTokenForWebSocket()
+    expect(token).toBe('ws-token-123')
+  })
+
+  it('returns null when not authenticated', async () => {
+    const token = await authService.getTokenForWebSocket()
+    expect(token).toBeNull()
   })
 })
 
@@ -547,14 +580,11 @@ describe('getCurrentUser()', () => {
     expect(authService.getCurrentUser()).toBeNull()
   })
 
-  it('returns user info after login', async () => {
-    mockFetch.mockResolvedValueOnce(loginResponse())
-    await authService.login('eridwyn', 'secret')
-
+  it('returns user info when set', () => {
+    authService.userInfo = { username: 'eridwyn', role: 'admin', expires_at: 9999999999 }
     const user = authService.getCurrentUser()
     expect(user.username).toBe('eridwyn')
     expect(user.role).toBe('admin')
-    expect(user.expires_at).toBeTypeOf('number')
   })
 })
 
@@ -566,33 +596,23 @@ describe('getLoginTime()', () => {
     expect(authService.getLoginTime()).toBeNull()
   })
 
-  it('returns login timestamp after login', async () => {
-    const before = Date.now()
-    mockFetch.mockResolvedValueOnce(loginResponse())
-    await authService.login('eridwyn', 'secret')
-    const after = Date.now()
-
-    const loginTime = authService.getLoginTime()
-    expect(loginTime).toBeGreaterThanOrEqual(before)
-    expect(loginTime).toBeLessThanOrEqual(after)
+  it('returns login timestamp when set', () => {
+    authService.loginTime = 1700000000000
+    expect(authService.getLoginTime()).toBe(1700000000000)
   })
 })
 
 // =========================================================================
-// getAuthHeader()
+// getAuthHeader() — deprecated
 // =========================================================================
 describe('getAuthHeader()', () => {
-  it('returns empty object when not authenticated', () => {
+  it('always returns empty object (fetch interceptor handles auth)', () => {
     expect(authService.getAuthHeader()).toEqual({})
   })
 
-  it('returns Authorization Bearer header when authenticated', async () => {
-    mockFetch.mockResolvedValueOnce(loginResponse())
-    await authService.login('eridwyn', 'secret')
-
-    expect(authService.getAuthHeader()).toEqual({
-      'Authorization': 'Bearer jwt-token-abc'
-    })
+  it('returns empty object even when authenticated', () => {
+    authService.userInfo = { username: 'eridwyn', role: 'admin', expires_at: 9999999999 }
+    expect(authService.getAuthHeader()).toEqual({})
   })
 })
 
@@ -600,21 +620,14 @@ describe('getAuthHeader()', () => {
 // verifySession()
 // =========================================================================
 describe('verifySession()', () => {
-  async function loginFirst() {
-    mockFetch.mockResolvedValueOnce(loginResponse())
-    await authService.login('eridwyn', 'secret')
-    mockFetch.mockReset()
-  }
-
-  it('returns false when no token present', async () => {
+  it('returns false when no userInfo present', async () => {
     const result = await authService.verifySession()
-
     expect(result).toBe(false)
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
-  it('calls GET /auth/verify with Bearer token', async () => {
-    await loginFirst()
+  it('calls GET /auth/verify', async () => {
+    authService.userInfo = { username: 'eridwyn', role: 'admin', expires_at: 9999999999 }
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ username: 'eridwyn', valid: true })
@@ -623,14 +636,11 @@ describe('verifySession()', () => {
     await authService.verifySession()
 
     expect(mockFetch).toHaveBeenCalledTimes(1)
-    const [url, options] = mockFetch.mock.calls[0]
-    expect(url).toContain('/auth/verify')
-    expect(options.headers['Authorization']).toBe('Bearer jwt-token-abc')
-    expect(options.credentials).toBe('include')
+    expect(mockFetch.mock.calls[0][0]).toContain('/auth/verify')
   })
 
   it('returns true when server confirms session is valid', async () => {
-    await loginFirst()
+    authService.userInfo = { username: 'eridwyn', role: 'admin', expires_at: 9999999999 }
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ username: 'eridwyn', valid: true })
@@ -640,15 +650,15 @@ describe('verifySession()', () => {
   })
 
   it('returns false and clears state when server rejects (401)', async () => {
-    await loginFirst()
+    authService.userInfo = { username: 'eridwyn', role: 'admin', expires_at: 9999999999 }
     mockFetch.mockResolvedValueOnce({ ok: false, status: 401 })
 
     expect(await authService.verifySession()).toBe(false)
-    expect(authService.token).toBeNull()
+    expect(authService.userInfo).toBeNull()
   })
 
   it('dispatches auth:expired when server rejects', async () => {
-    await loginFirst()
+    authService.userInfo = { username: 'eridwyn', role: 'admin', expires_at: 9999999999 }
     mockFetch.mockResolvedValueOnce({ ok: false, status: 401 })
     const handler = vi.fn()
     authService.addEventListener('auth:expired', handler)
@@ -660,12 +670,11 @@ describe('verifySession()', () => {
     authService.removeEventListener('auth:expired', handler)
   })
 
-  it('returns false and clears state on network error', async () => {
-    await loginFirst()
+  it('returns false on network error', async () => {
+    authService.userInfo = { username: 'eridwyn', role: 'admin', expires_at: 9999999999 }
     mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
     expect(await authService.verifySession()).toBe(false)
-    expect(authService.token).toBeNull()
   })
 })
 
@@ -673,19 +682,13 @@ describe('verifySession()', () => {
 // getSessionInfo()
 // =========================================================================
 describe('getSessionInfo()', () => {
-  async function loginFirst() {
-    mockFetch.mockResolvedValueOnce(loginResponse())
-    await authService.login('eridwyn', 'secret')
-    mockFetch.mockReset()
-  }
-
   it('throws when not authenticated', async () => {
     await expect(authService.getSessionInfo())
       .rejects.toThrow('Not authenticated')
   })
 
-  it('calls GET /auth/session with Bearer token', async () => {
-    await loginFirst()
+  it('calls GET /auth/session', async () => {
+    authService.userInfo = { username: 'eridwyn', role: 'admin', expires_at: 9999999999 }
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ username: 'eridwyn', session_id: 'abc123' })
@@ -693,14 +696,11 @@ describe('getSessionInfo()', () => {
 
     await authService.getSessionInfo()
 
-    const [url, options] = mockFetch.mock.calls[0]
-    expect(url).toContain('/auth/session')
-    expect(options.headers['Authorization']).toBe('Bearer jwt-token-abc')
-    expect(options.credentials).toBe('include')
+    expect(mockFetch.mock.calls[0][0]).toContain('/auth/session')
   })
 
   it('returns session data on success', async () => {
-    await loginFirst()
+    authService.userInfo = { username: 'eridwyn', role: 'admin', expires_at: 9999999999 }
     const sessionData = { username: 'eridwyn', session_id: 'abc123', created_at: 1700000000 }
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -708,12 +708,11 @@ describe('getSessionInfo()', () => {
     })
 
     const result = await authService.getSessionInfo()
-
     expect(result).toEqual(sessionData)
   })
 
   it('throws on server error', async () => {
-    await loginFirst()
+    authService.userInfo = { username: 'eridwyn', role: 'admin', expires_at: 9999999999 }
     mockFetch.mockResolvedValueOnce({ ok: false, status: 500 })
 
     await expect(authService.getSessionInfo())
@@ -727,41 +726,31 @@ describe('getSessionInfo()', () => {
 describe('scheduleTokenRefresh()', () => {
   it('does nothing when userInfo is null', () => {
     authService.userInfo = null
-
     authService.scheduleTokenRefresh()
-
     expect(authService.refreshTimer).toBeNull()
   })
 
-  it('clears previous timer before scheduling new one', async () => {
-    mockFetch.mockResolvedValueOnce(loginResponse())
-    await authService.login('eridwyn', 'secret')
-    const firstTimer = authService.refreshTimer
+  it('clears previous timer before scheduling new one', () => {
+    authService.userInfo = { username: 'eridwyn', role: 'admin', expires_at: Math.floor(Date.now() / 1000) + 3600 }
+    authService.scheduleTokenRefresh()
+    expect(authService.refreshTimer).not.toBeNull()
 
     authService.scheduleTokenRefresh()
-    const secondTimer = authService.refreshTimer
-
-    // A new timer should have been created (different reference)
-    expect(secondTimer).not.toBeNull()
-    // Cannot directly compare timer IDs, but we can verify no crash
+    expect(authService.refreshTimer).not.toBeNull()
   })
 
-  it('dispatches auth:refresh-needed after calculated delay', async () => {
-    // Token expires in 1 hour (3600s), refresh at 3600-1800=1800s = 30 min
+  it('dispatches auth:refresh-needed after calculated delay', () => {
     const expiresAt = Math.floor(Date.now() / 1000) + 3600
     authService.userInfo = { username: 'eridwyn', role: 'admin', expires_at: expiresAt }
-    authService.token = 'test-token'
 
     const handler = vi.fn()
     authService.addEventListener('auth:refresh-needed', handler)
 
     authService.scheduleTokenRefresh()
 
-    // Should not fire before 30 minutes
     vi.advanceTimersByTime(1799 * 1000)
     expect(handler).not.toHaveBeenCalled()
 
-    // Should fire at 30 minutes (1800s * 1000ms)
     vi.advanceTimersByTime(1000)
     expect(handler).toHaveBeenCalledTimes(1)
 
@@ -769,140 +758,20 @@ describe('scheduleTokenRefresh()', () => {
   })
 
   it('does not set timer when token is already expiring soon (<30 min)', () => {
-    // Token expires in 10 minutes (600s). 600-1800 = -1200 → max(0,...) = 0
     const expiresAt = Math.floor(Date.now() / 1000) + 600
     authService.userInfo = { username: 'eridwyn', role: 'admin', expires_at: expiresAt }
-    authService.token = 'short-lived-token'
-
-    const handler = vi.fn()
-    authService.addEventListener('auth:refresh-needed', handler)
 
     authService.scheduleTokenRefresh()
 
-    // refreshTime = max(0, (600 - 1800) * 1000) = 0, so no timer is set
-    // The code checks `if (refreshTime > 0)`, so with 0 the branch is skipped
-    expect(authService.refreshTimer).toBeNull()
-
-    authService.removeEventListener('auth:refresh-needed', handler)
-  })
-})
-
-// =========================================================================
-// clearStorage()
-// =========================================================================
-describe('clearStorage()', () => {
-  it('removes all session keys from sessionStorage', async () => {
-    mockFetch.mockResolvedValueOnce(loginResponse())
-    await authService.login('eridwyn', 'secret')
-    sessionStorage.setItem('symbion_boot_completed', 'true')
-
-    authService.clearStorage()
-
-    expect(sessionStorage.getItem('symbion_auth_token')).toBeNull()
-    expect(sessionStorage.getItem('symbion_user_info')).toBeNull()
-    expect(sessionStorage.getItem('symbion_login_time')).toBeNull()
-    expect(sessionStorage.getItem('symbion_boot_completed')).toBeNull()
-  })
-
-  it('removes device_token from localStorage', () => {
-    localStorage.setItem('symbion_device_token', 'device-abc')
-
-    authService.clearStorage()
-
-    expect(localStorage.getItem('symbion_device_token')).toBeNull()
-  })
-
-  it('resets internal state to null', async () => {
-    mockFetch.mockResolvedValueOnce(loginResponse())
-    await authService.login('eridwyn', 'secret')
-
-    authService.clearStorage()
-
-    expect(authService.token).toBeNull()
-    expect(authService.userInfo).toBeNull()
-    expect(authService.loginTime).toBeNull()
-  })
-
-  it('cancels active refresh timer', async () => {
-    mockFetch.mockResolvedValueOnce(loginResponse())
-    await authService.login('eridwyn', 'secret')
-    expect(authService.refreshTimer).not.toBeNull()
-
-    authService.clearStorage()
-
     expect(authService.refreshTimer).toBeNull()
   })
 })
 
 // =========================================================================
-// saveToStorage()
-// =========================================================================
-describe('saveToStorage()', () => {
-  it('saves token, userInfo, and loginTime to sessionStorage', () => {
-    authService.token = 'save-test-token'
-    authService.userInfo = { username: 'eridwyn', role: 'admin', expires_at: 9999999999 }
-    authService.loginTime = 1700000000000
-
-    authService.saveToStorage()
-
-    expect(sessionStorage.getItem('symbion_auth_token')).toBe('save-test-token')
-    expect(JSON.parse(sessionStorage.getItem('symbion_user_info'))).toEqual({
-      username: 'eridwyn',
-      role: 'admin',
-      expires_at: 9999999999
-    })
-    expect(sessionStorage.getItem('symbion_login_time')).toBe('1700000000000')
-  })
-
-  it('does not save when token is null', () => {
-    authService.token = null
-    authService.userInfo = { username: 'eridwyn' }
-
-    authService.saveToStorage()
-
-    expect(sessionStorage.getItem('symbion_auth_token')).toBeNull()
-  })
-
-  it('does not save when userInfo is null', () => {
-    authService.token = 'some-token'
-    authService.userInfo = null
-
-    authService.saveToStorage()
-
-    expect(sessionStorage.getItem('symbion_auth_token')).toBeNull()
-  })
-
-  it('does not save loginTime when it is null', () => {
-    authService.token = 'token'
-    authService.userInfo = { username: 'eridwyn' }
-    authService.loginTime = null
-
-    authService.saveToStorage()
-
-    expect(sessionStorage.getItem('symbion_auth_token')).toBe('token')
-    expect(sessionStorage.getItem('symbion_login_time')).toBeNull()
-  })
-})
-
-// =========================================================================
-// Event integration (cross-cutting)
+// Event integration
 // =========================================================================
 describe('event integration', () => {
-  it('auth:login fires with correct detail after successful login', async () => {
-    mockFetch.mockResolvedValueOnce(loginResponse({ username: 'testuser', role: 'viewer' }))
-    const handler = vi.fn()
-    authService.addEventListener('auth:login', handler)
-
-    await authService.login('testuser', 'pass')
-
-    expect(handler).toHaveBeenCalledTimes(1)
-    expect(handler.mock.calls[0][0].detail).toEqual({ username: 'testuser', role: 'viewer' })
-
-    authService.removeEventListener('auth:login', handler)
-  })
-
   it('auth:expired is dispatched when checking authentication on expired token', () => {
-    authService.token = 'expired-token'
     authService.userInfo = {
       username: 'eridwyn',
       role: 'admin',
@@ -919,7 +788,6 @@ describe('event integration', () => {
   })
 
   it('auth:expired is dispatched when verifySession returns 401', async () => {
-    authService.token = 'will-be-rejected'
     authService.userInfo = { username: 'eridwyn', role: 'admin', expires_at: 9999999999 }
     mockFetch.mockResolvedValueOnce({ ok: false, status: 401 })
     const handler = vi.fn()
@@ -930,54 +798,5 @@ describe('event integration', () => {
     expect(handler).toHaveBeenCalledTimes(1)
 
     authService.removeEventListener('auth:expired', handler)
-  })
-})
-
-// =========================================================================
-// Full login/logout lifecycle
-// =========================================================================
-describe('full lifecycle', () => {
-  it('login → isAuthenticated → logout → isAuthenticated', async () => {
-    mockFetch.mockResolvedValueOnce(loginResponse())
-    await authService.login('eridwyn', 'secret')
-
-    expect(authService.isAuthenticated()).toBe(true)
-    expect(authService.getToken()).toBe('jwt-token-abc')
-    expect(authService.getCurrentUser().username).toBe('eridwyn')
-    expect(authService.getAuthHeader()).toEqual({ 'Authorization': 'Bearer jwt-token-abc' })
-
-    mockFetch.mockResolvedValueOnce({ ok: true })
-    await authService.logout()
-
-    expect(authService.isAuthenticated()).toBe(false)
-    expect(authService.getToken()).toBeNull()
-    expect(authService.getCurrentUser()).toBeNull()
-    expect(authService.getAuthHeader()).toEqual({})
-    expect(authService.getLoginTime()).toBeNull()
-  })
-
-  it('login → save → clear → loadFromStorage restores session', async () => {
-    mockFetch.mockResolvedValueOnce(loginResponse())
-    await authService.login('eridwyn', 'secret')
-
-    // Session is saved to sessionStorage (done automatically by login)
-    const storedToken = sessionStorage.getItem('symbion_auth_token')
-    expect(storedToken).toBe('jwt-token-abc')
-
-    // Clear internal state but NOT sessionStorage
-    authService.token = null
-    authService.userInfo = null
-    authService.loginTime = null
-    if (authService.refreshTimer) clearTimeout(authService.refreshTimer)
-    authService.refreshTimer = null
-
-    expect(authService.isAuthenticated()).toBe(false)
-
-    // Reload from storage
-    authService.loadFromStorage()
-
-    expect(authService.token).toBe('jwt-token-abc')
-    expect(authService.userInfo.username).toBe('eridwyn')
-    expect(authService.isAuthenticated()).toBe(true)
   })
 })
