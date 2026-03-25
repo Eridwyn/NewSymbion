@@ -19,7 +19,7 @@ class MqttService extends LitElement {
     this.status = 'connecting'
     this.client = null
     this.reconnectAttempts = 0
-    this.maxReconnectAttempts = 5
+    this.maxReconnectAttempts = Infinity  // Never stop trying to reconnect
   }
   
   connectedCallback() {
@@ -102,14 +102,9 @@ class MqttService extends LitElement {
   
   handleReconnect() {
     this.reconnectAttempts++
-    console.log(`🔄 MQTT Reconnecting... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
+    // Exponential backoff info (mqtt.js handles reconnectPeriod internally)
+    console.log(`🔄 MQTT Reconnecting... (attempt ${this.reconnectAttempts})`)
     this.updateStatus('connecting')
-    
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('❌ Max reconnection attempts reached')
-      this.client.end()
-      this.updateStatus('offline')
-    }
   }
   
   subscribeToTopics() {

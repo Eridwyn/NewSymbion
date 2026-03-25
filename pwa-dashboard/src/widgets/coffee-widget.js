@@ -12,6 +12,7 @@ import { widgetHeaderStyles, widgetSectionStyles } from '../styles/shared-widget
 import { statusBadgeStyles, statusDotStyles } from '../styles/shared-patterns.js'
 import { getApiBase } from '../services/config.js'
 import csrfService from '../services/csrf-service.js'
+import { showToast } from '../components/toast-service.js'
 import '../components/organic-loader.js'
 
 class CoffeeWidget extends LitElement {
@@ -66,7 +67,9 @@ class CoffeeWidget extends LitElement {
     }
 
     .cups-toggle .cup-opt {
-      padding: 0.25rem 0.55rem;
+      padding: 0.5rem 0.75rem;
+      min-height: 44px;
+      min-width: 44px;
       font-size: 0.75em;
       font-weight: 600;
       color: var(--color-dark-text-tertiary, #94a3b8);
@@ -75,6 +78,9 @@ class CoffeeWidget extends LitElement {
       border: none;
       background: transparent;
       user-select: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .cups-toggle .cup-opt:first-child {
@@ -92,7 +98,8 @@ class CoffeeWidget extends LitElement {
 
     /* Go button */
     .go-btn {
-      padding: 0.3rem 0.65rem;
+      padding: 0.5rem 1rem;
+      min-height: 44px;
       border-radius: var(--radius-base);
       border: 1px solid var(--context-primary);
       background: rgba(var(--ctx-rgb, 0,212,170), 0.15);
@@ -355,6 +362,25 @@ class CoffeeWidget extends LitElement {
         min-width: calc(50% - 0.25rem);
       }
     }
+
+    @media (max-width: 480px) {
+      .levels-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    /* Container Queries — adapt to widget's own width */
+    @container widget (max-width: 350px) {
+      .levels-row {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .level-chip {
+        min-width: unset;
+      }
+    }
   `]
 
   static properties = {
@@ -564,12 +590,15 @@ class CoffeeWidget extends LitElement {
       const data = await resp.json()
       if (!resp.ok) {
         this.brewError = data.error || `Erreur ${resp.status}`
+        showToast(this.brewError, 'error')
       } else {
         const label = drink === 'espresso' ? 'Espresso' : drink === 'coffee' ? 'Cafe long' : 'Eau chaude'
         this._showSuccess(`${label}${cups > 1 ? ' x2' : ''} lance !`)
+        showToast(`${label}${cups > 1 ? ' x2' : ''} en preparation`, 'success')
       }
     } catch (e) {
       this.brewError = `Erreur: ${e.message}`
+      showToast(this.brewError, 'error')
     } finally {
       this.brewLoading = false
       this.requestUpdate()
@@ -583,8 +612,10 @@ class CoffeeWidget extends LitElement {
     try {
       await csrfService.fetchWithCsrf(`${getApiBase()}/v1/plugin-api/coffee/stop`, { method: 'POST' })
       this._showSuccess('Arrete')
+      showToast('Machine arretee', 'info')
     } catch (e) {
       this.brewError = 'Erreur arret'
+      showToast('Erreur arret machine', 'error')
       this.requestUpdate()
     }
   }
@@ -607,6 +638,7 @@ class CoffeeWidget extends LitElement {
           this.poweringOn = false
           this._pendingBrew = null
           this.brewError = 'Delai allumage depasse'
+          showToast('Delai allumage depasse', 'warning')
           this.requestUpdate()
         }
         await this._fetchStatusSilent()
@@ -614,6 +646,7 @@ class CoffeeWidget extends LitElement {
     } catch (e) {
       this.poweringOn = false
       this.brewError = 'Erreur allumage'
+      showToast('Erreur allumage machine', 'error')
       this.requestUpdate()
     }
   }
@@ -626,6 +659,7 @@ class CoffeeWidget extends LitElement {
         body: JSON.stringify({ on: false })
       })
       this._showSuccess('Machine eteinte')
+      showToast('Machine eteinte', 'info')
     } catch (_) { /* silent */ }
   }
 
@@ -641,10 +675,7 @@ class CoffeeWidget extends LitElement {
   }
 
   _sendToast(msg, type) {
-    const toast = document.querySelector('toast-notifications')
-    if (toast && typeof toast.addToast === 'function') {
-      toast.addToast(msg, type)
-    }
+    showToast(msg, type)
   }
 
   // ── Helpers ──

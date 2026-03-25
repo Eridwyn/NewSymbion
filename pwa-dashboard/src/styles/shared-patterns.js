@@ -276,6 +276,13 @@ export const statusBadgeStyles = css`
     color: var(--color-dark-text-tertiary, #6c757d);
     border: 1px solid rgba(128, 128, 128, 0.3);
   }
+
+  /* Tap feedback for interactive elements */
+  .status-badge:active,
+  [role="button"]:active {
+    transform: scale(0.96);
+    transition: transform 50ms ease;
+  }
 `
 
 /**

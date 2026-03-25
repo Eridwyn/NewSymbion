@@ -66,7 +66,7 @@ class ApiService extends LitElement {
   
   async checkConnection() {
     try {
-      await this.request('/health')
+      await this.request('/health', { cache: 'no-store' })
       this.updateStatus('online')
     } catch (error) {
       console.warn('⚠️ API not available:', error)

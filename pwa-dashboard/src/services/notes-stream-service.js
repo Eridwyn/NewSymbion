@@ -20,7 +20,7 @@ class NotesStreamService extends LitElement {
     this.loading = false
     this.ws = null
     this.reconnectAttempts = 0
-    this.maxReconnectAttempts = 5
+    this.maxReconnectAttempts = Infinity  // Never stop trying
     this.reconnectDelay = 1000
   }
 

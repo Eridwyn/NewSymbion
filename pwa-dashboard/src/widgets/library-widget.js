@@ -93,12 +93,13 @@ export class LibraryWidget extends LitElement {
       gap: 0.3rem;
       font-size: 0.82em;
       margin-bottom: 0.3rem;
+      flex-wrap: wrap;
     }
 
     .link-node-name {
       font-weight: 500;
       color: var(--color-dark-text-primary);
-      max-width: 130px;
+      max-width: 40%;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -124,9 +125,10 @@ export class LibraryWidget extends LitElement {
 
     .btn-confirm, .btn-reject {
       flex: 1;
-      padding: 0.3rem 0.5rem;
+      padding: 0.5rem 0.75rem;
+      min-height: 44px;
       border-radius: var(--radius-md);
-      font-size: 0.7em;
+      font-size: 0.8em;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s;
@@ -174,6 +176,13 @@ export class LibraryWidget extends LitElement {
       transition: all 0.2s ease;
     }
     .open-btn:hover { background: var(--ctx-bg-emphasis); transform: translateY(-1px); }
+
+    @media (max-width: 480px) {
+      .stats-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+    }
   `]
 
   constructor() {

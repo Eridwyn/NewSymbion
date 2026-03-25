@@ -5,7 +5,7 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1a1a1a",
-  "theme_color": "#00d4aa",
+  "theme_color": "#1a1a1a",
   "orientation": "portrait-primary",
   "icons": [
     {
@@ -19,8 +19,36 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-1024-transparent-v2.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
   "categories": ["productivity", "utilities"],
-  "screenshots": []
+  "screenshots": [
+    {
+      "src": "/icon-512-transparent-v2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Symbion Dashboard"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Notes",
+      "short_name": "Notes",
+      "url": "/?tab=notes",
+      "icons": [{"src": "/icon-192-transparent-v2.png", "sizes": "192x192"}]
+    },
+    {
+      "name": "Plugins",
+      "short_name": "Plugins",
+      "url": "/?tab=plugins",
+      "icons": [{"src": "/icon-192-transparent-v2.png", "sizes": "192x192"}]
+    }
+  ]
 }

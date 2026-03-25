@@ -12,6 +12,7 @@ import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles, emptyStateStyles } from '../styles/shared-widget.js'
 import { statusDotStyles, statusBadgeStyles } from '../styles/shared-patterns.js'
+import { showToast } from '../components/toast-service.js'
 import '../services/agents-service.js'
 import '../components/organic-loader.js'
 import pollingScheduler from '../services/polling-scheduler.js'
@@ -218,6 +219,7 @@ class AgentsNetworkWidget extends LitElement {
       color: var(--color-dark-text-secondary, #cbd5e1);
       font-family: 'Monaco', 'Consolas', monospace;
       font-size: var(--text-xs, 0.75rem);
+      word-break: break-all;
     }
 
     .version-badge {
@@ -242,10 +244,11 @@ class AgentsNetworkWidget extends LitElement {
     }
 
     .action-btn {
-      padding: 8px 14px;
+      padding: 10px 16px;
+      min-height: 44px;
       border: none;
       border-radius: var(--radius-base);
-      font-size: var(--text-xs, 0.75rem);
+      font-size: 0.85rem;
       font-weight: 500;
       cursor: pointer;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -419,6 +422,50 @@ class AgentsNetworkWidget extends LitElement {
         font-size: var(--text-sm, 0.875rem);
       }
     }
+
+    @media (max-width: 480px) {
+      .meta-item:has(.meta-label:is([data-field="mac"], [data-field="agent-id"])) {
+        display: none;
+      }
+      /* Fallback: hide MAC and Agent ID by nth-child (3rd and 4th meta items) */
+      .agent-meta .meta-item:nth-child(3),
+      .agent-meta .meta-item:nth-child(4) {
+        display: none;
+      }
+      .agent-meta {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Container Queries — adapt to widget's own width */
+    @container widget (max-width: 400px) {
+      .agent-meta .meta-item:nth-child(3),
+      .agent-meta .meta-item:nth-child(4) {
+        display: none;
+      }
+
+      .agent-meta {
+        grid-template-columns: 1fr;
+      }
+
+      .agents-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .agent-card {
+        padding: 14px;
+      }
+
+      .agent-actions {
+        flex-wrap: wrap;
+      }
+
+      .action-btn {
+        flex: 1;
+        min-width: 100px;
+        justify-content: center;
+      }
+    }
   `]
 
   constructor() {
@@ -517,16 +564,19 @@ class AgentsNetworkWidget extends LitElement {
           console.log(`[agents-network-widget] Calling shutdownAgent(${agentId})`)
           const shutdownResult = await this.agentsService.shutdownAgent(agentId)
           console.log(`[agents-network-widget] Shutdown result:`, shutdownResult)
+          showToast(`Shutdown envoyé: ${agent.hostname}`, 'success')
           alert(`✅ Shutdown command sent: ${shutdownResult.command_id}`)
           break
         case 'reboot':
           console.log(`[agents-network-widget] Calling rebootAgent(${agentId})`)
           const rebootResult = await this.agentsService.rebootAgent(agentId)
           console.log(`[agents-network-widget] Reboot result:`, rebootResult)
+          showToast(`Reboot envoyé: ${agent.hostname}`, 'success')
           alert(`✅ Reboot command sent: ${rebootResult.command_id}`)
           break
         case 'wake':
           await this.agentsService.wakeAgent(agentId)
+          showToast(`Wake-on-LAN envoyé: ${agent.hostname}`, 'info')
           alert(`🌟 Wake-on-LAN packet sent to ${agent.hostname}`)
           break
         case 'control':
@@ -540,6 +590,7 @@ class AgentsNetworkWidget extends LitElement {
     } catch (error) {
       console.error(`[agents-network-widget] Failed to ${action} agent:`, error)
       console.error(`[agents-network-widget] Error stack:`, error.stack)
+      showToast(`Échec ${action}: ${error.message}`, 'error')
       alert(`❌ Failed to ${action} agent: ${error.message}`)
     }
   }
@@ -574,6 +625,7 @@ class AgentsNetworkWidget extends LitElement {
 
     try {
       await this.agentsService.deleteAgent(agent.agent_id)
+      showToast(`Agent "${agent.hostname}" supprimé`, 'success')
       alert(`✅ Agent "${agent.hostname}" supprimé (purge dans 7 jours)`)
 
       // Refresh la liste
@@ -581,6 +633,7 @@ class AgentsNetworkWidget extends LitElement {
 
     } catch (error) {
       console.error(`[agents-network-widget] Failed to delete agent:`, error)
+      showToast(`Erreur suppression: ${error.message}`, 'error')
       alert(`❌ Erreur lors de la suppression: ${error.message}`)
     }
   }

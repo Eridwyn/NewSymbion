@@ -30,7 +30,7 @@ class BootTerminal extends LitElement {
         linear-gradient(135deg,
           var(--ctx-bg-subtle, rgba(0, 212, 170, 0.02)) 0%,
           transparent 100%);
-      z-index: 1200;
+      z-index: 99999;
       overflow-y: auto;
       animation: backgroundBreathing 10s ease-in-out infinite;
     }
@@ -887,16 +887,25 @@ class BootTerminal extends LitElement {
     // Check biometric availability
     await this.checkBiometricAvailability()
 
-    // Check if already authenticated
+    // Check if already authenticated (local + server verification)
     if (authService.isAuthenticated()) {
-      this.phase = 'success'
-      setTimeout(() => {
-        this.dispatchEvent(new CustomEvent('boot-complete', {
-          detail: { authenticated: true },
-          bubbles: true,
-          composed: true
-        }))
-      }, 1000)
+      // Vérifier aussi côté serveur que le token est toujours valide
+      const serverValid = await authService.verifySession()
+      if (serverValid) {
+        this.phase = 'success'
+        setTimeout(() => {
+          this.dispatchEvent(new CustomEvent('boot-complete', {
+            detail: { authenticated: true },
+            bubbles: true,
+            composed: true
+          }))
+        }, 1000)
+      } else {
+        // Token valide localement mais rejeté par le serveur
+        console.log('[boot] Token rejected by server, showing login')
+        this.phase = 'login'
+        this.requestUpdate()
+      }
     }
   }
 

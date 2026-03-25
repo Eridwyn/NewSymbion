@@ -18,6 +18,7 @@
 import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { overlayStyles, statusBadgeStyles } from '../styles/shared-patterns.js'
+import { showToast } from '../components/toast-service.js'
 import { widgetSectionStyles } from '../styles/shared-widget.js'
 import '../services/agents-service.js'
 import pollingScheduler from '../services/polling-scheduler.js'
@@ -48,7 +49,8 @@ class AgentControlWidget extends LitElement {
     expandedCommandId: { type: String },
     agentFiles: { type: Array },
     fileTransfers: { type: Array },
-    fileDragOver: { type: Boolean }
+    fileDragOver: { type: Boolean },
+    _tabDirection: { type: String, state: true }
   }
 
   static styles = [sharedAnimations, overlayStyles, statusBadgeStyles, widgetSectionStyles, css`
@@ -237,6 +239,31 @@ class AgentControlWidget extends LitElement {
 
     .tab-panel.active {
       display: block;
+    }
+
+    @keyframes slideInFromRight {
+      from { transform: translateX(30px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    @keyframes slideInFromLeft {
+      from { transform: translateX(-30px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .tab-panel.slide-right {
+      animation: slideInFromRight 0.2s ease-out;
+    }
+
+    .tab-panel.slide-left {
+      animation: slideInFromLeft 0.2s ease-out;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .tab-panel.slide-right,
+      .tab-panel.slide-left {
+        animation: none;
+      }
     }
 
     .section {
@@ -791,34 +818,86 @@ class AgentControlWidget extends LitElement {
 
     /* Responsive */
     @media (max-width: 768px) {
+      /* 1. Modal full-screen on mobile */
       .modal {
-        width: 95%;
-        height: 90%;
+        width: 100% !important;
+        height: 100% !important;
+        max-width: 100% !important;
+        max-height: 100% !important;
+        border-radius: 0 !important;
+        margin: 0;
       }
-      
+
+      /* 2. Tab buttons scrollable on mobile */
+      .modal-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        flex-wrap: nowrap !important;
+        gap: 2px;
+      }
+      .modal-tabs::-webkit-scrollbar { display: none; }
+      .tab-btn {
+        padding: 10px 14px;
+        font-size: 0.8rem;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      /* 3. Process table as cards on mobile */
+      .processes-table {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .process-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem 0.5rem;
+        padding: 0.5rem;
+        background: var(--surface-glass-subtle, rgba(255,255,255,0.03));
+        border-radius: var(--radius-base, 6px);
+        border: 1px solid var(--border-default, rgba(255,255,255,0.06));
+      }
+      .process-header { display: none; }
+      .process-name { font-weight: 600; width: 100%; }
+      .process-pid, .process-cpu, .process-mem { font-size: 0.8em; opacity: 0.7; }
+      .process-kill { margin-left: auto; }
+
+      /* 5. Close button touch target (min 44x44px) */
+      .close-btn {
+        min-width: 44px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* 6. Safe-area support */
+      .modal-header {
+        padding-top: max(1rem, env(safe-area-inset-top));
+      }
+      .modal-content {
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+
       .info-grid, .metrics-grid {
         grid-template-columns: 1fr;
       }
-      
+
       .power-controls {
         flex-direction: column;
       }
-      
+
       .command-input {
         flex-direction: column;
       }
-      
-      .process-header,
-      .process-row {
-        grid-template-columns: 60px 1fr 60px;
-        font-size: var(--text-xs, 0.75rem);
-      }
-      
-      .process-header .cpu-col,
-      .process-header .memory-col,
-      .process-row .cpu-col,
-      .process-row .memory-col {
-        display: none;
+    }
+
+    /* 4. Metrics grid single column on small screens */
+    @media (max-width: 480px) {
+      .metrics-grid {
+        grid-template-columns: 1fr !important;
       }
     }
   `]
@@ -852,6 +931,8 @@ class AgentControlWidget extends LitElement {
     this.fileDragOver = false
     this.scheduledTaskForm = { name: '', commandType: 'shell', scheduleType: 'once', schedule: '', parameters: '{}' }
     this.notifyForm = { title: '', body: '', urgency: 'normal' }
+    this._tabSwipeX = null
+    this._tabSwipeY = null
   }
 
   connectedCallback() {
@@ -919,8 +1000,40 @@ class AgentControlWidget extends LitElement {
   }
 
   switchTab(tab) {
+    const tabs = this._getTabList()
+    const oldIndex = tabs.indexOf(this.currentTab)
+    const newIndex = tabs.indexOf(tab)
+    if (oldIndex !== newIndex && oldIndex >= 0 && newIndex >= 0) {
+      this._tabDirection = newIndex > oldIndex ? 'slide-right' : 'slide-left'
+      setTimeout(() => { this._tabDirection = null }, 200)
+    }
     this.currentTab = tab
     this.loadTabData()
+  }
+
+  _getTabList() {
+    return ['system', 'processes', 'metrics', 'commands', 'services', 'logs', 'watchdog', 'scheduler', 'plugins', 'screenshot', 'files']
+  }
+
+  _onTabSwipeStart(e) {
+    this._tabSwipeX = e.touches[0].clientX
+    this._tabSwipeY = e.touches[0].clientY
+  }
+
+  _onTabSwipeEnd(e) {
+    if (this._tabSwipeX === null) return
+    const dx = e.changedTouches[0].clientX - this._tabSwipeX
+    const dy = e.changedTouches[0].clientY - this._tabSwipeY
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      const tabs = this._getTabList()
+      const idx = tabs.indexOf(this.currentTab)
+      if (dx < 0 && idx < tabs.length - 1) {
+        this.switchTab(tabs[idx + 1])
+      } else if (dx > 0 && idx > 0) {
+        this.switchTab(tabs[idx - 1])
+      }
+    }
+    this._tabSwipeX = null
   }
 
   startRefreshInterval() {
@@ -1209,10 +1322,12 @@ class AgentControlWidget extends LitElement {
   async controlService(serviceName, action) {
     try {
       await this.agentsService.controlService(this.agentId, serviceName, action)
+      showToast(`Service ${serviceName}: ${action} OK`, 'success')
       // Reload services after action
       setTimeout(() => this.loadServices(), 2000)
     } catch (error) {
       console.error(`Failed to ${action} service ${serviceName}:`, error)
+      showToast(`Échec ${action} ${serviceName}: ${error.message}`, 'error')
       alert(`Failed to ${action} service: ${error.message}`)
     }
   }
@@ -1239,11 +1354,13 @@ class AgentControlWidget extends LitElement {
           break
       }
       
+      showToast(`${action} envoyé: ${this.agent.hostname}`, 'success')
       // Fermer modal après action power
       this.close()
-      
+
     } catch (error) {
       console.error(`Failed to ${action}:`, error)
+      showToast(`Échec ${action}: ${error.message}`, 'error')
       alert(`❌ Failed to ${action}: ${error.message}`)
     }
   }
@@ -1261,6 +1378,7 @@ class AgentControlWidget extends LitElement {
       await this.loadProcesses() // Refresh
     } catch (error) {
       console.error('Failed to kill process:', error)
+      showToast(`Échec kill process: ${error.message}`, 'error')
       alert(`❌ Failed to kill process: ${error.message}`)
     }
   }
@@ -1276,8 +1394,9 @@ class AgentControlWidget extends LitElement {
       this.commandOutput += result.output || result.data || 'Command executed successfully\n'
     } catch (error) {
       this.commandOutput += `Error: ${error.message}\n`
+      showToast(`Erreur commande: ${error.message}`, 'error')
     }
-    
+
     this.commandOutput += '\n'
     this.commandInput = ''
     this.requestUpdate()
@@ -1303,6 +1422,7 @@ class AgentControlWidget extends LitElement {
       
     } catch (error) {
       this.commandOutput += `Error starting command: ${error.message}\n`
+      showToast(`Erreur commande: ${error.message}`, 'error')
       this.currentCommandId = null
     }
     
@@ -2751,38 +2871,40 @@ class AgentControlWidget extends LitElement {
           </button>
         </div>
 
-        <div class="modal-content">
-          <div class="tab-panel ${this.currentTab === 'system' ? 'active' : ''}">
+        <div class="modal-content"
+          @touchstart=${(e) => this._onTabSwipeStart(e)}
+          @touchend=${(e) => this._onTabSwipeEnd(e)}>
+          <div class="tab-panel ${this.currentTab === 'system' ? `active ${this._tabDirection || ''}` : ''}">
             ${this.renderSystemTab()}
           </div>
-          <div class="tab-panel ${this.currentTab === 'processes' ? 'active' : ''}">
+          <div class="tab-panel ${this.currentTab === 'processes' ? `active ${this._tabDirection || ''}` : ''}">
             ${this.renderProcessesTab()}
           </div>
-          <div class="tab-panel ${this.currentTab === 'metrics' ? 'active' : ''}">
+          <div class="tab-panel ${this.currentTab === 'metrics' ? `active ${this._tabDirection || ''}` : ''}">
             ${this.renderMetricsTab()}
           </div>
-          <div class="tab-panel ${this.currentTab === 'commands' ? 'active' : ''}">
+          <div class="tab-panel ${this.currentTab === 'commands' ? `active ${this._tabDirection || ''}` : ''}">
             ${this.renderCommandsTab()}
           </div>
-          <div class="tab-panel ${this.currentTab === 'services' ? 'active' : ''}">
+          <div class="tab-panel ${this.currentTab === 'services' ? `active ${this._tabDirection || ''}` : ''}">
             ${this.renderServicesTab()}
           </div>
-          <div class="tab-panel ${this.currentTab === 'logs' ? 'active' : ''}">
+          <div class="tab-panel ${this.currentTab === 'logs' ? `active ${this._tabDirection || ''}` : ''}">
             ${this.renderLogsTab()}
           </div>
-          <div class="tab-panel ${this.currentTab === 'watchdog' ? 'active' : ''}">
+          <div class="tab-panel ${this.currentTab === 'watchdog' ? `active ${this._tabDirection || ''}` : ''}">
             ${this.renderWatchdogTab()}
           </div>
-          <div class="tab-panel ${this.currentTab === 'scheduler' ? 'active' : ''}">
+          <div class="tab-panel ${this.currentTab === 'scheduler' ? `active ${this._tabDirection || ''}` : ''}">
             ${this.renderSchedulerTab()}
           </div>
-          <div class="tab-panel ${this.currentTab === 'plugins' ? 'active' : ''}">
+          <div class="tab-panel ${this.currentTab === 'plugins' ? `active ${this._tabDirection || ''}` : ''}">
             ${this.renderPluginsTab()}
           </div>
-          <div class="tab-panel ${this.currentTab === 'screenshot' ? 'active' : ''}">
+          <div class="tab-panel ${this.currentTab === 'screenshot' ? `active ${this._tabDirection || ''}` : ''}">
             ${this.renderScreenshotTab()}
           </div>
-          <div class="tab-panel ${this.currentTab === 'files' ? 'active' : ''}">
+          <div class="tab-panel ${this.currentTab === 'files' ? `active ${this._tabDirection || ''}` : ''}">
             ${this.renderFilesTab()}
           </div>
         </div>

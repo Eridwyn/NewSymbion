@@ -192,6 +192,33 @@ class NotesWidget extends LitElement {
       .note-preview {
         font-size: 0.8em;
       }
+
+      .header-actions .btn {
+        min-height: 44px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .note-card {
+        padding: 0.5rem;
+      }
+
+      .note-preview {
+        font-size: 0.75em;
+      }
+
+      .note-header {
+        font-size: 0.9em;
+      }
+
+      .note-meta {
+        font-size: 0.65em;
+      }
+
+      .header-actions .btn {
+        min-height: 44px;
+        font-size: 0.75em;
+      }
     }
 
     /* Utility classes (ex-inline) */
@@ -214,7 +241,7 @@ class NotesWidget extends LitElement {
     this.notes = []
     this.apiService = null
     this.contextService = null
-    this.currentContext = 'neutre'
+    this.currentContext = 'veille'
     this.loading = false
     this.error = null
   }
@@ -312,20 +339,8 @@ class NotesWidget extends LitElement {
 
     const onNotesComplete = (e) => {
       this.loading = false
-      console.log(`[notes-widget] ✅ Stream complete: ${e.detail.receivedCount}/${e.detail.totalCount} notes`)
-      console.log('[notes-widget] Current context:', this.currentContext)
-
-      if (!this.notes || this.notes.length === 0) {
-        this.error = `Aucune note trouvée. Créez-en une avec ➕`
-      } else {
-        // Vérifier si des notes correspondent au contexte
-        const filtered = applyAllFilters(this.notes, {
-          context: this.currentContext,
-          contextFilterEnabled: true
-        })
-
-        console.log(`[notes-widget] ${this.notes.length} notes totales, ${filtered.length} pour contexte ${this.currentContext}`)
-      }
+      this.error = null
+      console.log(`[notes-widget] ✅ Stream complete: ${this.notes.length} notes, context: ${this.currentContext}`)
 
       // Cleanup listeners
       notesStreamService.removeEventListener('note-received', onNoteReceived)
@@ -353,69 +368,66 @@ class NotesWidget extends LitElement {
     notesStreamService.addEventListener('notes-complete', onNotesComplete)
     notesStreamService.addEventListener('notes-error', onNotesError)
 
-    // Start WebSocket streaming
+    // Start WebSocket streaming, fallback to REST API if WS fails
     try {
       await notesStreamService.loadNotes({}) // Empty filters = all notes
     } catch (error) {
-      console.error('[notes-widget] ❌ Failed to start WebSocket:', error)
-      this.error = `Erreur connexion: ${error.message}`
-      this.loading = false
+      console.warn('[notes-widget] ⚠️ WebSocket failed, falling back to REST API:', error.message)
 
-      // Cleanup listeners
+      // Cleanup WS listeners
       notesStreamService.removeEventListener('note-received', onNoteReceived)
       notesStreamService.removeEventListener('notes-complete', onNotesComplete)
       notesStreamService.removeEventListener('notes-error', onNotesError)
+
+      // Fallback: load notes via REST API
+      try {
+        const apiService = document.querySelector('api-service')
+        if (apiService) {
+          const data = await apiService.getNotes()
+          const notesList = apiService.validateArrayResponse(data, 'notes', [])
+          this.notes = notesList
+          this.error = null
+          console.log(`[notes-widget] ✅ Loaded ${notesList.length} notes via REST fallback`)
+          this.requestUpdate()
+        } else {
+          this.error = 'Service API non disponible'
+        }
+      } catch (restError) {
+        console.error('[notes-widget] ❌ REST fallback also failed:', restError)
+        this.error = `Erreur chargement notes: ${restError.message}`
+      }
+      this.loading = false
+      this.requestUpdate()
     }
   }
 
   getTopNotes() {
-    console.log('[notes-widget] getTopNotes() - Total notes:', this.notes?.length || 0)
-    console.log('[notes-widget] Current context:', this.currentContext)
-
     if (!this.notes || this.notes.length === 0) {
-      console.log('[notes-widget] No notes available')
       return []
     }
 
-    // Filtre strict par contexte actuel
+    // Try context filter first
     const filtered = applyAllFilters(this.notes, {
       context: this.currentContext,
       contextFilterEnabled: true
     })
 
-    console.log('[notes-widget] After context filter:', filtered.length, 'notes (context:', this.currentContext + ')')
-
-    // FALLBACK: Si aucune note pour le contexte actuel, montrer notes du contexte "neutre" ou toutes les notes
-    if (filtered.length === 0 && this.notes.length > 0) {
-      console.warn('[notes-widget] ⚠️ No notes for context', this.currentContext)
-      console.log('[notes-widget] Available note contexts:',
-        this.notes.map(n => n.data?.context || 'undefined').join(', '))
-
-      // Essayer d'abord le contexte "neutre"
-      const neutreFiltered = applyAllFilters(this.notes, {
-        context: 'neutre',
-        contextFilterEnabled: true
-      })
-
-      if (neutreFiltered.length > 0) {
-        console.log('[notes-widget] 💡 Fallback to "neutre" context:', neutreFiltered.length, 'notes')
-        const topNotes = getTopPriorityNotes(neutreFiltered, 'neutre', 3)
-        console.log('[notes-widget] Top 3 priority notes (neutre fallback):', topNotes.length)
-        return topNotes
-      }
-
-      // Sinon, afficher toutes les notes (désactiver filtre contexte)
-      console.log('[notes-widget] 💡 Fallback to all notes:', this.notes.length)
-      const topNotes = getTopPriorityNotes(this.notes, this.currentContext, 3)
-      console.log('[notes-widget] Top 3 priority notes (all notes fallback):', topNotes.length)
-      return topNotes
+    if (filtered.length > 0) {
+      return getTopPriorityNotes(filtered, this.currentContext, 3)
     }
 
-    // Retourner les 3 notes les plus prioritaires du contexte actuel
-    const topNotes = getTopPriorityNotes(filtered, this.currentContext, 3)
-    console.log('[notes-widget] Top 3 priority notes:', topNotes.length)
+    // Fallback: try veille/neutre context
+    const veilleFallback = applyAllFilters(this.notes, {
+      context: 'veille',
+      contextFilterEnabled: true
+    })
 
-    return topNotes
+    if (veilleFallback.length > 0) {
+      return getTopPriorityNotes(veilleFallback, 'veille', 3)
+    }
+
+    // Last resort: show all notes regardless of context
+    return getTopPriorityNotes(this.notes, this.currentContext, 3)
   }
 
   openNotesPage() {
@@ -459,9 +471,10 @@ class NotesWidget extends LitElement {
 
   getContextIcon(context) {
     const icons = {
-      'cravate': '👔',
-      'intime': '🏡',
-      'neutre': '🌱'
+      'pro': '👔', 'cravate': '👔',
+      'maison': '🏡', 'intime': '🏡',
+      'focus': '🎯',
+      'veille': '🌱', 'neutre': '🌱'
     }
     return icons[context] || '📍'
   }

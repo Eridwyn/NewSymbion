@@ -55,6 +55,31 @@ class UserSettingsPage extends LitElement {
       animation: tabContentSlideIn 0.5s var(--ease-out);
     }
 
+    @keyframes slideInFromRight {
+      from { transform: translateX(30px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    @keyframes slideInFromLeft {
+      from { transform: translateX(-30px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .tab-content.slide-right {
+      animation: slideInFromRight 0.2s ease-out;
+    }
+
+    .tab-content.slide-left {
+      animation: slideInFromLeft 0.2s ease-out;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .tab-content.slide-right,
+      .tab-content.slide-left {
+        animation: none;
+      }
+    }
+
     @keyframes tabContentSlideIn {
       from {
         opacity: 0;
@@ -568,6 +593,7 @@ class UserSettingsPage extends LitElement {
 
   static properties = {
     activeTab: { type: String },
+    _tabDirection: { type: String, state: true },
     mfaStatus: { type: Object },
     mfaSetupData: { type: Object },
     loading: { type: Boolean },
@@ -593,6 +619,9 @@ class UserSettingsPage extends LitElement {
     this.verifyCode = ''
     this.users = []
     this.newUser = { username: '', password: '', role: 'admin' }
+    // Swipe navigation
+    this._swipeX = null
+    this._swipeY = null
     // PR3 Décisions
     this.validations = []
     this.expiredValidations = []
@@ -612,6 +641,13 @@ class UserSettingsPage extends LitElement {
   }
 
   switchTab(tab) {
+    const tabs = this._getTabList()
+    const oldIndex = tabs.indexOf(this.activeTab)
+    const newIndex = tabs.indexOf(tab)
+    if (oldIndex !== newIndex && oldIndex >= 0 && newIndex >= 0) {
+      this._tabDirection = newIndex > oldIndex ? 'slide-right' : 'slide-left'
+      setTimeout(() => { this._tabDirection = null }, 200)
+    }
     this.activeTab = tab
     sessionStorage.setItem('userSettingsTab', tab)
 
@@ -620,6 +656,31 @@ class UserSettingsPage extends LitElement {
     if (tab === 'decisions') {
       this.loadDecisionsData()
     }
+  }
+
+  _getTabList() {
+    return ['profil', 'securite', 'passkeys', 'mfa', 'users', 'decisions']
+  }
+
+  _onSwipeStart(e) {
+    this._swipeX = e.touches[0].clientX
+    this._swipeY = e.touches[0].clientY
+  }
+
+  _onSwipeEnd(e) {
+    if (this._swipeX === null) return
+    const dx = e.changedTouches[0].clientX - this._swipeX
+    const dy = e.changedTouches[0].clientY - this._swipeY
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      const tabs = this._getTabList()
+      const idx = tabs.indexOf(this.activeTab)
+      if (dx < 0 && idx < tabs.length - 1) {
+        this.switchTab(tabs[idx + 1])
+      } else if (dx > 0 && idx > 0) {
+        this.switchTab(tabs[idx - 1])
+      }
+    }
+    this._swipeX = null
   }
 
   async loadMfaStatus() {
@@ -962,7 +1023,9 @@ class UserSettingsPage extends LitElement {
     const currentUser = authService.getCurrentUser()
 
     return html`
-      <div class="settings-container">
+      <div class="settings-container"
+           @touchstart=${(e) => this._onSwipeStart(e)}
+           @touchend=${(e) => this._onSwipeEnd(e)}>
         <div class="settings-header">
           <h1 class="settings-title">⚙️ Paramètres</h1>
           <button class="close-button" @click="${this.handleClose}" aria-label="Fermer">✕</button>
@@ -1003,7 +1066,7 @@ class UserSettingsPage extends LitElement {
         ` : ''}
 
         <!-- Tab Profil -->
-        <div class="tab-content ${this.activeTab === 'profil' ? 'active' : ''}">
+        <div class="tab-content ${this.activeTab === 'profil' ? `active ${this._tabDirection || ''}` : ''}">
           <div class="section">
             <h2 class="section-title">👤 Informations Utilisateur</h2>
             <div class="info-row">
@@ -1032,7 +1095,7 @@ class UserSettingsPage extends LitElement {
         </div>
 
         <!-- Tab Sécurité -->
-        <div class="tab-content ${this.activeTab === 'securite' ? 'active' : ''}">
+        <div class="tab-content ${this.activeTab === 'securite' ? `active ${this._tabDirection || ''}` : ''}">
           <div class="section">
             <h2 class="section-title">🔒 Changement de Mot de Passe</h2>
             <p class="section-description">
@@ -1085,22 +1148,22 @@ class UserSettingsPage extends LitElement {
         </div>
 
         <!-- Tab Passkeys -->
-        <div class="tab-content ${this.activeTab === 'passkeys' ? 'active' : ''}">
+        <div class="tab-content ${this.activeTab === 'passkeys' ? `active ${this._tabDirection || ''}` : ''}">
           <passkey-manager></passkey-manager>
         </div>
 
         <!-- Tab MFA -->
-        <div class="tab-content ${this.activeTab === 'mfa' ? 'active' : ''}">
+        <div class="tab-content ${this.activeTab === 'mfa' ? `active ${this._tabDirection || ''}` : ''}">
           ${this.renderMfaTab()}
         </div>
 
         <!-- Tab Utilisateurs -->
-        <div class="tab-content ${this.activeTab === 'users' ? 'active' : ''}">
+        <div class="tab-content ${this.activeTab === 'users' ? `active ${this._tabDirection || ''}` : ''}">
           ${this.renderUsersTab()}
         </div>
 
         <!-- Tab Décisions -->
-        <div class="tab-content ${this.activeTab === 'decisions' ? 'active' : ''}">
+        <div class="tab-content ${this.activeTab === 'decisions' ? `active ${this._tabDirection || ''}` : ''}">
           ${this.renderDecisionsTab()}
         </div>
       </div>

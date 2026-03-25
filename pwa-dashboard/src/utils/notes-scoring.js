@@ -37,10 +37,20 @@ function calculateRecencyScore(timestamp) {
   }
 }
 
+// Alias pour compatibilite ancien/nouveau systeme de contextes
+const SCORING_ALIASES = {
+  pro: ['cravate', 'pro'],
+  maison: ['intime', 'maison'],
+  veille: ['neutre', 'veille'],
+  cravate: ['cravate', 'pro'],
+  intime: ['intime', 'maison'],
+  neutre: ['neutre', 'veille'],
+}
+
 /**
  * Calcule le score de priorité d'une note
  * @param {Object} note - Note Symbion
- * @param {string} currentContext - Contexte actuel (cravate, intime, neutre)
+ * @param {string} currentContext - Contexte actuel (pro, maison, veille, focus)
  * @returns {number} Score total (0-170 pts)
  */
 export function calculatePriorityScore(note, currentContext) {
@@ -51,9 +61,14 @@ export function calculatePriorityScore(note, currentContext) {
     score += 100
   }
 
-  // Match contexte: +50 pts
-  if (currentContext && note.data?.context === currentContext) {
-    score += 50
+  // Match contexte (avec alias): +50 pts
+  if (currentContext && note.data?.context) {
+    const ctxLower = currentContext.toLowerCase()
+    const noteCtx = note.data.context.toLowerCase()
+    const accepted = SCORING_ALIASES[ctxLower] || [ctxLower]
+    if (accepted.includes(noteCtx)) {
+      score += 50
+    }
   }
 
   // Récence: 0-20 pts

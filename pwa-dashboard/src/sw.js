@@ -8,7 +8,8 @@
 
 import { precacheAndRoute, cleanupOutdatedCaches, createHandlerBoundToURL } from 'workbox-precaching'
 import { registerRoute, NavigationRoute } from 'workbox-routing'
-import { NetworkOnly } from 'workbox-strategies'
+import { NetworkOnly, StaleWhileRevalidate } from 'workbox-strategies'
+import { ExpirationPlugin } from 'workbox-expiration'
 import { clientsClaim } from 'workbox-core'
 
 // ══════════════════════════════════════
@@ -21,6 +22,7 @@ const STORE = 'auth'
 
 let _token = null
 let _userInfo = null
+let _tokenExp = null // JWT expiration timestamp (seconds)
 
 function openVault() {
   return new Promise((resolve, reject) => {
@@ -61,13 +63,44 @@ async function vaultClear() {
   })
 }
 
+function parseJwtExp(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return payload.exp || null
+  } catch { return null }
+}
+
 async function restoreToken() {
   try {
     _token = await vaultGet('token')
     const raw = await vaultGet('userInfo')
     _userInfo = raw ? JSON.parse(raw) : null
+    _tokenExp = _token ? parseJwtExp(_token) : null
+
+    // Clear if already expired
+    if (_tokenExp && _tokenExp <= Math.floor(Date.now() / 1000)) {
+      console.log('[sw-auth] Restored token already expired, clearing')
+      _token = null
+      _userInfo = null
+      _tokenExp = null
+      await vaultClear()
+    }
   } catch (e) {
     console.error('[sw-auth] Failed to restore token:', e)
+  }
+}
+
+async function clearAllAuthState() {
+  _token = null
+  _userInfo = null
+  _tokenExp = null
+  await vaultClear()
+  // Purge SWR cache so stale 200 responses don't mask 401s
+  try {
+    const deleted = await caches.delete('api-swr-cache')
+    if (deleted) console.log('[sw-auth] Purged api-swr-cache')
+  } catch (e) {
+    console.warn('[sw-auth] Failed to purge SWR cache:', e)
   }
 }
 
@@ -96,6 +129,13 @@ self.addEventListener('fetch', (event) => {
 
   if (!_token) return // No token → pass through unauthenticated
 
+  // Check JWT expiration before injecting
+  if (_tokenExp && _tokenExp <= Math.floor(Date.now() / 1000)) {
+    console.log('[sw-auth] Token expired (exp check), clearing')
+    clearAllAuthState()
+    return // Let request pass through without auth
+  }
+
   // Already has Authorization → don't override
   if (event.request.headers.get('Authorization')) return
 
@@ -104,7 +144,16 @@ self.addEventListener('fetch', (event) => {
   headers.set('Authorization', `Bearer ${_token}`)
 
   const authedRequest = new Request(event.request, { headers })
-  event.respondWith(fetch(authedRequest))
+  event.respondWith(
+    fetch(authedRequest).then(response => {
+      // If server returns 401, clear auth state + SWR cache
+      if (response.status === 401) {
+        console.log('[sw-auth] Server returned 401, clearing all auth state')
+        clearAllAuthState()
+      }
+      return response
+    })
+  )
 })
 
 // ══════════════════════════════════════
@@ -124,8 +173,36 @@ registerRoute(
   })
 )
 
-// Health check — network only, no caching
-registerRoute(/\/health$/, new NetworkOnly(), 'GET')
+// Stale-while-revalidate for read-only API data
+// Shows cached data immediately, updates cache in background
+registerRoute(
+  ({ url, request }) => {
+    if (request.method !== 'GET') return false
+    const swrPaths = [
+      '/v1/context/current',
+      '/v1/agents',
+      '/v1/plugins',
+      '/v1/environment/sensors',
+      '/v1/modes',
+      '/health',
+      '/agents',
+      '/plugins',
+      '/v1/plugin-api/coffee/status',
+      '/v1/plugin-api/library/health',
+      '/v1/notifications/active'
+    ]
+    return swrPaths.some(p => url.pathname === p || url.pathname.startsWith(p))
+  },
+  new StaleWhileRevalidate({
+    cacheName: 'api-swr-cache',
+    plugins: [
+      new ExpirationPlugin({
+        maxEntries: 50,
+        maxAgeSeconds: 5 * 60 // 5 minutes max cache age
+      })
+    ]
+  })
+)
 
 // ══════════════════════════════════════
 // ── Message Handler ──
@@ -138,6 +215,7 @@ self.addEventListener('message', async (event) => {
     case 'AUTH_STORE': {
       _token = data.token
       _userInfo = data.userInfo
+      _tokenExp = data.token ? parseJwtExp(data.token) : null
       await vaultPut('token', data.token)
       await vaultPut('userInfo', JSON.stringify(data.userInfo))
       event.source?.postMessage({ type: 'AUTH_ACK' })
@@ -145,9 +223,7 @@ self.addEventListener('message', async (event) => {
     }
 
     case 'AUTH_CLEAR': {
-      _token = null
-      _userInfo = null
-      await vaultClear()
+      await clearAllAuthState()
       event.source?.postMessage({ type: 'AUTH_ACK' })
       break
     }

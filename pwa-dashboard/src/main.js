@@ -92,13 +92,26 @@ class SymbionApp extends LitElement {
 
     // Écouter les événements de boot
     this.addEventListener('boot-complete', this._bootCompleteHandler)
+
+    // Écouter session expirée → retour login immédiat
+    this._authExpiredHandler = () => {
+      console.log('[app] Session expired, returning to login')
+      // Clear boot flag so boot-terminal shows login form
+      sessionStorage.removeItem('symbion_boot_completed')
+      // Clear SW auth token
+      navigator.serviceWorker?.controller?.postMessage({ type: 'AUTH_CLEAR' })
+      this.currentView = 'boot'
+      this.requestUpdate()
+    }
+    window.addEventListener('auth:expired', this._authExpiredHandler)
+
     console.log('[app] SymbionApp connected, listening for boot-complete events')
   }
 
   disconnectedCallback() {
     super.disconnectedCallback()
-    // [Audit] Cleanup event listener
     this.removeEventListener('boot-complete', this._bootCompleteHandler)
+    window.removeEventListener('auth:expired', this._authExpiredHandler)
   }
 
   handleBootComplete(event) {
@@ -253,18 +266,7 @@ if (document.visibilityState === 'visible') {
 }
 
 // ============================================================================
-// Authentication Expiration Handler - Force reload to login
+// Authentication Expiration Handler
 // ============================================================================
-
-import authService from './services/auth-service.js'
-
-// Écouter les événements d'expiration de session
-authService.addEventListener('auth:expired', () => {
-  console.log('[lifecycle] 🔐 Authentication expired - reloading to login')
-  // Vider le token du SW vault
-  navigator.serviceWorker?.controller?.postMessage({ type: 'AUTH_CLEAR' })
-  // Clear boot flag
-  sessionStorage.removeItem('symbion_boot_completed')
-  // Reload page pour retourner au login
-  window.location.reload()
-})
+// Handled by SymbionApp._authExpiredHandler (listens on window 'auth:expired')
+// Both api-service (401 responses) and auth-service dispatch this event

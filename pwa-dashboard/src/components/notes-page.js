@@ -16,6 +16,7 @@ import '../components/organic-loader.js'
 import { sharedAnimations, pageTransitionStyles, scrollRevealStyles } from '../styles/shared-animations.js'
 import { overlayStyles, closeButtonStyles, scrollbarStyles } from '../styles/shared-patterns.js'
 import { setupScrollReveal } from '../utils/scroll-reveal.js'
+import { showToast } from './toast-service.js'
 
 class NotesPage extends LitElement {
   static styles = [sharedAnimations, pageTransitionStyles, scrollRevealStyles, overlayStyles, closeButtonStyles, scrollbarStyles, css`
@@ -862,6 +863,16 @@ class NotesPage extends LitElement {
       this.currentContext = this.contextService.getCurrentMode()
     }
 
+    // Listen for context changes
+    this._handleContextChange = (e) => {
+      const mode = e.detail?.context?.mode_slug || e.detail?.context?.mode
+      if (mode && mode !== this.currentContext) {
+        this.currentContext = mode
+        this.requestUpdate()
+      }
+    }
+    window.addEventListener('context-change', this._handleContextChange)
+
     this.loadNotes()
 
     // Escape key handler
@@ -896,6 +907,9 @@ class NotesPage extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback()
     document.removeEventListener('keydown', this.handleEscape)
+    if (this._handleContextChange) {
+      window.removeEventListener('context-change', this._handleContextChange)
+    }
     this._cleanupReveal?.()
   }
 
@@ -942,17 +956,31 @@ class NotesPage extends LitElement {
     notesStreamService.addEventListener('notes-complete', onNotesComplete)
     notesStreamService.addEventListener('notes-error', onNotesError)
 
-    // Start WebSocket streaming
+    // Start WebSocket streaming, fallback to REST API if WS fails
     try {
       await notesStreamService.loadNotes({}) // Empty filters = all notes
     } catch (error) {
-      console.error('[notes-page] ❌ Failed to start WebSocket:', error)
-      this.loading = false
+      console.warn('[notes-page] ⚠️ WebSocket failed, falling back to REST API:', error.message)
 
-      // Cleanup listeners
+      // Cleanup WS listeners
       notesStreamService.removeEventListener('note-received', onNoteReceived)
       notesStreamService.removeEventListener('notes-complete', onNotesComplete)
       notesStreamService.removeEventListener('notes-error', onNotesError)
+
+      // Fallback: load notes via REST API
+      try {
+        const apiService = document.querySelector('api-service')
+        if (apiService) {
+          const data = await apiService.getNotes()
+          const notesList = apiService.validateArrayResponse(data, 'notes', [])
+          this.notes = notesList
+          this.availableTags = extractAllTags(this.notes)
+          console.log(`[notes-page] ✅ Loaded ${notesList.length} notes via REST fallback`)
+        }
+      } catch (restError) {
+        console.error('[notes-page] ❌ REST fallback also failed:', restError)
+      }
+      this.loading = false
     }
   }
 
@@ -996,13 +1024,22 @@ class NotesPage extends LitElement {
       tags: formData.get('tags') ? formData.get('tags').split(',').map(t => t.trim()).filter(t => t) : []
     }
 
+    // Optimistic: close form and show saving feedback immediately
+    this.showNoteForm = false
+    this.requestUpdate()
+    showToast('Sauvegarde...', 'info', 1500)
+
     try {
       await this.apiService.createNote(note)
-      this.showNoteForm = false
       await this.loadNotes()
+      showToast('Note créée', 'success')
       console.log('✅ Note created successfully')
     } catch (error) {
       console.error('❌ Failed to create note:', error)
+      // Reopen form so user can retry
+      this.showNoteForm = true
+      this.requestUpdate()
+      showToast('Échec de la création', 'error')
     }
   }
 
@@ -1010,13 +1047,18 @@ class NotesPage extends LitElement {
     event.stopPropagation()
     if (!confirm('Supprimer cette note ?')) return
 
+    // Optimistic: clear selection immediately
+    this.selectedNote = null
+    this.requestUpdate()
+
     try {
       await this.apiService.deleteNote(noteId)
       await this.loadNotes()
-      this.selectedNote = null
+      showToast('Note supprimée', 'success')
       console.log('✅ Note deleted successfully')
     } catch (error) {
       console.error('❌ Failed to delete note:', error)
+      showToast('Échec de la suppression', 'error')
     }
   }
 
@@ -1041,13 +1083,23 @@ class NotesPage extends LitElement {
       tags: formData.get('tags') ? formData.get('tags').split(',').map(t => t.trim()).filter(t => t) : []
     }
 
+    // Optimistic: close editor and show saving feedback immediately
+    const previousEditingNote = this.editingNote
+    this.editingNote = null
+    this.requestUpdate()
+    showToast('Sauvegarde...', 'info', 1500)
+
     try {
-      await this.apiService.updateNote(this.editingNote.id, updatedData)
-      this.editingNote = null
+      await this.apiService.updateNote(previousEditingNote.id, updatedData)
       await this.loadNotes()
+      showToast('Note sauvegardée', 'success')
       console.log('✅ Note updated successfully')
     } catch (error) {
       console.error('❌ Failed to update note:', error)
+      // Reopen editor so user can retry
+      this.editingNote = previousEditingNote
+      this.requestUpdate()
+      showToast('Échec de la sauvegarde', 'error')
     }
   }
 
@@ -1145,17 +1197,17 @@ class NotesPage extends LitElement {
           <div class="filters-group">
             <button
               class="filter-btn ${this.currentFilter === 'all' ? 'active' : ''}"
-              @click="${() => this.currentFilter = 'all'}">
+              @click="${() => { this.currentFilter = 'all'; this.selectedTags = []; this.searchQuery = ''; this.contextFilterEnabled = false }}">
               Toutes
             </button>
             <button
               class="filter-btn ${this.currentFilter === 'urgent' ? 'active' : ''}"
-              @click="${() => this.currentFilter = 'urgent'}">
+              @click="${() => this.currentFilter = this.currentFilter === 'urgent' ? 'all' : 'urgent'}">
               🚨 Urgentes
             </button>
             <button
               class="filter-btn ${this.currentFilter === 'recent' ? 'active' : ''}"
-              @click="${() => this.currentFilter = 'recent'}">
+              @click="${() => this.currentFilter = this.currentFilter === 'recent' ? 'all' : 'recent'}">
               📅 Récentes
             </button>
           </div>

@@ -712,3 +712,8 @@ textarea:focus-visible,
   --color-dark-bg-secondary: #eaebef;
   --color-dark-bg-tertiary: #dcdee3;
 }
+
+/* PWA native feel */
+html, body {
+  overscroll-behavior: contain;
+}

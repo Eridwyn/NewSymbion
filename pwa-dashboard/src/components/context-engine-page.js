@@ -466,6 +466,31 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
       padding: 1.25rem;
     }
 
+    @keyframes slideInFromRight {
+      from { transform: translateX(30px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    @keyframes slideInFromLeft {
+      from { transform: translateX(-30px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .content.slide-right {
+      animation: slideInFromRight 0.2s ease-out;
+    }
+
+    .content.slide-left {
+      animation: slideInFromLeft 0.2s ease-out;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .content.slide-right,
+      .content.slide-left {
+        animation: none;
+      }
+    }
+
     /* Mode Tab */
     .mode-display {
       text-align: center;
@@ -1957,6 +1982,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
 
   static properties = {
     activeTab: { type: String },
+    _tabDirection: { type: String, state: true },
     contextState: { type: Object },
     automations: { type: Array },
     automationHistory: { type: Array },
@@ -2012,6 +2038,7 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
   constructor() {
     super()
     this.activeTab = 'modes'
+    this._swipeX = null
     this.contextState = null
     this.automations = []
     this.automationHistory = []
@@ -2386,7 +2413,10 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
           ${this.renderTab('config', 'Config')}
         </div>
 
-        <div class="content">
+        <div class="content ${this._tabDirection || ''}"
+          @touchstart=${(e) => this._onSwipeStart(e)}
+          @touchend=${(e) => this._onSwipeEnd(e)}
+        >
           ${this.loading ? this.renderSkeletonLoading() : this.renderActiveTab()}
         </div>
       </div>
@@ -2449,6 +2479,13 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
   }
 
   switchTab(id) {
+    const tabs = this._getTabList()
+    const oldIndex = tabs.indexOf(this.activeTab)
+    const newIndex = tabs.indexOf(id)
+    if (oldIndex !== newIndex && oldIndex >= 0 && newIndex >= 0) {
+      this._tabDirection = newIndex > oldIndex ? 'slide-right' : 'slide-left'
+      setTimeout(() => { this._tabDirection = null }, 200)
+    }
     this.activeTab = id
     // Rafraîchir les données de l'onglet sélectionné
     // [Audit] Add .catch() for fire-and-forget promises
@@ -2467,6 +2504,31 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
         this.loadIntelligence().catch(e => console.warn('[context-engine] Load intelligence failed:', e))
         break
     }
+  }
+
+  _getTabList() {
+    return ['modes', 'intelligence', 'automations', 'validations', 'config']
+  }
+
+  _onSwipeStart(e) {
+    this._swipeX = e.touches[0].clientX
+    this._swipeY = e.touches[0].clientY
+  }
+
+  _onSwipeEnd(e) {
+    if (this._swipeX === null) return
+    const dx = e.changedTouches[0].clientX - this._swipeX
+    const dy = e.changedTouches[0].clientY - this._swipeY
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      const tabs = this._getTabList()
+      const idx = tabs.indexOf(this.activeTab)
+      if (dx < 0 && idx < tabs.length - 1) {
+        this.switchTab(tabs[idx + 1])
+      } else if (dx > 0 && idx > 0) {
+        this.switchTab(tabs[idx - 1])
+      }
+    }
+    this._swipeX = null
   }
 
   renderActiveTab() {

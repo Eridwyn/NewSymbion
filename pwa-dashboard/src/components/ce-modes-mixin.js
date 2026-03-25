@@ -22,10 +22,32 @@ export const ModesMixin = (Base) => class extends Base {
 
   // Mode actions
   async setModeOverride(mode, clickEvent) {
-    try {
-      // Show mode change overlay immediately
-      this.showModeChangeOverlay(mode, this.selectedDuration, clickEvent)
+    // Save previous state for rollback
+    const previousContextState = this.contextState
+    const previousModeSlug = this.contextState?.mode_slug || this.contextState?.mode?.toLowerCase()
 
+    // Optimistic UI update: show new mode immediately
+    this.showModeChangeOverlay(mode, this.selectedDuration, clickEvent)
+    const modeData = this.modes.find(m => m.slug === mode)
+    if (modeData) {
+      this.contextState = {
+        ...this.contextState,
+        mode_slug: mode,
+        mode: mode,
+        reason: 'Override manuel via Decision Engine',
+        manual_override: {
+          until: new Date(Date.now() + this.selectedDuration * 60000).toISOString()
+        },
+        theme: modeData.theme || this.contextState?.theme
+      }
+      this.requestUpdate()
+      // Dispatch optimistic context-change so dashboard updates immediately
+      document.body.dispatchEvent(new CustomEvent('context-change', {
+        detail: { context: this.contextState }
+      }))
+    }
+
+    try {
       const res = await csrfService.fetchWithCsrf('/v1/context/override', {
         method: 'POST',
         body: JSON.stringify({
@@ -35,8 +57,8 @@ export const ModesMixin = (Base) => class extends Base {
         })
       })
       if (res.ok) {
+        // Reconcile with server response (authoritative state)
         this.contextState = await res.json()
-        // Dispatch event pour mettre à jour le dashboard
         document.body.dispatchEvent(new CustomEvent('context-change', {
           detail: { context: this.contextState }
         }))
@@ -49,10 +71,22 @@ export const ModesMixin = (Base) => class extends Base {
           body: JSON.stringify({ chosen_mode: mode })
         }).catch(e => console.log('[context-engine] Feedback recording failed (non-critical):', e))
       } else {
+        // Rollback on failure
+        this.contextState = previousContextState
+        this.requestUpdate()
+        document.body.dispatchEvent(new CustomEvent('context-change', {
+          detail: { context: this.contextState }
+        }))
         this.showToast('Erreur lors du changement de mode', 'error')
       }
     } catch (e) {
       console.error('[context-engine] Failed to set override:', e)
+      // Rollback on failure
+      this.contextState = previousContextState
+      this.requestUpdate()
+      document.body.dispatchEvent(new CustomEvent('context-change', {
+        detail: { context: this.contextState }
+      }))
       this.showToast('Erreur lors du changement de mode', 'error')
     }
   }

@@ -427,6 +427,8 @@ class EnvironmentWidget extends LitElement {
         overflow-y: auto;
         display: flex;
         flex-direction: column;
+        padding-top: max(1rem, env(safe-area-inset-top));
+        padding-bottom: max(1rem, env(safe-area-inset-bottom));
       }
 
       .modal-header {
@@ -457,6 +459,18 @@ class EnvironmentWidget extends LitElement {
       .chart-loading {
         height: 300px;
         font-size: var(--text-sm, 0.875rem);
+      }
+    }
+
+    @media (max-width: 480px) {
+      .modal-content {
+        padding: 0.75rem;
+      }
+      .chart-container {
+        height: 250px !important;
+      }
+      .chart-loading {
+        height: 250px;
       }
     }
 
@@ -900,8 +914,8 @@ class EnvironmentWidget extends LitElement {
           x: {
             ticks: {
               color: '#888',
-              maxRotation: window.innerWidth < 768 ? 60 : 45,
-              minRotation: window.innerWidth < 768 ? 60 : 45,
+              maxRotation: 45,
+              minRotation: window.innerWidth < 768 ? 45 : 45,
               maxTicksLimit: window.innerWidth < 768 ? 8 : 12,
               autoSkip: true,
               font: {

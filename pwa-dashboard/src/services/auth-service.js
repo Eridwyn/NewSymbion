@@ -82,6 +82,21 @@ class AuthService extends EventTarget {
     this._ready = false
     this._readyPromise = this._restore()
     this._installFetchInterceptor()
+
+    // Clear state when auth:expired fires (e.g. from api-service 401)
+    window.addEventListener('auth:expired', () => {
+      if (this.userInfo) {
+        console.log('[auth] Clearing session due to auth:expired event')
+        this.userInfo = null
+        this._token = null
+        this.loginTime = null
+        if (this.refreshTimer) {
+          clearTimeout(this.refreshTimer)
+          this.refreshTimer = null
+        }
+        this._clearToken()
+      }
+    })
   }
 
   /**
@@ -342,6 +357,7 @@ class AuthService extends EventTarget {
       this._token = null
       this._clearToken()
       this.dispatchEvent(new Event('auth:expired'))
+      window.dispatchEvent(new CustomEvent('auth:expired'))
       return false
     }
 
@@ -355,12 +371,15 @@ class AuthService extends EventTarget {
     if (!this.userInfo) return false
 
     try {
-      const response = await fetch(`${API_BASE}/auth/verify`)
+      const response = await fetch(`${API_BASE}/auth/verify`, {
+        cache: 'no-store' // Bypass SW cache, always hit server
+      })
 
       if (!response.ok) {
         this.userInfo = null
         await this._clearToken()
         this.dispatchEvent(new Event('auth:expired'))
+        window.dispatchEvent(new CustomEvent('auth:expired'))
         return false
       }
 

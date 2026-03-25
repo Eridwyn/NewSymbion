@@ -11,6 +11,7 @@ import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles, emptyStateStyles } from '../styles/shared-widget.js'
 import { statusBadgeStyles } from '../styles/shared-patterns.js'
+import { showToast } from '../components/toast-service.js'
 
 class PluginsWidget extends LitElement {
   static styles = [sharedAnimations, widgetHeaderStyles, statusBadgeStyles, emptyStateStyles, css`
@@ -50,7 +51,7 @@ class PluginsWidget extends LitElement {
     }
 
     .expand-chevron {
-      font-size: 0.7em;
+      font-size: 0.85em;
       opacity: 0.5;
       transition: transform 0.2s ease;
       flex-shrink: 0;
@@ -150,8 +151,8 @@ class PluginsWidget extends LitElement {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 30px;
-      height: 30px;
+      width: 40px;
+      height: 40px;
       padding: 0;
       border: 1px solid transparent;
       border-radius: 50%;
@@ -245,6 +246,18 @@ class PluginsWidget extends LitElement {
         word-break: break-all;
       }
     }
+
+    @media (max-width: 480px) {
+      .plugin-row {
+        padding: 0.4rem 0.5rem;
+        flex-wrap: wrap;
+      }
+
+      .info-row {
+        flex-direction: column;
+        gap: 0.1rem;
+      }
+    }
   `]
 
   static properties = {
@@ -320,6 +333,7 @@ class PluginsWidget extends LitElement {
 
       const label = { start: 'Démarrage', stop: 'Arrêt', restart: 'Redémarrage' }[action] || action
       this.successMessage = `${label} de ${pluginName} en cours...`
+      showToast(this.successMessage, 'success')
       setTimeout(() => { this.successMessage = null }, 5000)
 
       if (action !== 'status') {
@@ -327,6 +341,7 @@ class PluginsWidget extends LitElement {
       }
     } catch (err) {
       this.error = `Échec ${action} ${pluginName}: ${err.message}`
+      showToast(this.error, 'error')
     } finally {
       this.loading = false
     }

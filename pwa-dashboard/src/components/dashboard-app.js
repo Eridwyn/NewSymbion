@@ -41,6 +41,8 @@ const lazyPages = () => {
 // Toast/notifications loaded eagerly (needed immediately for push events)
 import './toast-notifications.js'
 import './notification-center.js'
+import './skeleton-loader.js'
+import './toast-service.js'
 import automationsService from '../services/automations-service.js'
 
 class DashboardApp extends LitElement {
@@ -151,7 +153,10 @@ class DashboardApp extends LitElement {
       backdrop-filter: blur(var(--blur-xl));
       -webkit-backdrop-filter: blur(var(--blur-xl));
       border-bottom: 1px solid var(--ctx-border);
-      padding: var(--space-5) var(--space-8);
+      padding-top: max(var(--space-5), env(safe-area-inset-top));
+      padding-bottom: var(--space-5);
+      padding-left: max(var(--space-8), env(safe-area-inset-left));
+      padding-right: max(var(--space-8), env(safe-area-inset-right));
       position: -webkit-sticky;
       position: sticky;
       top: 0;
@@ -610,6 +615,9 @@ class DashboardApp extends LitElement {
 
     /* Widget Container - Bio-Organic Card Design CONTEXTUEL */
     .widget-container {
+      /* Container Queries: each widget adapts to its own size */
+      container-type: inline-size;
+      container-name: widget;
       /* Gradient organique comme une membrane cellulaire */
       background: linear-gradient(135deg,
         color-mix(in srgb, var(--context-primary, #00d4aa) 3%, transparent) 0%,
@@ -623,7 +631,6 @@ class DashboardApp extends LitElement {
                   border-color var(--duration-slow) var(--ease-out),
                   box-shadow var(--duration-slow) var(--ease-out);
       will-change: transform, box-shadow;
-      contain: paint;
       box-shadow: var(--app-widget-shadow);
       position: relative;
       overflow: hidden;
@@ -801,6 +808,7 @@ class DashboardApp extends LitElement {
 
     .tab-content {
       display: none;
+      transition: opacity 0.15s ease;
     }
 
     .tab-content.active {
@@ -811,6 +819,31 @@ class DashboardApp extends LitElement {
 
     .tab-content.active > * {
       animation: fadeIn 0.2s ease-out;
+    }
+
+    @keyframes slideInFromRight {
+      from { transform: translateX(30px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    @keyframes slideInFromLeft {
+      from { transform: translateX(-30px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .tab-content.slide-right {
+      animation: slideInFromRight 0.2s ease-out;
+    }
+
+    .tab-content.slide-left {
+      animation: slideInFromLeft 0.2s ease-out;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .tab-content.slide-right,
+      .tab-content.slide-left {
+        animation: none;
+      }
     }
 
     @media (max-width: 768px) {
@@ -827,6 +860,7 @@ class DashboardApp extends LitElement {
         -webkit-backdrop-filter: blur(var(--blur-xl));
         z-index: 90;
         padding: var(--space-2) var(--space-3);
+        padding-bottom: env(safe-area-inset-bottom, var(--space-2));
         gap: var(--space-2);
         border-top: 1px solid var(--ctx-border);
         box-shadow: var(--app-nav-shadow),
@@ -888,7 +922,7 @@ class DashboardApp extends LitElement {
 
       .status-indicator {
         padding: 0.2rem 0.4rem;
-        font-size: 0.65rem;
+        font-size: 0.75rem;
         white-space: nowrap;
         flex-shrink: 0;
         gap: 0.2rem;
@@ -1019,6 +1053,32 @@ class DashboardApp extends LitElement {
       outline: 2px solid var(--context-primary, #00d4aa);
       outline-offset: 2px;
     }
+
+    /* Mobile tap feedback */
+    button:active, [role="button"]:active, .widget-container:active {
+      transform: scale(0.97);
+      opacity: 0.9;
+      transition: transform 50ms ease, opacity 50ms ease;
+    }
+
+    @media (hover: hover) {
+      button:active, [role="button"]:active, .widget-container:active {
+        transform: none;
+        opacity: 1;
+      }
+    }
+
+    /* Pull-to-refresh indicator */
+    .pull-indicator {
+      text-align: center;
+      color: var(--context-primary, #00d4aa);
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      transition: height 0.1s ease;
+    }
   `]
 
   static properties = {
@@ -1040,7 +1100,11 @@ class DashboardApp extends LitElement {
     currentTime: { type: String },
     showLogsFab: { type: Boolean },
     isOffline: { type: Boolean },
-    currentTheme: { type: String }
+    currentTheme: { type: String },
+    _pullStartY: { type: Number, state: true },
+    _pullDistance: { type: Number, state: true },
+    _isRefreshing: { type: Boolean, state: true },
+    _tabDirection: { type: String, state: true }
   }
   
   constructor() {
@@ -1065,6 +1129,10 @@ class DashboardApp extends LitElement {
     // Restaurer le dernier onglet actif depuis sessionStorage (persiste aux reloads, reset à la fermeture du navigateur)
     this.activeTab = sessionStorage.getItem('dashboardTab') || 'controle'
     this.currentTime = this.formatTime(new Date())
+
+    this._pullStartY = null
+    this._pullDistance = 0
+    this._isRefreshing = false
 
     this.apiService = null
     this.mqttService = null
@@ -1135,12 +1203,32 @@ class DashboardApp extends LitElement {
     this._boundHandlers.logsToggle = (e) => { this.showLogsFab = e.detail.enabled }
     window.addEventListener('symbion-logs-toggle', this._boundHandlers.logsToggle)
 
-    // Log context changes (theme is applied via CSS variables by context-service)
+    // Context changes: update theme-color meta + force re-render of all widgets
     this._boundHandlers.contextChange = (e) => {
       const mode = e.detail?.context?.mode_slug || e.detail?.context?.mode || 'unknown'
       console.log(`[dashboard-app] Context changed: ${mode}`)
+      // Dynamic theme-color meta tag for mobile browsers
+      const newColor = e.detail?.context?.color || e.detail?.context?.theme?.primary || getComputedStyle(document.documentElement).getPropertyValue('--context-primary')?.trim()
+      if (newColor) {
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', newColor)
+      }
+      // Force Lit re-render so widgets pick up new CSS variable values
+      this.requestUpdate()
     }
     window.addEventListener('context-change', this._boundHandlers.contextChange)
+
+    // Listen for MQTT-driven context updates (real-time, faster than 30s polling)
+    this._boundHandlers.mqttContext = (e) => {
+      const ctx = e.detail?.context
+      if (ctx) {
+        console.log(`[dashboard-app] MQTT context update received`)
+        // Trigger context-service to re-fetch and apply theme
+        const contextService = document.querySelector('context-service')
+        if (contextService) {
+          contextService.fetchContext()
+        }
+      }
+    }
 
     // Theme toggle
     this._handleThemeChange = (e) => { this.currentTheme = e.detail.theme }
@@ -1151,6 +1239,73 @@ class DashboardApp extends LitElement {
     this._handleOffline = () => { this.isOffline = true }
     window.addEventListener('online', this._handleOnline)
     window.addEventListener('offline', this._handleOffline)
+
+    // Pull-to-refresh support
+    this._handleTouchStart = (e) => {
+      if (window.scrollY === 0) {
+        this._pullStartY = e.touches[0].clientY
+      }
+    }
+    this._handleTouchMove = (e) => {
+      if (this._pullStartY === null) return
+      const dy = e.touches[0].clientY - this._pullStartY
+      if (dy > 0 && dy < 150) {
+        this._pullDistance = dy
+      }
+    }
+    this._handleTouchEnd = () => {
+      if (this._pullDistance > 60) {
+        this._isRefreshing = true
+        window.dispatchEvent(new CustomEvent('refresh-dashboard'))
+        if (navigator.vibrate) navigator.vibrate(20)
+        setTimeout(() => { this._isRefreshing = false; this._pullDistance = 0 }, 1500)
+      } else {
+        this._pullDistance = 0
+      }
+      this._pullStartY = null
+    }
+    window.addEventListener('touchstart', this._handleTouchStart, { passive: true })
+    window.addEventListener('touchmove', this._handleTouchMove, { passive: true })
+    window.addEventListener('touchend', this._handleTouchEnd, { passive: true })
+
+    // Swipe navigation between bottom nav tabs (mobile only)
+    this._swipeStartX = null
+    this._swipeStartY = null
+
+    this._handleSwipeStart = (e) => {
+      // Only on mobile (bottom nav visible)
+      if (window.innerWidth >= 769) return
+      // Don't swipe when a full-page overlay is open
+      if (this.showSettingsPage || this.showNotesPage || this.showContextEnginePage || this.showSslConfigPage || this.showLibraryPage) return
+      this._swipeStartX = e.touches[0].clientX
+      this._swipeStartY = e.touches[0].clientY
+    }
+
+    this._handleSwipeEnd = (e) => {
+      if (this._swipeStartX === null) return
+      const dx = e.changedTouches[0].clientX - this._swipeStartX
+      const dy = e.changedTouches[0].clientY - this._swipeStartY
+
+      // Only trigger if horizontal swipe is dominant (not vertical scroll)
+      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        const tabs = this._getSwipeTabList()
+        const currentIndex = tabs.indexOf(this.activeTab)
+        if (dx < 0 && currentIndex < tabs.length - 1) {
+          // Swipe left = next tab
+          this.setActiveTab(tabs[currentIndex + 1])
+          if (navigator.vibrate) navigator.vibrate(10)
+        } else if (dx > 0 && currentIndex > 0) {
+          // Swipe right = previous tab
+          this.setActiveTab(tabs[currentIndex - 1])
+          if (navigator.vibrate) navigator.vibrate(10)
+        }
+      }
+      this._swipeStartX = null
+      this._swipeStartY = null
+    }
+
+    window.addEventListener('touchstart', this._handleSwipeStart, { passive: true })
+    window.addEventListener('touchend', this._handleSwipeEnd, { passive: true })
 
     try {
       // Initialiser les services
@@ -1214,6 +1369,9 @@ class DashboardApp extends LitElement {
       if (this._boundHandlers.systemHealth) {
         this.mqttService.removeEventListener('system-health', this._boundHandlers.systemHealth)
       }
+      if (this._boundHandlers.mqttContext) {
+        this.mqttService.removeEventListener('dashboard-context', this._boundHandlers.mqttContext)
+      }
     }
 
     // PWA4: Destroy focus traps on disconnect
@@ -1225,6 +1383,15 @@ class DashboardApp extends LitElement {
     window.removeEventListener('online', this._handleOnline)
     window.removeEventListener('offline', this._handleOffline)
     document.body.removeEventListener('theme-changed', this._handleThemeChange)
+
+    // Pull-to-refresh cleanup
+    window.removeEventListener('touchstart', this._handleTouchStart)
+    window.removeEventListener('touchmove', this._handleTouchMove)
+    window.removeEventListener('touchend', this._handleTouchEnd)
+
+    // Swipe navigation cleanup
+    window.removeEventListener('touchstart', this._handleSwipeStart)
+    window.removeEventListener('touchend', this._handleSwipeEnd)
   }
 
   // PWA4: Focus trap management for full-page overlays
@@ -1267,6 +1434,7 @@ class DashboardApp extends LitElement {
     this._boundHandlers.systemHealth = this.handleSystemHealth.bind(this)
     this.mqttService.addEventListener('status-change', this._boundHandlers.mqttStatus)
     this.mqttService.addEventListener('system-health', this._boundHandlers.systemHealth)
+    this.mqttService.addEventListener('dashboard-context', this._boundHandlers.mqttContext)
     // Sync initial MQTT status (service may already be connected)
     if (this.mqttService.status) {
       this.mqttStatus = this.mqttService.status
@@ -1365,9 +1533,7 @@ class DashboardApp extends LitElement {
   
   handleApiStatus(event) {
     this.apiStatus = event.detail.status
-    if (event.detail.status === 'offline') {
-      this.connected = false
-    }
+    this.connected = event.detail.status === 'online'
     this.requestUpdate()
   }
   
@@ -1386,6 +1552,12 @@ class DashboardApp extends LitElement {
       ${this.isOffline ? html`
         <div class="offline-banner" role="alert" aria-live="assertive">
           ⚡ Mode hors-ligne — Les données affichées peuvent ne pas être à jour
+        </div>
+      ` : ''}
+
+      ${this._pullDistance > 10 ? html`
+        <div class="pull-indicator" style="height: ${Math.min(this._pullDistance, 60)}px; opacity: ${Math.min(this._pullDistance / 60, 1)}">
+          ${this._isRefreshing ? '↻ Actualisation...' : this._pullDistance > 60 ? '↓ Relacher pour actualiser' : '↓ Tirer pour actualiser'}
         </div>
       ` : ''}
 
@@ -1497,7 +1669,7 @@ class DashboardApp extends LitElement {
           </div>
 
           <!-- Contenu tab Contrôle -->
-          <div id="tab-controle" role="tabpanel" aria-label="Contrôle" class="tab-content ${this.activeTab === 'controle' ? 'active' : ''}">
+          <div id="tab-controle" role="tabpanel" aria-label="Contrôle" class="tab-content ${this.activeTab === 'controle' ? `active ${this._tabDirection || ''}` : ''}">
             <div class="widget-container">
               <context-engine-widget></context-engine-widget>
             </div>
@@ -1513,7 +1685,7 @@ class DashboardApp extends LitElement {
           </div>
 
           <!-- Contenu tab Système -->
-          <div id="tab-systeme" role="tabpanel" aria-label="Système" class="tab-content ${this.activeTab === 'systeme' ? 'active' : ''}">
+          <div id="tab-systeme" role="tabpanel" aria-label="Système" class="tab-content ${this.activeTab === 'systeme' ? `active ${this._tabDirection || ''}` : ''}">
             <div class="widget-container">
               <system-health-widget
                 .health="${this.systemHealth}"
@@ -1529,7 +1701,7 @@ class DashboardApp extends LitElement {
           </div>
 
           <!-- Contenu tab Données -->
-          <div id="tab-donnees" role="tabpanel" aria-label="Données" class="tab-content ${this.activeTab === 'donnees' ? 'active' : ''}">
+          <div id="tab-donnees" role="tabpanel" aria-label="Données" class="tab-content ${this.activeTab === 'donnees' ? `active ${this._tabDirection || ''}` : ''}">
             <div class="widget-container">
               <environment-widget></environment-widget>
             </div>
@@ -1575,18 +1747,22 @@ class DashboardApp extends LitElement {
 
           <!-- Widget santé système -->
           <div class="widget-container">
-            <system-health-widget
-              .health="${this.systemHealth}"
-              .connected="${this.connected}">
-            </system-health-widget>
+            ${this.systemHealth ? html`
+              <system-health-widget
+                .health="${this.systemHealth}"
+                .connected="${this.connected}">
+              </system-health-widget>
+            ` : html`<skeleton-loader variant="widget"></skeleton-loader>`}
           </div>
 
           <!-- Widget plugins -->
           <div class="widget-container">
-            <plugins-widget
-              .plugins="${this.plugins}"
-              .apiService="${this.apiService}">
-            </plugins-widget>
+            ${this.plugins.length > 0 ? html`
+              <plugins-widget
+                .plugins="${this.plugins}"
+                .apiService="${this.apiService}">
+              </plugins-widget>
+            ` : html`<skeleton-loader variant="widget"></skeleton-loader>`}
           </div>
 
           <!-- Widget notes -->
@@ -1655,6 +1831,8 @@ class DashboardApp extends LitElement {
 
       <!-- Toast Notifications (position fixe) -->
       <toast-notifications></toast-notifications>
+
+      <toast-service></toast-service>
     `
   }
 
@@ -1663,6 +1841,13 @@ class DashboardApp extends LitElement {
   }
   
   setActiveTab(tab) {
+    const tabs = this._getSwipeTabList()
+    const oldIndex = tabs.indexOf(this.activeTab)
+    const newIndex = tabs.indexOf(tab)
+    if (oldIndex !== newIndex && oldIndex >= 0 && newIndex >= 0) {
+      this._tabDirection = newIndex > oldIndex ? 'slide-right' : 'slide-left'
+      setTimeout(() => { this._tabDirection = null }, 200)
+    }
     this.activeTab = tab
     sessionStorage.setItem('dashboardTab', tab)
   }
@@ -1692,6 +1877,11 @@ class DashboardApp extends LitElement {
         tabButtons[newIndex]?.focus()
       })
     }
+  }
+
+  // Ordered list of tab identifiers matching bottom nav order
+  _getSwipeTabList() {
+    return ['controle', 'systeme', 'donnees']
   }
 
   _toggleTheme(e) {
@@ -1784,13 +1974,10 @@ class DashboardApp extends LitElement {
   }
 
   handleAuthExpired(event) {
-    console.warn('[dashboard] Session expirée - redirection vers login', event.detail)
-    // Clear auth state
-    authService.logout()
-    // Redirect to login
-    this.isAuthenticated = false
-    this.currentUser = null
-    this.showLoginPage = true
+    console.warn('[dashboard] Session expirée - SymbionApp gère la redirection', event.detail)
+    // SymbionApp (parent) écoute aussi auth:expired et switch vers boot-terminal
+    // AuthService écoute aussi et clear son état
+    // Rien à faire ici — éviter d'appeler logout() qui ferait du réseau inutile
   }
 
   handleCreateNote(event) {
@@ -1815,8 +2002,8 @@ class DashboardApp extends LitElement {
       console.log('[dashboard] Logging out user')
       await authService.logout()
 
-      // Rediriger vers boot terminal
-      window.location.reload()
+      // Déclencher le retour au login via SymbionApp (même mécanisme que session expirée)
+      window.dispatchEvent(new CustomEvent('auth:expired'))
     }
   }
 

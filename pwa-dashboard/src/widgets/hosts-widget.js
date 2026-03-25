@@ -158,6 +158,32 @@ class HostsWidget extends LitElement {
 
       .action-btn {
         padding: 0.35rem 0.6rem;
+        min-height: 44px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .host-metrics {
+        grid-template-columns: 1fr;
+      }
+
+      .action-btn {
+        min-height: 44px;
+      }
+    }
+
+    /* Container Queries — adapt to widget's own width */
+    @container widget (max-width: 350px) {
+      .host-metrics {
+        grid-template-columns: 1fr;
+      }
+
+      .host-card {
+        padding: 0.75rem;
+      }
+
+      .metric-value {
+        font-size: 1em;
       }
     }
   `]

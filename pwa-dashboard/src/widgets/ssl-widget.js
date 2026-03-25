@@ -9,6 +9,7 @@ import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles, widgetSectionStyles, emptyStateStyles } from '../styles/shared-widget.js'
 import { statusDotStyles, sectionBadgeStyles } from '../styles/shared-patterns.js'
+import { showToast } from '../components/toast-service.js'
 import '../components/organic-loader.js'
 
 export class SslWidget extends LitElement {
@@ -604,6 +605,24 @@ export class SslWidget extends LitElement {
       }
       .config-panel {
         width: 100%;
+        max-width: 100%;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .domain-card {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .domain-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+      }
+      .expiry-info {
+        flex-direction: column;
+        align-items: flex-start;
+        text-align: left;
       }
     }
 
@@ -636,10 +655,8 @@ export class SslWidget extends LitElement {
   }
 
   getApiBaseUrl() {
-    const protocol = window.location.protocol === 'https:' ? 'https' : 'http'
-    const host = window.location.hostname
-    const port = protocol === 'https' ? '8443' : '8080'
-    return `${protocol}://${host}:${port}`
+    // Use shared config (handles nginx proxy vs direct access)
+    return window.SYMBION_CONFIG?.API_BASE || ''
   }
 
   getAuthToken() {
@@ -769,6 +786,7 @@ export class SslWidget extends LitElement {
     await new Promise(resolve => setTimeout(resolve, 500))
     this.lastUpdate = new Date().toLocaleTimeString('fr-FR')
     this.loading = false
+    showToast('Données SSL actualisées', 'success')
   }
 
   openConfig() {
@@ -845,13 +863,16 @@ export class SslWidget extends LitElement {
         await this.fetchDomainsFromApi()
         this.editingDomain = null
         this.formData = this.getEmptyFormData()
+        showToast('Domaine enregistré', 'success')
         await this.triggerCheck()
       } else {
         const error = await response.text()
         console.error('[ssl-widget] Save failed:', error)
+        showToast(`Erreur sauvegarde: ${error}`, 'error')
       }
     } catch (err) {
       console.error('[ssl-widget] Save error:', err)
+      showToast(`Erreur: ${err.message}`, 'error')
     }
   }
 
@@ -869,9 +890,11 @@ export class SslWidget extends LitElement {
 
       if (response.ok) {
         await this.fetchDomainsFromApi()
+        showToast('Domaine supprimé', 'success')
       }
     } catch (err) {
       console.error('[ssl-widget] Delete error:', err)
+      showToast(`Erreur suppression: ${err.message}`, 'error')
     }
   }
 

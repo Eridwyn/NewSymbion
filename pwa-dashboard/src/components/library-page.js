@@ -733,10 +733,16 @@ export class LibraryPage extends LitElement {
 
     /* ── Mobile ── */
     @media (max-width: 768px) {
+      :host {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+      }
       .sidebar { width: 0; padding: 0; overflow: hidden; }
-      .sidebar.open { width: 220px; position: absolute; z-index: 20; height: 100%; box-shadow: 4px 0 20px rgba(0,0,0,0.5); }
+      .sidebar.open { width: 240px; position: absolute; z-index: 100; height: 100%; box-shadow: 4px 0 20px rgba(0,0,0,0.5); }
       .panel-overlay { width: 100%; }
       .top-bar h2 { display: none; }
+      .search-bar input { font-size: 16px; }
+      .icon-btn, .back-btn { min-height: 44px; }
       .node-list { max-height: 50%; }
     }
   `]

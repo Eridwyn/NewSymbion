@@ -230,6 +230,46 @@ class SystemHealthWidget extends LitElement {
         grid-template-columns: 1fr;
       }
     }
+
+    @media (max-width: 375px) {
+      .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .metric-value {
+        font-size: 1.4em;
+      }
+    }
+
+    /* Container Queries — adapt to widget's own width */
+    @container widget (max-width: 400px) {
+      .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.8rem;
+      }
+
+      .metric-card {
+        padding: 1rem;
+      }
+
+      .metric-value {
+        font-size: 1.6em;
+      }
+
+      .metric-label {
+        font-size: 0.75em;
+      }
+    }
+
+    @container widget (max-width: 280px) {
+      .metrics-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .metric-value {
+        font-size: 1.4em;
+      }
+    }
   `]
 
   static properties = {

@@ -67,6 +67,10 @@ class FreeboxWidget extends LitElement {
     .device-name {
       color: var(--color-dark-text-primary, #f8f9fa);
       font-size: 0.9em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 150px;
     }
 
     .device-ip {
@@ -161,6 +165,13 @@ class FreeboxWidget extends LitElement {
     }
 
     @media (max-width: 768px) {
+      .content-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Container Queries — adapt to widget's own width */
+    @container widget (max-width: 400px) {
       .content-grid {
         grid-template-columns: 1fr;
       }
