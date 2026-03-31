@@ -1175,6 +1175,10 @@ class DashboardApp extends LitElement {
   async connectedCallback() {
     super.connectedCallback()
 
+    // Wait for auth session restoration before loading widgets
+    // Prevents race condition where widgets fetch before token is available
+    await authService.whenReady()
+
     // Load widget definitions before rendering data
     await lazyWidgets()
     lazyPages()

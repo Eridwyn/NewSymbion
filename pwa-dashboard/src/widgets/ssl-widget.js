@@ -772,21 +772,29 @@ export class SslWidget extends LitElement {
   async refreshData() {
     this.loading = true
 
-    // Re-read from MQTT cache
-    if (this._mqttService && typeof this._mqttService.getSslCache === 'function') {
-      const cache = this._mqttService.getSslCache()
-      if (cache.summary && cache.summary.domains) {
-        this.domains = [...cache.summary.domains]
-      } else if (Object.keys(cache.domains).length > 0) {
-        this.domains = [...Object.values(cache.domains)]
+    try {
+      // Trigger a real SSL check on the server
+      await this.triggerCheck()
+      // triggerCheck already schedules fetchDomainsFromApi after 2s,
+      // but we also fetch immediately for responsiveness
+      await this.fetchDomainsFromApi()
+      showToast('Vérification SSL lancée', 'success')
+    } catch (err) {
+      console.warn('[ssl-widget] Refresh failed, falling back to MQTT cache:', err)
+      // Fallback: re-read from MQTT cache
+      if (this._mqttService && typeof this._mqttService.getSslCache === 'function') {
+        const cache = this._mqttService.getSslCache()
+        if (cache.summary && cache.summary.domains) {
+          this.domains = [...cache.summary.domains]
+        } else if (Object.keys(cache.domains).length > 0) {
+          this.domains = [...Object.values(cache.domains)]
+        }
       }
+      showToast('Données SSL depuis le cache', 'info')
     }
 
-    // Small delay to show loader
-    await new Promise(resolve => setTimeout(resolve, 500))
     this.lastUpdate = new Date().toLocaleTimeString('fr-FR')
     this.loading = false
-    showToast('Données SSL actualisées', 'success')
   }
 
   openConfig() {

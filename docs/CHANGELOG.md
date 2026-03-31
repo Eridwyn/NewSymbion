@@ -4,6 +4,48 @@ Historique des améliorations et changements majeurs du projet.
 
 ---
 
+## 🔐 PWA Auth & Widget Fixes (31 Mars 2026)
+
+**Status**: 🟢 Complété
+
+### Session Expiry Auto-Redirect
+- **Fix** : La page login s'affiche automatiquement quand la session expire (critique sur mobile PWA standalone)
+- **Root cause** : 3 problèmes combinés
+  1. SW SWR cache servait des 200 cachés masquant les vrais 401
+  2. SW vault continuait d'injecter un token périmé après AUTH_CLEAR
+  3. z-index boot-terminal (1200) < overlays (9999) empêchant l'affichage
+- **Corrections** :
+  - SW vérifie JWT exp avant injection + purge SWR cache sur AUTH_CLEAR
+  - AuthService écoute `auth:expired` pour nettoyer état + IndexedDB + SW vault
+  - SymbionApp gère la transition boot↔dashboard via event `auth:expired`
+  - Logout dispatch `auth:expired` au lieu de `window.location.reload()`
+  - boot-terminal z-index → 99999
+
+### Widget Race Condition au Reload
+- **Fix** : `await authService.whenReady()` dans dashboard-app avant chargement widgets
+- **Root cause** : Widgets démarraient le polling avant restauration du token depuis IndexedDB
+- **Impact** : Élimine les erreurs 521/auth transitoires au rechargement de page
+
+### Widget Santé Système "Déconnecté"
+- **Fix** : `handleApiStatus` met `connected=true` quand status='online'
+- **Root cause** : Le handler ne settait connected que sur offline, jamais sur online
+
+### Mode Pro Couleur Incorrecte
+- **Fix** : Ajout `modes` dans le regex nginx pour routes API
+- **Root cause** : `/modes` non routé par nginx → retournait HTML au lieu de JSON
+
+### SSL Widget Refresh
+- **Fix** : Le bouton refresh appelle maintenant `POST /ssl/check` + `GET /ssl/domains`
+- **Root cause** : Ne faisait que relire le cache MQTT local (données potentiellement obsolètes)
+
+### Nouveaux Slash Commands
+- `/debug-pwa` : Investigation automatique problèmes PWA avec agents parallèles
+- `/fix-widget` : Fix rapide widget avec inventaire des sources de données
+- `/deploy-pwa` : Build + deploy PWA (vite preview port 3001)
+- `/nginx-check` : Vérification/mise à jour config nginx
+
+---
+
 ## 🌡️ F1: Environment Sensors Plugin (18 Novembre 2025)
 
 **Status**: 🟢 100% complété
