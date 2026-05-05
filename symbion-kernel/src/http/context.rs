@@ -102,6 +102,7 @@ pub(super) async fn set_context_override(
                 app.inference_engine.record_correction(&vector, &new_mode);
                 eprintln!("[intelligence] 📚 v2 correction recorded: {} (sample count will grow)", new_mode);
             }
+            let _ = app.dashboard_events.publish_context_change(&state).await;
             Ok(Json(state))
         }
         None => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -136,7 +137,10 @@ pub(super) async fn clear_context_override(State(app): State<AppState>) -> Resul
     let agents_list: Vec<crate::agents::Agent> = agents_map.values().cloned().collect();
 
     match app.context_engine.clear_override(&agents_list) {
-        Some(state) => Ok(Json(state)),
+        Some(state) => {
+            let _ = app.dashboard_events.publish_context_change(&state).await;
+            Ok(Json(state))
+        }
         None => Err(StatusCode::NO_CONTENT),  // Pas d'override actif
     }
 }
