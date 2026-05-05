@@ -186,16 +186,22 @@ class NotesStreamService extends LitElement {
 
     // Double-check : s'assurer que le WS est vraiment ouvert
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.connected = false
       throw new Error('WebSocket not ready')
     }
 
     this.loading = true
 
     // Envoyer la requête avec filtres
-    const request = filters
-    this.ws.send(JSON.stringify(request))
-
-    console.log('[notes-stream] Requested notes with filters:', filters)
+    try {
+      const request = filters
+      this.ws.send(JSON.stringify(request))
+      console.log('[notes-stream] Requested notes with filters:', filters)
+    } catch (e) {
+      this.connected = false
+      this.loading = false
+      throw new Error(`WebSocket send failed: ${e.message}`)
+    }
   }
 
   /**

@@ -322,82 +322,76 @@ class NotesWidget extends LitElement {
     checkServices()
   }
 
+  async _loadNotesRest() {
+    try {
+      const apiService = document.querySelector('api-service')
+      if (!apiService) throw new Error('Service API non disponible')
+      const data = await apiService.getNotes()
+      this.notes = apiService.validateArrayResponse(data, 'notes', [])
+      this.error = null
+      console.log(`[notes-widget] ✅ Loaded ${this.notes.length} notes via REST`)
+    } catch (err) {
+      console.error('[notes-widget] ❌ REST failed:', err)
+      this.error = `Erreur chargement notes: ${err.message}`
+    }
+    this.loading = false
+    this.requestUpdate()
+  }
+
   async loadNotes() {
     this.loading = true
     this.error = null
-    this.notes = [] // Reset notes for progressive loading
+    this.notes = []
 
-    console.log('[notes-widget] 📡 Loading notes via WebSocket...')
+    let wsTimeout = null
+    let completed = false
 
-    // Event handlers for WebSocket streaming
-    const onNoteReceived = (e) => {
-      // Ajouter la note progressivement
-      this.notes = [...this.notes, e.detail.note]
-      console.log(`[notes-widget] ➕ Note received (${this.notes.length})`)
-      this.requestUpdate() // Trigger re-render avec animation
+    const cleanup = () => {
+      if (wsTimeout) clearTimeout(wsTimeout)
+      notesStreamService.removeEventListener('note-received', onNote)
+      notesStreamService.removeEventListener('notes-complete', onComplete)
+      notesStreamService.removeEventListener('notes-error', onError)
     }
 
-    const onNotesComplete = (e) => {
+    const fallbackToRest = (reason) => {
+      if (completed) return
+      completed = true
+      console.warn(`[notes-widget] ⚠️ WS ${reason}, fallback REST`)
+      cleanup()
+      this._loadNotesRest()
+    }
+
+    const onNote = (e) => {
+      this.notes = [...this.notes, e.detail.note]
+      this.requestUpdate()
+      // Stream alive — reset timeout
+      if (wsTimeout) clearTimeout(wsTimeout)
+      wsTimeout = setTimeout(() => fallbackToRest('stream stalled'), 5000)
+    }
+
+    const onComplete = () => {
+      if (completed) return
+      completed = true
       this.loading = false
       this.error = null
-      console.log(`[notes-widget] ✅ Stream complete: ${this.notes.length} notes, context: ${this.currentContext}`)
-
-      // Cleanup listeners
-      notesStreamService.removeEventListener('note-received', onNoteReceived)
-      notesStreamService.removeEventListener('notes-complete', onNotesComplete)
-      notesStreamService.removeEventListener('notes-error', onNotesError)
-
+      console.log(`[notes-widget] ✅ Stream complete: ${this.notes.length} notes`)
+      cleanup()
       this.requestUpdate()
     }
 
-    const onNotesError = (e) => {
-      this.loading = false
-      console.error('[notes-widget] ❌ WebSocket error:', e.detail.error)
-      this.error = `Erreur chargement: ${e.detail.error}`
+    const onError = (e) => fallbackToRest(`error: ${e.detail?.error}`)
 
-      // Cleanup listeners
-      notesStreamService.removeEventListener('note-received', onNoteReceived)
-      notesStreamService.removeEventListener('notes-complete', onNotesComplete)
-      notesStreamService.removeEventListener('notes-error', onNotesError)
+    notesStreamService.addEventListener('note-received', onNote)
+    notesStreamService.addEventListener('notes-complete', onComplete)
+    notesStreamService.addEventListener('notes-error', onError)
 
-      this.requestUpdate()
-    }
+    // If no WS response within 5s → REST
+    wsTimeout = setTimeout(() => fallbackToRest('no response in 5s'), 5000)
 
-    // Register event listeners
-    notesStreamService.addEventListener('note-received', onNoteReceived)
-    notesStreamService.addEventListener('notes-complete', onNotesComplete)
-    notesStreamService.addEventListener('notes-error', onNotesError)
-
-    // Start WebSocket streaming, fallback to REST API if WS fails
     try {
-      await notesStreamService.loadNotes({}) // Empty filters = all notes
-    } catch (error) {
-      console.warn('[notes-widget] ⚠️ WebSocket failed, falling back to REST API:', error.message)
-
-      // Cleanup WS listeners
-      notesStreamService.removeEventListener('note-received', onNoteReceived)
-      notesStreamService.removeEventListener('notes-complete', onNotesComplete)
-      notesStreamService.removeEventListener('notes-error', onNotesError)
-
-      // Fallback: load notes via REST API
-      try {
-        const apiService = document.querySelector('api-service')
-        if (apiService) {
-          const data = await apiService.getNotes()
-          const notesList = apiService.validateArrayResponse(data, 'notes', [])
-          this.notes = notesList
-          this.error = null
-          console.log(`[notes-widget] ✅ Loaded ${notesList.length} notes via REST fallback`)
-          this.requestUpdate()
-        } else {
-          this.error = 'Service API non disponible'
-        }
-      } catch (restError) {
-        console.error('[notes-widget] ❌ REST fallback also failed:', restError)
-        this.error = `Erreur chargement notes: ${restError.message}`
-      }
-      this.loading = false
-      this.requestUpdate()
+      await notesStreamService.loadNotes({})
+    } catch (err) {
+      fallbackToRest(`connect failed: ${err.message}`)
     }
   }
 

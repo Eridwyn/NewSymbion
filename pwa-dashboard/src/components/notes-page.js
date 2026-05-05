@@ -913,74 +913,73 @@ class NotesPage extends LitElement {
     this._cleanupReveal?.()
   }
 
+  async _loadNotesRest() {
+    try {
+      const apiService = document.querySelector('api-service')
+      if (!apiService) throw new Error('Service API non disponible')
+      const data = await apiService.getNotes()
+      this.notes = apiService.validateArrayResponse(data, 'notes', [])
+      this.availableTags = extractAllTags(this.notes)
+      console.log(`[notes-page] ✅ Loaded ${this.notes.length} notes via REST`)
+    } catch (err) {
+      console.error('[notes-page] ❌ REST failed:', err)
+    }
+    this.loading = false
+    this.requestUpdate()
+  }
+
   async loadNotes() {
     this.loading = true
-    this.notes = [] // Reset for progressive loading
+    this.notes = []
 
-    console.log('[notes-page] 📡 Loading notes via WebSocket...')
+    let wsTimeout = null
+    let completed = false
 
-    const onNoteReceived = (e) => {
-      console.log('[notes-page] 📝 Note received')
+    const cleanup = () => {
+      if (wsTimeout) clearTimeout(wsTimeout)
+      notesStreamService.removeEventListener('note-received', onNote)
+      notesStreamService.removeEventListener('notes-complete', onComplete)
+      notesStreamService.removeEventListener('notes-error', onError)
+    }
+
+    const fallbackToRest = (reason) => {
+      if (completed) return
+      completed = true
+      console.warn(`[notes-page] ⚠️ WS ${reason}, fallback REST`)
+      cleanup()
+      this._loadNotesRest()
+    }
+
+    const onNote = (e) => {
       this.notes = [...this.notes, e.detail.note]
       this.availableTags = extractAllTags(this.notes)
       this.requestUpdate()
+      if (wsTimeout) clearTimeout(wsTimeout)
+      wsTimeout = setTimeout(() => fallbackToRest('stream stalled'), 5000)
     }
 
-    const onNotesComplete = (e) => {
+    const onComplete = () => {
+      if (completed) return
+      completed = true
       this.loading = false
-      console.log(`[notes-page] ✅ Loaded ${this.notes.length} notes (total: ${e.detail.total})`)
       this.availableTags = extractAllTags(this.notes)
-
-      // Cleanup listeners
-      notesStreamService.removeEventListener('note-received', onNoteReceived)
-      notesStreamService.removeEventListener('notes-complete', onNotesComplete)
-      notesStreamService.removeEventListener('notes-error', onNotesError)
-
+      console.log(`[notes-page] ✅ Stream complete: ${this.notes.length} notes`)
+      cleanup()
       this.requestUpdate()
     }
 
-    const onNotesError = (e) => {
-      this.loading = false
-      console.error('[notes-page] ❌ WebSocket error:', e.detail.error)
+    const onError = (e) => fallbackToRest(`error: ${e.detail?.error}`)
 
-      // Cleanup listeners
-      notesStreamService.removeEventListener('note-received', onNoteReceived)
-      notesStreamService.removeEventListener('notes-complete', onNotesComplete)
-      notesStreamService.removeEventListener('notes-error', onNotesError)
+    notesStreamService.addEventListener('note-received', onNote)
+    notesStreamService.addEventListener('notes-complete', onComplete)
+    notesStreamService.addEventListener('notes-error', onError)
 
-      this.requestUpdate()
-    }
+    wsTimeout = setTimeout(() => fallbackToRest('no response in 5s'), 5000)
 
-    // Register event listeners
-    notesStreamService.addEventListener('note-received', onNoteReceived)
-    notesStreamService.addEventListener('notes-complete', onNotesComplete)
-    notesStreamService.addEventListener('notes-error', onNotesError)
-
-    // Start WebSocket streaming, fallback to REST API if WS fails
     try {
-      await notesStreamService.loadNotes({}) // Empty filters = all notes
-    } catch (error) {
-      console.warn('[notes-page] ⚠️ WebSocket failed, falling back to REST API:', error.message)
-
-      // Cleanup WS listeners
-      notesStreamService.removeEventListener('note-received', onNoteReceived)
-      notesStreamService.removeEventListener('notes-complete', onNotesComplete)
-      notesStreamService.removeEventListener('notes-error', onNotesError)
-
-      // Fallback: load notes via REST API
-      try {
-        const apiService = document.querySelector('api-service')
-        if (apiService) {
-          const data = await apiService.getNotes()
-          const notesList = apiService.validateArrayResponse(data, 'notes', [])
-          this.notes = notesList
-          this.availableTags = extractAllTags(this.notes)
-          console.log(`[notes-page] ✅ Loaded ${notesList.length} notes via REST fallback`)
-        }
-      } catch (restError) {
-        console.error('[notes-page] ❌ REST fallback also failed:', restError)
-      }
-      this.loading = false
+      await notesStreamService.loadNotes({})
+    } catch (err) {
+      fallbackToRest(`connect failed: ${err.message}`)
     }
   }
 

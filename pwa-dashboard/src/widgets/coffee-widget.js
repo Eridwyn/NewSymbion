@@ -226,6 +226,10 @@ class CoffeeWidget extends LitElement {
       margin-bottom: 0.75rem;
     }
 
+    .levels-offline {
+      opacity: 0.4;
+    }
+
     .level-chip {
       flex: 1;
       display: flex;
@@ -425,6 +429,7 @@ class CoffeeWidget extends LitElement {
     if (this._loadingTimeout) clearTimeout(this._loadingTimeout)
     if (this._refreshInterval) clearInterval(this._refreshInterval)
     if (this._powerPollInterval) clearInterval(this._powerPollInterval)
+    this._pendingBrew = null
   }
 
   // ── MQTT Setup ──
@@ -524,26 +529,36 @@ class CoffeeWidget extends LitElement {
 
   // ── HTTP Fetch ──
 
-  async _fetchStatus() {
-    try {
-      const resp = await fetch(`${getApiBase()}/v1/plugin-api/coffee/status`)
-      if (resp.ok) {
-        this.status = await resp.json()
-        this.loading = false
-        if (this._loadingTimeout) clearTimeout(this._loadingTimeout)
-        this.requestUpdate()
+  async _fetchStatus(retries = 3) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const resp = await csrfService.fetchWithCsrf(`${getApiBase()}/v1/plugin-api/coffee/status`)
+        if (resp.ok) {
+          this.status = await resp.json()
+          this._lastUpdate = Date.now()
+          this._fetchFailCount = 0
+          this.loading = false
+          if (this._loadingTimeout) clearTimeout(this._loadingTimeout)
+          this.requestUpdate()
+          break
+        }
+      } catch (e) {
+        console.warn(`[coffee] Initial fetch attempt ${i + 1}/${retries} failed:`, e.message)
+        if (i < retries - 1) await new Promise(r => setTimeout(r, 2000))
       }
-    } catch (_) { /* silent */ }
+    }
 
     this._refreshInterval = setInterval(() => this._fetchStatusSilent(), 15000)
   }
 
   async _fetchStatusSilent() {
     try {
-      const resp = await fetch(`${getApiBase()}/v1/plugin-api/coffee/status`)
+      const resp = await csrfService.fetchWithCsrf(`${getApiBase()}/v1/plugin-api/coffee/status`)
       if (resp.ok) {
         const prev = this.status
         this.status = await resp.json()
+        this._lastUpdate = Date.now()
+        this._fetchFailCount = 0
         // Detect state changes via polling too
         if (prev?.brewing && !this.status.brewing) {
           this._showSuccess('Cafe pret !')
@@ -559,8 +574,20 @@ class CoffeeWidget extends LitElement {
           }
         }
         this.requestUpdate()
+      } else {
+        this._fetchFailCount = (this._fetchFailCount || 0) + 1
+        if (this._fetchFailCount >= 3) {
+          console.warn(`[coffee] ${this._fetchFailCount} fetch failures`)
+          this.requestUpdate()
+        }
       }
-    } catch (_) { /* silent */ }
+    } catch (e) {
+      this._fetchFailCount = (this._fetchFailCount || 0) + 1
+      if (this._fetchFailCount >= 3) {
+        console.warn(`[coffee] Polling failed (${this._fetchFailCount}x):`, e.message)
+        this.requestUpdate()
+      }
+    }
   }
 
   // ── Actions ──
@@ -629,11 +656,16 @@ class CoffeeWidget extends LitElement {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ on: true })
       })
-      // Poll status every 2s waiting for ready (max 60s)
+      // Poll status every 2s waiting for ready (max 90s)
       let attempts = 0
       this._powerPollInterval = setInterval(async () => {
         attempts++
-        if (attempts > 30) {
+        // Fetch first — gives the status a chance to update
+        await this._fetchStatusSilent()
+        // If machine is now ready, _fetchStatusSilent already cleared poweringOn
+        if (!this.poweringOn) return
+        // Timeout after 45 attempts (90s)
+        if (attempts > 45) {
           clearInterval(this._powerPollInterval)
           this.poweringOn = false
           this._pendingBrew = null
@@ -641,7 +673,6 @@ class CoffeeWidget extends LitElement {
           showToast('Delai allumage depasse', 'warning')
           this.requestUpdate()
         }
-        await this._fetchStatusSilent()
       }, 2000)
     } catch (e) {
       this.poweringOn = false
@@ -660,7 +691,12 @@ class CoffeeWidget extends LitElement {
       })
       this._showSuccess('Machine eteinte')
       showToast('Machine eteinte', 'info')
-    } catch (_) { /* silent */ }
+    } catch (e) {
+      this.brewError = 'Erreur extinction'
+      showToast('Erreur extinction machine', 'error')
+      this.requestUpdate()
+      setTimeout(() => { this.brewError = null; this.requestUpdate() }, 5000)
+    }
   }
 
   _showSuccess(msg) {
@@ -718,6 +754,7 @@ class CoffeeWidget extends LitElement {
 
   _canBrew() {
     if (!this.status?.online || this.brewLoading || this.poweringOn) return false
+    if (this.status.maintenance_needed) return false
     // Allow brew from standby (auto power-on) or ready
     return this.status.mainstate === 1 || this.status.mainstate === 2
   }
@@ -801,33 +838,34 @@ class CoffeeWidget extends LitElement {
       ${this.brewSuccess ? html`<div class="success-msg">${this.brewSuccess}</div>` : ''}
 
       <!-- Levels -->
-      <div class="levels-row">
+      <div class="levels-row ${!this.status?.online ? 'levels-offline' : ''}">
         <div class="level-chip">
           <span class="chip-icon">&#128167;</span>
           <span>Eau</span>
-          <span class="chip-val ${this._levelClass(this.status?.water_level, 30)}">${this._levelText(this.status?.water_level, 'water')}</span>
+          <span class="chip-val ${this.status?.online ? this._levelClass(this.status?.water_level, 30) : ''}">${this.status?.online ? this._levelText(this.status?.water_level, 'water') : '—'}</span>
         </div>
         <div class="level-chip">
           <span class="chip-icon">&#127793;</span>
           <span>Grains</span>
-          <span class="chip-val ${this._levelClass(this.status?.bean_level, 30)}">${this._levelText(this.status?.bean_level, 'beans')}</span>
+          <span class="chip-val ${this.status?.online ? this._levelClass(this.status?.bean_level, 30) : ''}">${this.status?.online ? this._levelText(this.status?.bean_level, 'beans') : '—'}</span>
         </div>
         <div class="level-chip">
           <span class="chip-icon">&#128465;</span>
           <span>Marc</span>
-          <span class="chip-val ${(this.status?.waste_bean || 0) >= 12 ? 'low' : (this.status?.waste_bean || 0) >= 10 ? 'warn' : 'ok'}">${this.status?.waste_bean || 0}/14</span>
+          <span class="chip-val ${this.status?.online ? ((this.status?.waste_bean || 0) >= 12 ? 'low' : (this.status?.waste_bean || 0) >= 10 ? 'warn' : 'ok') : ''}">${this.status?.online ? `${this.status?.waste_bean || 0}/12` : '—'}</span>
         </div>
         <div class="level-chip">
           <span class="chip-icon">&#128167;</span>
           <span>Detartr.</span>
-          <span class="chip-val ${this._levelClass(this.status?.descale_status, 30)}">${this._levelText(this.status?.descale_status, 'descale')}</span>
+          <span class="chip-val ${this.status?.online ? this._levelClass(this.status?.descale_status, 30) : ''}">${this.status?.online ? this._levelText(this.status?.descale_status, 'descale') : '—'}</span>
         </div>
         <div class="level-chip">
           <span class="chip-icon">&#128167;</span>
           <span>Filtre</span>
-          <span class="chip-val ${this.status?.aquaclean_installed ? this._levelClass(this.status?.aquaclean_remaining, 30) : ''}">${this.status?.aquaclean_installed ? this._levelText(this.status?.aquaclean_remaining, 'filter') : 'Non'}</span>
+          <span class="chip-val ${this.status?.online && this.status?.aquaclean_installed ? this._levelClass(this.status?.aquaclean_remaining, 30) : ''}">${this.status?.online ? (this.status?.aquaclean_installed ? this._levelText(this.status?.aquaclean_remaining, 'filter') : 'Non') : '—'}</span>
         </div>
       </div>
+      ${this._fetchFailCount >= 3 ? html`<div style="font-size:0.65em;color:var(--color-dark-text-tertiary);text-align:center;margin-top:0.25rem;">Donnees potentiellement obsoletes</div>` : ''}
 
       <!-- Footer -->
       <div class="footer-row">
