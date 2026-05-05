@@ -233,8 +233,25 @@ impl<'a> VectorBuilder<'a> {
 
         self.feature_count += 1;
 
-        // Weekend → home probability (time is always confidence 1.0)
+        // === Cyclic temporal encoding (descriptive, NOT probabilities) ===
+        // These dimensions let the inference engine discriminate samples taken at
+        // different times. Two samples 12h apart will have very different
+        // hour_sin/hour_cos, dropping their cosine similarity. Without these,
+        // a "Pro at 23h" sample matches a vector at 00h with similarity=1.0.
+        // Excluded from normalize_mode_probabilities (which only normalizes
+        // home/work/focus/sleep).
+        let hour_rad = (hour / 24.0) * 2.0 * std::f32::consts::PI;
+        self.dimensions.insert("hour_sin".to_string(), hour_rad.sin());
+        self.dimensions.insert("hour_cos".to_string(), hour_rad.cos());
+
+        let dow_rad = (weekday as f32 / 7.0) * 2.0 * std::f32::consts::PI;
+        self.dimensions.insert("dow_sin".to_string(), dow_rad.sin());
+        self.dimensions.insert("dow_cos".to_string(), dow_rad.cos());
+
         let is_weekend = weekday >= 5;
+        self.dimensions.insert("is_weekend".to_string(), if is_weekend { 1.0 } else { 0.0 });
+
+        // Weekend → home probability (time is always confidence 1.0)
         if is_weekend {
             self.add_contribution(dimensions::HOME_PROB, 0.3, 1.0, "time.weekend", "true");
             self.add_contribution(dimensions::WORK_PROB, -0.2, 1.0, "time.weekend", "true");
@@ -494,6 +511,24 @@ mod tests {
         let (mode, prob) = vector.best_mode();
         assert_eq!(mode, "focus");
         assert!((prob - 0.6).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_cyclic_time_dims_present() {
+        let registry = FeatureRegistry::new();
+        let vector = VectorBuilder::new(&registry).build();
+
+        // hour_sin and hour_cos must always be set (they describe "when")
+        assert!(vector.dimensions.contains_key("hour_sin"));
+        assert!(vector.dimensions.contains_key("hour_cos"));
+        assert!(vector.dimensions.contains_key("dow_sin"));
+        assert!(vector.dimensions.contains_key("dow_cos"));
+        assert!(vector.dimensions.contains_key("is_weekend"));
+
+        // Cyclic: sin^2 + cos^2 must equal ~1
+        let hs = vector.dimensions["hour_sin"];
+        let hc = vector.dimensions["hour_cos"];
+        assert!((hs * hs + hc * hc - 1.0).abs() < 1e-3, "hour_sin^2 + hour_cos^2 != 1");
     }
 
     #[test]
