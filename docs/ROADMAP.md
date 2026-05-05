@@ -31,7 +31,7 @@
 
 **Objectif** : Recevoir les notifications Symbion directement sur Telegram via @Monsymbion_bot
 
-**Contexte** : Le plugin `symbion-plugin-telegram` et le bridge Python existent déjà. Il faut connecter le système de notifications du kernel au bot Telegram pour recevoir les alertes en temps réel.
+**Contexte** : Le plugin Rust `symbion-plugin-telegram` (teloxide) est actif. Il faut connecter le système de notifications du kernel au bot Telegram pour recevoir les alertes en temps réel.
 
 **Fonctionnalités** :
 - [ ] Notifications agent offline/online → message Telegram
@@ -44,13 +44,12 @@
 **Implémentation** :
 - Kernel : nouveau subscriber MQTT `symbion/notifications/sent@v1` → forward vers Telegram
 - Plugin Telegram : endpoint `/notify` ou topic MQTT `symbion/telegram/send`
-- Bridge Python : enrichir avec formatage riche (HTML Telegram)
+- Plugin Telegram : formatage riche (HTML Telegram)
 - PWA Settings : page config notifications Telegram (on/off par catégorie)
 
 **Fichiers concernés** :
 - `symbion-plugin-telegram/src/events.rs` — réception events kernel
 - `symbion-kernel/src/notifications.rs` — ajout canal Telegram
-- `scripts/telegram-bridge/bridge.py` — formatage notifications
 - `pwa-dashboard/src/components/user-settings-page.js` — UI config
 
 ---

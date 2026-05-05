@@ -92,9 +92,8 @@ Vue d'ensemble de l'architecture IoT distribuée.
 
 **Fonctionnalités**:
 - ✅ **Bot Telegram** - Plugin Rust avec teloxide
-- ✅ **Claude Code Bridge** - Bridge Python pour sessions interactives
 - ✅ **Commandes** - `/new`, `/continue`, `/cancel`, `/model`, `/effort`, `/status`
-- ✅ **Service systemd** - `symbion-telegram-bridge` (user eridwyn)
+- ✅ **Service systemd** - `symbion-plugin-telegram` (user eridwyn)
 
 ### 🌐 public-lib - Page Publique Bibliothèque
 
