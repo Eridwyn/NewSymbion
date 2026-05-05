@@ -20,21 +20,26 @@ pub struct CondorClient {
 }
 
 impl CondorClient {
-    pub fn new(ip: &str, port: u16, client_id: &str, client_secret: &str) -> Self {
+    pub fn new(ip: &str, port: u16, client_id: &str, client_secret: &str) -> Result<Self> {
         let http = reqwest::Client::builder()
             .danger_accept_invalid_certs(true) // Self-signed CN=CoffeeOmnia
             .connect_timeout(std::time::Duration::from_secs(5))
             .timeout(std::time::Duration::from_secs(8))
             .build()
-            .expect("Failed to create HTTP client");
+            .context("Failed to create HTTP client")?;
 
-        Self {
+        let client_id_bytes = B64.decode(client_id)
+            .context("Invalid client_id base64 in config")?;
+        let client_secret_bytes = B64.decode(client_secret)
+            .context("Invalid client_secret base64 in config")?;
+
+        Ok(Self {
             base_url: format!("https://{}:{}/di/v1/products", ip, port),
             client_id_b64: client_id.to_string(),
-            client_id_bytes: B64.decode(client_id).expect("Invalid client_id base64"),
-            client_secret_bytes: B64.decode(client_secret).expect("Invalid client_secret base64"),
+            client_id_bytes,
+            client_secret_bytes,
             http,
-        }
+        })
     }
 
     /// Build Authorization header from a WWW-Authenticate challenge
@@ -180,7 +185,8 @@ mod tests {
             443,
             "VjVaLHrgarGVGuO1svdzBA==",
             "V+oG/9f0nV4wOlFIWyDgkw==",
-        );
+        )
+        .expect("valid base64 in test fixture");
 
         let id_len = client.client_id_bytes.len();
         let secret_len = client.client_secret_bytes.len();

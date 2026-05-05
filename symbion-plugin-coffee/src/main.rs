@@ -638,7 +638,7 @@ async fn main() -> Result<()> {
         config.machine.port,
         &config.machine.client_id,
         &config.machine.client_secret,
-    );
+    )?;
 
     // Test connectivity
     match condor.get("1/machinestatus").await {
