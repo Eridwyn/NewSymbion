@@ -60,6 +60,25 @@ class ContextService extends LitElement {
     }
     document.body.addEventListener('context-change', this._externalContextHandler)
 
+    // Listen for MQTT push (dashboard-context) — instant updates instead of waiting for next 30s poll
+    this._mqttContextHandler = (event) => {
+      const ctx = event.detail?.context
+      if (!ctx) return
+      const mode = ctx.mode_slug || (typeof ctx.mode === 'string' ? ctx.mode.toLowerCase() : null)
+      if (!mode) return
+      const previousMode = this.currentMode
+      this.currentMode = mode
+      this.contextState = ctx
+      this.status = 'ready'
+      if (ctx.theme) {
+        this.applyTheme(ctx.theme)
+      }
+      if (previousMode !== mode) {
+        console.log(`[context-service] MQTT mode change: ${previousMode} -> ${mode} (${ctx.reason || ''})`)
+      }
+    }
+    document.body.addEventListener('dashboard-context', this._mqttContextHandler)
+
     // Check if already logged in (use authService to verify)
     if (authService.isAuthenticated()) {
       console.log('[context-service] User already authenticated, fetching context...')
@@ -86,6 +105,9 @@ class ContextService extends LitElement {
     }
     if (this._externalContextHandler) {
       document.body.removeEventListener('context-change', this._externalContextHandler)
+    }
+    if (this._mqttContextHandler) {
+      document.body.removeEventListener('dashboard-context', this._mqttContextHandler)
     }
   }
 
