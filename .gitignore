@@ -93,6 +93,12 @@ private/
 # Claude Code configuration (local settings, commands custom)
 .claude/
 
+# Claude Code: local agents, MCP servers (second brain), hooks
+.mcp.json
+agents/
+mcp-servers/
+scripts/claude-hooks/
+
 # GitHub Actions workflows - tracked in git
 # .github/
 
