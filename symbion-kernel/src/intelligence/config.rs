@@ -149,7 +149,7 @@ impl Default for V2StabilizationConfig {
 impl Default for IntelligenceConfig {
     fn default() -> Self {
         Self {
-            auto_apply_threshold: 0.60,  // v1.1.10: lowered for more responsiveness
+            auto_apply_threshold: 0.50,  // v1.5.0: lowered to match real-world v2 confidence ceiling (~0.5-0.7)
             suggestion_threshold: 0.30,  // v1.1.10: lowered to show more suggestions
             min_pattern_occurrences: 3,
             weights: SignalWeights::default(),
@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = IntelligenceConfig::default();
-        assert_eq!(config.auto_apply_threshold, 0.60);
+        assert_eq!(config.auto_apply_threshold, 0.50);
         assert_eq!(config.suggestion_threshold, 0.30);
         assert_eq!(config.min_pattern_occurrences, 3);
         assert!(config.auto_create_automations);
