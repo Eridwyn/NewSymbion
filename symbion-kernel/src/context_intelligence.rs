@@ -1571,6 +1571,7 @@ impl ContextIntelligence {
                     && v2_mode != &current_mode
                     && v2_config.auto_apply_enabled;
 
+                let mut v2_applied = false;
                 if v2_would_apply {
                     eprintln!(
                         "[intelligence] ✨ v2 AUTO-APPLY: {} → {} (conf: {:.0}%, {} samples, all guards passed)",
@@ -1579,7 +1580,37 @@ impl ContextIntelligence {
                         v2_conf * 100.0,
                         prediction_v2.samples_used
                     );
-                    // TODO: Actually apply when v2_config.auto_apply_enabled = true
+
+                    // Get theme from mode registry, fallback to neutral grey if mode unknown
+                    let mode_theme = mode_registry.get_by_slug(v2_mode).map(|m| m.theme.clone());
+                    let theme = match mode_theme {
+                        Some(mt) => Theme {
+                            primary: mt.primary,
+                            bg: mt.background,
+                            accent: mt.accent,
+                        },
+                        None => Theme {
+                            primary: "#6b7280".to_string(),
+                            bg: "#f9fafb".to_string(),
+                            accent: "#4b5563".to_string(),
+                        },
+                    };
+
+                    let reason = format!(
+                        "Intelligence v2 ({} samples, conf {:.0}%)",
+                        prediction_v2.samples_used,
+                        v2_conf * 100.0
+                    );
+
+                    intelligence.context_engine.set_mode_natural(
+                        v2_mode.clone(),
+                        theme,
+                        reason,
+                    );
+
+                    intelligence.mark_last_prediction_correct();
+                    intelligence.increment_counter(|c| c.auto_applied += 1);
+                    v2_applied = true;
                 } else if guard_result.allowed && v2_mode != &current_mode {
                     // Would apply but auto_apply_enabled = false
                     eprintln!(
@@ -1635,7 +1666,9 @@ impl ContextIntelligence {
                         config.min_pattern_occurrences,
                     );
 
-                    if prediction.confidence >= config.auto_apply_threshold && !recent_manual_change && has_established {
+                    if v2_applied {
+                        // v2 already applied this cycle, skip v1 to avoid double-set / overwrite.
+                    } else if prediction.confidence >= config.auto_apply_threshold && !recent_manual_change && has_established {
                         // AUTO-APPLY: High confidence + established pattern + no recent manual change
                         eprintln!(
                             "[intelligence] 🎯 Auto-apply: {} → {} (confiance {:.0}%, pattern établi)",
