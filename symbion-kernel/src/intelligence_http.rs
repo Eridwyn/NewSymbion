@@ -303,9 +303,37 @@ async fn post_feedback(
     app.inference_engine.record_correction(&vector, &req.chosen_mode);
     eprintln!("[intelligence] Feedback correction recorded: {} (v1+v2)", req.chosen_mode);
 
+    // Apply mode immediately (60min override) so the user sees the change.
+    // Without this, feedback only teaches the model — frustrating UX where
+    // the user clicks "Maison" but the active mode stays unchanged.
+    let mode_slug = req.chosen_mode.to_lowercase();
+    let mut applied = false;
+    if let Some(dynamic_mode) = app.mode_registry.get_by_slug(&mode_slug) {
+        let theme = crate::context::Theme {
+            primary: dynamic_mode.theme.primary,
+            bg: dynamic_mode.theme.background,
+            accent: dynamic_mode.theme.accent,
+        };
+        if let Some(state) = app.context_engine.set_override_dynamic(
+            dynamic_mode.slug.clone(),
+            theme,
+            60,
+            "Correction utilisateur via PWA".to_string(),
+        ) {
+            let _ = app.dashboard_events.publish_context_change(&state).await;
+            applied = true;
+        }
+    }
+
+    let message = if applied {
+        format!("Feedback recorded for mode '{}' (v1+v2) and override applied (60min)", req.chosen_mode)
+    } else {
+        format!("Feedback recorded for mode '{}' (v1+v2) but override skipped (unknown mode slug)", req.chosen_mode)
+    };
+
     Json(FeedbackResponse {
         success: true,
-        message: format!("Feedback recorded for mode '{}' (v1+v2)", req.chosen_mode),
+        message,
     })
 }
 
