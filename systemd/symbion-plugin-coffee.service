@@ -1,8 +1,8 @@
 [Unit]
 Description=Symbion Coffee Plugin (Philips EP2520/10)
 Documentation=https://github.com/Eridwyn/NewSymbion
-After=symbion-kernel.service
-Requires=symbion-kernel.service
+After=mosquitto.service
+Wants=mosquitto.service
 
 [Service]
 Type=simple
