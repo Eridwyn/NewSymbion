@@ -140,8 +140,8 @@ impl Default for V2StabilizationConfig {
             recent_days_window: 14,
             min_session_stable_minutes: 3,
             bootstrap_decay_half_life_days: 7.0,
-            auto_apply_enabled: false,  // Disabled until validation
-            suggestions_enabled: false, // Disabled until validation
+            auto_apply_enabled: true,   // v1.5.0: enabled after live validation (guards verified passing)
+            suggestions_enabled: true,  // v1.5.0: enabled to push mid-confidence (0.30-0.50) suggestions
         }
     }
 }
