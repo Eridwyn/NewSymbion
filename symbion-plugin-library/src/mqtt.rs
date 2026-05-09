@@ -1,9 +1,19 @@
 use anyhow::{Context, Result};
 use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
+use serde::Serialize;
 use std::time::Duration;
 use tokio::sync::mpsc;
 
 const PLUGIN_TOPIC: &str = "symbion/plugins/library";
+
+#[derive(Debug, Serialize)]
+struct FeatureUpdate {
+    source: String,
+    feature_id: String,
+    value: serde_json::Value,
+    timestamp: String,
+    ttl_seconds: u32,
+}
 
 pub struct MqttPublisher {
     client: AsyncClient,
@@ -95,20 +105,37 @@ impl MqttPublisher {
         Ok(())
     }
 
+    /// Publish library features to the kernel FeatureRegistry.
+    /// Schema: one MQTT message per feature, matching `ExternalFeatureUpdate`
+    /// expected by symbion-kernel/src/mqtt.rs:66-72.
     pub async fn publish_features(&self, nodes: i64, sections: i64, pending: i64) -> Result<()> {
-        let payload = serde_json::json!({
-            "source": "library",
-            "features": {
-                "library.nodes.count": nodes,
-                "library.sections.count": sections,
-                "library.pending_links.count": pending
-            },
-            "timestamp": chrono::Utc::now().to_rfc3339()
-        });
-        self.client
-            .publish("symbion/features/update", QoS::AtLeastOnce, false, payload.to_string())
-            .await
-            .context("Failed to publish features")?;
+        let now = chrono::Utc::now().to_rfc3339();
+        let ttl = 600; // library publie peu fréquemment (sur changement)
+
+        let features: Vec<(&str, serde_json::Value)> = vec![
+            ("library.nodes.count", nodes.into()),
+            ("library.sections.count", sections.into()),
+            ("library.pending_links.count", pending.into()),
+        ];
+
+        for (id, value) in features {
+            let msg = FeatureUpdate {
+                source: "plugin.library".to_string(),
+                feature_id: id.to_string(),
+                value,
+                timestamp: now.clone(),
+                ttl_seconds: ttl,
+            };
+            self.client
+                .publish(
+                    "symbion/features/update",
+                    QoS::AtLeastOnce,
+                    false,
+                    serde_json::to_vec(&msg).context("serialize feature")?,
+                )
+                .await
+                .with_context(|| format!("Failed to publish feature {}", id))?;
+        }
         Ok(())
     }
 }

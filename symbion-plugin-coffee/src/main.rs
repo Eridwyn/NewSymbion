@@ -130,6 +130,9 @@ pub struct MachineStatus {
     pub aquaclean_installed: bool,
     pub aquaclean_remaining: Option<u8>,
     pub last_update: String,
+    pub brew_count_today: u32,
+    pub last_brew_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub brew_count_date: Option<chrono::NaiveDate>,
 }
 
 impl MachineStatus {
@@ -550,6 +553,16 @@ async fn poll_status(state: Arc<PluginState>) {
                         // Brewing completed
                         if prev_brewing && !current_brewing {
                             info!("Brewing completed");
+                            {
+                                let mut s = state.status.write().await;
+                                let today = chrono::Utc::now().date_naive();
+                                if s.brew_count_date != Some(today) {
+                                    s.brew_count_today = 0;
+                                    s.brew_count_date = Some(today);
+                                }
+                                s.brew_count_today = s.brew_count_today.saturating_add(1);
+                                s.last_brew_at = Some(chrono::Utc::now());
+                            }
                             state.mqtt.publish_event("brewing/completed", &serde_json::json!({})).await;
                         }
 
