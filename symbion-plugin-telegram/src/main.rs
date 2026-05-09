@@ -12,7 +12,8 @@ use std::time::Duration;
 use symbion_plugin_common::PluginHttpServer;
 use teloxide::payloads::SendMessageSetters;
 use teloxide::prelude::*;
-use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
+use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup, ParseMode};
+use teloxide::utils::html as tg_html;
 use tokio::signal::unix::{signal, SignalKind};
 
 use crate::actions::{handle_action, health_handler};
@@ -207,7 +208,15 @@ async fn handle_notification(state: &AppState, json: &serde_json::Value) {
         _ => "ℹ️",
     };
 
-    let text = format!("{} [{}] {}\n{}\n\n📌 {}", icon, priority, title, body, source);
+    // HTML formatting (parse_mode HTML côté Telegram). Échappement obligatoire
+    // pour éviter qu'un body contenant `<` `>` `&` ne casse le rendu.
+    let title_html = tg_html::escape(title);
+    let body_html = tg_html::escape(body);
+    let source_html = tg_html::escape(source);
+
+    let text = format!(
+        "{icon} <b>{title_html}</b>\n{body_html}\n\n<i>📌 {source_html} · {priority}</i>"
+    );
 
     // Extract actions for inline keyboard
     let actions = notif.get("actions").and_then(|v| v.as_array());
@@ -264,9 +273,14 @@ async fn handle_notification(state: &AppState, json: &serde_json::Value) {
         None
     };
 
-    // Send to all allowed users
+    // Send to all allowed users (parse_mode HTML, P2 silencieux)
+    let silent = priority == "P2";
     for &user_id in &state.config.allowed_user_ids {
-        let msg = state.bot.send_message(ChatId(user_id), &text);
+        let mut msg = state.bot.send_message(ChatId(user_id), &text)
+            .parse_mode(ParseMode::Html);
+        if silent {
+            msg = msg.disable_notification(true);
+        }
         if let Some(ref kb) = keyboard {
             let _ = msg.reply_markup(kb.clone()).await;
         } else {

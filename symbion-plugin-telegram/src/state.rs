@@ -129,3 +129,128 @@ impl AppState {
         self.pending_notifs.remove(notif_id);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use rumqttc::MqttOptions;
+    use std::collections::HashSet;
+    use std::path::PathBuf;
+
+    fn make_state() -> AppState {
+        let config = Config {
+            telegram_bot_token: "test-token".into(),
+            allowed_user_ids: HashSet::from([42]),
+            claude_path: PathBuf::from("/usr/local/bin/claude"),
+            claude_timeout_secs: 600,
+            claude_workdir: PathBuf::from("/tmp"),
+            mqtt_broker_host: "localhost".into(),
+            mqtt_broker_port: 1883,
+            socket_path: PathBuf::from("/tmp/test.sock"),
+            kernel_api_key: "key".into(),
+        };
+        let opts = MqttOptions::new("test-client", "127.0.0.1", 1883);
+        let (mqtt_client, _eventloop) = AsyncClient::new(opts, 10);
+        let bot = Bot::new("123:dummy");
+        AppState::new(config, mqtt_client, bot)
+    }
+
+    #[test]
+    fn user_session_default_values() {
+        let s = UserSession::default();
+        assert!(s.session_id.is_none());
+        assert_eq!(s.model, "sonnet");
+        assert_eq!(s.effort, "low");
+    }
+
+    #[test]
+    fn get_session_returns_default_when_absent() {
+        let st = make_state();
+        let s = st.get_session(999);
+        assert!(s.session_id.is_none());
+        assert_eq!(s.model, "sonnet");
+    }
+
+    #[test]
+    fn update_session_persists_changes() {
+        let st = make_state();
+        st.update_session(42, |s| {
+            s.model = "opus".into();
+            s.session_id = Some("sess-1".into());
+        });
+        let s = st.get_session(42);
+        assert_eq!(s.model, "opus");
+        assert_eq!(s.session_id.as_deref(), Some("sess-1"));
+    }
+
+    #[test]
+    fn is_busy_false_when_no_active_task() {
+        let st = make_state();
+        assert!(!st.is_busy(42));
+    }
+
+    #[test]
+    fn is_busy_true_when_token_inserted() {
+        let st = make_state();
+        st.active_tasks.insert(42, CancellationToken::new());
+        assert!(st.is_busy(42));
+        assert!(!st.is_busy(43));
+    }
+
+    #[test]
+    fn add_history_keeps_entries() {
+        let st = make_state();
+        st.add_history(42, "first prompt", true, "sonnet");
+        st.add_history(42, "second prompt", false, "opus");
+        let h = st.get_history(42);
+        assert_eq!(h.len(), 2);
+        assert_eq!(h[0].prompt, "first prompt");
+        assert_eq!(h[0].success, true);
+        assert_eq!(h[1].model, "opus");
+        assert_eq!(h[1].success, false);
+    }
+
+    #[test]
+    fn add_history_truncates_to_max() {
+        let st = make_state();
+        for i in 0..(MAX_HISTORY + 10) {
+            st.add_history(42, &format!("p{}", i), true, "sonnet");
+        }
+        let h = st.get_history(42);
+        assert_eq!(h.len(), MAX_HISTORY);
+        // Les anciennes entrées ont été drainées : la première doit être p10
+        assert_eq!(h[0].prompt, "p10");
+        assert_eq!(h[MAX_HISTORY - 1].prompt, format!("p{}", MAX_HISTORY + 9));
+    }
+
+    #[test]
+    fn get_history_empty_for_unknown_user() {
+        let st = make_state();
+        assert!(st.get_history(999).is_empty());
+    }
+
+    #[test]
+    fn cache_and_retrieve_notification() {
+        let st = make_state();
+        let data = serde_json::json!({"title": "Test", "body": "Body"});
+        st.cache_notification("notif-1", data.clone());
+        let cached = st.get_cached_notif("notif-1").expect("must exist");
+        assert_eq!(cached.data, data);
+    }
+
+    #[test]
+    fn remove_cached_notif_clears_entry() {
+        let st = make_state();
+        st.cache_notification("notif-1", serde_json::json!({}));
+        assert!(st.get_cached_notif("notif-1").is_some());
+        st.remove_cached_notif("notif-1");
+        assert!(st.get_cached_notif("notif-1").is_none());
+    }
+
+    #[test]
+    fn get_cached_notif_none_when_absent() {
+        let st = make_state();
+        assert!(st.get_cached_notif("nope").is_none());
+    }
+}
