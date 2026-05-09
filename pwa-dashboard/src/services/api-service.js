@@ -297,6 +297,8 @@ class ApiService extends LitElement {
   }
   
   // Notes API (port memo)
+  // Le plugin renvoie { count, notes: [...] }. On unwrap ici pour que les callers
+  // reçoivent directement l'array (sinon validateArrayResponse() retourne fallback []).
   async getNotes(filters = {}) {
     const params = new URLSearchParams()
     Object.entries(filters).forEach(([key, value]) => {
@@ -307,7 +309,10 @@ class ApiService extends LitElement {
 
     const query = params.toString() ? `?${params.toString()}` : ''
     // Timeout de 30s pour les grandes collections de notes
-    return await this.request(`/v1/plugin-api/notes/notes${query}`, { timeout: 30000 })
+    const data = await this.request(`/v1/plugin-api/notes/notes${query}`, { timeout: 30000 })
+    if (Array.isArray(data)) return data
+    if (data && Array.isArray(data.notes)) return data.notes
+    return []
   }
 
   async createNote(note) {
