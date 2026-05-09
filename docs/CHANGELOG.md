@@ -4,6 +4,39 @@ Historique des améliorations et changements majeurs du projet.
 
 ---
 
+## ☕ Coffee + Library — Intégration Intelligence Engine (9 Mai 2026)
+
+**Status**: 🟢 Complété (commit `49e5d7d`)
+
+### Bug schéma MQTT (silencieux depuis le déploiement)
+Les plugins `coffee` et `library` publiaient sur `symbion/features/update` avec un schéma incompatible (`{"features": {...}}` wrappé) que le kernel rejetait silencieusement à la désérialisation. Aucune feature ne remontait au `FeatureRegistry`, le Decision Engine ignorait totalement l'état machine à café et la knowledge base.
+
+### Fix
+- **Refactor `publish_features`** sur les deux plugins : un message MQTT par feature, schéma `FeatureUpdate { source, feature_id, value, timestamp, ttl_seconds }` matchant `ExternalFeatureUpdate` côté kernel (`symbion-kernel/src/mqtt.rs:66-72`)
+- Pattern de référence : `symbion-plugin-ssl/src/mqtt.rs:241-246`
+
+### Coffee : nouvelles features + automations
+- `MachineStatus` étendu : `brew_count_today`, `last_brew_at`, `brew_count_date` (volatile, reset à minuit)
+- Hook `brewing/completed` incrémente le compteur et timestamp le dernier brew
+- 11 features désormais exposées : `coffee.online`, `.ready`, `.brewing`, `.brew_progress`, `.water_level`, `.bean_level`, `.maintenance`, `.descale_status`, `.aquaclean_remaining`, `.brews_today`, `.last_brew_minutes_ago`
+- 4 automations cibles dans le Decision Engine :
+  - `auto_coffee_ready_morning` — notif Telegram P2 quand `coffee.ready=true` entre 6h-10h hors mode veille (cooldown 30 min)
+  - `auto_coffee_water_low` — niveau eau < 20 % (cooldown 1 h)
+  - `auto_coffee_beans_low` — niveau grains < 20 % (cooldown 1 h)
+  - `auto_coffee_descale` — `descale_status <= 4` (logique inversée : 0 = besoin urgent, cooldown 24 h)
+
+### Library : 3 features remontent désormais
+- `library.nodes.count`, `library.sections.count`, `library.pending_links.count`
+
+### Validation E2E
+Run manuel `POST /v1/automations/auto_coffee_water_low/run` → Decision Engine approuve (trust 0.79) → notification émise → reçue par `symbion-plugin-telegram` via MQTT.
+
+### Découvertes documentées (second brain)
+- Plugins déployés selon 2 patterns différents : `target/release/` direct (coffee) vs `/opt/symbion/bin/` (library) — un restart après rebuild ne suffit pas pour ce dernier
+- Moteur d'automations : dual storage SQLite (primary, override JSON au boot) + JSON (backup). Modifier `data/automations.json` à la main pendant runtime ne sert à rien.
+
+---
+
 ## 🔐 PWA Auth & Widget Fixes (31 Mars 2026)
 
 **Status**: 🟢 Complété

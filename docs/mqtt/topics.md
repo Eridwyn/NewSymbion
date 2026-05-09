@@ -1071,7 +1071,7 @@ else if p.topic == "symbion/notifications/acknowledge@v1" {
 
 **Description** : Enregistrement du manifest plugin (nom, version, capabilities, socket path)
 
-**Plugins actifs** : `notes`, `ssl`, `sensors`, `library`, `telegram`, `freebox`
+**Plugins actifs** : `notes`, `ssl`, `sensors`, `library`, `telegram`, `freebox`, `coffee`
 
 ---
 
@@ -1099,11 +1099,22 @@ else if p.topic == "symbion/notifications/acknowledge@v1" {
 
 **Direction** : Plugins → Kernel
 **QoS** : 1
-**Fréquence** : Mise à jour features Intelligence v2
+**Fréquence** : Mise à jour features Intelligence v2 (1 message par feature)
 
-**Description** : Signal contextuel pour le moteur d'intelligence (TTL, signal_type, feature_id)
+**Schéma attendu** (`ExternalFeatureUpdate`, cf. `symbion-kernel/src/mqtt.rs:66-72`) :
+```json
+{
+  "source": "plugin.<name>",
+  "feature_id": "<scope>.<key>",
+  "value": <bool | number | string>,
+  "timestamp": "<RFC3339>",
+  "ttl_seconds": <u32>
+}
+```
 
-**Utilisé par** : SSL plugin, Library plugin
+> ⚠️ Tout autre format (ex: `{"features": {...}}` wrappé) est **rejeté silencieusement** — log `feature update JSON invalide` côté kernel uniquement. Le champ `signal_type` envoyé par certains plugins (SSL) est ignoré par serde (pas dans la struct).
+
+**Utilisé par** : SSL plugin, Library plugin, Coffee plugin
 
 ---
 
@@ -1122,12 +1133,28 @@ else if p.topic == "symbion/notifications/acknowledge@v1" {
 
 ## 📚 Library Plugin Topics
 
-> **Source**: `symbion-plugin-library/src/mqtt.rs:70-96`
+> **Source**: `symbion-plugin-library/src/mqtt.rs`
 
 | Topic | Direction | Description |
 |-------|-----------|-------------|
 | `symbion/library/nodes/{event_type}` | Plugin → Kernel | Événements knowledge nodes (create/update/delete) |
 | `symbion/library/links/pending` | Plugin → Kernel | Liens en attente de confirmation |
+| `symbion/features/update` | Plugin → Kernel | Features Intelligence : `library.nodes.count`, `library.sections.count`, `library.pending_links.count` (TTL 600s) |
+
+---
+
+## ☕ Coffee Plugin Topics
+
+> **Source**: `symbion-plugin-coffee/src/mqtt.rs`
+
+| Topic | Direction | Description |
+|-------|-----------|-------------|
+| `symbion/coffee/brewing/started` | Plugin → Kernel | Brewing démarré (drink, temperature, cups) |
+| `symbion/coffee/brewing/completed` | Plugin → Kernel | Brewing terminé (incrémente `brews_today`) |
+| `symbion/coffee/power` | Plugin → Kernel | Changement état alim (on/off) |
+| `symbion/coffee/maintenance/alert` | Plugin → Kernel | Alerte maintenance (raison) |
+| `symbion/coffee/status` | Plugin → Kernel | Dump complet état machine (toutes les 10s) |
+| `symbion/features/update` | Plugin → Kernel | 11 features Intelligence (TTL 120s) : `coffee.online`, `.ready`, `.brewing`, `.brew_progress`, `.water_level`, `.bean_level`, `.maintenance`, `.descale_status`, `.aquaclean_remaining`, `.brews_today`, `.last_brew_minutes_ago` |
 
 ---
 

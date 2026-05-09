@@ -21,7 +21,7 @@
 | API Routes | 178+ endpoints |
 | MQTT Topics | 62 (18 core + 44 plugins) |
 | SQLite | 22 tables, 5 migrations |
-| Plugins | notes, ssl, sensors, library, telegram, freebox, common |
+| Plugins | notes, ssl, sensors, library, telegram, freebox, common, coffee |
 
 ---
 
@@ -212,7 +212,7 @@ Tout ce qui suit est **terminé et en production** :
 - **Automations Engine** — 16 règles actives, scheduler, event-driven
 - **Agent Host v2.5** — Watchdog, file transfer, scheduler, log collector, 11 handlers
 - **SQLite Migration** — 22 tables, JSON fallback, 5 migrations
-- **Plugin System** — 7 plugins (notes, ssl, sensors, library, telegram, freebox, common)
+- **Plugin System** — 8 plugins (notes, ssl, sensors, library, telegram, freebox, common, coffee)
 - **Bibliothèque de Connaissances** — Graph, templates, FTS5, éditeur visuel, page publique
 - **Bot Telegram** — Bridge Python + plugin Rust, commandes Claude Code
 - **Plugin Cafetière v1** — Philips EP2520/10, Condor LAN, brew/power/status, AquaClean, widget PWA, Telegram
