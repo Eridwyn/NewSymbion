@@ -1421,6 +1421,7 @@ impl ContextIntelligence {
         feature_registry: crate::intelligence::SharedFeatureRegistry,
         inference_engine: crate::intelligence::SharedInferenceEngine,
         agent_registry: crate::agents::SharedAgentRegistry,
+        dashboard_events: crate::dashboard_events::DashboardEventPublisher,
     ) {
         tokio::spawn(async move {
             eprintln!("[intelligence] 🧠 Intelligence monitor started (with v2 shadow mode)");
@@ -1602,11 +1603,14 @@ impl ContextIntelligence {
                         v2_conf * 100.0
                     );
 
-                    intelligence.context_engine.set_mode_natural(
+                    if let Some(new_state) = intelligence.context_engine.set_mode_natural(
                         v2_mode.clone(),
                         theme,
                         reason,
-                    );
+                    ) {
+                        // Republier sur MQTT pour que la PWA reçoive le push (sinon retain stale)
+                        let _ = dashboard_events.publish_context_change(&new_state).await;
+                    }
 
                     intelligence.mark_last_prediction_correct();
                     intelligence.increment_counter(|c| c.auto_applied += 1);
@@ -1697,11 +1701,14 @@ impl ContextIntelligence {
                             prediction.reasons.join(" + ")
                         };
 
-                        intelligence.context_engine.set_mode_natural(
+                        if let Some(new_state) = intelligence.context_engine.set_mode_natural(
                             prediction.mode.clone(),
                             theme,
                             reason,
-                        );
+                        ) {
+                            // Republier sur MQTT pour que la PWA reçoive le push (sinon retain stale)
+                            let _ = dashboard_events.publish_context_change(&new_state).await;
+                        }
 
                         // Mark prediction as correct for accuracy tracking
                         intelligence.mark_last_prediction_correct();

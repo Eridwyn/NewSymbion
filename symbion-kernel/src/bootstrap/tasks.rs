@@ -115,6 +115,20 @@ pub async fn spawn_background_tasks(
         Some(automation_dispatcher.clone()),
     );
 
+    // Sync MQTT retain au boot avec l'état mémoire chargé depuis disk.
+    // Sans ça, après un restart kernel le retain garde l'ancien message
+    // (jusqu'au prochain changement de mode) → PWA reconnect = état stale.
+    if let Some(boot_state) = context_engine.get_state() {
+        let de = dashboard_events.clone();
+        tokio::spawn(async move {
+            if let Err(e) = de.publish_context_change(&boot_state).await {
+                eprintln!("[context] boot publish_context_change failed: {}", e);
+            } else {
+                println!("[context] MQTT retain synced at boot ({})", boot_state.mode_slug.unwrap_or_else(|| format!("{:?}", boot_state.mode).to_lowercase()));
+            }
+        });
+    }
+
     // Note: MQTT listener (spawn_mqtt_listener) is spawned from main.rs
     // because it depends on states/cfg/notes_bridge which span all subsystems.
 
@@ -170,6 +184,7 @@ pub async fn spawn_background_tasks(
         int_sub.feature_registry.clone(),
         int_sub.inference_engine.clone(),
         db_sub.agents.clone(),
+        dashboard_events.clone(),
     );
     println!("[kernel] context intelligence monitor started (with v2 shadow mode)");
 
