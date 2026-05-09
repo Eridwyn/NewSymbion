@@ -77,7 +77,8 @@ struct Claims {
 let claims = Claims {
     sub: user.id.clone(),
     username: user.username.clone(),
-    exp: (Utc::now() + Duration::hours(24)).timestamp(),
+    // Durée par défaut 8h (configurable via SYMBION_TOKEN_EXPIRY_HOURS)
+    exp: (Utc::now() + Duration::hours(8)).timestamp(),
     mfa_verified: false,
 };
 
@@ -126,7 +127,7 @@ request.extensions_mut().insert(User {
 curl -X POST https://localhost:8443/refresh \
   -H "Authorization: Bearer $OLD_TOKEN"
 
-# Réponse : nouveau token avec 24h supplémentaires
+# Réponse : nouveau token avec 8h supplémentaires (durée standard, configurable)
 {
   "token": "eyJ0eXAiOiJKV1Qi...",
   "expires_at": 1699974000
@@ -581,7 +582,7 @@ println!("[auth] WebAuthn authentication: user={}, credential={}",
 
 | Élément | Durée | Raison |
 |---------|-------|--------|
-| JWT | 24h | Session standard |
+| JWT | 8h (défaut, configurable via `SYMBION_TOKEN_EXPIRY_HOURS`) | Session standard |
 | MFA Token (temporaire) | 5 min | Fenêtre complétion MFA |
 | CSRF Nonce | 5 min | Protection replay attack |
 | Device Trust | 30 jours | Balance sécurité/UX |

@@ -1576,3 +1576,187 @@ fn urlencoding(s: &str) -> String {
         .replace('=', "%3D")
         .replace('#', "%23")
 }
+
+#[cfg(test)]
+mod pure_tests {
+    use super::*;
+    use serde_json::json;
+
+    // ---- truncate ----
+
+    #[test]
+    fn truncate_no_op_when_short() {
+        assert_eq!(truncate("hello", 10), "hello");
+    }
+
+    #[test]
+    fn truncate_cuts_long_strings() {
+        assert_eq!(truncate("hello world", 5), "hello");
+    }
+
+    #[test]
+    fn truncate_respects_utf8_boundaries() {
+        // "café" = 5 bytes (c=1, a=1, f=1, é=2). Couper à 4 bytes coupe au milieu de é.
+        // L'impl doit reculer jusqu'à un char boundary valide.
+        let r = truncate("café", 4);
+        assert!(r == "caf"); // tombe sur boundary 3
+    }
+
+    #[test]
+    fn truncate_handles_emoji() {
+        // emoji 4 bytes — couper au milieu doit reculer
+        let r = truncate("ab🚀cd", 4);
+        // 'a','b'=2 bytes, '🚀'=4 bytes. Couper à 4 = milieu de 🚀, recule à 2.
+        assert_eq!(r, "ab");
+    }
+
+    // ---- urlencoding ----
+
+    #[test]
+    fn urlencoding_replaces_special_chars() {
+        assert_eq!(urlencoding("a b&c=d#e"), "a%20b%26c%3Dd%23e");
+    }
+
+    #[test]
+    fn urlencoding_no_op_on_safe_chars() {
+        assert_eq!(urlencoding("abc-123_xyz"), "abc-123_xyz");
+    }
+
+    // ---- format_json_for_telegram ----
+
+    #[test]
+    fn format_empty_array_returns_friendly_message() {
+        let r = format_json_for_telegram(&json!([]));
+        assert!(r.contains("Aucun"));
+    }
+
+    #[test]
+    fn format_array_lists_items_numbered() {
+        let r = format_json_for_telegram(&json!([
+            {"name": "alpha", "status": "online"},
+            {"name": "beta", "status": "offline"}
+        ]));
+        assert!(r.contains("1. "));
+        assert!(r.contains("2. "));
+        assert!(r.contains("alpha"));
+        assert!(r.contains("beta"));
+    }
+
+    #[test]
+    fn format_array_truncates_at_15_items() {
+        let items: Vec<_> = (0..20).map(|i| json!({"name": format!("item{}", i)})).collect();
+        let r = format_json_for_telegram(&json!(items));
+        // Doit mentionner "et N de plus"
+        assert!(r.contains("de plus"));
+        assert!(r.contains("5 de plus"));
+    }
+
+    #[test]
+    fn format_unwraps_plugins_wrapper() {
+        let r = format_json_for_telegram(&json!({
+            "plugins": [{"name": "ssl", "status": "healthy"}]
+        }));
+        assert!(r.contains("ssl"));
+        assert!(r.contains("1. "));
+    }
+
+    #[test]
+    fn format_unwraps_summary_in_wrapped_array() {
+        let r = format_json_for_telegram(&json!({
+            "domains": [{"name": "example.com", "status_level": "ok"}],
+            "summary": {"total": 1, "expired": 0, "timestamp": "2026-05-09"}
+        }));
+        assert!(r.contains("example.com"));
+        // summary appended après les items
+        assert!(r.contains("📊"));
+        assert!(r.contains("total: 1"));
+        // timestamp doit être ignoré dans le summary
+        assert!(!r.contains("timestamp"));
+    }
+
+    #[test]
+    fn format_object_skips_internal_keys() {
+        let r = format_json_for_telegram(&json!({
+            "title": "Hello",
+            "timestamp": "2026-05-09",
+            "spec_version": "1.0",
+            "active": true
+        }));
+        assert!(r.contains("title: Hello"));
+        assert!(r.contains("active: ✅"));
+        assert!(!r.contains("timestamp"));
+        assert!(!r.contains("spec_version"));
+    }
+
+    #[test]
+    fn format_object_renders_bool_with_emoji() {
+        let r = format_json_for_telegram(&json!({"online": false}));
+        assert!(r.contains("online: ❌"));
+    }
+
+    // ---- format_json_item ----
+
+    #[test]
+    fn format_item_with_name_and_status() {
+        let r = format_json_item(&json!({"name": "kernel", "status": "healthy"}), 1);
+        assert!(r.starts_with("1. "));
+        assert!(r.contains("🟢"));
+        assert!(r.contains("kernel"));
+    }
+
+    #[test]
+    fn format_item_uses_fallback_label_keys() {
+        // Tente label > name > hostname > title > plugin_id > agent_id > id
+        let r = format_json_item(&json!({"agent_id": "agt-42", "state": "Running"}), 3);
+        assert!(r.contains("agt-42"));
+        assert!(r.contains("🟢")); // "Running" mappe vert
+    }
+
+    #[test]
+    fn format_item_unknown_status_uses_white_circle() {
+        let r = format_json_item(&json!({"name": "thing", "status": "weird-state"}), 1);
+        assert!(r.contains("⚪"));
+    }
+
+    #[test]
+    fn format_item_includes_cpu_ram_when_present() {
+        let r = format_json_item(
+            &json!({"name": "host", "status": "online", "cpu_percent": 45.7, "memory_percent": 72.0}),
+            1,
+        );
+        assert!(r.contains("CPU 46%"));
+        assert!(r.contains("RAM 72%"));
+    }
+
+    #[test]
+    fn format_item_includes_ssl_days_remaining() {
+        let r = format_json_item(
+            &json!({"hostname": "example.com", "status_level": "ok", "days_remaining": 30}),
+            1,
+        );
+        assert!(r.contains("example.com"));
+        assert!(r.contains("30j restants"));
+    }
+
+    #[test]
+    fn format_item_falls_back_to_question_mark_when_no_label() {
+        let r = format_json_item(&json!({"random": "data"}), 5);
+        assert!(r.contains("5. "));
+        assert!(r.contains("?"));
+    }
+
+    // ---- format_json_from_str ----
+
+    #[test]
+    fn format_str_handles_invalid_json() {
+        let r = format_json_from_str("not a json {{ broken");
+        assert!(r.contains("not a json"));
+    }
+
+    #[test]
+    fn format_str_parses_valid_json() {
+        let r = format_json_from_str(r#"[{"name":"x","status":"online"}]"#);
+        assert!(r.contains("x"));
+        assert!(r.contains("🟢"));
+    }
+}
