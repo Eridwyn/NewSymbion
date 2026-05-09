@@ -2,6 +2,7 @@ mod actions;
 mod claude;
 mod config;
 mod events;
+mod prefs;
 mod state;
 mod telegram;
 
@@ -54,13 +55,21 @@ async fn main() {
     // 3. Setup Telegram bot
     let bot = Bot::new(&config.telegram_bot_token);
 
-    // 4. Build shared state
-    let state = AppState::new(config, mqtt_client.clone(), bot.clone());
+    // 4. Load notification prefs (catégories on/off)
+    let prefs_path = std::env::var("SYMBION_TELEGRAM_PREFS")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| prefs::default_path(&config.claude_workdir));
+    let prefs = prefs::load(&prefs_path);
+    println!("[telegram] Notif prefs loaded from {:?}", prefs_path);
 
-    // 5. Build Axum router for Unix socket (Contract v1.0)
+    // 5. Build shared state
+    let state = AppState::new(config, mqtt_client.clone(), bot.clone(), prefs, prefs_path);
+
+    // 6. Build Axum router for Unix socket (Contract v1.0)
     let router = Router::new()
         .route("/health", get(health_handler))
         .route("/actions", post(handle_action))
+        .route("/config", get(prefs::get_config_handler).put(prefs::put_config_handler))
         .with_state(state.clone());
 
     // 6. Create HTTP server on Unix socket
@@ -122,6 +131,7 @@ async fn main() {
         if let Err(e) = symbion_plugin_common::PluginRegistrationBuilder::new(PLUGIN_ID, &socket_str)
             .route("/health")
             .route("/actions")
+            .route("/config")
             .version("1.0.0")
             .description("Telegram-Claude Code bridge with Symbion integration")
             .register()
@@ -201,6 +211,19 @@ async fn handle_notification(state: &AppState, json: &serde_json::Value) {
     println!("[telegram] Notification: id={}, title={}, actions={}",
         notif_id, title,
         notif.get("actions").map(|a| a.to_string()).unwrap_or_else(|| "none".into()));
+
+    // Filtre par catégorie (toggles utilisateur). P0 = jamais filtré (urgence).
+    if priority != "P0" {
+        let category = prefs::categorize(source);
+        let prefs = state.prefs.read().await;
+        if !prefs.is_enabled(category) {
+            println!(
+                "[telegram] Skip notif id={} category={} (disabled by user prefs)",
+                notif_id, category
+            );
+            return;
+        }
+    }
 
     let icon = match priority {
         "P0" => "🚨",

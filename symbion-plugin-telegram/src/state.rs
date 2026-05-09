@@ -1,9 +1,12 @@
 use crate::config::Config;
+use crate::prefs::NotifPrefs;
 use dashmap::DashMap;
 use rumqttc::AsyncClient;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 use teloxide::prelude::*;
+use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
 const MAX_HISTORY: usize = 50;
@@ -54,10 +57,20 @@ pub struct AppState {
     history: Arc<DashMap<i64, Vec<HistoryEntry>>>,
     /// Cached notifications for interactive callbacks (notif_id → data)
     pub pending_notifs: Arc<DashMap<String, CachedNotification>>,
+    /// Préférences notif (toggles par catégorie)
+    pub prefs: Arc<RwLock<NotifPrefs>>,
+    /// Chemin disque des prefs (utilisé par PUT /config pour sauver)
+    pub prefs_path: Arc<PathBuf>,
 }
 
 impl AppState {
-    pub fn new(config: Config, mqtt_client: AsyncClient, bot: Bot) -> Self {
+    pub fn new(
+        config: Config,
+        mqtt_client: AsyncClient,
+        bot: Bot,
+        prefs: NotifPrefs,
+        prefs_path: PathBuf,
+    ) -> Self {
         Self {
             config: Arc::new(config),
             mqtt_client,
@@ -67,6 +80,8 @@ impl AppState {
             start_time: Instant::now(),
             history: Arc::new(DashMap::new()),
             pending_notifs: Arc::new(DashMap::new()),
+            prefs: Arc::new(RwLock::new(prefs)),
+            prefs_path: Arc::new(prefs_path),
         }
     }
 
@@ -153,7 +168,13 @@ mod tests {
         let opts = MqttOptions::new("test-client", "127.0.0.1", 1883);
         let (mqtt_client, _eventloop) = AsyncClient::new(opts, 10);
         let bot = Bot::new("123:dummy");
-        AppState::new(config, mqtt_client, bot)
+        AppState::new(
+            config,
+            mqtt_client,
+            bot,
+            NotifPrefs::default(),
+            PathBuf::from("/tmp/test_prefs.json"),
+        )
     }
 
     #[test]

@@ -37,6 +37,7 @@ const lazyPages = () => {
   import('./context-engine-page.js')
   import('./ssl-config-page.js')
   import('./library-page.js')
+  import('./telegram-config-page.js')
 }
 // Toast/notifications loaded eagerly (needed immediately for push events)
 import './toast-notifications.js'
@@ -1095,6 +1096,7 @@ class DashboardApp extends LitElement {
     showContextEnginePage: { type: Boolean },
     showSslConfigPage: { type: Boolean },
     showLibraryPage: { type: Boolean },
+    showTelegramConfigPage: { type: Boolean },
     currentUser: { type: Object },
     activeTab: { type: String },
     currentTime: { type: String },
@@ -1122,6 +1124,7 @@ class DashboardApp extends LitElement {
     this.showContextEnginePage = false
     this.showSslConfigPage = false
     this.showLibraryPage = false
+    this.showTelegramConfigPage = false
     this.isOffline = !navigator.onLine
     this.currentTheme = themeService.current
     this.showLogsFab = localStorage.getItem('symbion_show_logs') === 'true'
@@ -1280,7 +1283,7 @@ class DashboardApp extends LitElement {
       // Only on mobile (bottom nav visible)
       if (window.innerWidth >= 769) return
       // Don't swipe when a full-page overlay is open
-      if (this.showSettingsPage || this.showNotesPage || this.showContextEnginePage || this.showSslConfigPage || this.showLibraryPage) return
+      if (this.showSettingsPage || this.showNotesPage || this.showContextEnginePage || this.showSslConfigPage || this.showLibraryPage || this.showTelegramConfigPage) return
       this._swipeStartX = e.touches[0].clientX
       this._swipeStartY = e.touches[0].clientY
     }
@@ -1401,14 +1404,14 @@ class DashboardApp extends LitElement {
   // PWA4: Focus trap management for full-page overlays
   updated(changedProperties) {
     super.updated(changedProperties)
-    const pageProps = ['showSettingsPage', 'showNotesPage', 'showContextEnginePage', 'showSslConfigPage', 'showLibraryPage']
+    const pageProps = ['showSettingsPage', 'showNotesPage', 'showContextEnginePage', 'showSslConfigPage', 'showLibraryPage', 'showTelegramConfigPage']
     const anyPageOpen = pageProps.some(p => changedProperties.has(p))
 
     if (anyPageOpen) {
-      const isOpen = this.showSettingsPage || this.showNotesPage || this.showContextEnginePage || this.showSslConfigPage || this.showLibraryPage
+      const isOpen = this.showSettingsPage || this.showNotesPage || this.showContextEnginePage || this.showSslConfigPage || this.showLibraryPage || this.showTelegramConfigPage
       // Find the active page overlay in shadow DOM
       const pageEl = this.shadowRoot.querySelector(
-        'user-settings-page, notes-page, context-engine-page, ssl-config-page, library-page'
+        'user-settings-page, notes-page, context-engine-page, ssl-config-page, library-page, telegram-config-page'
       )
       this._focusTrap = manageFocusTrap(pageEl, isOpen, this._focusTrap)
     }
@@ -1629,6 +1632,10 @@ class DashboardApp extends LitElement {
             <span aria-hidden="true">⚙️</span>
             <span>Paramètres</span>
           </button>
+          <button class="settings-button" @click="${this.handleOpenTelegramConfig}" aria-label="Config Telegram">
+            <span aria-hidden="true">📱</span>
+            <span>Config Telegram</span>
+          </button>
           <button class="logout-button" @click="${this.handleLogout}" aria-label="Déconnexion">
             <span aria-hidden="true">🚪</span>
             <span>Déconnexion</span>
@@ -1821,6 +1828,10 @@ class DashboardApp extends LitElement {
         ${this.showLibraryPage ? html`
           <library-page @close="${this.handleCloseLibrary}"></library-page>
         ` : ''}
+
+        ${this.showTelegramConfigPage ? html`
+          <telegram-config-page @close="${this.handleCloseTelegramConfig}"></telegram-config-page>
+        ` : ''}
       </div>
 
       <!-- FAB Logs (discret, bas-droite) -->
@@ -1957,6 +1968,15 @@ class DashboardApp extends LitElement {
 
   handleCloseContextEngine() {
     this.showContextEnginePage = false
+  }
+
+  handleOpenTelegramConfig() {
+    this.showTelegramConfigPage = true
+    this.showUserMenu = false
+  }
+
+  handleCloseTelegramConfig() {
+    this.showTelegramConfigPage = false
   }
 
   handleOpenSslConfig() {
