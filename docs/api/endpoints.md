@@ -1,18 +1,16 @@
 # Référence Complète des Endpoints HTTP
 
-> 📍 Documentation exhaustive de l'API Symbion Kernel
+> 📍 Documentation de l'API Symbion Kernel
 >
-> ✅ **Mise à jour (13 Mars 2026)**: Audit documentation complet
+> ⚠️ **OBSOLÈTE PARTIEL (audit 9 mai 2026)** : ce fichier date de la restructuration du 13 Mars 2026 (suppression des préfixes `/v1/` pour beaucoup de routes). Couverture actuelle estimée à **62 %** :
+> - **186 endpoints réels** dans le code (150 kernel + 36 plugins)
+> - **116 documentés ici** → 118 routes non documentées (notamment agents file management, automations v2, modes, notifications enrichies) + 34 routes documentées mais supprimées
 >
-> **Endpoints documentés** : ~178 endpoints (114+ kernel + 13 intelligence + 5 environment + ~50 plugin routes)
-> - ✅ Service Discovery Plugin API (routes dynamiques via Unix socket proxy)
-> - ✅ 7 plugins actifs (sensors, notes, ssl, library, telegram, freebox, common)
-> - ✅ Automations Engine (10 endpoints)
-> - ✅ Modes Dynamiques (6 endpoints)
-> - ✅ Notifications Système (10 endpoints)
-> - ✅ Intelligence Engine (13 endpoints)
-> - ✅ Environment/Sensors (5 endpoints)
-> - ✅ Public Library (GET-only, no auth)
+> **Plugins actifs (8)** : sensors, notes, ssl, library, telegram, freebox, common, **coffee** (ce dernier branché à l'Intelligence Engine le 9 mai 2026 — voir CHANGELOG)
+>
+> **Action recommandée** : régénérer cette doc depuis le code via OpenAPI/utoipa derive (déjà annoté côté kernel pour /docs Swagger). Tant que ce n'est pas fait, le code reste la source de vérité — `grep -rn ".route(" symbion-kernel/src/` donne la liste réelle.
+>
+> Modules présents et globalement fiables ci-dessous : Auth, CSRF, Intelligence (ces sections n'ont quasi pas bougé). Modules à risque : Agents file mgmt, Automations, Modes, Notifications.
 
 ---
 

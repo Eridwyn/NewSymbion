@@ -1,7 +1,7 @@
 # Roadmap Technique - NewSymbion
 
-**Dernière mise à jour** : 13 Mars 2026
-**Statut** : Fondations complètes, 7 plugins actifs, en route vers domotique
+**Dernière mise à jour** : 9 Mai 2026
+**Statut** : Fondations complètes, 8 plugins actifs, en route vers domotique
 
 ---
 
@@ -9,12 +9,12 @@
 
 | Composant | Langage | LOC | Fichiers | Tests |
 |-----------|---------|----:|----------|------:|
-| **symbion-kernel** | Rust | ~49,600 | 112 | 419 |
-| **pwa-dashboard** | JS (Lit) | ~36,400 | 75 | 751 |
-| **symbion-agent-host** | Rust | ~11,700 | 56 | 135 |
-| **Plugins** (7) | Rust | ~12,100 | 28 | 49 |
+| **symbion-kernel** | Rust | ~49,659 | 112 | 429 |
+| **pwa-dashboard** | JS (Lit) | ~42,917 | 75 | 689 |
+| **symbion-agent-host** | Rust | ~11,730 | 56 | 225 |
+| **Plugins** (8) | Rust | ~13,641 | 31 | 143 |
 | **Infra** (scripts/CI/bridge) | Bash/YAML/Py | ~3,500 | 30 | - |
-| **Total** | | **~113,300** | **301** | **1,354** |
+| **Total** | | **~121,447** | **304** | **1,486** |
 
 | Métrique | Valeur |
 |----------|--------|
@@ -27,11 +27,13 @@
 
 ## Prochaines Étapes
 
-### R1 — Notifications Telegram 🔴 TODO
+### R1 — Notifications Telegram 🟡 PARTIELLEMENT (≈50%)
 
 **Objectif** : Recevoir les notifications Symbion directement sur Telegram via @Monsymbion_bot
 
-**Contexte** : Le plugin Rust `symbion-plugin-telegram` (teloxide) est actif. Il faut connecter le système de notifications du kernel au bot Telegram pour recevoir les alertes en temps réel.
+**État réel (9 mai 2026)** : L'infra MQTT→Telegram fonctionne. Le kernel publie sur `symbion/notifications/sent` et `symbion-plugin-telegram` reçoit + forward (validé en E2E avec les notifs café). Reste à finir : formatage HTML riche, page config PWA pour granularité par catégorie, résumé quotidien automatique.
+
+**Contexte** : Le plugin Rust `symbion-plugin-telegram` (teloxide) est actif. La glue notifications kernel → Telegram fonctionne pour la priorité P0/P1/P2.
 
 **Fonctionnalités** :
 - [ ] Notifications agent offline/online → message Telegram

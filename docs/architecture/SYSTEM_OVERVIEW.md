@@ -88,12 +88,64 @@ Vue d'ensemble de l'architecture IoT distribuée.
 
 **Rôle**: Interface Telegram pour piloter Symbion à distance
 
-**Status**: ✅ Actif (2,518 LOC, teloxide + Claude)
+**Status**: ✅ Actif (~2,978 LOC, teloxide + Claude)
 
 **Fonctionnalités**:
 - ✅ **Bot Telegram** - Plugin Rust avec teloxide
 - ✅ **Commandes** - `/new`, `/continue`, `/cancel`, `/model`, `/effort`, `/status`
 - ✅ **Service systemd** - `symbion-plugin-telegram` (user eridwyn)
+- ✅ **Réception notifications** - Subscribe MQTT `symbion/notifications/sent` → forward Telegram
+- ⚠️ **Tests** : 0 (à combler)
+
+### ☕ symbion-plugin-coffee - Machine à Café
+
+**Rôle**: Contrôle Philips EP2520/10 LatteGo via protocole Condor LAN
+
+**Status**: ✅ Actif (~1,063 LOC, branché Intelligence Engine 9 mai 2026)
+
+**Fonctionnalités**:
+- ✅ **Brew control** - espresso/coffee/hot_water, températures et tailles
+- ✅ **Power management** - on/off via API
+- ✅ **Status monitoring** - mainstate, brew progress, niveaux eau/grains/marc
+- ✅ **AquaClean tracking** - filtre installé, % restant
+- ✅ **Maintenance alerts** - détartrage, bac à marc, réservoir vide
+- ✅ **Intelligence Engine** - 11 features publiées (`coffee.ready`, `.brews_today`, `.descale_status`, etc.)
+- ✅ **4 automations** - café prêt matin, eau bas, grains bas, détartrage requis
+
+### 📡 symbion-plugin-freebox - Présence Réseau
+
+**Rôle**: Détection présence appareils via Freebox API (devices, downloads, connexion)
+
+**Status**: ✅ Actif (~1,372 LOC)
+
+**Fonctionnalités**:
+- ✅ **Présence devices** - Tracking par MAC, état home/away
+- ✅ **Connexion internet** - Status + métriques bande passante
+- ✅ **Downloads** - Statut téléchargements actifs
+- ✅ **Features Intelligence** - `presence.phone`, `presence.summary`
+
+### 🌡️ symbion-plugin-sensors - Capteurs Environnementaux
+
+**Rôle**: Monitoring ESP32/BME280 (température, humidité, batterie)
+
+**Status**: ✅ Actif (~1,115 LOC)
+
+**Fonctionnalités**:
+- ✅ **Découverte automatique** - Registration via MQTT
+- ✅ **Alertes environnement** - 4 niveaux (normal/moderate/high/critical)
+- ✅ **Per-room tracking** - Multi-pièces avec metric par capteur
+
+### 🔐 symbion-plugin-ssl - Surveillance Certificats TLS
+
+**Rôle**: Monitoring multi-domaines, alertes expiration, détection changement fingerprint
+
+**Status**: ✅ Actif (~1,892 LOC)
+
+**Fonctionnalités**:
+- ✅ **Monitoring périodique** - Check certificats, jours restants
+- ✅ **Alertes expiration** - Seuils warning/critical configurables
+- ✅ **Fingerprint change detection** - Alerte si renouvellement
+- ✅ **Features Intelligence** - `ssl.{domain}.valid`, `.days_remaining`, `.status`
 
 ### 🌐 public-lib - Page Publique Bibliothèque
 
