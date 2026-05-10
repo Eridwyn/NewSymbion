@@ -537,6 +537,43 @@ PluginRegistrationBuilder::new(PLUGIN_ID, SOCKET_PATH)
 `min`/`max` pour les nombres, `placeholder` pour les inputs texte, `default` rempli
 automatiquement à la sélection de l'action.
 
+### 6.3bis Wrap Contract v1.0 (plugins exposant `/actions` générique)
+
+Si ton plugin expose un endpoint `/actions` générique qui attend le format
+Contract v1.0 (`{spec_version, action_id, action_type, payload}`) au lieu d'une
+route directe par action, ajoute `wrap_protocol: Some("v1".into())` dans la
+`PluginAction`. L'executor wrap automatiquement le payload avant POST :
+
+```rust
+.action(PluginAction {
+    name: "send_notification".into(),
+    label: "Envoyer notification".into(),
+    route: "actions".into(),         // route /actions générique
+    method: "POST".into(),
+    impact_level: "Low".into(),
+    wrap_protocol: Some("v1".into()), // ← active le wrap auto
+    params: vec![
+        PluginActionParam {
+            name: "text".into(),
+            label: "Message".into(),
+            param_type: "text_area".into(),
+            required: true,
+            default: None,
+            options: vec![],
+            min: None, max: None,
+            placeholder: Some("Texte du message".into()),
+        },
+    ],
+    description: None, icon: None,
+})
+```
+
+Le payload reçu côté plugin sera : `{"spec_version":"1.0","action_id":"<uuid>","action_type":"send_notification","payload":{"text":"..."}}`.
+
+Sans `wrap_protocol` (ou `Some("raw")`), le payload est posté tel quel (cas coffee/power).
+
+Référence : `symbion-plugin-telegram/src/main.rs` (2 actions wrap v1).
+
 ### 6.4 Côté kernel
 
 Pas de modif. Le `PluginRegistration` JSON envoyé au kernel contient le champ `actions`,
