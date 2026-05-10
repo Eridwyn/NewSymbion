@@ -119,6 +119,11 @@ pub struct PluginAction {
     /// Niveau d'impact (Low/Medium/High) pour le Decision Engine.
     #[serde(default = "default_impact")]
     pub impact_level: String,
+    /// Protocole de wrapping du payload. None / "raw" = POST direct (cas coffee).
+    /// "v1" = wrap selon Contract v1.0 {spec_version, action_id, action_type, payload}
+    /// (cas plugins exposant /actions générique : telegram, sensors).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrap_protocol: Option<String>,
     /// Paramètres typés. Chaque paramètre devient une clé du payload JSON envoyé.
     #[serde(default)]
     pub params: Vec<PluginActionParam>,

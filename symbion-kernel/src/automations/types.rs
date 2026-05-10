@@ -456,6 +456,17 @@ pub enum ActionDefinition {
         payload: Value,
         #[serde(default = "default_impact_medium")]
         impact_level: ImpactLevel,
+        /// Protocole de wrapping du payload avant envoi. None / Some("raw") = POST direct
+        /// du payload tel quel (cas coffee). Some("v1") = wrap selon Contract v1.0
+        /// (cas telegram, sensors qui exposent /actions générique).
+        #[serde(default)]
+        #[serde(skip_serializing_if = "Option::is_none")]
+        wrap_protocol: Option<String>,
+        /// Nom de l'action (utilisé comme action_type dans le wrap Contract v1.0).
+        /// Requis si wrap_protocol == "v1", sinon ignoré.
+        #[serde(default)]
+        #[serde(skip_serializing_if = "Option::is_none")]
+        action_name: Option<String>,
     },
 }
 

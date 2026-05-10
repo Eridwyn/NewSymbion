@@ -54,6 +54,10 @@ pub struct PluginAction {
     pub method: String,
     #[serde(default = "default_impact")]
     pub impact_level: String,
+    /// Protocole de wrapping du payload. None / "raw" = POST direct.
+    /// "v1" = wrap selon Contract v1.0 ({spec_version, action_id, action_type, payload}).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrap_protocol: Option<String>,
     #[serde(default)]
     pub params: Vec<PluginActionParam>,
 }

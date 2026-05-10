@@ -449,7 +449,7 @@ pub(super) async fn execute_pending_action(
             Err("set_feature must be executed via AutomationEngine".to_string())
         }
 
-        ActionDefinition::PluginCommand { plugin, route, payload, .. } => {
+        ActionDefinition::PluginCommand { plugin, route, payload, wrap_protocol, action_name, .. } => {
             use crate::automations::executors::{
                 ActionExecutor, ExecutorContext, PluginCommandExecutor,
             };
@@ -472,7 +472,8 @@ pub(super) async fn execute_pending_action(
                 plugin.clone(),
                 route.clone(),
                 payload.clone(),
-            );
+            )
+            .with_wrap(wrap_protocol.clone(), action_name.clone());
             executor
                 .execute(&exec_ctx)
                 .await

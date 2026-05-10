@@ -868,7 +868,7 @@ impl AutomationEngine {
                 (false, Some(format!("custom action {}/{} not implemented", plugin_name, action_type)))
             }
 
-            ActionDefinition::PluginCommand { plugin, route, payload, .. } => {
+            ActionDefinition::PluginCommand { plugin, route, payload, wrap_protocol, action_name, .. } => {
                 use crate::automations::executors::{
                     ExecutorContext, PluginCommandExecutor, ActionExecutor,
                 };
@@ -892,7 +892,7 @@ impl AutomationEngine {
                     plugin.clone(),
                     route.clone(),
                     payload.clone(),
-                );
+                ).with_wrap(wrap_protocol.clone(), action_name.clone());
                 match executor.execute(&exec_ctx).await {
                     Ok(()) => {
                         eprintln!("[automations] 🔌 plugin_command {}/{} OK", plugin, route);

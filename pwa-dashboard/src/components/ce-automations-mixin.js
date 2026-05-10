@@ -850,6 +850,10 @@ export const AutomationsMixin = (Base) => class extends Base {
               route: act?.route || '',
               payload,
               impact_level: act?.impact_level || 'Low',
+              // Copie le protocole de wrapping du manifest pour que l'executor
+              // sache wrapper le payload selon Contract v1.0 si nécessaire.
+              wrap_protocol: act?.wrap_protocol || undefined,
+              action_name: act?.name || undefined,
             }
             this.requestUpdate()
           }}">
@@ -966,9 +970,12 @@ export const AutomationsMixin = (Base) => class extends Base {
       this.editingAutomation.actions = []
     }
 
-    // Strip champs internes (commencent par _) — utilisés uniquement par le rendering UI
+    // Strip champs internes (commencent par _) ET les valeurs undefined — utilisés
+    // uniquement par le rendering UI. undefined → JSON null peut casser certaines
+    // désérialisations côté kernel (wrap_protocol notamment).
     const cleaned = Object.fromEntries(
-      Object.entries(this.pendingAction).filter(([k]) => !k.startsWith('_'))
+      Object.entries(this.pendingAction)
+        .filter(([k, v]) => !k.startsWith('_') && v !== undefined)
     )
 
     // Add the configured action

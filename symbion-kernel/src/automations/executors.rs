@@ -434,11 +434,21 @@ pub struct PluginCommandExecutor {
     plugin: String,
     route: String,
     payload: Value,
+    /// Si Some("v1"), wrap selon Contract v1.0 ({spec_version, action_id, action_type, payload}).
+    wrap_protocol: Option<String>,
+    /// action_type utilisé dans le wrap v1 (sinon fallback sur route).
+    action_name: Option<String>,
 }
 
 impl PluginCommandExecutor {
     pub fn new(plugin: String, route: String, payload: Value) -> Self {
-        Self { plugin, route, payload }
+        Self { plugin, route, payload, wrap_protocol: None, action_name: None }
+    }
+
+    pub fn with_wrap(mut self, wrap_protocol: Option<String>, action_name: Option<String>) -> Self {
+        self.wrap_protocol = wrap_protocol;
+        self.action_name = action_name;
+        self
     }
 }
 
@@ -492,7 +502,7 @@ impl ActionExecutor for PluginCommandExecutor {
 
         // Auto-parse si le payload est une string JSON (cas typique du textarea PWA
         // qui sérialise la valeur saisie en string). Sinon utiliser tel quel.
-        let payload_to_send: Value = if let Value::String(s) = &self.payload {
+        let raw_payload: Value = if let Value::String(s) = &self.payload {
             let trimmed = s.trim();
             if trimmed.starts_with('{') || trimmed.starts_with('[') {
                 serde_json::from_str(trimmed).unwrap_or_else(|_| self.payload.clone())
@@ -501,6 +511,25 @@ impl ActionExecutor for PluginCommandExecutor {
             }
         } else {
             self.payload.clone()
+        };
+
+        // Optional Contract v1.0 wrap (cas plugins exposant /actions générique).
+        // Sans wrap : POST direct du payload (cas coffee/power = {"on": true}).
+        // Avec wrap "v1" : POST {spec_version, action_id, action_type, payload}.
+        let payload_to_send = match self.wrap_protocol.as_deref() {
+            Some("v1") => {
+                let action_type = self
+                    .action_name
+                    .clone()
+                    .unwrap_or_else(|| route.clone());
+                serde_json::json!({
+                    "spec_version": "1.0",
+                    "action_id": uuid::Uuid::new_v4().to_string(),
+                    "action_type": action_type,
+                    "payload": raw_payload,
+                })
+            }
+            _ => raw_payload,
         };
 
         let body_bytes = serde_json::to_vec(&payload_to_send).map_err(|e| {
@@ -629,12 +658,12 @@ impl ActionExecutorRegistry {
                 (false, Some("set_feature must be executed via AutomationEngine".to_string()))
             }
 
-            ActionDefinition::PluginCommand { plugin, route, payload, .. } => {
+            ActionDefinition::PluginCommand { plugin, route, payload, wrap_protocol, action_name, .. } => {
                 let executor = PluginCommandExecutor::new(
                     plugin.clone(),
                     route.clone(),
                     payload.clone(),
-                );
+                ).with_wrap(wrap_protocol.clone(), action_name.clone());
                 match executor.execute(ctx).await {
                     Ok(()) => (true, None),
                     Err(e) => (false, Some(e.message)),

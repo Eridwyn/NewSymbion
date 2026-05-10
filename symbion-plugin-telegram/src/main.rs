@@ -123,9 +123,11 @@ async fn main() {
         }
     });
 
-    // 10. Register with kernel
+    // 10. Register with kernel + actions templates (Contract v1.0 wrap pour /actions)
     let socket_str = socket_path.to_string_lossy().to_string();
     tokio::spawn(async move {
+        use symbion_plugin_common::{PluginAction, PluginActionParam};
+
         // Small delay to let kernel be ready
         tokio::time::sleep(Duration::from_secs(3)).await;
         if let Err(e) = symbion_plugin_common::PluginRegistrationBuilder::new(PLUGIN_ID, &socket_str)
@@ -134,6 +136,87 @@ async fn main() {
             .route("/config")
             .version("1.0.0")
             .description("Telegram-Claude Code bridge with Symbion integration")
+            .action(PluginAction {
+                name: "send_notification".into(),
+                label: "Envoyer notification (broadcast)".into(),
+                description: Some("Notification à tous les utilisateurs autorisés (ALLOWED_USER_IDS)".into()),
+                icon: Some("📢".into()),
+                route: "actions".into(),
+                method: "POST".into(),
+                impact_level: "Low".into(),
+                wrap_protocol: Some("v1".into()),  // Contract v1.0 wrap pour /actions
+                params: vec![
+                    PluginActionParam {
+                        name: "text".into(),
+                        label: "Message".into(),
+                        param_type: "text_area".into(),
+                        required: true,
+                        default: None,
+                        options: vec![],
+                        min: None, max: None,
+                        placeholder: Some("Texte du message à envoyer".into()),
+                    },
+                    PluginActionParam {
+                        name: "level".into(),
+                        label: "Niveau".into(),
+                        param_type: "select".into(),
+                        required: false,
+                        default: Some(serde_json::json!("info")),
+                        options: vec![
+                            symbion_plugin_common::PluginActionOption { value: serde_json::json!("info"), label: "ℹ️ Info".into() },
+                            symbion_plugin_common::PluginActionOption { value: serde_json::json!("success"), label: "✅ Succès".into() },
+                            symbion_plugin_common::PluginActionOption { value: serde_json::json!("warning"), label: "⚠️ Avertissement".into() },
+                            symbion_plugin_common::PluginActionOption { value: serde_json::json!("error"), label: "🚨 Erreur".into() },
+                        ],
+                        min: None, max: None, placeholder: None,
+                    },
+                ],
+            })
+            .action(PluginAction {
+                name: "send_message".into(),
+                label: "Envoyer message à un user".into(),
+                description: Some("Message direct à un chat_id Telegram spécifique".into()),
+                icon: Some("💬".into()),
+                route: "actions".into(),
+                method: "POST".into(),
+                impact_level: "Low".into(),
+                wrap_protocol: Some("v1".into()),
+                params: vec![
+                    PluginActionParam {
+                        name: "chat_id".into(),
+                        label: "Chat ID Telegram".into(),
+                        param_type: "int".into(),
+                        required: true,
+                        default: None,
+                        options: vec![],
+                        min: None, max: None,
+                        placeholder: Some("ID du chat (entier)".into()),
+                    },
+                    PluginActionParam {
+                        name: "text".into(),
+                        label: "Texte".into(),
+                        param_type: "text_area".into(),
+                        required: true,
+                        default: None,
+                        options: vec![],
+                        min: None, max: None,
+                        placeholder: Some("Contenu du message".into()),
+                    },
+                    PluginActionParam {
+                        name: "parse_mode".into(),
+                        label: "Format".into(),
+                        param_type: "select".into(),
+                        required: false,
+                        default: None,
+                        options: vec![
+                            symbion_plugin_common::PluginActionOption { value: serde_json::json!(""), label: "Plain text".into() },
+                            symbion_plugin_common::PluginActionOption { value: serde_json::json!("HTML"), label: "HTML".into() },
+                            symbion_plugin_common::PluginActionOption { value: serde_json::json!("Markdown"), label: "Markdown".into() },
+                        ],
+                        min: None, max: None, placeholder: None,
+                    },
+                ],
+            })
             .register()
             .await
         {
