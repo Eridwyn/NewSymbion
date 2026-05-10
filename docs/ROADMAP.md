@@ -1,6 +1,6 @@
 # Roadmap Technique - NewSymbion
 
-**Dernière mise à jour** : 9 Mai 2026
+**Dernière mise à jour** : 10 Mai 2026
 **Statut** : Fondations complètes, 8 plugins actifs, en route vers domotique
 
 ---

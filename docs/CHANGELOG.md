@@ -4,6 +4,66 @@ Historique des améliorations et changements majeurs du projet.
 
 ---
 
+## Action plugin_command + templates structurés par plugin (10 Mai 2026)
+
+**Status**: 🟢 Complété (commits `aa992bf` → `6da3a53`)
+
+### Objectif
+Permettre aux automations d'appeler n'importe quel endpoint plugin via Unix socket
+(ex: « préchauffer la machine à café à 7h », « réindexer la library la nuit »)
+sans ajouter de logique métier au kernel.
+
+### Backend kernel
+- Nouveau variant `ActionDefinition::PluginCommand { plugin, route, payload, impact_level }`
+  dans `symbion-kernel/src/automations/types.rs`
+- `PluginCommandExecutor` dans `automations/executors.rs` : POST HTTP via
+  `tokio::net::UnixStream` + `hyper::client::conn::http1`. Résolution socket via
+  `PluginRegistry::find_socket(/v1/plugin-api/{plugin}/{route})`.
+- Branchement complet : `engine.rs` (auto trigger), `automations_http.rs` (run manuel),
+  `http/decision.rs` (exécution post-validation manuelle), `decision_bridge.rs` (description)
+- Validations executor : trim + rejet whitespace dans route, auto-parse payload string→json
+  (cas du textarea PWA qui sérialise la valeur saisie en string)
+
+### Schema rule builder enrichi
+- Features dans le dropdown : 8 hardcodées → **41** (énumération `FeatureRegistry` runtime
+  + dédoublonnage via BTreeMap + icône par préfixe `coffee.*`/`library.*`/`ssl.*`/...)
+- Plugins dans le dropdown : 4 hardcodés → **6+** (énumération `PluginRegistry` runtime
+  — coffee, library, telegram apparaissent maintenant)
+- Nouvelle action `plugin_command` exposée dans le rule builder
+
+### Templates structurés par plugin (option 3 d'UX)
+- `PluginRegistration` (common) : nouveau champ `actions: Vec<PluginAction>`
+- `PluginAction { name, label, icon, route, method, impact_level, params }`
+- `PluginActionParam { name, label, param_type, required, default, options, min, max, placeholder }`
+  avec types `bool`/`int`/`float`/`string`/`select`/`text_area`
+- `PluginRegistrationBuilder.action(...)` pour déclarer les templates
+- `PluginInfo` (kernel) expose `actions` via `GET /v1/plugins`
+- PWA `renderPluginCommandConfig()` : 2 selects cascadés (plugin → action) + sub-form
+  généré dynamiquement depuis `params`. Fallback gracieux vers textarea libre si
+  plugin sans templates.
+
+### Plugin coffee = exemple de référence
+4 actions déclarées : `power_on`, `power_off`, `brew` (3 params : drink/temperature/cups), `stop`.
+Plus de payload JSON à taper dans le rule builder pour ces actions.
+
+### Bugs collatéraux fixés (même session)
+- `set_mode_natural` ne republiait pas sur MQTT → le retain stale après auto-apply
+  Intelligence v2. Fix : republier dans `spawn_intelligence_monitor` + au boot
+  du kernel pour synchroniser le retain avec l'état mémoire chargé depuis disk
+- `handle_list_plugins` reconstruit le JSON manuellement → tout nouveau champ
+  `PluginInfo` reste invisible côté API tant qu'on ne l'ajoute pas explicitement
+  (anti-pattern documenté en mémoire pour audit futur)
+- Conditions des automations café (`water_low`, `beans_low`, `descale`) : passé
+  de `coffee.online=true` à `coffee.ready=true` (mainstate=2). En standby la machine
+  renvoie `level=0` mais reste « online HTTP » → faux positifs d'alerte
+- `auto_coffee_ready_morning` supprimé (notif inutile qui constate au lieu d'anticiper)
+
+### Comment ajouter des templates à un plugin
+Voir [`docs/PLUGIN_DEVELOPMENT_GUIDE.md`](PLUGIN_DEVELOPMENT_GUIDE.md) §6 « Déclarer
+des actions templates pour le rule builder ».
+
+---
+
 ## ☕ Coffee + Library — Intégration Intelligence Engine (9 Mai 2026)
 
 **Status**: 🟢 Complété (commit `49e5d7d`)

@@ -242,6 +242,45 @@ Chaque plugin déclare ses capacités au démarrage :
 | `high` | Impact significatif, irréversible | Require validation explicite |
 | `critical` | Impact critique système | Toujours require validation manuelle |
 
+### Format alternatif : Actions templates pour rule builder PWA (mai 2026)
+
+En complément du manifest MQTT historique (capabilities), un plugin peut exposer
+ses actions structurées via le **PluginRegistration HTTP** envoyé au kernel
+(`POST /v1/plugins/register`). Ces actions servent au rule builder PWA pour
+générer un formulaire au lieu d'un payload JSON libre.
+
+**Format** (`symbion-plugin-common/src/lib.rs::PluginAction`) :
+```json
+{
+  "name": "power_on",
+  "label": "Allumer la machine",
+  "description": "Sort la machine du mode standby",
+  "icon": "⚡",
+  "route": "power",
+  "method": "POST",
+  "impact_level": "Low",
+  "params": [
+    {
+      "name": "on",
+      "label": "État",
+      "type": "bool",
+      "required": true,
+      "default": true
+    }
+  ]
+}
+```
+
+**Différence avec capabilities MQTT** :
+- `capabilities` (MQTT) → contrat sémantique du plugin, utilisé pour
+  ActionRequest/ActionResponse via `/actions` socket
+- `actions` (PluginRegistration HTTP) → templates UI pour le rule builder.
+  Le PWA construit `ActionDefinition::PluginCommand` directement, le plugin
+  reçoit un POST classique sur `/{route}` (pas un wrap Contract v1.0)
+
+Les deux peuvent coexister. Voir `docs/PLUGIN_DEVELOPMENT_GUIDE.md` §6 pour
+l'implémentation Rust et `symbion-plugin-coffee` pour l'exemple de référence.
+
 ---
 
 ## Modèle ACK Explicite

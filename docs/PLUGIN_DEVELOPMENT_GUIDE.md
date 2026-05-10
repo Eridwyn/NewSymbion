@@ -439,6 +439,132 @@ Publish:
 
 ---
 
-**Dernière mise à jour** : 18 Novembre 2025
-**Version Symbion** : 1.1.7
-**Plugins actifs** : notes-manager, sensors-manager
+## Étape 6 : Déclarer des actions templates pour le rule builder
+
+Depuis mai 2026, un plugin peut **exposer ses actions sous forme de templates structurés**
+au rule builder PWA. Au lieu de forcer l'utilisateur à taper du JSON dans un textarea
+(`plugin_command` brut), le plugin déclare ses endpoints avec leurs paramètres typés,
+et le PWA génère automatiquement un formulaire (selects, sliders, sub-fields).
+
+### 6.1 Pourquoi
+
+Sans templates, créer une automation « allumer la machine à café » demande à l'utilisateur :
+- de connaître la route exacte (`/power`)
+- de saisir le payload JSON correct (`{"on": true}`)
+- de gérer la sérialisation (les bool, les nombres, etc.)
+
+Avec templates : l'utilisateur choisit *« Plugin café → Allumer la machine »* dans 2 selects.
+Le payload est construit automatiquement.
+
+### 6.2 Déclarer les actions au register
+
+Dans le `tokio::spawn` de registration, utiliser `PluginRegistrationBuilder.action(...)` :
+
+```rust
+use symbion_plugin_common::{PluginAction, PluginActionParam, PluginActionOption};
+
+PluginRegistrationBuilder::new(PLUGIN_ID, SOCKET_PATH)
+    .route("/power")
+    .route("/brew")
+    .action(PluginAction {
+        name: "power_on".into(),
+        label: "Allumer la machine".into(),
+        description: Some("Sort la machine du mode standby".into()),
+        icon: Some("⚡".into()),
+        route: "power".into(),       // sans slash de tête
+        method: "POST".into(),
+        impact_level: "Low".into(),
+        params: vec![
+            PluginActionParam {
+                name: "on".into(),
+                label: "État".into(),
+                param_type: "bool".into(),
+                required: true,
+                default: Some(serde_json::json!(true)),
+                options: vec![],
+                min: None, max: None, placeholder: None,
+            },
+        ],
+    })
+    .action(PluginAction {
+        name: "brew".into(),
+        label: "Lancer un café".into(),
+        icon: Some("☕".into()),
+        route: "brew".into(),
+        method: "POST".into(),
+        impact_level: "Medium".into(),
+        params: vec![
+            PluginActionParam {
+                name: "drink".into(),
+                label: "Boisson".into(),
+                param_type: "select".into(),
+                required: true,
+                default: Some(serde_json::json!("espresso")),
+                options: vec![
+                    PluginActionOption { value: serde_json::json!("espresso"), label: "Espresso".into() },
+                    PluginActionOption { value: serde_json::json!("coffee"), label: "Café long".into() },
+                ],
+                min: None, max: None, placeholder: None,
+                description: None,
+            },
+            PluginActionParam {
+                name: "temperature".into(),
+                label: "Température (1-3)".into(),
+                param_type: "int".into(),
+                required: false,
+                default: Some(serde_json::json!(2)),
+                options: vec![],
+                min: Some(1.0), max: Some(3.0), placeholder: None,
+            },
+        ],
+        description: Some("Démarre la préparation".into()),
+    })
+    .register()
+    .await?;
+```
+
+### 6.3 Types de paramètres supportés
+
+| `param_type` | Rendering PWA | Sérialisation JSON |
+|-------------|---------------|--------------------|
+| `bool`      | Select Vrai/Faux | `true` / `false` |
+| `int`       | Number input | `42` |
+| `float`     | Number input step 0.01 | `3.14` |
+| `string`    | Text input | `"hello"` |
+| `select`    | Select avec `options[]` | preserve type d'origine de `value` |
+| `text_area` | Textarea | `"multi\nlines"` |
+
+`min`/`max` pour les nombres, `placeholder` pour les inputs texte, `default` rempli
+automatiquement à la sélection de l'action.
+
+### 6.4 Côté kernel
+
+Pas de modif. Le `PluginRegistration` JSON envoyé au kernel contient le champ `actions`,
+le kernel le stocke dans `PluginInfo` (`symbion-kernel/src/plugin_proxy.rs:104`) et l'expose
+via `GET /v1/plugins`. Le PWA pull au premier rendu du form `plugin_command` et cache.
+
+### 6.5 Comportement runtime
+
+Quand l'automation s'exécute :
+1. Le rule builder PWA construit `ActionDefinition::PluginCommand { plugin, route, payload }`
+   à partir du form (les valeurs des sub-fields → keys du payload object)
+2. `PluginCommandExecutor` (`symbion-kernel/src/automations/executors.rs`) résout le socket
+   via `PluginRegistry::find_socket(/v1/plugin-api/{plugin}/{route})`
+3. POST HTTP via Unix socket avec le payload sérialisé
+4. Plugin reçoit la requête comme un POST normal sur `/{route}` avec body JSON
+
+### 6.6 Fallback
+
+Si le plugin n'a pas déclaré de `actions` (champ vide), le PWA retombe automatiquement
+sur le formulaire libre route + textarea payload JSON (back-compat totale).
+
+### 6.7 Référence
+
+Implémentation de référence : `symbion-plugin-coffee/src/main.rs:691-786` (4 actions :
+power_on, power_off, brew, stop).
+
+---
+
+**Dernière mise à jour** : 10 Mai 2026
+**Version Symbion** : 1.5.0
+**Plugins actifs** : notes, ssl, sensors, library, telegram, freebox, common, coffee
