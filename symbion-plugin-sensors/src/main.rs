@@ -662,9 +662,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Service Discovery (legacy, but still useful)
+    // Service Discovery + actions templates (Contract v1.0 wrap pour /actions)
     let socket_path_clone = socket_path.to_string();
     tokio::spawn(async move {
+        use symbion_plugin_common::{PluginAction, PluginActionParam};
+
         tokio::time::sleep(Duration::from_millis(500)).await;
 
         match PluginRegistrationBuilder::new("sensors", &socket_path_clone)
@@ -674,6 +676,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .route("/actions")
             .version(PLUGIN_VERSION)
             .description("Environment sensors plugin (Contract v1.0)")
+            .action(PluginAction {
+                name: "list_sensors".into(),
+                label: "Lister tous les capteurs".into(),
+                description: Some("Retourne la liste des capteurs enregistrés (debug/diagnostic)".into()),
+                icon: Some("📋".into()),
+                route: "actions".into(),
+                method: "POST".into(),
+                impact_level: "Low".into(),
+                wrap_protocol: Some("v1".into()),
+                params: vec![],
+            })
+            .action(PluginAction {
+                name: "get_environment".into(),
+                label: "Lire env d'une pièce".into(),
+                description: Some("Retourne température + humidité courantes pour une pièce".into()),
+                icon: Some("🌡️".into()),
+                route: "actions".into(),
+                method: "POST".into(),
+                impact_level: "Low".into(),
+                wrap_protocol: Some("v1".into()),
+                params: vec![
+                    PluginActionParam {
+                        name: "room_id".into(),
+                        label: "Pièce (room_id)".into(),
+                        param_type: "string".into(),
+                        required: true,
+                        default: None,
+                        options: vec![],
+                        min: None, max: None,
+                        placeholder: Some("ex: chambre, salon".into()),
+                    },
+                ],
+            })
+            .action(PluginAction {
+                name: "get_sensor".into(),
+                label: "Lire un capteur précis".into(),
+                description: Some("Détails complets d'un capteur (état, batterie, dernière mesure)".into()),
+                icon: Some("🔎".into()),
+                route: "actions".into(),
+                method: "POST".into(),
+                impact_level: "Low".into(),
+                wrap_protocol: Some("v1".into()),
+                params: vec![
+                    PluginActionParam {
+                        name: "sensor_id".into(),
+                        label: "ID capteur".into(),
+                        param_type: "string".into(),
+                        required: true,
+                        default: None,
+                        options: vec![],
+                        min: None, max: None,
+                        placeholder: Some("ex: esp32-CDE370".into()),
+                    },
+                ],
+            })
             .register()
             .await
         {
