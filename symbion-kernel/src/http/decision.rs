@@ -160,6 +160,8 @@ pub(super) async fn decision_resolve_validation(
                 &app.context_engine,
                 &app.notifications_manager,
                 &app.mode_registry,
+                &app.sensors,
+                &app.plugin_registry,
             ).await;
 
             match &exec_result {
@@ -340,6 +342,8 @@ pub(super) async fn execute_pending_action(
     context_engine: &std::sync::Arc<crate::context::ContextEngine>,
     notifications_manager: &crate::notifications::SharedNotificationManager,
     mode_registry: &crate::modes::SharedModeRegistry,
+    sensors: &crate::sensors::SharedSensorRegistry,
+    plugin_registry: &crate::plugin_proxy::PluginRegistry,
 ) -> Result<(), String> {
     use crate::automations::ActionDefinition;
 
@@ -443,6 +447,36 @@ pub(super) async fn execute_pending_action(
         ActionDefinition::SetFeature { .. } => {
             // SetFeature is handled by AutomationEngine directly (needs FeatureRegistry)
             Err("set_feature must be executed via AutomationEngine".to_string())
+        }
+
+        ActionDefinition::PluginCommand { plugin, route, payload, .. } => {
+            use crate::automations::executors::{
+                ActionExecutor, ExecutorContext, PluginCommandExecutor,
+            };
+            // Construit un ExecutorContext minimal pour réutiliser l'executor existant.
+            // event = Manual (validation manuelle utilisateur).
+            let exec_ctx = ExecutorContext::new(
+                context_engine.clone(),
+                agents.clone(),
+                sensors.clone(),
+                notifications_manager.clone(),
+                crate::automations::AutomationEvent::Manual {
+                    automation_id: "pending-validation".to_string(),
+                    triggered_by: Some("user-validation".to_string()),
+                    timestamp: OffsetDateTime::now_utc(),
+                },
+            )
+            .with_plugin_registry(plugin_registry.clone());
+
+            let executor = PluginCommandExecutor::new(
+                plugin.clone(),
+                route.clone(),
+                payload.clone(),
+            );
+            executor
+                .execute(&exec_ctx)
+                .await
+                .map_err(|e| format!("plugin_command failed: {}", e.message))
         }
     }
 }

@@ -152,6 +152,7 @@ pub async fn spawn_background_tasks(
         Some(db_sub.context_intelligence.clone()),
         Some(db_sub.mode_registry.clone()),
         Some(int_sub.feature_registry.clone()),
+        Some(plugin_registry.clone()),
     );
     eprintln!("[kernel] started Automations Event Listener");
 

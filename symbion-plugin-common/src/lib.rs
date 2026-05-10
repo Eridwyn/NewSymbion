@@ -82,7 +82,7 @@ impl PluginHttpServer {
 // ============================================================================
 
 /// Plugin registration request - matches kernel's PluginRegistration struct
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PluginRegistration {
     pub name: String,
     pub socket_path: String,
@@ -91,6 +91,80 @@ pub struct PluginRegistration {
     pub version: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
+    /// Actions exposées par le plugin pour le rule builder PWA.
+    /// Chaque action décrit son nom, sa route HTTP et ses paramètres typés.
+    #[serde(default)]
+    pub actions: Vec<PluginAction>,
+}
+
+/// Une action plugin (= un endpoint exécutable depuis une automation).
+/// Permet au PWA de générer un formulaire structuré au lieu d'un payload JSON libre.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PluginAction {
+    /// Identifiant logique (ex: "power_on", "brew_espresso").
+    pub name: String,
+    /// Label affiché dans le rule builder (ex: "Allumer la machine").
+    pub label: String,
+    /// Description optionnelle.
+    #[serde(default)]
+    pub description: Option<String>,
+    /// Icône emoji (ex: "☕", "💡").
+    #[serde(default)]
+    pub icon: Option<String>,
+    /// Route HTTP côté plugin (ex: "power", "brew"). POST par défaut.
+    pub route: String,
+    /// Méthode HTTP (default POST).
+    #[serde(default = "default_http_method")]
+    pub method: String,
+    /// Niveau d'impact (Low/Medium/High) pour le Decision Engine.
+    #[serde(default = "default_impact")]
+    pub impact_level: String,
+    /// Paramètres typés. Chaque paramètre devient une clé du payload JSON envoyé.
+    #[serde(default)]
+    pub params: Vec<PluginActionParam>,
+}
+
+fn default_http_method() -> String { "POST".to_string() }
+fn default_impact() -> String { "Low".to_string() }
+
+/// Description d'un paramètre d'action (sert à générer un champ formulaire).
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PluginActionParam {
+    /// Nom de la clé dans le payload JSON envoyé au plugin.
+    pub name: String,
+    /// Label affiché dans le formulaire.
+    pub label: String,
+    /// Type de champ : "bool" | "int" | "float" | "string" | "select" | "text_area".
+    #[serde(rename = "type")]
+    pub param_type: String,
+    /// True si le champ est requis (sinon optionnel).
+    #[serde(default)]
+    pub required: bool,
+    /// Valeur par défaut.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<serde_json::Value>,
+    /// Options pour les selects : `[{"value": "x", "label": "X"}]`.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<PluginActionOption>,
+    /// Min/max pour les nombres.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min: Option<f64>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max: Option<f64>,
+    /// Placeholder pour les champs text.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub placeholder: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PluginActionOption {
+    pub value: serde_json::Value,
+    pub label: String,
 }
 
 /// Plugin registration response from kernel
@@ -135,12 +209,28 @@ pub async fn register_with_kernel(
     version: Option<String>,
     description: Option<String>,
 ) -> anyhow::Result<()> {
+    register_with_kernel_full(
+        kernel_url, plugin_name, socket_path, routes, version, description, vec![],
+    ).await
+}
+
+/// Variante complète qui inclut les actions structurées (manifest pour rule builder).
+pub async fn register_with_kernel_full(
+    kernel_url: &str,
+    plugin_name: &str,
+    socket_path: &str,
+    routes: Vec<String>,
+    version: Option<String>,
+    description: Option<String>,
+    actions: Vec<PluginAction>,
+) -> anyhow::Result<()> {
     let registration = PluginRegistration {
         name: plugin_name.to_string(),
         socket_path: socket_path.to_string(),
         routes,
         version,
         description,
+        actions,
     };
 
     let endpoint = format!("{}/v1/plugins/register", kernel_url);
@@ -178,6 +268,7 @@ pub struct PluginRegistrationBuilder {
     routes: Vec<String>,
     version: Option<String>,
     description: Option<String>,
+    actions: Vec<PluginAction>,
 }
 
 impl PluginRegistrationBuilder {
@@ -190,6 +281,7 @@ impl PluginRegistrationBuilder {
             routes: vec![],
             version: None,
             description: None,
+            actions: vec![],
         }
     }
 
@@ -223,15 +315,23 @@ impl PluginRegistrationBuilder {
         self
     }
 
+    /// Add an action (rule builder PWA template). Préfère cette API au lieu de
+    /// .route() seule pour les endpoints qu'on veut voir dans les automations.
+    pub fn action(mut self, action: PluginAction) -> Self {
+        self.actions.push(action);
+        self
+    }
+
     /// Execute registration
     pub async fn register(self) -> anyhow::Result<()> {
-        register_with_kernel(
+        register_with_kernel_full(
             &self.kernel_url,
             &self.plugin_name,
             &self.socket_path,
             self.routes,
             self.version,
             self.description,
+            self.actions,
         ).await
     }
 }
@@ -261,6 +361,7 @@ mod tests {
             routes: vec!["/test".to_string(), "/test/status".to_string()],
             version: Some("1.0.0".to_string()),
             description: Some("A test plugin".to_string()),
+            actions: vec![],
         };
 
         let json = serde_json::to_string(&registration).unwrap();

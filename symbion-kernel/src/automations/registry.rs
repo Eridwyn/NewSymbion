@@ -156,55 +156,89 @@ impl SchemaRegistry {
         sensors: &[SensorInfo],
         modes: &[(String, String, String)],  // (slug, label, description)
     ) -> AutomationSchema {
-        Self::get_schema_with_ssl(agents, rooms, sensors, modes, &[])
+        Self::get_schema_full(agents, rooms, sensors, modes, &[], &[], &[])
     }
 
-    /// Get complete schema with SSL domains
+    /// Get schema avec domaines SSL (kept pour back-compat, sans features dynamiques).
     pub fn get_schema_with_ssl(
-        agents: &[(String, String)],  // (id, name/hostname)
+        agents: &[(String, String)],
         rooms: &[String],
         sensors: &[SensorInfo],
-        modes: &[(String, String, String)],  // (slug, label, description)
-        ssl_domains: &[(String, String)],  // (id, label)
+        modes: &[(String, String, String)],
+        ssl_domains: &[(String, String)],
     ) -> AutomationSchema {
-        // Include common presence features + SSL features by default
-        let mut default_features = vec![
-            ("presence.phone".to_string(), "📱 Présence téléphone".to_string()),
-            ("presence.anyone_home".to_string(), "🏠 Quelqu'un à la maison".to_string()),
-            ("env.temperature".to_string(), "🌡️ Température".to_string()),
-            ("env.humidity".to_string(), "💧 Humidité".to_string()),
-            ("process.category.ide".to_string(), "💻 IDE actif".to_string()),
-            ("process.category.media".to_string(), "🎬 Média actif".to_string()),
-            ("agent.online".to_string(), "🖥️ Agent en ligne".to_string()),
-            ("appearance.theme".to_string(), "🌗 Thème interface (dark/light)".to_string()),
-        ];
+        Self::get_schema_full(agents, rooms, sensors, modes, ssl_domains, &[], &[])
+    }
 
-        // Add SSL features for each domain
+    /// Get complete schema avec features actives énumérées depuis le FeatureRegistry.
+    /// `live_features` doit contenir les feature_id réellement présents dans le registry
+    /// (le caller s'en occupe via `feature_registry.get_all()`).
+    /// `live_plugins` contient les noms de plugins réellement enregistrés au plugin_proxy.
+    pub fn get_schema_full(
+        agents: &[(String, String)],
+        rooms: &[String],
+        sensors: &[SensorInfo],
+        modes: &[(String, String, String)],
+        ssl_domains: &[(String, String)],
+        live_features: &[String],  // feature_ids réels du registry
+        live_plugins: &[String],   // noms de plugins réels (ex: ["coffee", "notes", ...])
+    ) -> AutomationSchema {
+        // Common features hardcodées (résilience offline + UX : on garde ces options même si
+        // un plugin est down momentanément). Si elles existent en live, on les préfère.
+        let mut features_by_id: std::collections::BTreeMap<String, String> = [
+            ("presence.phone", "📱 Présence téléphone"),
+            ("presence.anyone_home", "🏠 Quelqu'un à la maison"),
+            ("env.temperature", "🌡️ Température"),
+            ("env.humidity", "💧 Humidité"),
+            ("process.category.ide", "💻 IDE actif"),
+            ("process.category.media", "🎬 Média actif"),
+            ("agent.online", "🖥️ Agent en ligne"),
+            ("appearance.theme", "🌗 Thème interface (dark/light)"),
+        ]
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+
+        // SSL features par domaine (back-compat)
         for (domain_id, label) in ssl_domains {
-            default_features.push((
+            features_by_id.insert(
                 format!("ssl.{}.valid", domain_id),
                 format!("🔒 {} - Certificat valide", label),
-            ));
-            default_features.push((
+            );
+            features_by_id.insert(
                 format!("ssl.{}.days_remaining", domain_id),
                 format!("📅 {} - Jours restants", label),
-            ));
-            default_features.push((
+            );
+            features_by_id.insert(
                 format!("ssl.{}.status", domain_id),
                 format!("🚦 {} - Status (ok/warning/critical)", label),
-            ));
-            default_features.push((
+            );
+            features_by_id.insert(
                 format!("ssl.{}.online", domain_id),
                 format!("🌐 {} - Domaine en ligne", label),
-            ));
+            );
         }
+
+        // Enrichir avec les features dynamiques du registry runtime
+        for fid in live_features {
+            // Skip si déjà présent (les hardcodées ont des labels manuels plus explicites)
+            if features_by_id.contains_key(fid) {
+                continue;
+            }
+            let icon = Self::feature_icon(fid);
+            features_by_id.insert(fid.clone(), format!("{} {}", icon, fid));
+        }
+
+        let default_features: Vec<(String, String)> = features_by_id.into_iter().collect();
 
         AutomationSchema {
             triggers: Self::get_triggers(),
             trigger_group: Self::get_trigger_group_schema(),
             conditions: Self::get_conditions(),
             actions: Self::get_actions(),
-            dynamic_values: Self::get_dynamic_values(agents, rooms, sensors, modes, &default_features, ssl_domains),
+            dynamic_values: Self::get_dynamic_values(
+                agents, rooms, sensors, modes, &default_features, ssl_domains, live_plugins,
+            ),
         }
     }
 
@@ -227,6 +261,43 @@ impl SchemaRegistry {
                 },
             ],
         }
+    }
+
+    /// Map un nom de plugin vers une icône emoji pour le menu PWA.
+    fn plugin_icon(plugin: &str) -> &'static str {
+        match plugin {
+            "coffee" => "☕",
+            "library" => "📚",
+            "notes" => "📝",
+            "ssl" => "🔒",
+            "sensors" => "🌡️",
+            "freebox" => "📡",
+            "telegram" => "📱",
+            "common" => "🔧",
+            _ => "🔌",
+        }
+    }
+
+    /// Map un préfixe de feature_id vers une icône emoji pour le menu PWA.
+    fn feature_icon(feature_id: &str) -> &'static str {
+        let id = feature_id;
+        if id.starts_with("coffee.") { "☕" }
+        else if id.starts_with("library.") { "📚" }
+        else if id.starts_with("ssl.") { "🔒" }
+        else if id.starts_with("agent.") { "🖥️" }
+        else if id.starts_with("agents.") { "🖧" }
+        else if id.starts_with("freebox.") { "📡" }
+        else if id.starts_with("presence.") { "👤" }
+        else if id.starts_with("env.") { "🌡️" }
+        else if id.starts_with("sensor.") { "🌡️" }
+        else if id.starts_with("process.") { "💻" }
+        else if id.starts_with("classifier.") { "🤖" }
+        else if id.starts_with("appearance.") { "🎨" }
+        else if id.starts_with("notes.") { "📝" }
+        else if id.starts_with("telegram.") { "📱" }
+        else if id.starts_with("schedule.") { "⏰" }
+        else if id.starts_with("kernel.") { "⚙️" }
+        else { "🔧" }
     }
 
     /// Static trigger schemas
@@ -824,6 +895,47 @@ impl SchemaRegistry {
                     },
                 ],
             },
+            ActionSchema {
+                action_type: "plugin_command".to_string(),
+                label: "Commande plugin".to_string(),
+                description: "POST HTTP sur une route d'un plugin (ex: coffee/power, library/reindex)".to_string(),
+                icon: "🔌".to_string(),
+                fields: vec![
+                    FieldSchema {
+                        name: "plugin".to_string(),
+                        label: "Plugin".to_string(),
+                        field_type: FieldType::Select,
+                        required: true,
+                        default_value: None,
+                        placeholder: None,
+                        options_key: Some("plugins".to_string()),
+                        min: None,
+                        max: None,
+                    },
+                    FieldSchema {
+                        name: "route".to_string(),
+                        label: "Route".to_string(),
+                        field_type: FieldType::Text,
+                        required: true,
+                        default_value: None,
+                        placeholder: Some("Ex: power, brew, config (sans slash)".to_string()),
+                        options_key: None,
+                        min: None,
+                        max: None,
+                    },
+                    FieldSchema {
+                        name: "payload".to_string(),
+                        label: "Payload JSON".to_string(),
+                        field_type: FieldType::TextArea,
+                        required: false,
+                        default_value: Some(serde_json::json!({})),
+                        placeholder: Some(r#"{"on": true}"#.to_string()),
+                        options_key: None,
+                        min: None,
+                        max: None,
+                    },
+                ],
+            },
         ]
     }
 
@@ -835,6 +947,7 @@ impl SchemaRegistry {
         modes: &[(String, String, String)],  // (slug, label, description)
         features: &[(String, String)],  // (feature_id, label)
         ssl_domains: &[(String, String)],  // (id, label)
+        live_plugins: &[String],         // noms réels via PluginRegistry
     ) -> DynamicValues {
         DynamicValues {
             modes: modes
@@ -1048,12 +1161,34 @@ impl SchemaRegistry {
                 ValueOption { value: "11".to_string(), label: "Novembre".to_string(), description: None },
                 ValueOption { value: "12".to_string(), label: "Décembre".to_string(), description: None },
             ],
-            plugins: vec![
-                ValueOption { value: "notes".to_string(), label: "📝 Notes".to_string(), description: Some("Plugin de notes".to_string()) },
-                ValueOption { value: "sensors".to_string(), label: "🌡️ Sensors".to_string(), description: Some("Plugin capteurs environnement".to_string()) },
-                ValueOption { value: "ssl".to_string(), label: "🔒 SSL".to_string(), description: Some("Plugin surveillance certificats SSL".to_string()) },
-                ValueOption { value: "freebox".to_string(), label: "📡 Freebox".to_string(), description: Some("Plugin présence Freebox".to_string()) },
-            ],
+            plugins: {
+                // Hardcoded fallback (résilience offline) + enrichi avec live runtime
+                let mut by_name: std::collections::BTreeMap<String, ValueOption> = [
+                    ("notes", "📝 Notes", "Plugin de notes"),
+                    ("sensors", "🌡️ Sensors", "Plugin capteurs environnement"),
+                    ("ssl", "🔒 SSL", "Plugin surveillance certificats SSL"),
+                    ("freebox", "📡 Freebox", "Plugin présence Freebox"),
+                ]
+                .iter()
+                .map(|(name, label, desc)| (
+                    name.to_string(),
+                    ValueOption {
+                        value: name.to_string(),
+                        label: label.to_string(),
+                        description: Some(desc.to_string()),
+                    }
+                ))
+                .collect();
+                // Enrichir avec les plugins runtime (peut-être ajout de coffee, library, telegram...)
+                for plugin_name in live_plugins {
+                    by_name.entry(plugin_name.clone()).or_insert_with(|| ValueOption {
+                        value: plugin_name.clone(),
+                        label: format!("{} {}", Self::plugin_icon(plugin_name), plugin_name),
+                        description: Some(format!("Plugin {}", plugin_name)),
+                    });
+                }
+                by_name.into_values().collect()
+            },
             plugin_health_statuses: vec![
                 ValueOption { value: "healthy".to_string(), label: "🟢 Healthy".to_string(), description: Some("Plugin fonctionne".to_string()) },
                 ValueOption { value: "unhealthy".to_string(), label: "🔴 Unhealthy".to_string(), description: Some("Plugin ne répond pas".to_string()) },

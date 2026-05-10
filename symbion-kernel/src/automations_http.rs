@@ -153,8 +153,35 @@ pub async fn get_automations_schema(
         .map(|m| (m.slug, format!("{} {}", m.icon, m.name), m.name))
         .collect();
 
+    // Énumère les features actives du runtime FeatureRegistry pour peupler
+    // le dropdown features dans le rule builder PWA (sinon limité à 8 hardcodées).
+    let live_features: Vec<String> = app
+        .feature_registry
+        .get_all()
+        .into_iter()
+        .map(|s| s.feature_id)
+        .collect();
+
+    // Énumère les plugins réellement enregistrés au plugin_proxy (sinon limité à 4
+    // hardcodés et coffee/library/telegram absents du menu plugin_command).
+    let live_plugins: Vec<String> = app
+        .plugin_registry
+        .list_plugins()
+        .await
+        .into_iter()
+        .map(|p| p.name)
+        .collect();
+
     // Use SchemaRegistry to build typed schema
-    Json(SchemaRegistry::get_schema(&agents, &rooms, &sensors, &modes))
+    Json(SchemaRegistry::get_schema_full(
+        &agents,
+        &rooms,
+        &sensors,
+        &modes,
+        &[],
+        &live_features,
+        &live_plugins,
+    ))
 }
 
 /// GET /v1/automations/history - Get execution history
@@ -365,6 +392,8 @@ pub async fn test_automation(
                 format!("Plugin {} action: {}", plugin_name, action_type),
             crate::automations::ActionDefinition::SetFeature { feature_id, value, .. } =>
                 format!("Set feature '{}' = {}", feature_id, value),
+            crate::automations::ActionDefinition::PluginCommand { plugin, route, .. } =>
+                format!("Plugin {} POST /{}", plugin, route.trim_start_matches('/')),
         }
     }).collect();
 
@@ -441,6 +470,7 @@ pub async fn run_automation(
         context_intelligence: Some(app.context_intelligence.clone()),
         mode_registry: Some(app.mode_registry.clone()),
         feature_registry: Some(app.feature_registry.clone()),
+        plugin_registry: Some(app.plugin_registry.clone()),
     };
 
     // Execute actions

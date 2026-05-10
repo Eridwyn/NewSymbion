@@ -20,7 +20,7 @@ mod events;
 mod listener;
 mod engine;
 mod registry;
-mod executors;
+pub mod executors;
 mod decision_bridge;
 mod pending_actions;
 mod scheduler;

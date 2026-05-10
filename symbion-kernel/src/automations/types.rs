@@ -442,6 +442,21 @@ pub enum ActionDefinition {
         #[serde(default = "default_impact_medium")]
         impact_level: ImpactLevel,
     },
+
+    /// HTTP POST sur une route exposée par un plugin via son Unix socket.
+    /// Permet aux automations d'appeler n'importe quel endpoint plugin
+    /// (ex: { plugin: "coffee", route: "power", payload: {"on": true} } pour préchauffer).
+    PluginCommand {
+        plugin: String,
+        /// Chemin tel que vu côté plugin (sans le préfixe /v1/plugin-api/{plugin}/).
+        /// Ex: "power", "brew", "config".
+        route: String,
+        #[serde(default)]
+        #[schema(value_type = Object)]
+        payload: Value,
+        #[serde(default = "default_impact_medium")]
+        impact_level: ImpactLevel,
+    },
 }
 
 fn default_impact_low() -> ImpactLevel {
@@ -614,6 +629,7 @@ impl ActionDefinition {
             ActionDefinition::Delay { .. } => "delay",
             ActionDefinition::SetFeature { .. } => "set_feature",
             ActionDefinition::Custom { .. } => "custom",
+            ActionDefinition::PluginCommand { .. } => "plugin_command",
         }
     }
 
@@ -626,6 +642,7 @@ impl ActionDefinition {
             ActionDefinition::Delay { .. } => ImpactLevel::Low, // Always allowed
             ActionDefinition::SetFeature { impact_level, .. } => *impact_level,
             ActionDefinition::Custom { impact_level, .. } => *impact_level,
+            ActionDefinition::PluginCommand { impact_level, .. } => *impact_level,
         }
     }
 

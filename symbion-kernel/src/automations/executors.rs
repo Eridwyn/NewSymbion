@@ -29,9 +29,12 @@ use super::types::{ActionDefinition, ActionResult};
 use super::AutomationEvent;
 
 use async_trait::async_trait;
+use http_body_util::{BodyExt, Full};
+use hyper::body::Bytes;
+use hyper_util::rt::TokioIo;
 use serde_json::Value;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// Error type for action execution
 #[derive(Debug, Clone)]
@@ -423,6 +426,131 @@ impl ActionExecutor for CustomActionExecutor {
 }
 
 // =============================================================================
+// PluginCommandExecutor
+// =============================================================================
+
+/// Executor for PluginCommand actions — POST HTTP via Unix socket vers un plugin.
+pub struct PluginCommandExecutor {
+    plugin: String,
+    route: String,
+    payload: Value,
+}
+
+impl PluginCommandExecutor {
+    pub fn new(plugin: String, route: String, payload: Value) -> Self {
+        Self { plugin, route, payload }
+    }
+}
+
+#[async_trait]
+impl ActionExecutor for PluginCommandExecutor {
+    async fn execute(&self, ctx: &ExecutorContext) -> Result<(), ActionError> {
+        let plugin_registry = ctx.plugin_registry.as_ref().ok_or_else(|| {
+            ActionError::new("plugin registry not available for plugin_command")
+        })?;
+
+        // Normalisation route : trim + retire les / autour. La casse est préservée
+        // (les routes plugin sont sensibles à la casse, c'est au user de matcher).
+        let route = self.route.trim().trim_matches('/').to_string();
+        if route.is_empty() {
+            return Err(ActionError::new("plugin_command: route is empty"));
+        }
+        if route.contains(' ') || route.contains('\n') {
+            return Err(ActionError::new(format!(
+                "plugin_command: route '{}' contains invalid whitespace — use eg 'power', 'brew', 'config'",
+                route
+            )));
+        }
+
+        // Le PluginRegistry indexe par full_path /v1/plugin-api/{plugin}/{route}
+        let lookup_path = format!("/v1/plugin-api/{}/{}", self.plugin, route);
+
+        let socket_path = plugin_registry.find_socket(&lookup_path).await.ok_or_else(|| {
+            ActionError::new(format!(
+                "no socket registered for plugin '{}' route '/{}'",
+                self.plugin, route
+            ))
+        })?;
+
+        let stream = tokio::time::timeout(
+            Duration::from_secs(2),
+            tokio::net::UnixStream::connect(&socket_path),
+        )
+        .await
+        .map_err(|_| ActionError::recoverable("plugin connect timeout (2s)"))?
+        .map_err(|e| ActionError::recoverable(format!("connect {}: {}", socket_path.display(), e)))?;
+
+        let io = TokioIo::new(stream);
+        let (mut sender, conn) = hyper::client::conn::http1::handshake(io)
+            .await
+            .map_err(|e| ActionError::recoverable(format!("hyper handshake: {}", e)))?;
+        tokio::spawn(async move {
+            if let Err(e) = conn.await {
+                eprintln!("[plugin_command] conn error: {}", e);
+            }
+        });
+
+        // Auto-parse si le payload est une string JSON (cas typique du textarea PWA
+        // qui sérialise la valeur saisie en string). Sinon utiliser tel quel.
+        let payload_to_send: Value = if let Value::String(s) = &self.payload {
+            let trimmed = s.trim();
+            if trimmed.starts_with('{') || trimmed.starts_with('[') {
+                serde_json::from_str(trimmed).unwrap_or_else(|_| self.payload.clone())
+            } else {
+                self.payload.clone()
+            }
+        } else {
+            self.payload.clone()
+        };
+
+        let body_bytes = serde_json::to_vec(&payload_to_send).map_err(|e| {
+            ActionError::new(format!("serialize payload: {}", e))
+        })?;
+
+        let req = hyper::Request::builder()
+            .method("POST")
+            .uri(format!("/{}", route))
+            .header("Host", "localhost")
+            .header("Content-Type", "application/json")
+            .body(Full::new(Bytes::from(body_bytes)))
+            .map_err(|e| ActionError::new(format!("build request: {}", e)))?;
+
+        let res = tokio::time::timeout(Duration::from_secs(10), sender.send_request(req))
+            .await
+            .map_err(|_| ActionError::recoverable("plugin POST timeout (10s)"))?
+            .map_err(|e| ActionError::recoverable(format!("send_request: {}", e)))?;
+
+        let status = res.status();
+        if !status.is_success() {
+            // Read body for context
+            let body = res
+                .into_body()
+                .collect()
+                .await
+                .map(|b| String::from_utf8_lossy(&b.to_bytes()).to_string())
+                .unwrap_or_default();
+            return Err(ActionError::recoverable(format!(
+                "plugin '{}' /{} → HTTP {} ({})",
+                self.plugin,
+                route,
+                status,
+                body.chars().take(200).collect::<String>()
+            )));
+        }
+
+        Ok(())
+    }
+
+    fn action_type(&self) -> &'static str {
+        "plugin_command"
+    }
+
+    fn can_handle(&self, action: &ActionDefinition) -> bool {
+        matches!(action, ActionDefinition::PluginCommand { .. })
+    }
+}
+
+// =============================================================================
 // ActionExecutorRegistry
 // =============================================================================
 
@@ -500,6 +628,18 @@ impl ActionExecutorRegistry {
                 // This executor path should not be reached
                 (false, Some("set_feature must be executed via AutomationEngine".to_string()))
             }
+
+            ActionDefinition::PluginCommand { plugin, route, payload, .. } => {
+                let executor = PluginCommandExecutor::new(
+                    plugin.clone(),
+                    route.clone(),
+                    payload.clone(),
+                );
+                match executor.execute(ctx).await {
+                    Ok(()) => (true, None),
+                    Err(e) => (false, Some(e.message)),
+                }
+            }
         };
 
         let duration_ms = start.elapsed().as_millis() as u64;
@@ -553,6 +693,9 @@ impl ActionExecutorRegistry {
                 format!("custom:{}/{}", plugin_name, action_type)
             }
             ActionDefinition::SetFeature { .. } => "set_feature".to_string(),
+            ActionDefinition::PluginCommand { plugin, route, .. } => {
+                format!("plugin_command:{}/{}", plugin, route.trim_start_matches('/'))
+            }
         }
     }
 
@@ -581,6 +724,9 @@ impl ActionExecutorRegistry {
                 }
                 ActionDefinition::SetFeature { feature_id, value, .. } => {
                     format!("Set feature '{}' = {}", feature_id, value)
+                }
+                ActionDefinition::PluginCommand { plugin, route, payload, .. } => {
+                    format!("POST plugin {}/{}: {}", plugin, route.trim_start_matches('/'), payload)
                 }
             })
             .collect()

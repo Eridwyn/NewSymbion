@@ -73,6 +73,8 @@ pub struct ExecutionContext {
     pub mode_registry: Option<SharedModeRegistry>,
     /// Feature Registry for Intelligence v2 condition evaluation
     pub feature_registry: Option<SharedFeatureRegistry>,
+    /// Plugin Registry for plugin_command actions (HTTP via Unix socket)
+    pub plugin_registry: Option<crate::plugin_proxy::PluginRegistry>,
 }
 
 /// Automation engine - evaluates conditions and executes actions
@@ -865,6 +867,40 @@ impl AutomationEngine {
                 );
                 (false, Some(format!("custom action {}/{} not implemented", plugin_name, action_type)))
             }
+
+            ActionDefinition::PluginCommand { plugin, route, payload, .. } => {
+                use crate::automations::executors::{
+                    ExecutorContext, PluginCommandExecutor, ActionExecutor,
+                };
+                let plugin_registry = match &ctx.plugin_registry {
+                    Some(p) => p.clone(),
+                    None => {
+                        return (false, Some(
+                            "plugin_command requires plugin_registry in ExecutionContext".to_string()
+                        ));
+                    }
+                };
+                let exec_ctx = ExecutorContext::new(
+                    ctx.context_engine.clone(),
+                    ctx.agents.clone(),
+                    ctx.sensors.clone(),
+                    ctx.notifications_manager.clone(),
+                    ctx.event.clone(),
+                ).with_plugin_registry(plugin_registry);
+
+                let executor = PluginCommandExecutor::new(
+                    plugin.clone(),
+                    route.clone(),
+                    payload.clone(),
+                );
+                match executor.execute(&exec_ctx).await {
+                    Ok(()) => {
+                        eprintln!("[automations] 🔌 plugin_command {}/{} OK", plugin, route);
+                        (true, None)
+                    }
+                    Err(e) => (false, Some(format!("plugin_command failed: {}", e.message))),
+                }
+            }
         }
     }
 
@@ -1017,6 +1053,9 @@ impl AutomationEngine {
             ActionDefinition::Custom { plugin_name, action_type, .. } => {
                 format!("custom:{}/{}", plugin_name, action_type)
             }
+            ActionDefinition::PluginCommand { plugin, route, .. } => {
+                format!("plugin_command:{}/{}", plugin, route.trim_start_matches('/'))
+            }
         }
     }
 
@@ -1045,6 +1084,9 @@ impl AutomationEngine {
                 }
                 ActionDefinition::Custom { plugin_name, action_type, .. } => {
                     format!("Custom action: {}/{}", plugin_name, action_type)
+                }
+                ActionDefinition::PluginCommand { plugin, route, payload, .. } => {
+                    format!("POST plugin {}/{}: {}", plugin, route.trim_start_matches('/'), payload)
                 }
             })
             .collect()
@@ -1076,6 +1118,7 @@ mod tests {
             context_intelligence: None,
             mode_registry: None,
             feature_registry: None,
+            plugin_registry: None,
         }
     }
 

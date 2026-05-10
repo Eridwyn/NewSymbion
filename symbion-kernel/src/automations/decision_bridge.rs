@@ -81,6 +81,9 @@ pub fn action_description(action: &ActionDefinition) -> String {
         ActionDefinition::SetFeature { feature_id, value, .. } => {
             format!("set_feature(id='{}', value={})", feature_id, value)
         }
+        ActionDefinition::PluginCommand { plugin, route, .. } => {
+            format!("plugin_command(plugin='{}', route='/{}')", plugin, route.trim_start_matches('/'))
+        }
     }
 }
 

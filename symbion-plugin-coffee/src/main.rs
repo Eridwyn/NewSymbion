@@ -688,8 +688,10 @@ async fn main() -> Result<()> {
         poll_status(poll_state).await;
     });
 
-    // Register with kernel
+    // Register with kernel + actions templates pour le rule builder PWA
     tokio::spawn(async {
+        use symbion_plugin_common::{PluginAction, PluginActionParam, PluginActionOption};
+
         tokio::time::sleep(Duration::from_secs(2)).await;
         if let Err(e) = symbion_plugin_common::PluginRegistrationBuilder::new(PLUGIN_ID, SOCKET_PATH)
             .route("/status")
@@ -701,6 +703,89 @@ async fn main() -> Result<()> {
             .route("/health")
             .version(env!("CARGO_PKG_VERSION"))
             .description("Philips EP2520 coffee machine integration")
+            // Actions templates : le PWA construit un formulaire à partir de ça
+            .action(PluginAction {
+                name: "power_on".into(),
+                label: "Allumer la machine".into(),
+                description: Some("Sort la machine du mode standby".into()),
+                icon: Some("⚡".into()),
+                route: "power".into(),
+                method: "POST".into(),
+                impact_level: "Low".into(),
+                params: vec![
+                    PluginActionParam {
+                        name: "on".into(), label: "État".into(),
+                        param_type: "bool".into(), required: true,
+                        default: Some(serde_json::json!(true)),
+                        options: vec![],
+                        min: None, max: None, placeholder: None,
+                    },
+                ],
+            })
+            .action(PluginAction {
+                name: "power_off".into(),
+                label: "Éteindre la machine".into(),
+                description: Some("Met la machine en standby".into()),
+                icon: Some("🌙".into()),
+                route: "power".into(),
+                method: "POST".into(),
+                impact_level: "Low".into(),
+                params: vec![
+                    PluginActionParam {
+                        name: "on".into(), label: "État".into(),
+                        param_type: "bool".into(), required: true,
+                        default: Some(serde_json::json!(false)),
+                        options: vec![],
+                        min: None, max: None, placeholder: None,
+                    },
+                ],
+            })
+            .action(PluginAction {
+                name: "brew".into(),
+                label: "Lancer un café".into(),
+                description: Some("Démarre la préparation d'une boisson".into()),
+                icon: Some("☕".into()),
+                route: "brew".into(),
+                method: "POST".into(),
+                impact_level: "Medium".into(),
+                params: vec![
+                    PluginActionParam {
+                        name: "drink".into(), label: "Boisson".into(),
+                        param_type: "select".into(), required: true,
+                        default: Some(serde_json::json!("espresso")),
+                        options: vec![
+                            PluginActionOption { value: serde_json::json!("espresso"), label: "Espresso".into() },
+                            PluginActionOption { value: serde_json::json!("coffee"), label: "Café long".into() },
+                            PluginActionOption { value: serde_json::json!("hot_water"), label: "Eau chaude".into() },
+                        ],
+                        min: None, max: None, placeholder: None,
+                    },
+                    PluginActionParam {
+                        name: "temperature".into(), label: "Température (1=basse, 3=élevée)".into(),
+                        param_type: "int".into(), required: false,
+                        default: Some(serde_json::json!(2)),
+                        options: vec![],
+                        min: Some(1.0), max: Some(3.0), placeholder: None,
+                    },
+                    PluginActionParam {
+                        name: "cups".into(), label: "Nombre de tasses".into(),
+                        param_type: "int".into(), required: false,
+                        default: Some(serde_json::json!(1)),
+                        options: vec![],
+                        min: Some(1.0), max: Some(2.0), placeholder: None,
+                    },
+                ],
+            })
+            .action(PluginAction {
+                name: "stop".into(),
+                label: "Arrêter la préparation".into(),
+                description: Some("Stoppe le brewing en cours".into()),
+                icon: Some("⏹️".into()),
+                route: "stop".into(),
+                method: "POST".into(),
+                impact_level: "Low".into(),
+                params: vec![],
+            })
             .register()
             .await
         {

@@ -34,6 +34,62 @@ pub struct PluginRegistration {
     pub version: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
+    /// Actions exposées par le plugin pour le rule builder PWA
+    #[serde(default)]
+    pub actions: Vec<PluginAction>,
+}
+
+/// Une action plugin = template d'appel structuré vers une route HTTP du plugin.
+/// Permet au PWA de générer un formulaire au lieu d'un payload JSON libre.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginAction {
+    pub name: String,
+    pub label: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+    pub route: String,
+    #[serde(default = "default_http_method")]
+    pub method: String,
+    #[serde(default = "default_impact")]
+    pub impact_level: String,
+    #[serde(default)]
+    pub params: Vec<PluginActionParam>,
+}
+
+fn default_http_method() -> String { "POST".to_string() }
+fn default_impact() -> String { "Low".to_string() }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginActionParam {
+    pub name: String,
+    pub label: String,
+    #[serde(rename = "type")]
+    pub param_type: String,
+    #[serde(default)]
+    pub required: bool,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<serde_json::Value>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<PluginActionOption>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min: Option<f64>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max: Option<f64>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub placeholder: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginActionOption {
+    pub value: serde_json::Value,
+    pub label: String,
 }
 
 /// Plugin metadata stored in registry
@@ -45,6 +101,9 @@ pub struct PluginInfo {
     pub version: Option<String>,
     pub description: Option<String>,
     pub registered_at: chrono::DateTime<chrono::Utc>,
+    /// Actions exposées (templates pour rule builder)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub actions: Vec<PluginAction>,
 }
 
 /// Plugin route registry - maps path prefixes to Unix socket paths
@@ -72,6 +131,7 @@ impl PluginRegistry {
             version: registration.version,
             description: registration.description,
             registered_at: chrono::Utc::now(),
+            actions: registration.actions,
         };
 
         // Validate socket exists
@@ -183,6 +243,9 @@ impl PluginRegistry {
                         routes,
                         version: Some(version),
                         description,
+                        // Discovery par scan = pas d'actions (le plugin doit re-register
+                        // explicitement via PluginRegistrationBuilder.action() pour les fournir).
+                        actions: vec![],
                     };
 
                     if let Err(e) = self.register_plugin(registration).await {
@@ -650,7 +713,8 @@ pub async fn handle_list_plugins(
             "version": plugin.version,
             "description": plugin.description,
             "registered_at": plugin.registered_at,
-            "status": status
+            "status": status,
+            "actions": plugin.actions,
         })
     }).collect();
 

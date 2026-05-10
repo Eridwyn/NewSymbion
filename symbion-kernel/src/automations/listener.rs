@@ -51,6 +51,8 @@ pub struct AutomationListener {
     mode_registry: Option<SharedModeRegistry>,
     /// Feature Registry for Intelligence v2 condition evaluation
     feature_registry: Option<SharedFeatureRegistry>,
+    /// Plugin Registry for plugin_command actions
+    plugin_registry: Option<crate::plugin_proxy::PluginRegistry>,
     /// Track automations currently executing (prevent re-trigger during long actions)
     executing: Arc<Mutex<HashSet<String>>>,
 }
@@ -69,6 +71,7 @@ impl AutomationListener {
         context_intelligence: Option<SharedContextIntelligence>,
         mode_registry: Option<SharedModeRegistry>,
         feature_registry: Option<SharedFeatureRegistry>,
+        plugin_registry: Option<crate::plugin_proxy::PluginRegistry>,
     ) -> Self {
         Self {
             store,
@@ -83,6 +86,7 @@ impl AutomationListener {
             context_intelligence,
             mode_registry,
             feature_registry,
+            plugin_registry,
             executing: Arc::new(Mutex::new(HashSet::new())),
         }
     }
@@ -172,6 +176,7 @@ impl AutomationListener {
                 context_intelligence: self.context_intelligence.clone(),
                 mode_registry: self.mode_registry.clone(),
                 feature_registry: self.feature_registry.clone(),
+                plugin_registry: self.plugin_registry.clone(),
             };
 
             // Evaluate conditions
@@ -475,6 +480,7 @@ pub fn spawn_automation_listener(
     context_intelligence: Option<SharedContextIntelligence>,
     mode_registry: Option<SharedModeRegistry>,
     feature_registry: Option<SharedFeatureRegistry>,
+    plugin_registry: Option<crate::plugin_proxy::PluginRegistry>,
 ) {
     let listener = AutomationListener::new(
         store,
@@ -489,6 +495,7 @@ pub fn spawn_automation_listener(
         context_intelligence,
         mode_registry,
         feature_registry,
+        plugin_registry,
     );
     listener.spawn(receiver);
 }

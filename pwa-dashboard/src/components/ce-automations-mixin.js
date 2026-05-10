@@ -715,6 +715,14 @@ export const AutomationsMixin = (Base) => class extends Base {
 
   renderActionConfig() {
     const type = this.pendingActionType
+
+    // Cas spécial : plugin_command avec templates structurés (manifest plugin)
+    // Au lieu d'un payload JSON libre, on génère un formulaire à partir des
+    // actions exposées par le plugin (PluginAction.params).
+    if (type === 'plugin_command') {
+      return this.renderPluginCommandConfig()
+    }
+
     const actionSchema = this.schema?.actions?.find(a => a.type === type)
 
     if (!actionSchema || !actionSchema.fields?.length) {
@@ -736,6 +744,220 @@ export const AutomationsMixin = (Base) => class extends Base {
     `
   }
 
+  /**
+   * Charge la map { plugin_name → [PluginAction, ...] } depuis /v1/plugins.
+   * Cache lazy en mémoire (rechargé seulement si null).
+   */
+  async loadPluginsManifest() {
+    if (this.pluginsManifestCache) return this.pluginsManifestCache
+    try {
+      const apiService = document.querySelector('api-service')
+      if (!apiService) return {}
+      const data = await apiService.request('/v1/plugins')
+      const plugins = (data && data.plugins) || []
+      const manifest = {}
+      for (const p of plugins) {
+        if (Array.isArray(p.actions) && p.actions.length > 0) {
+          manifest[p.name] = p.actions
+        }
+      }
+      this.pluginsManifestCache = manifest
+      return manifest
+    } catch (e) {
+      console.warn('[ce-automations] Failed to load plugins manifest:', e)
+      this.pluginsManifestCache = {}
+      return {}
+    }
+  }
+
+  /**
+   * Rendering form spécifique pour plugin_command : 2 selects (plugin → action)
+   * + sub-form généré dynamiquement depuis les params de l'action choisie.
+   * Fallback vers le form générique si le plugin n'a pas de templates.
+   */
+  renderPluginCommandConfig() {
+    // Init pendingAction si vide
+    if (!this.pendingAction || this.pendingAction.type !== 'plugin_command') {
+      this.pendingAction = {
+        type: 'plugin_command',
+        plugin: '',
+        route: '',
+        payload: {},
+        impact_level: 'Low',
+        _action_name: '',
+      }
+    }
+
+    // Lazy load manifest
+    if (!this.pluginsManifestCache) {
+      this.loadPluginsManifest().then(() => this.requestUpdate())
+      return html`<div class="ce-text-sm ce-text-tertiary">Chargement des plugins…</div>`
+    }
+
+    const manifestByPlugin = this.pluginsManifestCache
+    const pluginsWithActions = Object.keys(manifestByPlugin).sort()
+    const currentPlugin = this.pendingAction.plugin || ''
+    const pluginActions = manifestByPlugin[currentPlugin] || []
+    const currentActionName = this.pendingAction._action_name || ''
+    const currentAction = pluginActions.find(a => a.name === currentActionName)
+
+    // Plugins disponibles côté schema (icônes/labels jolis)
+    const allPluginOptions = this.schema?.dynamic_values?.plugins || []
+
+    return html`
+      <div class="form-group" style="margin-bottom: 0.5rem;">
+        <label class="ce-text-xs">Plugin *</label>
+        <select class="form-input" @change="${(e) => {
+          this.pendingAction = {
+            type: 'plugin_command',
+            plugin: e.target.value,
+            route: '',
+            payload: {},
+            impact_level: 'Low',
+            _action_name: '',
+          }
+          this.requestUpdate()
+        }}">
+          <option value="" ?selected="${!currentPlugin}">-- Choisir un plugin --</option>
+          ${allPluginOptions.map(opt => {
+            const hasActions = pluginsWithActions.includes(opt.value)
+            const suffix = hasActions ? '' : ' (commande libre)'
+            return html`<option value="${opt.value}" ?selected="${currentPlugin === opt.value}">${opt.label}${suffix}</option>`
+          })}
+        </select>
+        ${currentPlugin && pluginActions.length === 0 ? html`
+          <div class="ce-text-xs ce-text-tertiary" style="margin-top: 0.25rem;">
+            Ce plugin n'expose pas de templates. Saisis route + payload manuellement ci-dessous.
+          </div>
+        ` : ''}
+      </div>
+
+      ${currentPlugin && pluginActions.length > 0 ? html`
+        <div class="form-group" style="margin-bottom: 0.5rem;">
+          <label class="ce-text-xs">Action *</label>
+          <select class="form-input" @change="${(e) => {
+            const actName = e.target.value
+            const act = pluginActions.find(a => a.name === actName)
+            const payload = {}
+            if (act) {
+              for (const p of (act.params || [])) {
+                if (p.default !== undefined) payload[p.name] = p.default
+              }
+            }
+            this.pendingAction = {
+              ...this.pendingAction,
+              _action_name: actName,
+              route: act?.route || '',
+              payload,
+              impact_level: act?.impact_level || 'Low',
+            }
+            this.requestUpdate()
+          }}">
+            <option value="" ?selected="${!currentActionName}">-- Choisir une action --</option>
+            ${pluginActions.map(act => html`
+              <option value="${act.name}" ?selected="${currentActionName === act.name}">
+                ${act.icon || '🔌'} ${act.label}
+              </option>
+            `)}
+          </select>
+        </div>
+
+        ${currentAction ? html`
+          ${currentAction.description ? html`
+            <div class="ce-text-xs ce-text-tertiary" style="margin-bottom: 0.5rem;">
+              ${currentAction.description}
+            </div>
+          ` : ''}
+          ${(currentAction.params || []).map(param => html`
+            <div class="form-group" style="margin-bottom: 0.5rem;">
+              <label class="ce-text-xs">${param.label}${param.required ? ' *' : ''}</label>
+              ${this.renderPluginParamField(param, this.pendingAction.payload?.[param.name], (val) => {
+                const newPayload = { ...this.pendingAction.payload }
+                if (val === null || val === undefined || val === '') {
+                  delete newPayload[param.name]
+                } else {
+                  newPayload[param.name] = val
+                }
+                this.pendingAction = { ...this.pendingAction, payload: newPayload }
+                this.requestUpdate()
+              })}
+            </div>
+          `)}
+        ` : ''}
+      ` : currentPlugin ? html`
+        <!-- Plugin sans templates : saisie libre route + payload -->
+        <div class="form-group" style="margin-bottom: 0.5rem;">
+          <label class="ce-text-xs">Route *</label>
+          <input type="text" class="form-input"
+            .value="${this.pendingAction.route || ''}"
+            placeholder="ex: power, brew, config"
+            @input="${(e) => { this.pendingAction = { ...this.pendingAction, route: e.target.value }; this.requestUpdate() }}">
+        </div>
+        <div class="form-group">
+          <label class="ce-text-xs">Payload JSON</label>
+          <textarea class="form-input" rows="3"
+            .value="${typeof this.pendingAction.payload === 'string' ? this.pendingAction.payload : JSON.stringify(this.pendingAction.payload || {})}"
+            placeholder='{"on": true}'
+            @input="${(e) => {
+              try {
+                this.pendingAction = { ...this.pendingAction, payload: JSON.parse(e.target.value) }
+              } catch (_) {
+                this.pendingAction = { ...this.pendingAction, payload: e.target.value }
+              }
+            }}"></textarea>
+        </div>
+      ` : ''}
+    `
+  }
+
+  /**
+   * Rendering d'un sub-field correspondant à un PluginActionParam.
+   * Types supportés : bool, int, float, string, select, text_area.
+   */
+  renderPluginParamField(param, value, onChange) {
+    const v = value !== undefined ? value : (param.default !== undefined ? param.default : '')
+    switch (param.param_type) {
+      case 'bool':
+        return html`<select class="form-input" @change="${(e) => onChange(e.target.value === 'true')}">
+          <option value="true" ?selected="${v === true}">Vrai</option>
+          <option value="false" ?selected="${v === false}">Faux</option>
+        </select>`
+      case 'int':
+        return html`<input type="number" class="form-input"
+          .value="${v ?? ''}"
+          min="${param.min ?? ''}" max="${param.max ?? ''}"
+          placeholder="${param.placeholder || ''}"
+          @input="${(e) => onChange(e.target.value !== '' ? parseInt(e.target.value, 10) : null)}">`
+      case 'float':
+        return html`<input type="number" step="0.01" class="form-input"
+          .value="${v ?? ''}"
+          min="${param.min ?? ''}" max="${param.max ?? ''}"
+          placeholder="${param.placeholder || ''}"
+          @input="${(e) => onChange(e.target.value !== '' ? parseFloat(e.target.value) : null)}">`
+      case 'select':
+        return html`<select class="form-input" @change="${(e) => {
+            const opt = (param.options || []).find(o => String(o.value) === e.target.value)
+            onChange(opt ? opt.value : e.target.value)
+          }}">
+          ${!param.required ? html`<option value="" ?selected="${v === '' || v === null || v === undefined}">--</option>` : ''}
+          ${(param.options || []).map(opt => html`
+            <option value="${opt.value}" ?selected="${String(v) === String(opt.value)}">${opt.label}</option>
+          `)}
+        </select>`
+      case 'text_area':
+        return html`<textarea class="form-input" rows="2"
+          .value="${v ?? ''}"
+          placeholder="${param.placeholder || ''}"
+          @input="${(e) => onChange(e.target.value)}"></textarea>`
+      case 'string':
+      default:
+        return html`<input type="text" class="form-input"
+          .value="${v ?? ''}"
+          placeholder="${param.placeholder || ''}"
+          @input="${(e) => onChange(e.target.value)}">`
+    }
+  }
+
   addConfiguredAction() {
     if (!this.pendingAction) return
 
@@ -744,8 +966,13 @@ export const AutomationsMixin = (Base) => class extends Base {
       this.editingAutomation.actions = []
     }
 
+    // Strip champs internes (commencent par _) — utilisés uniquement par le rendering UI
+    const cleaned = Object.fromEntries(
+      Object.entries(this.pendingAction).filter(([k]) => !k.startsWith('_'))
+    )
+
     // Add the configured action
-    this.editingAutomation.actions = [...this.editingAutomation.actions, { ...this.pendingAction }]
+    this.editingAutomation.actions = [...this.editingAutomation.actions, cleaned]
 
     // Reset
     this.pendingAction = null
