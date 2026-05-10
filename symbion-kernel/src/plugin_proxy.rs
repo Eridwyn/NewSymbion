@@ -143,6 +143,18 @@ impl PluginRegistry {
             anyhow::bail!("Socket path does not exist: {}", plugin_info.socket_path.display());
         }
 
+        // Nettoie d'abord toutes les anciennes entries de ce plugin (sinon les
+        // routes de l'auto-discovery initial ["" route racine] cohabitent avec
+        // les vraies routes du register manuel et list_plugins peut renvoyer
+        // l'ancienne instance stale).
+        let removed_before = plugins.len();
+        plugins.retain(|_, info| info.name != registration.name);
+        let removed = removed_before - plugins.len();
+        if removed > 0 {
+            println!("[plugin-proxy] Cleared {} stale entries for plugin '{}'",
+                     removed, registration.name);
+        }
+
         // Register each route for this plugin
         for route in &plugin_info.routes {
             let full_route = format!("/v1/plugin-api/{}{}", registration.name, route);
@@ -151,8 +163,8 @@ impl PluginRegistry {
                      full_route, plugin_info.socket_path.display());
         }
 
-        println!("[plugin-proxy] Plugin '{}' registered successfully with {} routes",
-                 registration.name, registration.routes.len());
+        println!("[plugin-proxy] Plugin '{}' registered successfully with {} routes ({} actions)",
+                 registration.name, registration.routes.len(), plugin_info.actions.len());
         Ok(())
     }
 

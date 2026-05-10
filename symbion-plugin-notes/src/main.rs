@@ -866,6 +866,94 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Attendre que le socket soit créé
     tokio::time::sleep(Duration::from_millis(100)).await;
 
+    // Register with kernel + actions templates (rule builder PWA)
+    let socket_for_reg = socket_path.to_string();
+    tokio::spawn(async move {
+        use symbion_plugin_common::{PluginAction, PluginActionParam, PluginActionOption, PluginRegistrationBuilder};
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        if let Err(e) = PluginRegistrationBuilder::new(PLUGIN_ID, &socket_for_reg)
+            .route("/health")
+            .route("/actions")
+            .route("/notes")
+            .version(env!("CARGO_PKG_VERSION"))
+            .description("Notes plugin (Contract v1.0)")
+            .action(PluginAction {
+                name: "create_note".into(),
+                label: "Créer une note".into(),
+                description: Some("Ajoute une note avec contenu, contexte et tags optionnels".into()),
+                icon: Some("📝".into()),
+                route: "actions".into(),
+                method: "POST".into(),
+                impact_level: "Low".into(),
+                wrap_protocol: Some("v1".into()),
+                params: vec![
+                    PluginActionParam {
+                        name: "content".into(),
+                        label: "Contenu".into(),
+                        param_type: "text_area".into(),
+                        required: true,
+                        default: None,
+                        options: vec![],
+                        min: None, max: None,
+                        placeholder: Some("Texte de la note (markdown supporté)".into()),
+                    },
+                    PluginActionParam {
+                        name: "context".into(),
+                        label: "Contexte".into(),
+                        param_type: "select".into(),
+                        required: false,
+                        default: None,
+                        options: vec![
+                            PluginActionOption { value: serde_json::json!("pro"), label: "👔 Pro".into() },
+                            PluginActionOption { value: serde_json::json!("focus"), label: "🎯 Focus".into() },
+                            PluginActionOption { value: serde_json::json!("maison"), label: "🏡 Maison".into() },
+                            PluginActionOption { value: serde_json::json!("veille"), label: "🌱 Veille".into() },
+                        ],
+                        min: None, max: None, placeholder: None,
+                    },
+                    PluginActionParam {
+                        name: "urgent".into(),
+                        label: "Urgent".into(),
+                        param_type: "bool".into(),
+                        required: false,
+                        default: Some(serde_json::json!(false)),
+                        options: vec![],
+                        min: None, max: None, placeholder: None,
+                    },
+                ],
+            })
+            .action(PluginAction {
+                name: "delete_note".into(),
+                label: "Supprimer une note".into(),
+                description: Some("Supprime une note par son ID UUID".into()),
+                icon: Some("🗑️".into()),
+                route: "actions".into(),
+                method: "POST".into(),
+                impact_level: "Medium".into(),
+                wrap_protocol: Some("v1".into()),
+                params: vec![
+                    PluginActionParam {
+                        name: "note_id".into(),
+                        label: "ID de la note".into(),
+                        param_type: "string".into(),
+                        required: true,
+                        default: None,
+                        options: vec![],
+                        min: None, max: None,
+                        placeholder: Some("UUID de la note".into()),
+                    },
+                ],
+            })
+            .register()
+            .await
+        {
+            eprintln!("[notes] failed to register with kernel: {}", e);
+        } else {
+            eprintln!("[notes] ✅ registered with kernel + 2 action templates");
+        }
+    });
+
     // Contract v1.0: Publish manifest on MQTT at startup
     let manifest = include_str!("../manifest.json");
     if let Err(e) = client.publish(topics::MANIFEST, QoS::AtLeastOnce, true, manifest).await {

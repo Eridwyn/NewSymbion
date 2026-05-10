@@ -201,6 +201,40 @@ async fn main() -> Result<()> {
     // Start HTTP API server
     let api_handle = tokio::spawn(api_server(Arc::clone(&state)));
 
+    // Register with kernel + actions templates
+    let socket_str = state.config.http.socket_path.clone();
+    tokio::spawn(async move {
+        use symbion_plugin_common::{PluginAction, PluginRegistrationBuilder};
+
+        // Wait for socket to be ready
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+        if let Err(e) = PluginRegistrationBuilder::new(PLUGIN_ID, &socket_str)
+            .route("/health")
+            .route("/domains")
+            .route("/check")
+            .version(env!("CARGO_PKG_VERSION"))
+            .description("SSL/TLS certificate monitoring")
+            .action(PluginAction {
+                name: "check_now".into(),
+                label: "Vérifier les certificats maintenant".into(),
+                description: Some("Force une vérification immédiate de tous les domaines (au lieu d'attendre le prochain cycle).".into()),
+                icon: Some("🔍".into()),
+                route: "check".into(),
+                method: "POST".into(),
+                impact_level: "Low".into(),
+                wrap_protocol: None,  // route directe, pas Contract v1.0
+                params: vec![],
+            })
+            .register()
+            .await
+        {
+            warn!("Failed to register with kernel: {}", e);
+        } else {
+            info!("Registered with kernel + 1 action template");
+        }
+    });
+
     info!("All tasks started, plugin running");
 
     // Wait for any task to complete or graceful shutdown signal

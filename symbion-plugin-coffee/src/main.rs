@@ -712,6 +712,7 @@ async fn main() -> Result<()> {
                 route: "power".into(),
                 method: "POST".into(),
                 impact_level: "Low".into(),
+                wrap_protocol: None,
                 params: vec![
                     PluginActionParam {
                         name: "on".into(), label: "État".into(),
@@ -730,6 +731,7 @@ async fn main() -> Result<()> {
                 route: "power".into(),
                 method: "POST".into(),
                 impact_level: "Low".into(),
+                wrap_protocol: None,
                 params: vec![
                     PluginActionParam {
                         name: "on".into(), label: "État".into(),
@@ -748,6 +750,7 @@ async fn main() -> Result<()> {
                 route: "brew".into(),
                 method: "POST".into(),
                 impact_level: "Medium".into(),
+                wrap_protocol: None,
                 params: vec![
                     PluginActionParam {
                         name: "drink".into(), label: "Boisson".into(),
@@ -784,6 +787,7 @@ async fn main() -> Result<()> {
                 route: "stop".into(),
                 method: "POST".into(),
                 impact_level: "Low".into(),
+                wrap_protocol: None,
                 params: vec![],
             })
             .register()
