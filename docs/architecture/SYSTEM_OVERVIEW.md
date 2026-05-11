@@ -160,6 +160,36 @@ Vue d'ensemble de l'architecture IoT distribuée.
 
 ---
 
+## 🔌 Actions templates plugin (rule builder PWA)
+
+Depuis mai 2026, chaque plugin peut déclarer des **actions templates structurées**
+au démarrage via `PluginRegistrationBuilder.action()`. Ces actions remplacent le
+formulaire libre (route + textarea JSON) par un sub-form généré automatiquement
+côté PWA.
+
+**Composants** :
+- `symbion-plugin-common::PluginAction { name, label, icon, route, method, impact_level, wrap_protocol, params }` — schema du template
+- `PluginActionParam { name, label, type, required, default, options, min, max, placeholder }` — type-checked (bool/int/float/string/select/text_area)
+- `wrap_protocol: Some("v1")` pour les plugins exposant `/actions` Contract v1.0 (telegram, sensors, notes)
+- `wrap_protocol: None` pour les routes directes (coffee, ssl)
+
+**Action automation correspondante** : `ActionDefinition::PluginCommand { plugin, route, payload, impact_level, wrap_protocol, action_name }` exécutée par `PluginCommandExecutor` (POST HTTP via Unix socket vers le plugin, wrap auto Contract v1.0 si demandé).
+
+**Inventaire actuel (12 actions sur 5 plugins)** :
+| Plugin | Actions | Wrap | Exemples |
+|--------|---------|------|----------|
+| coffee | 4 (power_on/off, brew, stop) | raw | Préchauffer matin |
+| telegram | 2 (send_notification, send_message) | v1 | Alerte broadcast |
+| sensors | 3 (list, get_env, get_sensor) | v1 | Diagnostic dans chaîne |
+| notes | 2 (create_note, delete_note) | v1 | Journaling auto |
+| ssl | 1 (check_now) | raw | Force vérif matin |
+
+**Non équipés** : library (POST nodes trop complexe — template_id + fields dynamiques), freebox (lecture only).
+
+Pour ajouter : voir [`docs/PLUGIN_DEVELOPMENT_GUIDE.md`](../PLUGIN_DEVELOPMENT_GUIDE.md) §6.
+
+---
+
 ## ⚡ Modes Contextuels Intelligents
 
 ### 👔 Symbion Cravate (Mode Professionnel)

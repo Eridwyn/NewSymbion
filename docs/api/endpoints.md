@@ -2,7 +2,7 @@
 
 > Généré automatiquement depuis l'OpenAPI spec du kernel (Symbion Kernel API v1.0.0).
 > Source : `https://localhost:8443/api-docs/openapi.json` (Swagger UI : `/swagger-ui`)
-> Dernière régénération : 2026-05-09
+> Dernière régénération : 2026-05-11
 
 **115 paths uniques · 134 opérations HTTP · 11 tags**
 

@@ -12,9 +12,9 @@
 | **symbion-kernel** | Rust | ~49,659 | 112 | 429 |
 | **pwa-dashboard** | JS (Lit) | ~42,917 | 75 | 689 |
 | **symbion-agent-host** | Rust | ~11,730 | 56 | 225 |
-| **Plugins** (8) | Rust | ~13,641 | 31 | 143 |
+| **Plugins** (8) | Rust | ~14,846 | 31 | 195 |
 | **Infra** (scripts/CI/bridge) | Bash/YAML/Py | ~3,500 | 30 | - |
-| **Total** | | **~121,447** | **304** | **1,486** |
+| **Total** | | **~122,652** | **304** | **1,538** |
 
 | Métrique | Valeur |
 |----------|--------|
@@ -27,11 +27,11 @@
 
 ## Prochaines Étapes
 
-### R1 — Notifications Telegram 🟡 PARTIELLEMENT (≈50%)
+### R1 — Notifications Telegram 🟡 PARTIELLEMENT (≈70%)
 
 **Objectif** : Recevoir les notifications Symbion directement sur Telegram via @Monsymbion_bot
 
-**État réel (9 mai 2026)** : L'infra MQTT→Telegram fonctionne. Le kernel publie sur `symbion/notifications/sent` et `symbion-plugin-telegram` reçoit + forward (validé en E2E avec les notifs café). Reste à finir : formatage HTML riche, page config PWA pour granularité par catégorie, résumé quotidien automatique.
+**État réel (11 mai 2026)** : L'infra MQTT→Telegram fonctionne. Le kernel publie sur `symbion/notifications/sent` et `symbion-plugin-telegram` reçoit + forward (validé en E2E avec les notifs café). **Formatage HTML enrichi déployé** (commit `a51bedb`, bold/italic, P2 silencieux). **Page PWA config existe** (`telegram-config-page.js`, toggles par catégorie). Reste à finir : résumé quotidien automatique, commandes Telegram interactives (status/restart/etc.).
 
 **Contexte** : Le plugin Rust `symbion-plugin-telegram` (teloxide) est actif. La glue notifications kernel → Telegram fonctionne pour la priorité P0/P1/P2.
 
