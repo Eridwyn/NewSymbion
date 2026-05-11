@@ -595,10 +595,39 @@ Quand l'automation s'exécute :
 Si le plugin n'a pas déclaré de `actions` (champ vide), le PWA retombe automatiquement
 sur le formulaire libre route + textarea payload JSON (back-compat totale).
 
-### 6.7 Référence
+### 6.7 Inventaire des plugins avec templates (mai 2026)
 
-Implémentation de référence : `symbion-plugin-coffee/src/main.rs:691-786` (4 actions :
-power_on, power_off, brew, stop).
+| Plugin | Actions | Wrap | Exemples d'usage automation |
+|--------|---------|------|------------------------------|
+| `coffee` | 4 (power_on, power_off, brew, stop) | raw | Préchauffer à 7h, brew espresso après réunion |
+| `telegram` | 2 (send_notification, send_message) | v1 | Alerter en cas d'incident, message à user précis |
+| `sensors` | 3 (list_sensors, get_environment, get_sensor) | v1 | Diagnostic, lire chambre dans une chaîne d'actions |
+| `notes` | 2 (create_note, delete_note) | v1 | Journaling auto sur changement de mode, archivage |
+| `ssl` | 1 (check_now) | raw | Force vérif certificats matinale 6h |
+
+**Sans templates** (volontairement) :
+- `library` : POST nodes/sections demande des structures dynamiques (template_id,
+  fields typés selon template). Pas pertinent pour automation simple.
+- `freebox` : que de la lecture via /health et MQTT.
+
+### 6.8 Référence
+
+Implémentations de référence :
+- `symbion-plugin-coffee/src/main.rs:691-790` : 4 actions, routes directes (raw)
+- `symbion-plugin-telegram/src/main.rs:131-225` : 2 actions wrap v1 sur /actions
+- `symbion-plugin-sensors/src/main.rs:670-740` : 3 actions wrap v1
+- `symbion-plugin-notes/src/main.rs:867-955` : 2 actions wrap v1
+- `symbion-plugin-ssl/src/main.rs:202-235` : 1 action raw
+
+### 6.9 Piège connu : auto-discovery vs register manuel
+
+Fixé en mai 2026 (commit `7405804`) — `plugin_proxy::register_plugin` purge
+maintenant les anciennes entries du même plugin name avant d'insérer les
+nouvelles. Auparavant : si l'auto-discovery au boot avait inscrit le plugin
+avec une route catch-all `""`, le re-register manuel rajoutait les nouvelles
+routes SANS retirer l'ancien entry, et `list_plugins` pouvait renvoyer
+l'instance stale (0 actions visibles). Plus d'inquiétude maintenant — chaque
+register repart d'un état propre pour ce plugin name.
 
 ---
 

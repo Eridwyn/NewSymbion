@@ -4,6 +4,50 @@ Historique des améliorations et changements majeurs du projet.
 
 ---
 
+## Extension templates actions à 5 plugins + fix register stale routes (11 Mai 2026)
+
+**Status**: 🟢 Complété (commits `4248b0c` → `7405804`)
+
+### Plugins enrichis avec templates pour le rule builder PWA
+- `ssl` : 1 action (check_now — POST /check, raw, force vérif certs)
+- `notes` : 2 actions (create_note, delete_note — wrap v1 sur /actions)
+- `telegram` : 2 actions (send_notification, send_message — wrap v1)
+- `sensors` : 3 actions (list_sensors, get_environment, get_sensor — wrap v1)
+- `coffee` : 4 actions inchangées (power_on, power_off, brew, stop — raw)
+
+**Total : 12 actions templates sur 5 plugins**. Plus de payload JSON à taper.
+
+### Plugins sans templates (volontairement)
+- `library` : POST /nodes prend une structure trop complexe (parent_id, template_id,
+  fields dynamiques). Pas pertinent pour automation simple.
+- `freebox` : pas de POST utile (lecture uniquement via /health + MQTT)
+
+### Bug racine corrigé (`symbion-kernel/src/plugin_proxy.rs::register_plugin`)
+**Symptôme** : malgré `PluginRegistrationBuilder.action()` qui POST 200 OK,
+`GET /v1/plugins` montrait parfois 0 actions pour certains plugins.
+
+**Cause** : l'auto-discovery au boot kernel inscrivait chaque plugin avec route
+racine `""` (catch-all). Le plugin re-register ensuite avec ses vraies routes
+(`/power`, `/brew`, ...). L'ancien entry `""` persistait dans le HashMap car
+`insert` ne purgeait pas les autres. `list_plugins()` agrégeait par `name` avec
+ordre HashMap non-déterministe → renvoyait parfois l'instance stale (routes `[""]`,
+actions vides).
+
+**Fix** : `retain()` purge toutes les entries du même plugin name AVANT l'insert.
+Plus de conflit auto-discovery vs manual register.
+
+### Comment ajouter des templates à un plugin
+Voir [`docs/PLUGIN_DEVELOPMENT_GUIDE.md §6`](PLUGIN_DEVELOPMENT_GUIDE.md). Pattern
+minimal :
+```rust
+PluginRegistrationBuilder::new(PLUGIN_ID, SOCKET_PATH)
+    .route("/health")
+    .action(PluginAction { name, label, route, method, impact_level, wrap_protocol, params })
+    .register().await
+```
+
+---
+
 ## Action plugin_command + templates structurés par plugin (10 Mai 2026)
 
 **Status**: 🟢 Complété (commits `aa992bf` → `6da3a53`)
