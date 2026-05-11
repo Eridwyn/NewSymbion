@@ -481,8 +481,9 @@ export const AutomationsMixin = (Base) => class extends Base {
         `
 
       case 'number':
-        // Detect hour fields for special rendering
+        // Detect hour/minute fields for special rendering
         const isHourField = field.name.includes('hour') && field.max <= 24
+        const isMinuteField = field.name.includes('minute') && field.max <= 59
         if (isHourField) {
           const hours = Array.from({ length: 25 }, (_, i) => i) // 0-24
           const currentVal = value ?? field.default_value ?? ''
@@ -491,7 +492,21 @@ export const AutomationsMixin = (Base) => class extends Base {
               @change="${e => onChange(e.target.value !== '' ? parseInt(e.target.value) : null)}">
               ${!field.required ? html`<option value="">--</option>` : ''}
               ${hours.map(h => html`
-                <option value="${h}" ?selected="${h === currentVal}">${String(h).padStart(2, '0')}:00</option>
+                <option value="${h}" ?selected="${h === currentVal}">${String(h).padStart(2, '0')}h</option>
+              `)}
+            </select>
+          `
+        }
+        if (isMinuteField) {
+          // Minutes par pas de 5 pour rester maniable (12 valeurs)
+          const minutes = Array.from({ length: 12 }, (_, i) => i * 5) // 0, 5, 10, ..., 55
+          const currentVal = value ?? field.default_value ?? 0
+          return html`
+            <select class="form-input minute-select"
+              @change="${e => onChange(e.target.value !== '' ? parseInt(e.target.value) : null)}">
+              ${!field.required ? html`<option value="">--</option>` : ''}
+              ${minutes.map(m => html`
+                <option value="${m}" ?selected="${m === currentVal}">${String(m).padStart(2, '0')}</option>
               `)}
             </select>
           `

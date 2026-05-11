@@ -162,21 +162,27 @@ impl AutomationEngine {
                 )
             }
 
-            Condition::TimeRange { start_hour, end_hour } => {
+            Condition::TimeRange { start_hour, end_hour, start_minute, end_minute } => {
                 let now_local = crate::intelligence::local_now();
-                let hour = now_local.hour();
+                let now_minutes: u16 = (now_local.hour() as u16) * 60 + now_local.minute() as u16;
+                let start_total: u16 = (*start_hour as u16) * 60 + *start_minute as u16;
+                let end_total: u16 = (*end_hour as u16) * 60 + *end_minute as u16;
 
-                let in_range = if start_hour <= end_hour {
-                    // Normal range (e.g., 8-22)
-                    hour >= *start_hour && hour < *end_hour
+                let in_range = if start_total <= end_total {
+                    // Normal range (e.g., 8h30 → 9h00)
+                    now_minutes >= start_total && now_minutes < end_total
                 } else {
-                    // Overnight range (e.g., 22-6)
-                    hour >= *start_hour || hour < *end_hour
+                    // Overnight range (e.g., 22h30 → 6h45)
+                    now_minutes >= start_total || now_minutes < end_total
                 };
 
                 (
                     in_range,
-                    format!("hour {} in range [{}-{}): {}", hour, start_hour, end_hour, in_range),
+                    format!(
+                        "time {:02}:{:02} in range [{:02}:{:02}-{:02}:{:02}): {}",
+                        now_local.hour(), now_local.minute(),
+                        start_hour, start_minute, end_hour, end_minute, in_range
+                    ),
                 )
             }
 
@@ -1132,7 +1138,7 @@ mod tests {
             mode: "pro".into(), operator: ComparisonOperator::Equals,
         }), "current_mode");
         assert_eq!(AutomationEngine::condition_type_name(&Condition::TimeRange {
-            start_hour: 9, end_hour: 18,
+            start_hour: 9, end_hour: 18, start_minute: 0, end_minute: 0,
         }), "time_range");
         assert_eq!(AutomationEngine::condition_type_name(&Condition::DayOfWeek {
             days: vec![1, 2],

@@ -315,6 +315,13 @@ pub enum Condition {
     TimeRange {
         start_hour: u8,
         end_hour: u8,
+        /// Minutes de début (0-59). Default 0 (pour back-compat avec autos existantes).
+        #[serde(default)]
+        start_minute: u8,
+        /// Minutes de fin (0-59). Default 0 (= au "tac" de end_hour, soit fin exclusive).
+        /// Ex: start=8h30, end=9h00 → minutes effectives [8h30, 9h00).
+        #[serde(default)]
+        end_minute: u8,
     },
 
     /// Check day of week (0=Sunday, 6=Saturday)
@@ -777,6 +784,8 @@ mod tests {
                 Condition::TimeRange {
                     start_hour: 8,
                     end_hour: 22,
+                    start_minute: 0,
+                    end_minute: 0,
                 },
             ],
         };
