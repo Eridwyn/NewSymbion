@@ -1787,6 +1787,11 @@ impl ContextIntelligence {
         let today = now.date();
         let config = self.config.read();
 
+        // Rule -1: Feature flag v2 suggestions (shadow mode disable global)
+        if !config.v2.suggestions_enabled {
+            return (false, "v2.suggestions_enabled = false");
+        }
+
         // Rule 0: Quiet hours (23h-7h by default) - no push except very strong established + recent
         let hour = now.hour();
         let in_quiet_hours = if config.quiet_hours_start > config.quiet_hours_end {

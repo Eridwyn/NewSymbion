@@ -63,6 +63,8 @@ pub enum BotCommand {
     Decision(String),
     #[command(description = "Cafetière (espresso/long/eau/stop/status)")]
     Cafe(String),
+    #[command(description = "Résumé synthétique du jour (modes, agents, automations, café)")]
+    Summary,
 }
 
 pub fn build_dispatcher(
@@ -738,9 +740,107 @@ async fn handle_command(
         BotCommand::Cafe(arg) => {
             handle_cafe_command(&state, &bot, chat_id, &arg).await?;
         }
+
+        BotCommand::Summary => {
+            let text = build_daily_summary(&state).await;
+            bot.send_message(chat_id, text).parse_mode(teloxide::types::ParseMode::Html).await?;
+        }
     }
 
     Ok(())
+}
+
+/// Construit un résumé du jour : mode actif, agents, automations récentes, café.
+/// Appelable via /summary (à la demande) ou via plugin_command depuis une automation
+/// (ex: scheduled chaque jour à 8h).
+pub async fn build_daily_summary(state: &AppState) -> String {
+    use serde_json::Value;
+
+    let client = make_client();
+    let api_key = &state.config.kernel_api_key;
+
+    let fetch = |path: &'static str| {
+        let client = client.clone();
+        let url = format!("https://localhost:8443{}", path);
+        let api_key = api_key.clone();
+        async move {
+            client
+                .get(&url)
+                .header("x-api-key", api_key)
+                .send()
+                .await
+                .ok()?
+                .json::<Value>()
+                .await
+                .ok()
+        }
+    };
+
+    let (context, agents, history, coffee_status) = tokio::join!(
+        fetch("/v1/context/current"),
+        fetch("/v1/agents"),
+        fetch("/v1/automations/history?limit=30"),
+        fetch("/v1/plugin-api/coffee/status"),
+    );
+
+    let mut out = String::from("<b>📊 Résumé du jour</b>\n\n");
+
+    // Mode actuel
+    if let Some(ctx) = context {
+        let mode = ctx.get("mode_slug").or_else(|| ctx.get("mode"))
+            .and_then(|v| v.as_str()).unwrap_or("?");
+        let reason = ctx.get("reason").and_then(|v| v.as_str()).unwrap_or("");
+        let conf = ctx.get("confidence").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        out.push_str(&format!("🎨 <b>Mode</b> : {} (conf {:.0}%)\n   <i>{}</i>\n\n", mode, conf * 100.0, reason));
+    }
+
+    // Agents
+    if let Some(ag) = agents {
+        if let Some(arr) = ag.as_array() {
+            let online = arr.iter().filter(|a| a.get("status").and_then(|s| s.get("status")).and_then(|s| s.as_str()) == Some("online")).count();
+            out.push_str(&format!("🖥️ <b>Agents</b> : {}/{} en ligne\n\n", online, arr.len()));
+        }
+    }
+
+    // Automations exécutées aujourd'hui
+    if let Some(hist) = history {
+        let arr = hist.get("history").and_then(|v| v.as_array());
+        if let Some(items) = arr {
+            let today = time::OffsetDateTime::now_utc().date();
+            let today_count = items.iter().filter(|item| {
+                item.get("executed_at").and_then(|t| t.as_str())
+                    .and_then(|s| time::OffsetDateTime::parse(s, &time::format_description::well_known::Rfc3339).ok())
+                    .map(|t| t.date() == today)
+                    .unwrap_or(false)
+            }).count();
+            let success_count = items.iter().filter(|item| {
+                item.get("success").and_then(|v| v.as_bool()).unwrap_or(false)
+                && item.get("executed_at").and_then(|t| t.as_str())
+                    .and_then(|s| time::OffsetDateTime::parse(s, &time::format_description::well_known::Rfc3339).ok())
+                    .map(|t| t.date() == today)
+                    .unwrap_or(false)
+            }).count();
+            out.push_str(&format!("🤖 <b>Automations</b> : {} déclenchées aujourd'hui ({} OK)\n\n", today_count, success_count));
+        }
+    }
+
+    // Café
+    if let Some(cs) = coffee_status {
+        let brews_today = cs.get("brew_count_today").and_then(|v| v.as_u64()).unwrap_or(0);
+        let online = cs.get("online").and_then(|v| v.as_bool()).unwrap_or(false);
+        let mainstate = cs.get("mainstate_text").and_then(|v| v.as_str()).unwrap_or("?");
+        let water = cs.get("water_level").and_then(|v| v.as_u64()).unwrap_or(0);
+        let beans = cs.get("bean_level").and_then(|v| v.as_u64()).unwrap_or(0);
+        let maint = cs.get("maintenance_needed").and_then(|v| v.as_bool()).unwrap_or(false);
+        let icon_on = if online { "🟢" } else { "🔴" };
+        let maint_str = if maint { " ⚠️ maintenance" } else { "" };
+        out.push_str(&format!(
+            "☕ <b>Café</b> : {} {} {} brews aujourd'hui · eau {}% · grains {}%{}\n",
+            icon_on, mainstate, brews_today, water, beans, maint_str
+        ));
+    }
+
+    out
 }
 
 // ── Coffee Command Handler ──

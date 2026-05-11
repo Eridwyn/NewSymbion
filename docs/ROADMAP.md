@@ -27,11 +27,17 @@
 
 ## Prochaines Étapes
 
-### R1 — Notifications Telegram 🟡 PARTIELLEMENT (≈70%)
+### R1 — Notifications Telegram 🟢 COMPLÉTÉ (≈95%)
 
 **Objectif** : Recevoir les notifications Symbion directement sur Telegram via @Monsymbion_bot
 
-**État réel (11 mai 2026)** : L'infra MQTT→Telegram fonctionne. Le kernel publie sur `symbion/notifications/sent` et `symbion-plugin-telegram` reçoit + forward (validé en E2E avec les notifs café). **Formatage HTML enrichi déployé** (commit `a51bedb`, bold/italic, P2 silencieux). **Page PWA config existe** (`telegram-config-page.js`, toggles par catégorie). Reste à finir : résumé quotidien automatique, commandes Telegram interactives (status/restart/etc.).
+**État réel (11 mai 2026)** :
+- ✅ Infra MQTT→Telegram fonctionne (kernel publie sur `symbion/notifications/sent`, plugin telegram reçoit + forward — validé E2E avec notifs café)
+- ✅ Formatage HTML enrichi déployé (commit `a51bedb`, bold/italic, P2 silencieux)
+- ✅ Page PWA config existe (`telegram-config-page.js`, toggles par catégorie)
+- ✅ Commandes Telegram interactives : 23 commandes déployées (/status, /health, /agents, /mode, /notifs, /lib, /notes, /plugins, /log, /wake/shutdown/reboot/hibernate, /ssl, /decision, /cafe, /new, /continue, /cancel, /history, /model, /effort, /help, /summary)
+- ✅ Résumé quotidien automatique : commande `/summary` à la demande + automation `auto_daily_telegram_summary` scheduled chaque jour entre 8-9h (cooldown 23h pour éviter doublons), POST `plugin-api/telegram/broadcast-summary` qui aggrège mode/agents/automations/café
+- ⚠️ Reste possible : enrichir résumé (sensors, ssl, notifs envoyées count), groupes Telegram (actuellement broadcast ALLOWED_USER_IDS uniquement)
 
 **Contexte** : Le plugin Rust `symbion-plugin-telegram` (teloxide) est actif. La glue notifications kernel → Telegram fonctionne pour la priorité P0/P1/P2.
 

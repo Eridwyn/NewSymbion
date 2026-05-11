@@ -70,6 +70,7 @@ async fn main() {
         .route("/health", get(health_handler))
         .route("/actions", post(handle_action))
         .route("/config", get(prefs::get_config_handler).put(prefs::put_config_handler))
+        .route("/broadcast-summary", post(broadcast_summary_handler))
         .with_state(state.clone());
 
     // 6. Create HTTP server on Unix socket
@@ -134,6 +135,7 @@ async fn main() {
             .route("/health")
             .route("/actions")
             .route("/config")
+            .route("/broadcast-summary")
             .version("1.0.0")
             .description("Telegram-Claude Code bridge with Symbion integration")
             .action(PluginAction {
@@ -171,6 +173,17 @@ async fn main() {
                         min: None, max: None, placeholder: None,
                     },
                 ],
+            })
+            .action(PluginAction {
+                name: "broadcast_summary".into(),
+                label: "Envoyer résumé du jour".into(),
+                description: Some("Construit et envoie un résumé synthétique (mode, agents, automations, café) à tous les utilisateurs autorisés. Typiquement déclenché via automation scheduled à 8h chaque matin.".into()),
+                icon: Some("📊".into()),
+                route: "broadcast-summary".into(),
+                method: "POST".into(),
+                impact_level: "Low".into(),
+                wrap_protocol: None,  // route directe, pas Contract v1.0
+                params: vec![],  // aucun param, le contenu est généré côté plugin
             })
             .action(PluginAction {
                 name: "send_message".into(),
@@ -393,6 +406,30 @@ async fn handle_notification(state: &AppState, json: &serde_json::Value) {
             let _ = msg.await;
         }
     }
+}
+
+/// POST /broadcast-summary — Génère le résumé du jour et l'envoie à tous les
+/// ALLOWED_USER_IDS. Appelable via automation scheduled (typiquement 1×/jour à 8h).
+async fn broadcast_summary_handler(
+    axum::extract::State(state): axum::extract::State<AppState>,
+) -> axum::Json<serde_json::Value> {
+    let text = crate::telegram::build_daily_summary(&state).await;
+    let mut sent = 0;
+    let mut errors = Vec::new();
+    for &user_id in &state.config.allowed_user_ids {
+        match state.bot
+            .send_message(ChatId(user_id), &text)
+            .parse_mode(ParseMode::Html)
+            .await
+        {
+            Ok(_) => sent += 1,
+            Err(e) => errors.push(format!("user {}: {}", user_id, e)),
+        }
+    }
+    axum::Json(serde_json::json!({
+        "sent_to": sent,
+        "errors": errors,
+    }))
 }
 
 /// Handle plugin status changes
