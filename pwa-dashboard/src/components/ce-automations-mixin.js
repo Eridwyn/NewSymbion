@@ -1221,9 +1221,13 @@ export const AutomationsMixin = (Base) => class extends Base {
           : intervalSecs >= 60
             ? `${Math.round(intervalSecs / 60)}min`
             : `${intervalSecs}s`
-        const activeHoursLabel = rule.active_hours
-          ? ` (${rule.active_hours[0]}h-${rule.active_hours[1]}h)`
-          : ''
+        const activeHoursLabel = (() => {
+          if (!rule.active_hours) return ''
+          const sm = rule.active_start_minute || 0
+          const em = rule.active_end_minute || 0
+          const fmt = (h, m) => m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`
+          return ` (${fmt(rule.active_hours[0], sm)}-${fmt(rule.active_hours[1], em)})`
+        })()
         return `${icon} Planifié toutes les ${intervalLabel}${activeHoursLabel}`
       case 'current_mode':
         const currentMode = this.schema?.dynamic_values?.modes?.find(m => m.value === rule.mode)

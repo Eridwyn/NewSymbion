@@ -140,10 +140,19 @@ pub enum Trigger {
     Scheduled {
         /// Interval in seconds (minimum 60, default 300 = 5 minutes)
         interval_seconds: u32,
-        /// Optional: only run between these hours (0-23), e.g., (9, 18) for 9am-6pm
+        /// Optional: only run between these hours (0-23), e.g., (9, 18) for 9am-6pm.
+        /// Combiné avec active_start_minute / active_end_minute pour la précision fine.
         #[serde(default)]
         #[serde(skip_serializing_if = "Option::is_none")]
         active_hours: Option<(u8, u8)>,
+        /// Minutes de début (0-59), combiné avec active_hours.0 pour précision fine.
+        /// Ex: active_hours=(7,8) + active_start_minute=30 → début à 7h30.
+        #[serde(default)]
+        active_start_minute: u8,
+        /// Minutes de fin (0-59), combiné avec active_hours.1.
+        /// Ex: active_hours=(7,8) + active_end_minute=45 → fin à 8h45 (exclusive).
+        #[serde(default)]
+        active_end_minute: u8,
     },
 
     /// Plugin-defined custom trigger

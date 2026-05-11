@@ -57,7 +57,8 @@ impl AutomationScheduler {
         let automations = self.store.list();
 
         let now = Instant::now();
-        let current_hour = Local::now().hour() as u8;
+        let local = Local::now();
+        let current_total_minutes: u16 = (local.hour() as u16) * 60 + local.minute() as u16;
 
         for auto in automations {
             // Skip disabled automations
@@ -68,7 +69,7 @@ impl AutomationScheduler {
             // Check all triggers in the trigger group
             let trigger_group = auto.get_trigger_group();
             for trigger_item in &trigger_group.triggers {
-                self.check_trigger_item(&auto.id, &auto.name, trigger_item, now, current_hour);
+                self.check_trigger_item(&auto.id, &auto.name, trigger_item, now, current_total_minutes);
             }
         }
     }
@@ -80,15 +81,17 @@ impl AutomationScheduler {
         automation_name: &str,
         item: &TriggerItem,
         now: Instant,
-        current_hour: u8,
+        current_total_minutes: u16,
     ) {
         match item {
             TriggerItem::Single(trigger) => {
-                if let Trigger::Scheduled { interval_seconds, active_hours } = trigger {
-                    // Check active hours if configured
-                    if let Some((start, end)) = active_hours {
-                        if !Self::is_hour_in_range(current_hour, *start, *end) {
-                            return; // Outside active hours
+                if let Trigger::Scheduled { interval_seconds, active_hours, active_start_minute, active_end_minute } = trigger {
+                    // Check active window (hours + minutes optionnels) if configured
+                    if let Some((start_h, end_h)) = active_hours {
+                        let start_total = (*start_h as u16) * 60 + *active_start_minute as u16;
+                        let end_total = (*end_h as u16) * 60 + *active_end_minute as u16;
+                        if !Self::is_minute_in_range(current_total_minutes, start_total, end_total) {
+                            return; // Outside active window
                         }
                     }
 
@@ -111,7 +114,7 @@ impl AutomationScheduler {
             TriggerItem::Group(nested_group) => {
                 // Recursively check nested groups
                 for nested_item in &nested_group.triggers {
-                    self.check_trigger_item(automation_id, automation_name, nested_item, now, current_hour);
+                    self.check_trigger_item(automation_id, automation_name, nested_item, now, current_total_minutes);
                 }
             }
         }
@@ -126,6 +129,15 @@ impl AutomationScheduler {
         } else {
             // Overnight range: e.g., 22-6 (10pm to 6am)
             hour >= start || hour < end
+        }
+    }
+
+    /// Match précis en minutes totales (h*60 + min). Supporte overnight.
+    fn is_minute_in_range(current: u16, start: u16, end: u16) -> bool {
+        if start <= end {
+            current >= start && current < end
+        } else {
+            current >= start || current < end
         }
     }
 }
