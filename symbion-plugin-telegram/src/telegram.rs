@@ -776,11 +776,13 @@ pub async fn build_daily_summary(state: &AppState) -> String {
         }
     };
 
-    let (context, agents, history, coffee_status) = tokio::join!(
+    let (context, agents, history, coffee_status, sensors, ssl_domains) = tokio::join!(
         fetch("/v1/context/current"),
         fetch("/v1/agents"),
         fetch("/v1/automations/history?limit=30"),
         fetch("/v1/plugin-api/coffee/status"),
+        fetch("/v1/environment/sensors"),
+        fetch("/v1/plugin-api/ssl/domains"),
     );
 
     let mut out = String::from("<b>📊 Résumé du jour</b>\n\n");
@@ -794,11 +796,84 @@ pub async fn build_daily_summary(state: &AppState) -> String {
         out.push_str(&format!("🎨 <b>Mode</b> : {} (conf {:.0}%)\n   <i>{}</i>\n\n", mode, conf * 100.0, reason));
     }
 
-    // Agents
+    // Agents (le champ status est une string directe, pas un objet imbriqué)
     if let Some(ag) = agents {
         if let Some(arr) = ag.as_array() {
-            let online = arr.iter().filter(|a| a.get("status").and_then(|s| s.get("status")).and_then(|s| s.as_str()) == Some("online")).count();
+            let online = arr.iter()
+                .filter(|a| a.get("status").and_then(|v| v.as_str()) == Some("online"))
+                .count();
             out.push_str(&format!("🖥️ <b>Agents</b> : {}/{} en ligne\n\n", online, arr.len()));
+        }
+    }
+
+    // Capteurs environnementaux (room par room)
+    if let Some(s) = sensors {
+        let arr = s.as_array().cloned()
+            .or_else(|| s.get("sensors").and_then(|v| v.as_array()).cloned())
+            .unwrap_or_default();
+        if !arr.is_empty() {
+            let online_count = arr.iter()
+                .filter(|x| x.get("status").and_then(|v| v.as_str()) == Some("online"))
+                .count();
+
+            // Collecter rooms uniques pour fetch env value par room
+            let mut rooms: Vec<String> = arr.iter()
+                .filter_map(|x| x.get("room_id").and_then(|v| v.as_str()).map(String::from))
+                .collect();
+            rooms.sort();
+            rooms.dedup();
+
+            out.push_str(&format!("🌡️ <b>Capteurs</b> : {}/{} en ligne", online_count, arr.len()));
+
+            // Pour chaque room, fetch /v1/environment/{room}
+            for room in rooms.iter().take(5) {
+                let path = format!("/v1/environment/{}", room);
+                if let Ok(resp) = client
+                    .get(&format!("https://localhost:8443{}", path))
+                    .header("x-api-key", api_key)
+                    .send().await
+                {
+                    if let Ok(v) = resp.json::<Value>().await {
+                        let temp = v.get("current").and_then(|c| c.get("temperature_c")).and_then(|t| t.as_f64());
+                        let hum = v.get("current").and_then(|c| c.get("humidity_pct")).and_then(|h| h.as_f64());
+                        if let (Some(t), Some(h)) = (temp, hum) {
+                            out.push_str(&format!("\n   {} : {:.1}°C · {:.0}% hum", room, t, h));
+                        }
+                    }
+                }
+            }
+            out.push_str("\n\n");
+        }
+    }
+
+    // SSL : domaines surveillés + plus proche expiration
+    if let Some(s) = ssl_domains {
+        let arr = s.as_array().cloned()
+            .or_else(|| s.get("domains").and_then(|v| v.as_array()).cloned())
+            .unwrap_or_default();
+        if !arr.is_empty() {
+            let ok = arr.iter()
+                .filter(|d| d.get("status_level").and_then(|v| v.as_str()) == Some("ok"))
+                .count();
+            let warning = arr.iter()
+                .filter(|d| d.get("status_level").and_then(|v| v.as_str()) == Some("warning"))
+                .count();
+            let critical = arr.iter()
+                .filter(|d| d.get("status_level").and_then(|v| v.as_str()) == Some("critical"))
+                .count();
+
+            // Plus proche expiration
+            let min_days = arr.iter()
+                .filter_map(|d| d.get("days_remaining").and_then(|v| v.as_i64()))
+                .min();
+
+            let mut ssl_line = format!("🔒 <b>SSL</b> : {} ok", ok);
+            if warning > 0 { ssl_line.push_str(&format!(" · {} warning", warning)); }
+            if critical > 0 { ssl_line.push_str(&format!(" · ⚠️ {} critique", critical)); }
+            if let Some(d) = min_days {
+                ssl_line.push_str(&format!(" · plus proche : {}j", d));
+            }
+            out.push_str(&format!("{}\n\n", ssl_line));
         }
     }
 
