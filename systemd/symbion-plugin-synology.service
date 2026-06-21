@@ -1,0 +1,39 @@
+[Unit]
+Description=Symbion Synology Plugin (UPS/NUT monitoring)
+Documentation=https://github.com/Eridwyn/NewSymbion
+After=network.target mosquitto.service symbion-kernel.service
+Wants=mosquitto.service
+
+[Service]
+Type=simple
+User=eridwyn
+Group=eridwyn
+
+# Working directory
+WorkingDirectory=/opt/symbion
+
+# Environment
+Environment=RUST_LOG=info,symbion_plugin_synology=debug
+Environment=SYNOLOGY_CONFIG=/opt/symbion/config/synology.toml
+
+# Binary
+ExecStart=/opt/symbion/bin/symbion-plugin-synology
+
+# Restart policy
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths=/run/symbion-plugins
+
+# Socket directory creation (shared dir — NE PAS utiliser RuntimeDirectory,
+# qui supprimerait /run/symbion-plugins et les sockets des autres plugins à l'arrêt)
+ExecStartPre=/bin/mkdir -p /run/symbion-plugins
+ExecStartPre=/bin/chown eridwyn:eridwyn /run/symbion-plugins
+
+[Install]
+WantedBy=multi-user.target

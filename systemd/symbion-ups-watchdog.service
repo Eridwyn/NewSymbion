@@ -1,0 +1,30 @@
+[Unit]
+Description=Symbion UPS shutdown watchdog (OS-level, indépendant de Symbion)
+Documentation=https://github.com/Eridwyn/NewSymbion
+After=network-online.target nut.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# root requis pour `systemctl poweroff` (un service n'est pas une session active polkit)
+User=root
+ExecStart=/opt/symbion/bin/ups-shutdown-watchdog.sh
+
+# Seuils conservateurs : extinction si sur batterie ET (charge≤50% OU autonomie≤10min)
+Environment=UPS_NAME=ups@192.168.1.3
+Environment=CHARGE_MIN=50
+Environment=RUNTIME_MIN=600
+Environment=POLL=15
+Environment=CONFIRM=2
+Environment=FAIL_MAX=4
+# SÛR PAR DÉFAUT : 1 = log seulement (n'éteint pas). Passer à 0 pour ARMER.
+Environment=DRY_RUN=1
+
+Restart=always
+RestartSec=10s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=symbion-ups-watchdog
+
+[Install]
+WantedBy=multi-user.target

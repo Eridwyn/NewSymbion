@@ -1,6 +1,6 @@
 [Unit]
 Description=Symbion Dashboard - PWA Interface Web
-Documentation=https://github.com/yourusername/NewSymbion
+Documentation=https://github.com/Eridwyn/NewSymbion
 After=network-online.target symbion-kernel.service
 Wants=network-online.target
 # Dashboard peut fonctionner sans kernel mais recommandé ensemble
@@ -10,19 +10,21 @@ BindsTo=symbion-kernel.service
 Type=simple
 User=eridwyn
 Group=eridwyn
-WorkingDirectory=/home/eridwyn/RustroverProjects/NewSymbion/pwa-dashboard/dist
+# Racine du projet PWA (vite lit vite.config.js + node_modules + dist/)
+WorkingDirectory=/home/eridwyn/RustroverProjects/NewSymbion/pwa-dashboard
 
-# Commande de démarrage: serveur HTTP simple Python
-# Alternative production: utiliser nginx ou caddy pour HTTPS
-ExecStart=/usr/bin/python3 -m http.server 3000 --bind 0.0.0.0
+# Sert le build de production via vite preview sur le port 3001 (HTTPS hérité
+# de server.https dans vite.config.js — certs mkcert). nginx proxifie / -> 3001.
+# PATH requis car le shebang de vite est `#!/usr/bin/env node`.
+Environment=PATH=/usr/bin:/usr/local/bin
+ExecStart=/home/eridwyn/RustroverProjects/NewSymbion/pwa-dashboard/node_modules/.bin/vite preview --host 0.0.0.0 --port 3001
 
 # Restart automatique sur crash
 Restart=always
 RestartSec=10s
 
-# Limites de ressources (très léger)
-MemoryMax=128M
-CPUQuota=10%
+# Limites de ressources (node + vite preview)
+MemoryMax=512M
 
 # Logging
 StandardOutput=journal
@@ -33,7 +35,6 @@ SyslogIdentifier=symbion-dashboard
 NoNewPrivileges=true
 PrivateTmp=true
 ReadOnlyPaths=/etc /usr
-ReadWritePaths=/var/www/symbion-dashboard
 
 [Install]
 WantedBy=multi-user.target

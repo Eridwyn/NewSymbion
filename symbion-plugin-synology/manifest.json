@@ -1,0 +1,30 @@
+{
+  "plugin_id": "synology",
+  "version": "0.1.0",
+  "name": "Synology UPS Monitor",
+  "description": "Synology NAS UPS monitoring via NUT (Network UPS Tools)",
+  "author": "Mark Chavatte",
+  "capabilities": [
+    "get_ups_status"
+  ],
+  "routes": [
+    "/health",
+    "/ups"
+  ],
+  "features": [
+    "synology.ups.on_battery",
+    "synology.ups.battery_low",
+    "synology.ups.battery_charge",
+    "synology.ups.runtime_seconds",
+    "synology.ups.load",
+    "synology.ups.status"
+  ],
+  "mqtt_topics": {
+    "publish": [
+      "symbion/synology/ups",
+      "symbion/plugins/synology/manifest",
+      "symbion/plugins/synology/status",
+      "symbion/features/update"
+    ]
+  }
+}

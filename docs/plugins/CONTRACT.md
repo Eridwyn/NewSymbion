@@ -342,6 +342,41 @@ curl -X POST \
 3. Kernel enregistre les capabilities
 4. Plugin commence heartbeat sur `symbion/plugins/{id}/health`
 
+> ### ⚠️ Écart implémentation — le manifest MQTT n'est PAS consommé (juin 2026)
+>
+> Les étapes 2 et 3 ci-dessus décrivent une cible, **pas le comportement réel du
+> kernel**. Vérifié en traçant le code (juin 2026) :
+>
+> - Le kernel ne souscrit **jamais** à `symbion/plugins/+/manifest`. La liste des
+>   `client.subscribe(...)` est fixe (`symbion-kernel/src/mqtt.rs` ~l.124-182) et
+>   ne contient pas ce topic. Un plugin qui publie son manifest l'envoie dans le vide.
+> - Deux types `PluginRegistry` coexistent :
+>   - `plugin_proxy::PluginRegistry` → **le vrai**, branché dans `AppState`
+>     (`http/mod.rs:82`) et `bootstrap/tasks.rs:18` via `discover_plugins()`.
+>   - `plugins::registry::PluginRegistry` + `PluginManifest` + `contract::manifest()`
+>     (builder du topic, `plugins/contract.rs:424`) → **code mort en prod** :
+>     `register(manifest)` n'est appelé que dans les tests.
+>
+> **Chemin réellement actif** (HTTP, pas MQTT) :
+> `POST /v1/plugins/register` → `plugin_proxy::register_plugin()`
+> (`plugin_proxy.rs:128`), qui consomme `PluginRegistration { name, socket_path,
+> routes, version, description, actions }` — **aucun champ `capabilities` ni
+> `features`**. Les features sont ingérées séparément via le flux
+> `symbion/features/update` (`mqtt.rs:568`, struct `ExternalFeatureUpdate`).
+>
+> **Conséquences pratiques pour un plugin** :
+> - L'enregistrement HTTP (`PluginRegistrationBuilder::...register()`) est ce qui
+>   rend le plugin découvrable et proxifie ses routes sur `/v1/plugin-api/{id}/*`.
+>   C'est **obligatoire**.
+> - Publier le manifest sur `symbion/plugins/{id}/manifest` reste **décoratif** :
+>   tous les plugins le font (ssl, freebox, coffee…) par convention et pour le
+>   debug via explorateur MQTT, mais le kernel l'ignore aujourd'hui.
+>
+> **Dette technique côté kernel** : soit câbler une souscription
+> `symbion/plugins/+/manifest` → `plugins::registry::PluginRegistry.register()`,
+> soit supprimer le type manifest mort et mettre cette doc en accord avec le
+> chemin HTTP. À trancher avant de prétendre que le manifest fait foi.
+
 ### Heartbeat
 
 ```json

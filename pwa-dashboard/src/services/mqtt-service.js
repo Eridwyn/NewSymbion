@@ -128,7 +128,9 @@ class MqttService extends LitElement {
       'symbion/ssl/summary',
       'symbion/ssl/+',
       // Coffee plugin topics
-      'symbion/coffee/#'
+      'symbion/coffee/#',
+      // Synology UPS plugin topic
+      'symbion/synology/ups'
     ]
 
     // Storage pour agréger les agents reçus individuellement
@@ -211,6 +213,10 @@ class MqttService extends LitElement {
         this.handleSslSummary(payload)
         break
 
+      case 'symbion/synology/ups':
+        this.handleSynologyUps(payload)
+        break
+
       default:
         // Handle Freebox presence topics (wildcard)
         if (topic.startsWith('symbion/freebox/presence/')) {
@@ -265,6 +271,26 @@ class MqttService extends LitElement {
       bubbles: true,
       composed: true
     }))
+  }
+
+  // === Synology UPS plugin handler ===
+
+  handleSynologyUps(payload) {
+    console.log('🔋 [mqtt] Synology UPS:', payload)
+    // Cache pour les widgets qui s'abonnent tardivement (topic retained,
+    // mais le widget peut être monté après la réception)
+    this._synologyUpsCache = payload
+    this.dispatchEvent(new CustomEvent('synology-ups', {
+      detail: { payload },
+      bubbles: true,
+      composed: true
+    }))
+  }
+
+  getSynologyCache() {
+    return {
+      ups: this._synologyUpsCache || null
+    }
   }
 
   // === Coffee plugin handlers ===

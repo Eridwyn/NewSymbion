@@ -73,7 +73,38 @@ echo ""
 systemctl status symbion-agent.service --no-pager -l || true
 
 echo ""
-echo "8️⃣ Installation optionnelle du Dashboard (PWA)..."
+echo "8️⃣ Installation du plugin Synology (UPS/NUT)..."
+if [ -f "$BUILD_DIR/symbion-plugin-synology" ]; then
+    # Binaire (chemin attendu par symbion-plugin-synology.service)
+    mkdir -p /opt/symbion/bin
+    cp "$BUILD_DIR/symbion-plugin-synology" /opt/symbion/bin/
+    chmod +x /opt/symbion/bin/symbion-plugin-synology
+    chown eridwyn:eridwyn /opt/symbion/bin/symbion-plugin-synology
+    echo "   ✅ Binaire copié dans /opt/symbion/bin/"
+
+    # Config — NE PAS écraser une config existante (contient l'IP NUT / credentials)
+    mkdir -p /opt/symbion/config
+    if [ ! -f /opt/symbion/config/synology.toml ]; then
+        cp "/home/eridwyn/RustroverProjects/NewSymbion/config/synology.toml" /opt/symbion/config/synology.toml
+        chown eridwyn:eridwyn /opt/symbion/config/synology.toml
+        chmod 640 /opt/symbion/config/synology.toml
+        echo "   ✅ Config template copiée: /opt/symbion/config/synology.toml (À ÉDITER: host NUT)"
+    else
+        echo "   ℹ️  Config existante conservée: /opt/symbion/config/synology.toml"
+    fi
+
+    # Service
+    cp "$SCRIPT_DIR/symbion-plugin-synology.service" "$SYSTEMD_DIR/"
+    systemctl daemon-reload
+    systemctl enable symbion-plugin-synology.service
+    systemctl start symbion-plugin-synology.service
+    echo "   ✅ Service synology installé et démarré"
+else
+    echo "   ⚠️  Binaire synology non trouvé, compilez d'abord: cargo build --release -p symbion-plugin-synology"
+fi
+
+echo ""
+echo "9️⃣ Installation optionnelle du Dashboard (PWA)..."
 read -p "   Installer le service Dashboard ? (y/N): " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
@@ -101,6 +132,8 @@ echo "📝 Commandes utiles:"
 echo "  - Voir logs kernel:     journalctl -u symbion-kernel -f"
 echo "  - Voir logs agent:      journalctl -u symbion-agent -f"
 echo "  - Voir logs dashboard:  journalctl -u symbion-dashboard -f"
+echo "  - Voir logs synology:   journalctl -u symbion-plugin-synology -f"
+echo "  - Restart synology:     sudo systemctl restart symbion-plugin-synology"
 echo "  - Restart kernel:       sudo systemctl restart symbion-kernel"
 echo "  - Restart agent:        sudo systemctl restart symbion-agent"
 echo "  - Restart dashboard:    sudo systemctl restart symbion-dashboard"

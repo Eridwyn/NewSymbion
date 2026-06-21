@@ -29,7 +29,8 @@ const lazyWidgets = () => Promise.all([
   import('../widgets/environment-widget.js'),
   import('../widgets/context-engine-widget.js'),
   import('../widgets/library-widget.js'),
-  import('../widgets/coffee-widget.js')
+  import('../widgets/coffee-widget.js'),
+  import('../widgets/synology-widget.js')
 ])
 const lazyPages = () => {
   import('./user-settings-page.js')
@@ -1723,6 +1724,9 @@ class DashboardApp extends LitElement {
               <ssl-widget></ssl-widget>
             </div>
             <div class="widget-container">
+              <synology-widget></synology-widget>
+            </div>
+            <div class="widget-container">
               <notes-widget
                 .apiService="${this.apiService}"
                 .connected="${this.connected}">
@@ -1754,6 +1758,11 @@ class DashboardApp extends LitElement {
           <!-- Widget SSL Monitor -->
           <div class="widget-container">
             <ssl-widget></ssl-widget>
+          </div>
+
+          <!-- Widget Onduleur Synology (UPS/NUT) -->
+          <div class="widget-container">
+            <synology-widget></synology-widget>
           </div>
 
           <!-- Widget santé système -->
