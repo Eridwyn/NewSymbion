@@ -115,6 +115,9 @@ async def main() -> int:
         {"plugin": NOM, "status": "healthy", "version": VERSION},
         retain=True,
     )
+    # L'état de départ, pour que les conditions des règles aient de quoi lire
+    # avant le premier changement de lampe.
+    registre.publier_tout()
 
     fin = asyncio.Event()
     boucle = asyncio.get_running_loop()

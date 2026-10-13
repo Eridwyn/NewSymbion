@@ -30,7 +30,9 @@ const lazyWidgets = () => Promise.all([
   import('../widgets/context-engine-widget.js'),
   import('../widgets/library-widget.js'),
   import('../widgets/coffee-widget.js'),
-  import('../widgets/synology-widget.js')
+  import('../widgets/synology-widget.js'),
+  import('../widgets/lights-widget.js'),
+  import('../widgets/robot-widget.js')
 ])
 const lazyPages = () => {
   import('./user-settings-page.js')
@@ -1686,6 +1688,12 @@ class DashboardApp extends LitElement {
               <context-engine-widget></context-engine-widget>
             </div>
             <div class="widget-container">
+              <lights-widget></lights-widget>
+            </div>
+            <div class="widget-container">
+              <robot-widget></robot-widget>
+            </div>
+            <div class="widget-container">
               <coffee-widget></coffee-widget>
             </div>
             <div class="widget-container">
@@ -1743,6 +1751,16 @@ class DashboardApp extends LitElement {
           <!-- Widget Context Engine (Mode + Automations résumé) -->
           <div class="widget-container">
             <context-engine-widget></context-engine-widget>
+          </div>
+
+          <!-- Lampes Tuya (pilotage local) -->
+          <div class="widget-container">
+            <lights-widget></lights-widget>
+          </div>
+
+          <!-- Aspirateur Deebot (Matter local) -->
+          <div class="widget-container">
+            <robot-widget></robot-widget>
           </div>
 
           <!-- Widget environnement (F1) -->

@@ -130,7 +130,11 @@ class MqttService extends LitElement {
       // Coffee plugin topics
       'symbion/coffee/#',
       // Synology UPS plugin topic
-      'symbion/synology/ups'
+      'symbion/synology/ups',
+      // Lampes Tuya (état par lampe + résumé, tous deux retenus)
+      'symbion/lights/#',
+      // Aspirateur Deebot (état + zones, retenus)
+      'symbion/robot/#'
     ]
 
     // Storage pour agréger les agents reçus individuellement
@@ -217,6 +221,18 @@ class MqttService extends LitElement {
         this.handleSynologyUps(payload)
         break
 
+      case 'symbion/lights/summary':
+        this.handleLightsSummary(payload)
+        break
+
+      case 'symbion/robot/state':
+        this.handleRobotState(payload)
+        break
+
+      case 'symbion/robot/zones':
+        this.handleRobotZones(payload)
+        break
+
       default:
         // Handle Freebox presence topics (wildcard)
         if (topic.startsWith('symbion/freebox/presence/')) {
@@ -225,6 +241,8 @@ class MqttService extends LitElement {
           this.handleSslDomain(topic, payload)
         } else if (topic.startsWith('symbion/coffee/')) {
           this.handleCoffeeMessage(topic, payload)
+        } else if (topic.startsWith('symbion/lights/')) {
+          this.handleLightState(topic, payload)
         } else {
           console.log(`🤷 Unhandled topic: ${topic}`)
         }
@@ -290,6 +308,73 @@ class MqttService extends LitElement {
   getSynologyCache() {
     return {
       ups: this._synologyUpsCache || null
+    }
+  }
+
+  // === Lampes (plugin lights) ===
+  //
+  // Deux niveaux : le résumé porte tout (lampes + pièces + scènes) et suffit
+  // au widget ; les topics par lampe arrivent aussi, et on les fusionne dans
+  // le cache pour qu'un changement unitaire se voie sans attendre le résumé.
+
+  handleLightsSummary(payload) {
+    this._lightsCache = payload
+    this.dispatchEvent(new CustomEvent('lights-summary', {
+      detail: { payload },
+      bubbles: true,
+      composed: true
+    }))
+  }
+
+  handleLightState(topic, payload) {
+    const id = topic.replace('symbion/lights/', '')
+    // Les topics de service du plugin ne sont pas des lampes
+    if (!id || id === 'summary' || id.includes('/')) return
+    this._lightsCache = this._lightsCache || { lights: [], rooms: {}, scenes: [] }
+    const lights = this._lightsCache.lights || []
+    const i = lights.findIndex(l => l.id === id)
+    if (i >= 0) lights[i] = payload
+    else lights.push(payload)
+    this._lightsCache.lights = lights
+    // Les pièces se recalculent : une lampe éteinte peut éteindre sa pièce
+    const rooms = {}
+    for (const l of lights) rooms[l.room] = (rooms[l.room] || false) || (l.on && l.online)
+    this._lightsCache.rooms = rooms
+    this.dispatchEvent(new CustomEvent('lights-summary', {
+      detail: { payload: this._lightsCache },
+      bubbles: true,
+      composed: true
+    }))
+  }
+
+  getLightsCache() {
+    return this._lightsCache || null
+  }
+
+  // === Aspirateur (plugin robot) ===
+
+  handleRobotState(payload) {
+    this._robotStateCache = payload
+    this.dispatchEvent(new CustomEvent('robot-state', {
+      detail: { payload },
+      bubbles: true,
+      composed: true
+    }))
+  }
+
+  handleRobotZones(payload) {
+    this._robotZonesCache = payload
+    this.dispatchEvent(new CustomEvent('robot-zones', {
+      detail: { payload },
+      bubbles: true,
+      composed: true
+    }))
+  }
+
+  getRobotCache() {
+    return {
+      state: this._robotStateCache || null,
+      zones: this._robotZonesCache || null
     }
   }
 

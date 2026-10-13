@@ -150,6 +150,41 @@ def changement_de_piece_signale_une_seule_fois():
 
 
 @essai
+def feature_globale_pour_ne_pas_tourner_a_vide():
+    async def scenario():
+        with tempfile.TemporaryDirectory() as d:
+            r, bus, _ = registre_d_essai(Path(d))
+            r.armer(asyncio.get_running_loop())
+            r._appliquer("salon_a", {"online": True, "on": False})
+            await asyncio.sleep(0)
+            assert dict(bus.features)["lights.any_on"] is False
+            assert dict(bus.features)["lights.rooms_on"] == []
+            r._appliquer("cuisine_a", {"online": True, "on": True})
+            await asyncio.sleep(0)
+            assert dict(bus.features)["lights.any_on"] is True
+            assert dict(bus.features)["lights.rooms_on"] == ["cuisine"]
+            # une lampe injoignable allumée ne compte pas : on ne peut rien
+            # éteindre qu'on ne joint pas
+            r._appliquer("cuisine_a", {"online": False})
+            await asyncio.sleep(0)
+            assert dict(bus.features)["lights.any_on"] is False
+    asyncio.run(scenario())
+
+
+@essai
+def etat_de_depart_publie_avant_tout_changement():
+    with tempfile.TemporaryDirectory() as d:
+        r, bus, _ = registre_d_essai(Path(d))
+        r.publier_tout()
+        noms = dict(bus.features)
+        # Une Condition::Feature sur une feature absente est FAUSSE : il faut
+        # que tout existe dès le démarrage.
+        for attendu in ("lights.any_on", "lights.rooms_on", "lights.salon.any_on",
+                        "lights.cuisine.any_on", "lights.salon_a.on"):
+            assert attendu in noms, noms
+
+
+@essai
 def scenes_survivent_au_redemarrage():
     with tempfile.TemporaryDirectory() as d:
         chemin = Path(d) / "scenes.json"

@@ -167,6 +167,14 @@ perdre l'ajout au premier enregistrement) :
 sudo scripts/appliquer-regles.sh docs/plugins/regles-robot-lumieres.json
 ```
 
+> **Le magasin de règles est SQLite**, table `automations` de
+> `data/symbion.db`. `data/automations.json` n'est qu'un **repli** : le kernel
+> ne le lit que si la table est vide, et le réécrit ensuite depuis sa mémoire.
+> Y écrire ne sert à rien — piège rencontré au premier essai, le kernel
+> annonçant tranquillement « Loaded 19 automation rules from SQLite » alors que
+> le JSON en contenait 24. Les horodatages en base sont du **RFC3339**
+> (`2026-10-13T16:30:00Z`), pas le format étendu du JSON.
+
 **Trois** règles : **salon**, **cuisine** (toutes deux dans la zone « Salle de
 séjour ») et **chambre**. Le Couloir et la Salle de bains ont une zone mais pas
 de lampe pilotable.
@@ -189,6 +197,52 @@ response`) alors qu'ils répondaient parfaitement sur leur socket — et un
 
 À retenir pour tout futur plugin non-Rust : un serveur HTTP strict refusera
 les requêtes internes du kernel qui n'ont pas de `Host`.
+
+## Les règles d'extinction
+
+Le symétrique a sa propre difficulté : **il n'existe aucun déclencheur sur
+changement de feature**. La présence arrive par MQTT et renseigne le registre,
+elle ne réveille aucune automation. D'où deux règles complémentaires :
+
+| Règle | Déclencheur | Conditions |
+|---|---|---|
+| 🌙 Personne à la maison | `Scheduled` 60 s | `presence.anyone_home` = false · `lights.any_on` = true · `robot.cleaning` = false |
+| 🧹 Ménage fini | `custom robot/cleaning_finished` | `presence.anyone_home` = false |
+
+Trois choses à noter :
+
+- **`lights.any_on`** évite que la règle tourne à vide : sans elle, « tout
+  éteindre » s'exécuterait toutes les minutes pour rien et saturerait
+  l'historique. Une lampe injoignable allumée n'y compte pas — on ne peut rien
+  éteindre qu'on ne joint pas ;
+- **`robot.cleaning` = false** empêche les deux familles de règles de se
+  battre. Sans elle, pendant le tour du robot en l'absence du porteur, chaque
+  pièce allumée serait éteinte une minute plus tard : les lampes
+  clignoteraient pendant tout son tour ;
+- la seconde règle n'est là que pour la **réactivité** : à la fin du ménage on
+  a un vrai événement, autant éteindre tout de suite plutôt qu'attendre le
+  sondage de la minute.
+
+Le sondage à 60 s est cohérent avec la TTL de la présence (90 s) : on ne lit
+jamais une présence périmée.
+
+## Éprouvé de bout en bout
+
+Le 13 octobre 2026, features mises à l'état voulu puis événement poussé :
+
+```
+[automations] dispatched custom event robot/zone_changed (1 receivers)
+[automations] ✅ TRIGGER MATCH: '🧹→💡 Chambre …'
+[automations]   ❌ Conditions NOT met: ["feature 'robot.rooms' list contains 'chambre' → false"]
+[automations] ✅ TRIGGER MATCH: '🧹→💡 Cuisine …'
+[automations]   ✓ Conditions met, executing 1 action(s)
+[automations] ✅ plugin_command(plugin='lights', route='/actions/room_on') APPROVED (trust: 0.83)
+[automations] 🔌 plugin_command lights/actions/room_on OK
+```
+
+Cuisine et salon allumés (tous deux dans « Salle de séjour »), chambre non
+touchée. La `StringList` fait bien son travail : `list contains` et non une
+recherche de sous-chaîne.
 
 ## Ce qui reste placeholder
 

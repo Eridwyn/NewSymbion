@@ -33,6 +33,23 @@ class Registre:
     def armer(self, boucle: asyncio.AbstractEventLoop) -> None:
         self._boucle = boucle
 
+    def publier_tout(self) -> None:
+        """Publie l'état complet, au démarrage.
+
+        Une `Condition::Feature` sur une feature ABSENTE est évaluée fausse
+        (« not found in registry ») : sans cette première publication, une
+        règle d'extinction resterait muette jusqu'au premier changement de
+        lampe — et ce changement peut ne jamais venir."""
+        for lampe in self.lampes.values():
+            self.bus.publier(f"symbion/lights/{lampe.id}", lampe.vue(), retain=True)
+            self.bus.feature(f"lights.{lampe.id}.on", lampe.on)
+            self.bus.feature(f"lights.{lampe.id}.brightness", lampe.brightness)
+        for piece in self.pieces():
+            self.bus.feature(f"lights.{piece}.any_on", self.piece_allumee(piece))
+        self.bus.feature("lights.any_on", self.quelque_chose_allume())
+        self.bus.feature("lights.rooms_on", self.pieces_allumees())
+        self.bus.publier("symbion/lights/summary", self.resume(), retain=True)
+
     def declarer(self, conf: dict) -> Lampe:
         lampe = Lampe(
             id=conf["id"],
@@ -79,6 +96,12 @@ class Registre:
         self.bus.feature(f"lights.{lampe.id}.on", lampe.on)
         self.bus.feature(f"lights.{lampe.id}.brightness", lampe.brightness)
         self.bus.feature(f"lights.{lampe.room}.any_on", piece_apres)
+        # « Reste-t-il quelque chose à éteindre ? » — c'est ce qui permet à une
+        # règle d'extinction de ne PAS tourner à vide : sans elle, « personne à
+        # la maison → tout éteindre » s'exécuterait toutes les minutes, à
+        # chaque fois pour rien, et saturerait l'historique d'exécutions.
+        self.bus.feature("lights.any_on", self.quelque_chose_allume())
+        self.bus.feature("lights.rooms_on", self.pieces_allumees())
 
         # idem que pour le robot : features acquittées avant l'événement
         self.bus.attendre_remise()
@@ -105,6 +128,14 @@ class Registre:
 
     def piece_allumee(self, piece: str) -> bool:
         return any(l.on and l.online for l in self.lampes.values() if l.room == piece)
+
+    def quelque_chose_allume(self) -> bool:
+        return any(l.on and l.online for l in self.lampes.values())
+
+    def pieces_allumees(self) -> list[str]:
+        """Les pièces où quelque chose est allumé — une vraie liste, donc une
+        `StringList` côté kernel, interrogeable par `contains`."""
+        return sorted({l.room for l in self.lampes.values() if l.on and l.online})
 
     def pieces(self) -> dict[str, list[str]]:
         par_piece: dict[str, list[str]] = {}

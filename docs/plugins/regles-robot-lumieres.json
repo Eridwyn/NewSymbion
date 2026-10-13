@@ -166,5 +166,113 @@
     "created_at": "+002026-10-13T15:45:00.000000000Z",
     "updated_at": "+002026-10-13T15:45:00.000000000Z",
     "deleted_at": null
+  },
+  "auto_lum_absence": {
+    "id": "auto_lum_absence",
+    "name": "🌙 Personne à la maison : tout éteindre",
+    "description": "Sondage toutes les minutes. Trois conditions : personne à la maison, au moins une lampe joignable allumée, et le robot PAS en nettoyage — sans cette dernière, la règle éteindrait au fur et à mesure les pièces que le robot vient d'allumer, et les lampes clignoteraient pendant tout son tour.",
+    "category": "maison",
+    "goal_mode": null,
+    "enabled": true,
+    "triggers": {
+      "operator": "and",
+      "triggers": [
+        {
+          "type": "scheduled",
+          "interval_seconds": 60,
+          "active_start_minute": 0,
+          "active_end_minute": 0
+        }
+      ]
+    },
+    "conditions": {
+      "operator": "and",
+      "conditions": [
+        {
+          "type": "feature",
+          "feature_id": "presence.anyone_home",
+          "operator": "equals",
+          "value": false
+        },
+        {
+          "type": "feature",
+          "feature_id": "lights.any_on",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "type": "feature",
+          "feature_id": "robot.cleaning",
+          "operator": "equals",
+          "value": false
+        }
+      ]
+    },
+    "actions": [
+      {
+        "type": "plugin_command",
+        "plugin": "lights",
+        "route": "actions/all_off",
+        "payload": {},
+        "impact_level": "Low"
+      }
+    ],
+    "cooldown_seconds": 300,
+    "trusted": null,
+    "skip_if_same_mode": null,
+    "auto_created": null,
+    "last_executed_at": null,
+    "execution_count": 0,
+    "created_at": "+002026-10-13T16:30:00.000000000Z",
+    "updated_at": "+002026-10-13T16:30:00.000000000Z",
+    "deleted_at": null
+  },
+  "auto_lum_fin_menage": {
+    "id": "auto_lum_fin_menage",
+    "name": "🧹 Ménage fini et personne à la maison : tout éteindre",
+    "description": "Le robot signale la fin de sa tâche. Si personne n'est à la maison, on éteint tout de suite les lampes que son passage a allumées, sans attendre le sondage de la minute.",
+    "category": "maison",
+    "goal_mode": null,
+    "enabled": true,
+    "triggers": {
+      "operator": "and",
+      "triggers": [
+        {
+          "type": "custom",
+          "plugin_name": "robot",
+          "trigger_type": "cleaning_finished",
+          "config": {}
+        }
+      ]
+    },
+    "conditions": {
+      "operator": "and",
+      "conditions": [
+        {
+          "type": "feature",
+          "feature_id": "presence.anyone_home",
+          "operator": "equals",
+          "value": false
+        }
+      ]
+    },
+    "actions": [
+      {
+        "type": "plugin_command",
+        "plugin": "lights",
+        "route": "actions/all_off",
+        "payload": {},
+        "impact_level": "Low"
+      }
+    ],
+    "cooldown_seconds": 60,
+    "trusted": null,
+    "skip_if_same_mode": null,
+    "auto_created": null,
+    "last_executed_at": null,
+    "execution_count": 0,
+    "created_at": "+002026-10-13T16:30:00.000000000Z",
+    "updated_at": "+002026-10-13T16:30:00.000000000Z",
+    "deleted_at": null
   }
 }
