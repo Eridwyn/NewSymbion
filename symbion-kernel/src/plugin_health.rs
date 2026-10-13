@@ -108,6 +108,11 @@ impl PluginHealthMonitor {
         let request = hyper::Request::builder()
             .method("GET")
             .uri("/health")
+            // HTTP/1.1 EXIGE un en-tête Host. Les plugins écrits en hyper le
+            // laissent passer, pas un serveur strict : aiohttp (plugins Python)
+            // répond 400 « Missing 'Host' header », le kernel ne peut pas lire
+            // la réponse, et déclare le plugin en panne alors qu'il va bien.
+            .header("Host", "localhost")
             .body(http_body_util::Full::new(hyper::body::Bytes::new()))
             .map_err(|e| format!("Failed to build request: {}", e))?;
 

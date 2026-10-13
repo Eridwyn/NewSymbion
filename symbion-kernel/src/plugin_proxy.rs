@@ -637,6 +637,8 @@ pub async fn public_library_proxy(
     let forwarded_req = match hyper::Request::builder()
         .method(axum::http::Method::GET)
         .uri(&forwarded_with_query)
+        // Même exigence HTTP/1.1 que pour le contrôle de santé.
+        .header("Host", "localhost")
         .body(Empty::<Bytes>::new())
     {
         Ok(req) => req,

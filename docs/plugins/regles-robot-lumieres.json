@@ -1,0 +1,94 @@
+{
+  "auto_robot_lum_salon": {
+    "id": "auto_robot_lum_salon",
+    "name": "🧹→💡 Salon nettoyé : allumer",
+    "description": "Le robot entre dans « Salle de séjour » en nettoyant → allume les lampes de la pièce « salon ». Le payload d'une action est statique : d'où une règle par pièce.",
+    "category": "maison",
+    "goal_mode": null,
+    "enabled": true,
+    "triggers": {
+      "operator": "and",
+      "triggers": [
+        {
+          "type": "custom",
+          "plugin_name": "robot",
+          "trigger_type": "zone_changed",
+          "config": {
+            "room": "salon",
+            "cleaning": true
+          }
+        }
+      ]
+    },
+    "conditions": {
+      "operator": "and",
+      "conditions": []
+    },
+    "actions": [
+      {
+        "type": "plugin_command",
+        "plugin": "lights",
+        "route": "actions/room_on",
+        "payload": {
+          "room": "salon"
+        },
+        "impact_level": "Low"
+      }
+    ],
+    "cooldown_seconds": 10,
+    "trusted": null,
+    "skip_if_same_mode": null,
+    "auto_created": null,
+    "last_executed_at": null,
+    "execution_count": 0,
+    "created_at": "+002026-10-13T15:30:00.000000000Z",
+    "updated_at": "+002026-10-13T15:30:00.000000000Z",
+    "deleted_at": null
+  },
+  "auto_robot_lum_chambre": {
+    "id": "auto_robot_lum_chambre",
+    "name": "🧹→💡 Chambre nettoyée : allumer",
+    "description": "Le robot entre dans « Chambre » en nettoyant → allume les lampes de la pièce « chambre ». Le payload d'une action est statique : d'où une règle par pièce.",
+    "category": "maison",
+    "goal_mode": null,
+    "enabled": true,
+    "triggers": {
+      "operator": "and",
+      "triggers": [
+        {
+          "type": "custom",
+          "plugin_name": "robot",
+          "trigger_type": "zone_changed",
+          "config": {
+            "room": "chambre",
+            "cleaning": true
+          }
+        }
+      ]
+    },
+    "conditions": {
+      "operator": "and",
+      "conditions": []
+    },
+    "actions": [
+      {
+        "type": "plugin_command",
+        "plugin": "lights",
+        "route": "actions/room_on",
+        "payload": {
+          "room": "chambre"
+        },
+        "impact_level": "Low"
+      }
+    ],
+    "cooldown_seconds": 10,
+    "trusted": null,
+    "skip_if_same_mode": null,
+    "auto_created": null,
+    "last_executed_at": null,
+    "execution_count": 0,
+    "created_at": "+002026-10-13T15:30:00.000000000Z",
+    "updated_at": "+002026-10-13T15:30:00.000000000Z",
+    "deleted_at": null
+  }
+}

@@ -122,11 +122,37 @@ se vise donc sur `room`.
 }
 ```
 
+Les deux règles réellement utiles chez moi sont prêtes dans
+`docs/plugins/regles-robot-lumieres.json`, à fusionner **kernel arrêté** (le
+magasin est chargé en mémoire et réécrit par le kernel : l'éditer à chaud fait
+perdre l'ajout au premier enregistrement) :
+
+```bash
+sudo scripts/appliquer-regles.sh docs/plugins/regles-robot-lumieres.json
+```
+
+Deux et pas quatre : seules **chambre** et **salon** ont à la fois une zone sur
+la carte du robot et une lampe. Le Couloir et la Salle de bains n'ont pas de
+lampe pilotable, et la cuisine n'est pas cartographiée.
+
 Limite à connaître : `payload` est **statique**. Le moteur ne substitue pas
 encore les données de l'événement dans l'action, donc une règle = une pièce.
 Pour les quatre pièces cartographiées, c'est quatre règles, chacune avec
 `config: {"room": "salon", "cleaning": true}` et le `payload` correspondant.
 Un gabarit de payload (`{{event.room}}`) serait le prochain pas utile.
+
+## Un piège trouvé au déploiement : l'en-tête `Host`
+
+Le moniteur de santé du kernel envoyait `GET /health` **sans en-tête `Host`**.
+HTTP/1.1 l'exige ; les plugins écrits en hyper (tous les plugins Rust) le
+laissaient passer, mais aiohttp répond `400 Missing 'Host' header`. Résultat :
+les deux plugins Python étaient déclarés en panne (`Failed to parse health
+response`) alors qu'ils répondaient parfaitement sur leur socket — et un
+événement `plugin_health` partait à chaque cycle. Corrigé dans
+`plugin_health.rs` et `plugin_proxy.rs::public_library_proxy`.
+
+À retenir pour tout futur plugin non-Rust : un serveur HTTP strict refusera
+les requêtes internes du kernel qui n'ont pas de `Host`.
 
 ## Ce qui reste placeholder
 
