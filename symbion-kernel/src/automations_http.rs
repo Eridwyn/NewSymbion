@@ -579,10 +579,16 @@ pub struct PluginEventRequest {
 /// lire. C'est la permission du système de fichiers qui fait l'authentification,
 /// pas un secret en dur ni une confiance dans l'adresse source.
 pub fn jeton_evenements_plugin() -> std::io::Result<String> {
+    let chemin = std::env::var("SYMBION_PLUGIN_EVENT_TOKEN_PATH")
+        .unwrap_or_else(|_| "data/plugin-event-token".to_string());
+    jeton_evenements_plugin_dans(std::path::Path::new(&chemin))
+}
+
+/// Même chose, sur un chemin donné — ce qui la rend éprouvable.
+pub fn jeton_evenements_plugin_dans(chemin: &std::path::Path) -> std::io::Result<String> {
     use std::io::Write;
     use std::os::unix::fs::OpenOptionsExt;
 
-    let chemin = std::path::Path::new("data/plugin-event-token");
     if let Ok(contenu) = std::fs::read_to_string(chemin) {
         let jeton = contenu.trim().to_string();
         if !jeton.is_empty() {
@@ -590,26 +596,13 @@ pub fn jeton_evenements_plugin() -> std::io::Result<String> {
         }
     }
 
-    // Première fois : on le fabrique. 32 octets d'horloge + pid mélangés — on
-    // n'a pas de dépendance rand ici, et le fichier n'est lisible que par nous.
-    let graine = format!(
-        "{:?}-{}-{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0),
-        std::process::id(),
-        OffsetDateTime::now_utc().unix_timestamp_nanos()
-    );
-    let mut jeton = String::new();
-    let mut h: u64 = 0xcbf29ce484222325;
-    for octet in graine.bytes().cycle().take(512) {
-        h ^= octet as u64;
-        h = h.wrapping_mul(0x100000001b3);
-        if jeton.len() < 64 {
-            jeton.push_str(&format!("{:02x}", (h >> 24) as u8));
-        }
-    }
+    // Première fois : on le fabrique. 32 octets tirés de /dev/urandom —
+    // l'horloge et le pid seraient prévisibles, et le kernel écoute sur
+    // 0.0.0.0 : un jeton devinable rendrait la permission du fichier inutile.
+    let mut graine = [0u8; 32];
+    std::fs::File::open("/dev/urandom")
+        .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut graine))?;
+    let jeton: String = graine.iter().map(|o| format!("{:02x}", o)).collect();
 
     if let Some(parent) = chemin.parent() {
         std::fs::create_dir_all(parent)?;
@@ -694,4 +687,47 @@ pub async fn ingest_plugin_event(
         "plugin_name": nom,
         "trigger_type": req.trigger_type.trim(),
     })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Un jeton stable : si chaque lecture en fabriquait un nouveau, le plugin
+    /// et le kernel ne seraient jamais d'accord, et l'ingestion renverrait 401
+    /// une fois sur deux sans que rien ne l'explique.
+    #[test]
+    fn le_jeton_est_cree_puis_reutilise() {
+        let dossier = std::env::temp_dir().join(format!("symbion-jeton-{}", std::process::id()));
+        let chemin = dossier.join("plugin-event-token");
+        let _ = std::fs::remove_dir_all(&dossier);
+
+        let premier = jeton_evenements_plugin_dans(&chemin).expect("création");
+        assert!(premier.len() >= 32, "jeton trop court : {}", premier.len());
+        assert!(premier.chars().all(|c| c.is_ascii_hexdigit()));
+
+        let second = jeton_evenements_plugin_dans(&chemin).expect("relecture");
+        assert_eq!(premier, second, "le jeton a changé entre deux lectures");
+
+        // Lisible par son propriétaire SEUL : c'est la permission du fichier
+        // qui authentifie le plugin, pas l'adresse source.
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&chemin).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "mode {:o} au lieu de 600", mode);
+
+        let _ = std::fs::remove_dir_all(&dossier);
+    }
+
+    #[test]
+    fn un_fichier_vide_est_remplace() {
+        let dossier = std::env::temp_dir().join(format!("symbion-jeton-vide-{}", std::process::id()));
+        let chemin = dossier.join("plugin-event-token");
+        let _ = std::fs::remove_dir_all(&dossier);
+        std::fs::create_dir_all(&dossier).unwrap();
+        std::fs::write(&chemin, "   \n").unwrap();
+
+        let jeton = jeton_evenements_plugin_dans(&chemin).expect("remplacement");
+        assert!(!jeton.trim().is_empty());
+        let _ = std::fs::remove_dir_all(&dossier);
+    }
 }

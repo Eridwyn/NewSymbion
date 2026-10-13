@@ -58,6 +58,14 @@ pub async fn spawn_background_tasks(
     let (automation_dispatcher, automation_receiver) = EventDispatcher::new();
     eprintln!("[kernel] initialized Automations Event Dispatcher");
 
+    // Le jeton d'ingestion est créé MAINTENANT, pas au premier événement reçu :
+    // un plugin ne peut pousser d'événement que s'il a lu le jeton, donc
+    // attendre le premier événement pour écrire le fichier ne le crée jamais.
+    match crate::automations_http::jeton_evenements_plugin() {
+        Ok(_) => eprintln!("[kernel] plugin event token ready (data/plugin-event-token)"),
+        Err(e) => eprintln!("[kernel] WARNING: plugin event token unavailable: {e} — les plugins ne pourront pas pousser d'événements"),
+    }
+
     // Connect dispatcher to agents for status events
     db_sub.agents.set_automation_dispatcher(automation_dispatcher.clone()).await;
 
