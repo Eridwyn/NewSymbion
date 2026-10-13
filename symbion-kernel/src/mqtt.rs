@@ -584,6 +584,20 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                                             }
                                         }
                                         serde_json::Value::String(s) => FeatureValue::String(s.clone()),
+                                        // Un tableau de chaînes devient une VRAIE liste :
+                                        // `Contains` compare alors élément par élément au
+                                        // lieu de chercher un bout de texte. « salon » ne
+                                        // doit pas matcher dans « salon-bis ».
+                                        serde_json::Value::Array(elements)
+                                            if elements.iter().all(|e| e.is_string()) =>
+                                        {
+                                            FeatureValue::StringList(
+                                                elements
+                                                    .iter()
+                                                    .filter_map(|e| e.as_str().map(str::to_string))
+                                                    .collect(),
+                                            )
+                                        }
                                         _ => FeatureValue::String(update.value.to_string()),
                                     };
 

@@ -1,8 +1,8 @@
 {
   "auto_robot_lum_salon": {
     "id": "auto_robot_lum_salon",
-    "name": "🧹→💡 Salon nettoyé : allumer",
-    "description": "Le robot entre dans « Salle de séjour » en nettoyant → allume les lampes de la pièce « salon ». Le payload d'une action est statique : d'où une règle par pièce.",
+    "name": "🧹→💡 Salon : allumer quand le robot y passe",
+    "description": "Le robot change de zone → si (1) il est bien EN NETTOYAGE et (2) la zone où il se trouve couvre « salon », allume les lampes de cette pièce. La zone « Salle de séjour » de la carte couvre plusieurs pièces au sens des lampes, d'où la condition sur robot.rooms plutôt que sur le nom de zone. Le payload d'une action étant statique, il faut une règle par pièce.",
     "category": "maison",
     "goal_mode": null,
     "enabled": true,
@@ -13,16 +13,26 @@
           "type": "custom",
           "plugin_name": "robot",
           "trigger_type": "zone_changed",
-          "config": {
-            "room": "salon",
-            "cleaning": true
-          }
+          "config": {}
         }
       ]
     },
     "conditions": {
       "operator": "and",
-      "conditions": []
+      "conditions": [
+        {
+          "type": "feature",
+          "feature_id": "robot.cleaning",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "type": "feature",
+          "feature_id": "robot.rooms",
+          "operator": "contains",
+          "value": "salon"
+        }
+      ]
     },
     "actions": [
       {
@@ -41,14 +51,14 @@
     "auto_created": null,
     "last_executed_at": null,
     "execution_count": 0,
-    "created_at": "+002026-10-13T15:30:00.000000000Z",
-    "updated_at": "+002026-10-13T15:30:00.000000000Z",
+    "created_at": "+002026-10-13T15:45:00.000000000Z",
+    "updated_at": "+002026-10-13T15:45:00.000000000Z",
     "deleted_at": null
   },
-  "auto_robot_lum_chambre": {
-    "id": "auto_robot_lum_chambre",
-    "name": "🧹→💡 Chambre nettoyée : allumer",
-    "description": "Le robot entre dans « Chambre » en nettoyant → allume les lampes de la pièce « chambre ». Le payload d'une action est statique : d'où une règle par pièce.",
+  "auto_robot_lum_cuisine": {
+    "id": "auto_robot_lum_cuisine",
+    "name": "🧹→💡 Cuisine : allumer quand le robot y passe",
+    "description": "Le robot change de zone → si (1) il est bien EN NETTOYAGE et (2) la zone où il se trouve couvre « cuisine », allume les lampes de cette pièce. La zone « Salle de séjour » de la carte couvre plusieurs pièces au sens des lampes, d'où la condition sur robot.rooms plutôt que sur le nom de zone. Le payload d'une action étant statique, il faut une règle par pièce.",
     "category": "maison",
     "goal_mode": null,
     "enabled": true,
@@ -59,16 +69,82 @@
           "type": "custom",
           "plugin_name": "robot",
           "trigger_type": "zone_changed",
-          "config": {
-            "room": "chambre",
-            "cleaning": true
-          }
+          "config": {}
         }
       ]
     },
     "conditions": {
       "operator": "and",
-      "conditions": []
+      "conditions": [
+        {
+          "type": "feature",
+          "feature_id": "robot.cleaning",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "type": "feature",
+          "feature_id": "robot.rooms",
+          "operator": "contains",
+          "value": "cuisine"
+        }
+      ]
+    },
+    "actions": [
+      {
+        "type": "plugin_command",
+        "plugin": "lights",
+        "route": "actions/room_on",
+        "payload": {
+          "room": "cuisine"
+        },
+        "impact_level": "Low"
+      }
+    ],
+    "cooldown_seconds": 10,
+    "trusted": null,
+    "skip_if_same_mode": null,
+    "auto_created": null,
+    "last_executed_at": null,
+    "execution_count": 0,
+    "created_at": "+002026-10-13T15:45:00.000000000Z",
+    "updated_at": "+002026-10-13T15:45:00.000000000Z",
+    "deleted_at": null
+  },
+  "auto_robot_lum_chambre": {
+    "id": "auto_robot_lum_chambre",
+    "name": "🧹→💡 Chambre : allumer quand le robot y passe",
+    "description": "Le robot change de zone → si (1) il est bien EN NETTOYAGE et (2) la zone où il se trouve couvre « chambre », allume les lampes de cette pièce. La zone « Chambre » de la carte couvre plusieurs pièces au sens des lampes, d'où la condition sur robot.rooms plutôt que sur le nom de zone. Le payload d'une action étant statique, il faut une règle par pièce.",
+    "category": "maison",
+    "goal_mode": null,
+    "enabled": true,
+    "triggers": {
+      "operator": "and",
+      "triggers": [
+        {
+          "type": "custom",
+          "plugin_name": "robot",
+          "trigger_type": "zone_changed",
+          "config": {}
+        }
+      ]
+    },
+    "conditions": {
+      "operator": "and",
+      "conditions": [
+        {
+          "type": "feature",
+          "feature_id": "robot.cleaning",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "type": "feature",
+          "feature_id": "robot.rooms",
+          "operator": "contains",
+          "value": "chambre"
+        }
+      ]
     },
     "actions": [
       {
@@ -87,8 +163,8 @@
     "auto_created": null,
     "last_executed_at": null,
     "execution_count": 0,
-    "created_at": "+002026-10-13T15:30:00.000000000Z",
-    "updated_at": "+002026-10-13T15:30:00.000000000Z",
+    "created_at": "+002026-10-13T15:45:00.000000000Z",
+    "updated_at": "+002026-10-13T15:45:00.000000000Z",
     "deleted_at": null
   }
 }

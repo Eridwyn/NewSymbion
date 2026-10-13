@@ -420,12 +420,23 @@ impl AutomationListener {
 
     /// Confronte le `config` d'un Trigger::Custom aux `data` de l'événement.
     ///
-    /// Filtre par INCLUSION : chaque clé de `config` doit se retrouver dans `data`
-    /// avec la même valeur. Un `config` vide accepte tout événement du bon
-    /// plugin/type. Une valeur de `config` en TABLEAU vaut « l'une de ces
-    /// valeurs » — c'est ce qui permet d'écrire « pièce ∈ [cuisine, salon] »
-    /// sans payload JSON libre. Les clés acceptent la notation pointée
-    /// (`room.id`) pour descendre dans les données imbriquées.
+    /// Filtre par INCLUSION : chaque clé de `config` doit se retrouver dans
+    /// `data`. Un `config` vide accepte tout événement du bon plugin/type.
+    ///
+    /// **Un tableau, des deux côtés, vaut un ENSEMBLE** et la comparaison est
+    /// une intersection non vide :
+    ///
+    /// - `config` en tableau → « l'une de ces valeurs »
+    ///   (`{"room": ["cuisine","salon"]}`) ;
+    /// - `data` en tableau → « contient cette valeur ». C'est le cas réel : une
+    ///   zone du robot couvre plusieurs pièces au sens des lampes (la cuisine
+    ///   et le salon sont tous deux dans « Salle de séjour »), donc l'événement
+    ///   porte `rooms: ["salon","cuisine"]` et une règle se vise sur une seule
+    ///   d'entre elles ;
+    /// - les deux en tableau → intersection.
+    ///
+    /// Les clés acceptent la notation pointée (`zone.id`) pour descendre dans
+    /// les données imbriquées.
     fn custom_config_matches(config: &serde_json::Value, data: &serde_json::Value) -> bool {
         let Some(filtres) = config.as_object() else {
             return true; // pas d'objet de filtre = aucun filtre
@@ -433,12 +444,24 @@ impl AutomationListener {
         filtres.iter().all(|(cle, attendu)| {
             match Self::valeur_au_chemin(data, cle) {
                 None => false, // la donnée ne porte pas la clé demandée
-                Some(trouve) => match attendu.as_array() {
-                    Some(choix) => choix.iter().any(|c| Self::valeurs_egales(c, trouve)),
-                    None => Self::valeurs_egales(attendu, trouve),
-                },
+                Some(trouve) => {
+                    let attendus = Self::en_ensemble(attendu);
+                    let trouves = Self::en_ensemble(trouve);
+                    attendus
+                        .iter()
+                        .any(|a| trouves.iter().any(|t| Self::valeurs_egales(a, t)))
+                }
             }
         })
+    }
+
+    /// Une valeur scalaire vaut un ensemble d'un élément ; un tableau vaut ses
+    /// éléments. Un tableau VIDE ne vaut rien, et ne doit rien déclencher.
+    fn en_ensemble(valeur: &serde_json::Value) -> Vec<&serde_json::Value> {
+        match valeur.as_array() {
+            Some(elements) => elements.iter().collect(),
+            None => vec![valeur],
+        }
     }
 
     /// Descend dans un JSON par chemin pointé (`zone.id`), ou clé simple.
@@ -956,6 +979,28 @@ mod tests {
         assert!(filtre(json!({"zone_id": 10000}), json!({"zone_id": "10000"})));
         assert!(filtre(json!({"zone": "Cuisine"}), json!({"zone": "cuisine"})));
         assert!(!filtre(json!({"zone_id": 10001}), json!({"zone_id": 10000})));
+    }
+
+    #[test]
+    fn donnee_en_tableau_vaut_contient_cette_valeur() {
+        // Le cas réel : « Salle de séjour » chez le robot couvre la cuisine ET
+        // le salon côté lampes. L'événement porte les deux, une règle n'en
+        // vise qu'une.
+        let data = json!({"rooms": ["salon", "cuisine"], "zone": "Salle de séjour"});
+        assert!(filtre(json!({"rooms": "salon"}), data.clone()));
+        assert!(filtre(json!({"rooms": "cuisine"}), data.clone()));
+        assert!(!filtre(json!({"rooms": "chambre"}), data.clone()));
+        // tableau des deux côtés = intersection non vide
+        assert!(filtre(json!({"rooms": ["chambre", "cuisine"]}), data.clone()));
+        assert!(!filtre(json!({"rooms": ["chambre", "couloir"]}), data));
+    }
+
+    #[test]
+    fn tableau_vide_ne_declenche_rien() {
+        // Hors nettoyage, le robot ne couvre aucune pièce : une règle visant
+        // une pièce ne doit pas partir.
+        assert!(!filtre(json!({"rooms": "salon"}), json!({"rooms": []})));
+        assert!(!filtre(json!({"rooms": []}), json!({"rooms": ["salon"]})));
     }
 
     #[test]

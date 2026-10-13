@@ -596,6 +596,16 @@ async fn post_feature(
             }
         }
         serde_json::Value::String(s) => FeatureValue::String(s.clone()),
+        // Même règle que l'ingestion MQTT : un tableau de chaînes devient une
+        // vraie liste, pour que `Contains` compare élément par élément.
+        serde_json::Value::Array(elements) if elements.iter().all(|e| e.is_string()) => {
+            FeatureValue::StringList(
+                elements
+                    .iter()
+                    .filter_map(|e| e.as_str().map(str::to_string))
+                    .collect(),
+            )
+        }
         _ => FeatureValue::String(update.value.to_string()),
     };
 

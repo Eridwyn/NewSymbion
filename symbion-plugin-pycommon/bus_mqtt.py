@@ -31,6 +31,7 @@ class BusMqtt:
             retain=True,
         )
         self._pret = threading.Event()
+        self._en_vol: list = []
         self._client.on_connect = self._sur_connexion
 
     def _sur_connexion(self, client, userdata, flags, rc) -> None:  # noqa: ANN001
@@ -58,9 +59,26 @@ class BusMqtt:
 
     def publier(self, sujet: str, charge: dict, retain: bool = False) -> None:
         try:
-            self._client.publish(sujet, json.dumps(charge, ensure_ascii=False), qos=1, retain=retain)
+            info = self._client.publish(sujet, json.dumps(charge, ensure_ascii=False), qos=1, retain=retain)
+            self._en_vol.append(info)
         except Exception as e:                           # noqa: BLE001
             print(f"[{self.plugin}] MQTT publication échouée sur {sujet} : {e}", flush=True)
+
+    def attendre_remise(self, delai: float = 2.0) -> None:
+        """Attend l'acquittement du courtier pour tout ce qui est en vol.
+
+        Sert à ORDONNER : une automation déclenchée par un événement HTTP peut
+        mettre une feature en condition, et cette feature voyage par MQTT. Si
+        l'événement arrive au kernel avant la feature, la condition est
+        évaluée sur l'état PRÉCÉDENT — la lampe de la pièce qu'il vient de
+        quitter. On vide donc la file avant de pousser l'événement.
+        """
+        en_vol, self._en_vol = self._en_vol, []
+        for info in en_vol:
+            try:
+                info.wait_for_publish(timeout=delai)
+            except Exception:                            # noqa: BLE001
+                pass
 
     def feature(self, feature_id: str, valeur, ttl_seconds: int = 3600) -> None:
         """Une feature = ce qu'une automation peut mettre en condition."""

@@ -73,7 +73,7 @@ l'événement, avec la même valeur. Trois commodités, parce qu'une règle écr
 
 | `trigger_type` | `data` |
 |---|---|
-| `zone_changed` | `zone_id`, `zone` (nom Ecovacs), `room` (pièce Symbion), `previous_zone_id`, `cleaning` |
+| `zone_changed` | `zone_id`, `zone` (nom Ecovacs), `room` (pièce principale), `rooms` (**toutes** les pièces couvertes), `previous_zone_id`, `cleaning` |
 | `run_mode_changed` | `mode`, `previous_mode` |
 | `cleaning_started` | `clean_mode`, `zones` |
 | `cleaning_finished` | `battery`, `last_zone` |
@@ -95,22 +95,58 @@ porteur vient d'éteindre.
 
 ## La règle visée : allumer la pièce qu'il nettoie
 
-Les pièces du robot et celles des lampes ne portent pas les mêmes noms
-(« Salle de séjour » chez Ecovacs, « salon » pour les lampes). La table
-`[rooms]` de `robot.toml` fait la traduction, et l'événement porte **les
-deux** — `zone` pour le nom Ecovacs, `room` pour la pièce Symbion. Une règle
-se vise donc sur `room`.
+Deux écarts entre la carte du robot et les lampes, et aucun n'est un détail :
+
+1. **les noms diffèrent** — « Salle de séjour » chez Ecovacs, « salon » pour
+   les lampes ;
+2. **une zone couvre plusieurs pièces** — la cuisine et le salon sont tous
+   deux dans « Salle de séjour » au sens de la carte.
+
+D'où une table `[rooms]` qui accepte une LISTE par zone, et un événement qui
+porte `rooms` (toutes les pièces couvertes) en plus de `zone` et `room`.
+Une règle se vise sur **`rooms`**, pas sur `room`.
+
+### Déclencheur large, conditions sur l'état vivant
+
+Le filtrage ne va pas dans le `config` du déclencheur mais dans les
+**conditions** : le déclencheur dit « le robot a changé de zone », et deux
+conditions vérifient l'état **au moment d'agir** —
+
+- `robot.cleaning` **equals** `true` — il nettoie vraiment, il ne rentre pas
+  à la base ni ne traverse ;
+- `robot.rooms` **contains** `"salon"` — il est bien dans une zone qui couvre
+  cette pièce.
+
+C'est plus juste qu'un filtre sur la charge de l'événement : un événement peut
+avoir une seconde de retard, les features sont relues à l'instant de
+l'évaluation. `robot.rooms` est une **`StringList`** côté kernel, donc
+`contains` compare élément par élément : « salon » ne matche pas dans
+« salon-bis ».
+
+> Ordre garanti côté plugin : les features partent **avant** l'événement et le
+> plugin attend l'acquittement du courtier (`attendre_remise()`). Sans ça la
+> condition pourrait être évaluée sur la zone précédente — et allumer la pièce
+> qu'il vient de quitter.
 
 ```json
 {
-  "name": "Lumière de la pièce nettoyée",
-  "triggers": [{
-    "type": "custom",
-    "plugin_name": "robot",
-    "trigger_type": "zone_changed",
-    "config": { "cleaning": true }
-  }],
-  "conditions": { "operator": "and", "conditions": [] },
+  "name": "🧹→💡 Salon : allumer quand le robot y passe",
+  "triggers": {
+    "operator": "and",
+    "triggers": [{
+      "type": "custom",
+      "plugin_name": "robot",
+      "trigger_type": "zone_changed",
+      "config": {}
+    }]
+  },
+  "conditions": {
+    "operator": "and",
+    "conditions": [
+      { "type": "feature", "feature_id": "robot.cleaning", "operator": "equals",   "value": true },
+      { "type": "feature", "feature_id": "robot.rooms",    "operator": "contains", "value": "salon" }
+    ]
+  },
   "actions": [{
     "type": "plugin_command",
     "plugin": "lights",
@@ -131,9 +167,9 @@ perdre l'ajout au premier enregistrement) :
 sudo scripts/appliquer-regles.sh docs/plugins/regles-robot-lumieres.json
 ```
 
-Deux et pas quatre : seules **chambre** et **salon** ont à la fois une zone sur
-la carte du robot et une lampe. Le Couloir et la Salle de bains n'ont pas de
-lampe pilotable, et la cuisine n'est pas cartographiée.
+**Trois** règles : **salon**, **cuisine** (toutes deux dans la zone « Salle de
+séjour ») et **chambre**. Le Couloir et la Salle de bains ont une zone mais pas
+de lampe pilotable.
 
 Limite à connaître : `payload` est **statique**. Le moteur ne substitue pas
 encore les données de l'événement dans l'action, donc une règle = une pièce.

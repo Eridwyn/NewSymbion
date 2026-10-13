@@ -12,6 +12,10 @@ fabriques.
   `POST /actions/{clean_rooms,clean_all,stop_and_dock,dock,set_clean_mode,clear_selection,pause,resume}`
 - **MQTT** : `symbion/robot/state`, `symbion/robot/zones` (retenus),
   features `robot.{run_mode,phase,zone,room,cleaning,docked,drying,battery,error}`
+- **Une zone de la carte peut couvrir plusieurs pièces** au sens des lampes
+  (chez moi la cuisine et le salon sont tous deux dans « Salle de séjour »).
+  La table `[rooms]` accepte donc une liste, et `robot.rooms` porte toutes les
+  pièces couvertes — c'est sur elle qu'une règle se vise.
 - **Événements** poussés au kernel : `zone_changed`, `run_mode_changed`,
   `cleaning_started`, `cleaning_finished`, `phase_changed`, `drying_started`,
   `drying_finished`, `error_changed`, `battery_low`

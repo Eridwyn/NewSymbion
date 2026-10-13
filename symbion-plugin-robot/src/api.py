@@ -56,8 +56,8 @@ def construire(client, etat, version: str) -> web.Application:
         par_nom = {n.strip().lower(): z for z, n in zones.items() if n}
         par_piece: dict[str, int] = {}
         for zid, nom in zones.items():
-            piece = etat.piece_symbion(nom) if nom else None
-            if piece:
+            # une zone couvre plusieurs pièces : chacune doit pouvoir la viser
+            for piece in (etat.pieces_de_zone(nom) if nom else []):
                 par_piece.setdefault(piece, zid)
         trouvees, inconnues = [], []
         for d in demandees:

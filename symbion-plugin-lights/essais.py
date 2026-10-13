@@ -40,6 +40,9 @@ class BusMuet:
     def publier(self, sujet, charge, retain=False):
         self.messages.append((sujet, charge))
 
+    def attendre_remise(self, delai=2.0):
+        pass
+
     def feature(self, fid, valeur, ttl_seconds=3600):
         self.features.append((fid, valeur))
 

@@ -80,6 +80,9 @@ class Registre:
         self.bus.feature(f"lights.{lampe.id}.brightness", lampe.brightness)
         self.bus.feature(f"lights.{lampe.room}.any_on", piece_apres)
 
+        # idem que pour le robot : features acquittées avant l'événement
+        self.bus.attendre_remise()
+
         await self.noyau.pousser(
             "light_changed",
             {

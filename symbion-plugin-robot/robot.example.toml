@@ -26,10 +26,14 @@ root = "/home/eridwyn/RustroverProjects/NewSymbion"
 drying_nominal_minutes = 240
 battery_low_threshold = 20
 
-# Table de correspondance : nom de pièce chez Ecovacs → pièce Symbion (celle
+# Table de correspondance : nom de zone chez Ecovacs → pièces Symbion (celles
 # des lampes). Sans elle, « allume la pièce qu'il nettoie » ne trouve rien.
+#
+# Une zone peut couvrir PLUSIEURS pièces : chez moi la cuisine et le salon sont
+# tous deux dans « Salle de séjour » au sens de la carte du robot. D'où une
+# liste. Une valeur simple reste acceptée et vaut une liste d'un élément.
 [rooms]
 "Couloir" = "couloir"
 "Salle de bains" = "salle-de-bains"
 "Chambre" = "chambre"
-"Salle de séjour" = "salon"
+"Salle de séjour" = ["salon", "cuisine"]

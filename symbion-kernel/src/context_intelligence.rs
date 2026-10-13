@@ -1534,7 +1534,7 @@ impl ContextIntelligence {
                 // Log guard result
                 if guard_result.allowed {
                     eprintln!(
-                        "[intelligence] ✅ v2 guards: ALL PASSED (would auto-apply if enabled)"
+                        "[intelligence] ✅ v2 guards: ALL PASSED"
                     );
                 } else {
                     eprintln!(

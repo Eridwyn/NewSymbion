@@ -86,10 +86,21 @@ class Etat:
         self.client = client
         self.bus = bus
         self.noyau = noyau
-        # Table robot → Symbion : « Salle de séjour » chez Ecovacs, « salon »
-        # pour les lampes. Sans elle, une règle « allume le salon » ne part
-        # jamais, et rien ne dit pourquoi.
-        self.pieces = {k.strip().lower(): v.strip().lower() for k, v in (pieces or {}).items()}
+        # Table robot → Symbion. Deux écarts à gérer, et aucun des deux n'est
+        # un détail :
+        #   · les noms diffèrent (« Salle de séjour » chez Ecovacs, « salon »
+        #     pour les lampes) ;
+        #   · une zone du robot couvre PLUSIEURS pièces au sens des lampes —
+        #     la cuisine et le salon sont tous deux dans « Salle de séjour ».
+        # D'où une LISTE de pièces par zone. Une valeur simple dans le TOML
+        # reste acceptée et vaut une liste d'un élément.
+        self.pieces: dict[str, list[str]] = {}
+        for zone, cibles in (pieces or {}).items():
+            if isinstance(cibles, str):
+                cibles = [cibles]
+            propres = [str(c).strip().lower() for c in cibles if str(c).strip()]
+            if propres:
+                self.pieces[zone.strip().lower()] = propres
         self.sechage_nominal = sechage_nominal
         self.seuil_batterie = seuil_batterie
         self._sechage_depuis: float | None = None
@@ -97,10 +108,21 @@ class Etat:
 
     # -- lecture ------------------------------------------------------------
 
-    def piece_symbion(self, nom_zone: str | None) -> str | None:
+    def pieces_de_zone(self, nom_zone: str | None) -> list[str]:
+        """Toutes les pièces Symbion couvertes par une zone du robot.
+
+        Une zone absente de la table garde son propre nom en minuscules — pas
+        une liste vide : sinon une règle ne pourrait jamais viser une pièce
+        qu'on a oublié de déclarer, et rien ne le dirait."""
         if not nom_zone:
-            return None
-        return self.pieces.get(nom_zone.strip().lower(), nom_zone.strip().lower())
+            return []
+        cle = nom_zone.strip().lower()
+        return list(self.pieces.get(cle, [cle]))
+
+    def piece_symbion(self, nom_zone: str | None) -> str | None:
+        """La pièce principale — pour l'affichage. Les règles visent `rooms`."""
+        pieces = self.pieces_de_zone(nom_zone)
+        return pieces[0] if pieces else None
 
     def zones(self) -> dict[int, str]:
         return _zones(self.client.attributs.get(ZONES))
@@ -130,14 +152,20 @@ class Etat:
             "cleaning": run_libelle == "Cleaning",
             "docked": oper in (65, 66),
             "zone": None if zone_id is None else {
-                "id": zone_id, "name": zone_nom, "room": self.piece_symbion(zone_nom),
+                "id": zone_id, "name": zone_nom,
+                "room": self.piece_symbion(zone_nom),
+                "rooms": self.pieces_de_zone(zone_nom),
             },
             "selected_zones": [
-                {"id": z, "name": zones.get(z), "room": self.piece_symbion(zones.get(z))}
+                {"id": z, "name": zones.get(z),
+                 "room": self.piece_symbion(zones.get(z)),
+                 "rooms": self.pieces_de_zone(zones.get(z))}
                 for z in (a.get(ZONES_CHOISIES) or [])
             ],
             "zones": [
-                {"id": z, "name": n, "room": self.piece_symbion(n)}
+                {"id": z, "name": n,
+                 "room": self.piece_symbion(n),
+                 "rooms": self.pieces_de_zone(n)}
                 for z, n in sorted(zones.items())
             ],
             # La batterie arrive en DEMI-pour-cents (200 = 100 %). On arrondit
@@ -193,6 +221,11 @@ class Etat:
             "robot.drying": bool(vue["drying"]["active"]),
             "robot.zone": zone.get("name"),
             "robot.room": zone.get("room"),
+            # La LISTE des pièces couvertes : c'est la feature qu'une condition
+            # interroge (`robot.rooms` contains « salon »). Le kernel en fait
+            # une StringList, donc la comparaison est élément par élément —
+            # « salon » ne matche pas dans « salon-bis ».
+            "robot.rooms": zone.get("rooms") or [],
             "robot.battery": vue["battery"],
             "robot.error": vue["error"]["label"],
             "robot.error_code": vue["error"]["code"],
@@ -200,6 +233,10 @@ class Etat:
         for fid, val in features.items():
             if val is not None:
                 self.bus.feature(fid, val)
+
+        # Les features d'abord, acquittées par le courtier, PUIS l'événement :
+        # une condition de règle lit l'état vivant, et doit le lire à jour.
+        self.bus.attendre_remise()
 
         await self._evenements(vue, phase_libelle, zone)
         self._precedent = {
@@ -224,6 +261,7 @@ class Etat:
                 "zone_id": zone.get("id"),
                 "zone": zone.get("name"),
                 "room": zone.get("room"),
+                "rooms": zone.get("rooms") or [],
                 "previous_zone_id": avant.get("zone_id"),
                 "cleaning": vue["cleaning"],
             })

@@ -35,6 +35,9 @@ class BusMuet:
     def publier(self, sujet, charge, retain=False):
         pass
 
+    def attendre_remise(self, delai=2.0):
+        pass
+
     def feature(self, fid, valeur, ttl_seconds=3600):
         self.features.append((fid, valeur))
 
@@ -73,7 +76,7 @@ ATTRIBUTS = {
     M.ETAT_CHARGE: 2,
 }
 
-PIECES = {"Salle de séjour": "salon", "Couloir": "couloir"}
+PIECES = {"Salle de séjour": ["salon", "cuisine"], "Couloir": "couloir"}
 
 
 def etat_d_essai(**remplacements):
@@ -116,6 +119,18 @@ def pieces_traduites_vers_symbion():
     # sinon une règle ne pourrait jamais la viser
     assert e.piece_symbion("Chambre") == "chambre"
     assert e.piece_symbion(None) is None
+
+
+@essai
+def une_zone_couvre_plusieurs_pieces():
+    # Le cas réel : cuisine et salon sont tous deux dans « Salle de séjour ».
+    e, _, _ = etat_d_essai()
+    assert e.pieces_de_zone("Salle de séjour") == ["salon", "cuisine"]
+    # valeur simple dans le TOML = liste d'un élément
+    assert e.pieces_de_zone("Couloir") == ["couloir"]
+    # zone non déclarée : son propre nom, pas une liste vide
+    assert e.pieces_de_zone("Chambre") == ["chambre"]
+    assert e.pieces_de_zone(None) == []
 
 
 @essai
@@ -177,6 +192,8 @@ def changement_de_zone_pousse_la_piece_symbion():
         assert len(zones) == 1, noyau.pousses
         assert zones[0]["zone"] == "Salle de séjour"
         assert zones[0]["room"] == "salon", zones[0]
+        # les DEUX pièces partent : c'est sur `rooms` qu'une règle se vise
+        assert zones[0]["rooms"] == ["salon", "cuisine"], zones[0]
         assert zones[0]["cleaning"] is True
         # rediffuser le même état ne doit RIEN repousser
         avant = len(noyau.pousses)
@@ -232,6 +249,20 @@ def features_publiees_pour_les_conditions():
         for attendu in ("robot.run_mode", "robot.phase", "robot.battery", "robot.docked", "robot.error"):
             assert attendu in noms, noms
         assert noms["robot.battery"] == 100
+        # hors nettoyage il ne couvre aucune pièce : liste VIDE, pas absente —
+        # une condition « contient salon » doit pouvoir échouer franchement
+        assert noms["robot.rooms"] == [], noms["robot.rooms"]
+
+
+@essai
+def feature_rooms_porte_les_deux_pieces():
+    async def scenario():
+        e, bus, _ = etat_d_essai()
+        await e.diffuser()
+        e.client.attributs[M.ZONE_COURANTE] = 10003
+        await e.diffuser()
+        assert dict(bus.features)["robot.rooms"] == ["salon", "cuisine"]
+    asyncio.run(scenario())
     asyncio.run(scenario())
 
 

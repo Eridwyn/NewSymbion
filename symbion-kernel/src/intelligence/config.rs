@@ -87,7 +87,7 @@ pub struct V2StabilizationConfig {
     pub min_samples_non_bootstrap: usize,
 
     /// Minimum recent samples (within recent_days_window)
-    /// Default: 5
+    /// Default: 3
     pub min_recent_samples: usize,
 
     /// Window for "recent" samples in days
@@ -136,7 +136,7 @@ impl Default for V2StabilizationConfig {
             auto_apply_threshold: 0.70,
             min_samples_total: 20,
             min_samples_non_bootstrap: 5,
-            min_recent_samples: 5,
+            min_recent_samples: 3,  // abaissé de 5 : v2 pilotait rarement (peu d'échantillons récents)
             recent_days_window: 14,
             min_session_stable_minutes: 3,
             bootstrap_decay_half_life_days: 7.0,
