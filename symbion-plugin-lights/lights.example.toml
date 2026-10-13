@@ -1,0 +1,36 @@
+# symbion-plugin-lights — gabarit de configuration
+#
+# Copier vers /opt/symbion/config/lights.toml et remplir. Les `local_key`
+# sont des SECRETS : ce fichier doit être en 0600 et hors du dépôt.
+#
+#   install -m 600 lights.example.toml /opt/symbion/config/lights.toml
+#
+# Pour obtenir device_id / local_key / ip : voir docs/plugins/LIGHTS_DESIGN.md §13
+# (compte Tuya IoT + `python -m tinytuya wizard`, puis `python -m tinytuya scan`).
+
+[mqtt]
+host = "127.0.0.1"
+port = 1883
+
+[http]
+socket_path = "/run/symbion-plugins/lights.sock"
+
+[kernel]
+url = "https://127.0.0.1:8443"
+# Racine du dépôt : c'est là que le plugin lit data/plugin-event-token
+root = "/home/eridwyn/RustroverProjects/NewSymbion"
+
+[state]
+scenes_path = "data/lights-scenes.json"
+
+[[lights]]
+id = "salon_lampadaire"
+name = "Lampadaire salon"
+room = "salon"
+driver = "tuya"
+device_id = "bfxxxxxxxxxxxxxxxxxxxx"
+local_key = "xxxxxxxxxxxxxxxx"
+ip = "192.168.1.50"          # réserver l'IP en DHCP statique sur la box
+version = "3.3"              # 3.1 à 3.5 selon l'ampoule
+dimmable = true
+color_temp = true

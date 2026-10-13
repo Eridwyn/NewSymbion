@@ -75,6 +75,20 @@ pub enum AutomationEvent {
         #[serde(with = "time::serde::iso8601")]
         timestamp: OffsetDateTime,
     },
+
+    /// Événement poussé par un plugin (lights, robot, ...) via
+    /// POST /v1/automations/events. C'est le seul chemin par lequel un plugin
+    /// peut RÉVEILLER une automation : sans lui, un plugin ne peut qu'être
+    /// appelé (plugin_command) ou sondé (Scheduled + Condition::Feature).
+    Custom {
+        plugin_name: String,
+        trigger_type: String,
+        /// Données libres de l'événement, confrontées au `config` du Trigger::Custom.
+        #[serde(default)]
+        data: serde_json::Value,
+        #[serde(with = "time::serde::iso8601")]
+        timestamp: OffsetDateTime,
+    },
 }
 
 impl AutomationEvent {
@@ -87,6 +101,7 @@ impl AutomationEvent {
             AutomationEvent::Manual { .. } => "manual",
             AutomationEvent::PluginHealth { .. } => "plugin_health",
             AutomationEvent::Scheduled { .. } => "scheduled",
+            AutomationEvent::Custom { .. } => "custom",
         }
     }
 
@@ -99,6 +114,7 @@ impl AutomationEvent {
             AutomationEvent::Manual { .. } => "Manual",
             AutomationEvent::PluginHealth { .. } => "PluginHealth",
             AutomationEvent::Scheduled { .. } => "Scheduled",
+            AutomationEvent::Custom { .. } => "Custom",
         }
     }
 
@@ -111,6 +127,7 @@ impl AutomationEvent {
             AutomationEvent::Manual { timestamp, .. } => *timestamp,
             AutomationEvent::PluginHealth { timestamp, .. } => *timestamp,
             AutomationEvent::Scheduled { timestamp, .. } => *timestamp,
+            AutomationEvent::Custom { timestamp, .. } => *timestamp,
         }
     }
 }
@@ -245,6 +262,21 @@ impl EventDispatcher {
         match self.sender.send(event) {
             Ok(n) => eprintln!("[scheduler] dispatched scheduled event for {} ({} receivers)", automation_name, n),
             Err(_) => eprintln!("[scheduler] no receivers for scheduled event"),
+        }
+    }
+
+    /// Dispatch un événement de plugin (Trigger::Custom).
+    pub fn dispatch_custom(&self, plugin_name: &str, trigger_type: &str, data: serde_json::Value) {
+        let event = AutomationEvent::Custom {
+            plugin_name: plugin_name.to_string(),
+            trigger_type: trigger_type.to_string(),
+            data,
+            timestamp: OffsetDateTime::now_utc(),
+        };
+
+        match self.sender.send(event) {
+            Ok(n) => eprintln!("[automations] dispatched custom event {}/{} ({} receivers)", plugin_name, trigger_type, n),
+            Err(_) => eprintln!("[automations] no receivers for custom event {}/{}", plugin_name, trigger_type),
         }
     }
 

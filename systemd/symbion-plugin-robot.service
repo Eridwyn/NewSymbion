@@ -1,0 +1,25 @@
+[Unit]
+Description=Symbion Robot Plugin (Deebot T50 Pro Omni en Matter local)
+Documentation=https://github.com/Eridwyn/NewSymbion
+# Le serveur Matter est un conteneur Docker : sans lui le plugin démarre mais
+# reste « unhealthy » jusqu'à ce que le lien s'établisse (il réessaie seul).
+After=mosquitto.service symbion-kernel.service docker.service
+Wants=mosquitto.service
+
+[Service]
+Type=simple
+User=eridwyn
+Group=eridwyn
+WorkingDirectory=/home/eridwyn/RustroverProjects/NewSymbion
+ExecStartPre=/bin/mkdir -p /run/symbion-plugins
+ExecStart=/home/eridwyn/RustroverProjects/NewSymbion/symbion-plugin-robot/.venv/bin/python \
+    /home/eridwyn/RustroverProjects/NewSymbion/symbion-plugin-robot/src/__main__.py \
+    /opt/symbion/config/robot.toml
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=symbion-plugin-robot
+
+[Install]
+WantedBy=default.target

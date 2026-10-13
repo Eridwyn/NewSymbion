@@ -116,3 +116,7 @@ scripts/telegram-bridge/config.env
 
 # Coffee plugin secrets
 symbion-plugin-coffee/coffee.toml
+
+# Caches Python des plugins
+__pycache__/
+*.pyc

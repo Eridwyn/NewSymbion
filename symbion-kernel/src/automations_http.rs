@@ -551,3 +551,147 @@ pub async fn run_automation(
     })))
 }
 
+
+// ============================================================================
+// Ingestion d'événements de plugin — POST /v1/automations/events
+// ============================================================================
+
+/// Un plugin pousse un événement : c'est le chemin par lequel une automation
+/// se réveille sur du matériel (le robot entre dans la cuisine, une lampe
+/// s'allume à la main). Sans lui un plugin ne peut qu'être APPELÉ.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct PluginEventRequest {
+    /// Nom du plugin émetteur. Doit être un plugin ENREGISTRÉ.
+    pub plugin_name: String,
+    /// Type d'événement, libre côté plugin (ex: "zone_changed", "run_mode").
+    pub trigger_type: String,
+    /// Données de l'événement, confrontées au `config` des Trigger::Custom.
+    #[serde(default)]
+    #[schema(value_type = Object)]
+    pub data: Value,
+}
+
+/// Jeton partagé pour l'ingestion d'événements.
+///
+/// Le kernel écoute sur 0.0.0.0 : un endpoint qui déclenche des actions ne peut
+/// pas être ouvert. Le jeton vit dans un fichier en 0600 à côté de l'état du
+/// kernel — seul un processus de la machine tournant sous le bon compte peut le
+/// lire. C'est la permission du système de fichiers qui fait l'authentification,
+/// pas un secret en dur ni une confiance dans l'adresse source.
+pub fn jeton_evenements_plugin() -> std::io::Result<String> {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+
+    let chemin = std::path::Path::new("data/plugin-event-token");
+    if let Ok(contenu) = std::fs::read_to_string(chemin) {
+        let jeton = contenu.trim().to_string();
+        if !jeton.is_empty() {
+            return Ok(jeton);
+        }
+    }
+
+    // Première fois : on le fabrique. 32 octets d'horloge + pid mélangés — on
+    // n'a pas de dépendance rand ici, et le fichier n'est lisible que par nous.
+    let graine = format!(
+        "{:?}-{}-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0),
+        std::process::id(),
+        OffsetDateTime::now_utc().unix_timestamp_nanos()
+    );
+    let mut jeton = String::new();
+    let mut h: u64 = 0xcbf29ce484222325;
+    for octet in graine.bytes().cycle().take(512) {
+        h ^= octet as u64;
+        h = h.wrapping_mul(0x100000001b3);
+        if jeton.len() < 64 {
+            jeton.push_str(&format!("{:02x}", (h >> 24) as u8));
+        }
+    }
+
+    if let Some(parent) = chemin.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let mut f = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(chemin)?;
+    f.write_all(jeton.as_bytes())?;
+    Ok(jeton)
+}
+
+/// POST /v1/automations/events — un plugin réveille les automations.
+#[utoipa::path(
+    post,
+    path = "/v1/automations/events",
+    tag = "automations",
+    request_body = PluginEventRequest,
+    params(("X-Plugin-Token" = String, Header, description = "Jeton d'ingestion (data/plugin-event-token)")),
+    responses(
+        (status = 200, description = "Événement diffusé", body = Object),
+        (status = 401, description = "Jeton absent ou invalide"),
+        (status = 404, description = "Plugin non enregistré")
+    )
+)]
+pub async fn ingest_plugin_event(
+    State(app): State<AppState>,
+    headers: axum::http::HeaderMap,
+    Json(req): Json<PluginEventRequest>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let attendu = jeton_evenements_plugin().map_err(|e| {
+        eprintln!("[automations] jeton d'événements illisible : {e}");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            error_response("event token unavailable"),
+        )
+    })?;
+
+    let fourni = headers
+        .get("X-Plugin-Token")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    // Comparaison à temps constant : la longueur peut fuir, pas le contenu.
+    let valide = fourni.len() == attendu.len()
+        && fourni
+            .bytes()
+            .zip(attendu.bytes())
+            .fold(0u8, |acc, (a, b)| acc | (a ^ b))
+            == 0;
+    if !valide {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            error_response("invalid or missing X-Plugin-Token"),
+        ));
+    }
+
+    let nom = req.plugin_name.trim();
+    if nom.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, error_response("plugin_name is empty")));
+    }
+    if req.trigger_type.trim().is_empty() {
+        return Err((StatusCode::BAD_REQUEST, error_response("trigger_type is empty")));
+    }
+
+    // Deuxième garde : seul un plugin réellement enregistré peut parler. Un nom
+    // inventé ne doit pas pouvoir déclencher une règle écrite pour un autre.
+    if !app.plugin_registry.is_registered(nom).await {
+        return Err((
+            StatusCode::NOT_FOUND,
+            error_response(&format!("plugin '{}' is not registered", nom)),
+        ));
+    }
+
+    app.automation_dispatcher
+        .dispatch_custom(nom, req.trigger_type.trim(), req.data.clone());
+
+    Ok(Json(json!({
+        "status": "dispatched",
+        "plugin_name": nom,
+        "trigger_type": req.trigger_type.trim(),
+    })))
+}

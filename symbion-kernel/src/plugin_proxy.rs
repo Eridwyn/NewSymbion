@@ -124,6 +124,14 @@ impl PluginRegistry {
         }
     }
 
+    /// Un plugin de ce nom est-il enregistré ? (garde de l'ingestion d'événements)
+    pub async fn is_registered(&self, plugin_name: &str) -> bool {
+        let plugins = self.plugins.read().await;
+        plugins
+            .values()
+            .any(|p| p.name.trim().eq_ignore_ascii_case(plugin_name.trim()))
+    }
+
     /// Register a plugin dynamically (hot reload)
     pub async fn register_plugin(&self, registration: PluginRegistration) -> anyhow::Result<()> {
         let mut plugins = self.plugins.write().await;

@@ -1,0 +1,35 @@
+# symbion-plugin-robot — gabarit de configuration
+#
+#   install -m 644 robot.example.toml /opt/symbion/config/robot.toml
+#
+# Aucun secret ici : l'appariement Matter vit dans /home/eridwyn/matter/data,
+# qu'il NE FAUT PAS PERDRE (sinon le robot est à réappairer depuis l'app Ecovacs).
+
+[matter]
+url = "ws://127.0.0.1:5580/ws"
+node_id = 1
+
+[mqtt]
+host = "127.0.0.1"
+port = 1883
+
+[http]
+socket_path = "/run/symbion-plugins/robot.sock"
+
+[kernel]
+url = "https://127.0.0.1:8443"
+root = "/home/eridwyn/RustroverProjects/NewSymbion"
+
+[robot]
+# Matter n'expose aucun temps restant de séchage : on l'ESTIME à partir de
+# cette durée nominale, horodatée à l'entrée dans la phase « Dry Mop ».
+drying_nominal_minutes = 240
+battery_low_threshold = 20
+
+# Table de correspondance : nom de pièce chez Ecovacs → pièce Symbion (celle
+# des lampes). Sans elle, « allume la pièce qu'il nettoie » ne trouve rien.
+[rooms]
+"Couloir" = "couloir"
+"Salle de bains" = "salle-de-bains"
+"Chambre" = "chambre"
+"Salle de séjour" = "salon"

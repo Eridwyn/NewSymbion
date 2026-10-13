@@ -398,13 +398,81 @@ impl AutomationListener {
                 automation_id == event_auto_id
             }
 
-            // Custom plugin trigger (Phase 5+)
-            (Trigger::Custom { plugin_name: _, trigger_type: _, .. }, _) => {
-                // Custom triggers will be implemented with plugin support
-                false
+            // Déclencheur poussé par un plugin : POST /v1/automations/events.
+            (
+                Trigger::Custom { plugin_name, trigger_type, config },
+                AutomationEvent::Custom {
+                    plugin_name: event_plugin,
+                    trigger_type: event_type,
+                    data,
+                    ..
+                },
+            ) => {
+                plugin_name.trim().eq_ignore_ascii_case(event_plugin.trim())
+                    && trigger_type.trim().eq_ignore_ascii_case(event_type.trim())
+                    && Self::custom_config_matches(config, data)
             }
 
             // No match for other combinations
+            _ => false,
+        }
+    }
+
+    /// Confronte le `config` d'un Trigger::Custom aux `data` de l'événement.
+    ///
+    /// Filtre par INCLUSION : chaque clé de `config` doit se retrouver dans `data`
+    /// avec la même valeur. Un `config` vide accepte tout événement du bon
+    /// plugin/type. Une valeur de `config` en TABLEAU vaut « l'une de ces
+    /// valeurs » — c'est ce qui permet d'écrire « pièce ∈ [cuisine, salon] »
+    /// sans payload JSON libre. Les clés acceptent la notation pointée
+    /// (`room.id`) pour descendre dans les données imbriquées.
+    fn custom_config_matches(config: &serde_json::Value, data: &serde_json::Value) -> bool {
+        let Some(filtres) = config.as_object() else {
+            return true; // pas d'objet de filtre = aucun filtre
+        };
+        filtres.iter().all(|(cle, attendu)| {
+            match Self::valeur_au_chemin(data, cle) {
+                None => false, // la donnée ne porte pas la clé demandée
+                Some(trouve) => match attendu.as_array() {
+                    Some(choix) => choix.iter().any(|c| Self::valeurs_egales(c, trouve)),
+                    None => Self::valeurs_egales(attendu, trouve),
+                },
+            }
+        })
+    }
+
+    /// Descend dans un JSON par chemin pointé (`zone.id`), ou clé simple.
+    fn valeur_au_chemin<'a>(data: &'a serde_json::Value, chemin: &str) -> Option<&'a serde_json::Value> {
+        if let Some(direct) = data.get(chemin) {
+            return Some(direct); // une clé qui contient un point reste prioritaire
+        }
+        let mut courant = data;
+        for segment in chemin.split('.') {
+            courant = courant.get(segment)?;
+        }
+        Some(courant)
+    }
+
+    /// Égalité tolérante : 10000 == "10000", 1 == 1.0, "Cuisine" == "cuisine".
+    /// Les règles sont écrites à la main dans la PWA ; un filtre ne doit pas
+    /// échouer silencieusement parce que le plugin a poussé un nombre là où la
+    /// règle dit une chaîne.
+    fn valeurs_egales(a: &serde_json::Value, b: &serde_json::Value) -> bool {
+        if a == b {
+            return true;
+        }
+        match (a.as_f64(), b.as_f64()) {
+            (Some(x), Some(y)) => return (x - y).abs() < f64::EPSILON,
+            _ => {}
+        }
+        let texte = |v: &serde_json::Value| match v {
+            serde_json::Value::String(s) => Some(s.clone()),
+            serde_json::Value::Number(n) => Some(n.to_string()),
+            serde_json::Value::Bool(b) => Some(b.to_string()),
+            _ => None,
+        };
+        match (texte(a), texte(b)) {
+            (Some(x), Some(y)) => x.trim().eq_ignore_ascii_case(y.trim()),
             _ => false,
         }
     }
@@ -841,4 +909,81 @@ mod tests {
 
         assert!(tester.trigger_matches(&trigger, &event, "auto_123"));
     }
+
+    // ------------------------------------------------------------------
+    // Trigger::Custom — le filtre par inclusion
+    //
+    // Ces tests portent sur la vraie fonction du listener (pas le mock
+    // au-dessus) : custom_config_matches est une fonction associée, donc
+    // appelable sans instancier le listener et ses douze dépendances.
+    // ------------------------------------------------------------------
+
+    use crate::automations::listener::AutomationListener;
+    use serde_json::json;
+
+    fn filtre(config: serde_json::Value, data: serde_json::Value) -> bool {
+        AutomationListener::custom_config_matches(&config, &data)
+    }
+
+    #[test]
+    fn config_vide_accepte_tout() {
+        assert!(filtre(json!({}), json!({"zone": "cuisine"})));
+        assert!(filtre(json!(null), json!({"zone": "cuisine"})));
+    }
+
+    #[test]
+    fn config_filtre_par_inclusion() {
+        let data = json!({"zone": "cuisine", "etat": "nettoyage"});
+        assert!(filtre(json!({"zone": "cuisine"}), data.clone()));
+        assert!(filtre(json!({"zone": "cuisine", "etat": "nettoyage"}), data.clone()));
+        assert!(!filtre(json!({"zone": "salon"}), data.clone()));
+        // une clé demandée mais absente des données ne doit PAS passer
+        assert!(!filtre(json!({"piece": "cuisine"}), data));
+    }
+
+    #[test]
+    fn config_en_tableau_vaut_une_de_ces_valeurs() {
+        let data = json!({"zone": "salon"});
+        assert!(filtre(json!({"zone": ["cuisine", "salon"]}), data.clone()));
+        assert!(!filtre(json!({"zone": ["cuisine", "chambre"]}), data));
+    }
+
+    #[test]
+    fn egalite_toleante_entre_nombre_et_chaine() {
+        // le plugin pousse un identifiant de pièce Matter en nombre,
+        // la règle écrite dans la PWA le porte en chaîne : ça doit matcher.
+        assert!(filtre(json!({"zone_id": "10000"}), json!({"zone_id": 10000})));
+        assert!(filtre(json!({"zone_id": 10000}), json!({"zone_id": "10000"})));
+        assert!(filtre(json!({"zone": "Cuisine"}), json!({"zone": "cuisine"})));
+        assert!(!filtre(json!({"zone_id": 10001}), json!({"zone_id": 10000})));
+    }
+
+    #[test]
+    fn chemin_pointe_descend_dans_les_donnees() {
+        let data = json!({"zone": {"id": 10000, "nom": "Cuisine"}});
+        assert!(filtre(json!({"zone.nom": "Cuisine"}), data.clone()));
+        assert!(!filtre(json!({"zone.nom": "Salon"}), data.clone()));
+        assert!(!filtre(json!({"zone.absent": "x"}), data));
+    }
+
+    #[test]
+    fn un_evenement_custom_reveille_le_bon_declencheur() {
+        // Bout en bout sur le tag de pré-filtrage : si les tags ne
+        // correspondent pas, handle_event écarte l'automation avant même
+        // d'appeler le matching, et la règle ne partirait jamais.
+        let event = AutomationEvent::Custom {
+            plugin_name: "robot".to_string(),
+            trigger_type: "zone_changed".to_string(),
+            data: json!({"zone": "cuisine"}),
+            timestamp: OffsetDateTime::now_utc(),
+        };
+        let trigger = Trigger::Custom {
+            plugin_name: "robot".to_string(),
+            trigger_type: "zone_changed".to_string(),
+            config: json!({"zone": "cuisine"}),
+        };
+        assert_eq!(event.trigger_type_tag(), trigger.event_type_tag());
+        assert_eq!(event.event_type(), "custom");
+    }
+
 }

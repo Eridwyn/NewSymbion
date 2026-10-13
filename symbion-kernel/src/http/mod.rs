@@ -234,6 +234,10 @@ pub fn build_router(app_state: AppState) -> Router {
     // Route publique pour plugin service discovery (no auth - plugins register at startup)
     let plugin_registration_route = Router::new()
         .route("/plugins/register", post(crate::plugin_proxy::handle_plugin_registration))
+        // Ingestion d'événements de plugin : hors JWT/CSRF (un plugin n'a ni
+        // session ni nonce), mais gardée par le jeton 0600 data/plugin-event-token
+        // ET par l'enregistrement effectif du plugin. Voir ingest_plugin_event.
+        .route("/automations/events", post(crate::automations_http::ingest_plugin_event))
         .with_state(app_state.clone());
 
     // File transfer data routes (token-authenticated, no JWT required — agents use transfer tokens)

@@ -1,0 +1,23 @@
+[Unit]
+Description=Symbion Lights Plugin (ampoules Tuya pilotées en local)
+Documentation=https://github.com/Eridwyn/NewSymbion
+After=mosquitto.service symbion-kernel.service
+Wants=mosquitto.service
+
+[Service]
+Type=simple
+User=eridwyn
+Group=eridwyn
+WorkingDirectory=/home/eridwyn/RustroverProjects/NewSymbion
+ExecStartPre=/bin/mkdir -p /run/symbion-plugins
+ExecStart=/home/eridwyn/RustroverProjects/NewSymbion/symbion-plugin-lights/.venv/bin/python \
+    /home/eridwyn/RustroverProjects/NewSymbion/symbion-plugin-lights/src/__main__.py \
+    /opt/symbion/config/lights.toml
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=symbion-plugin-lights
+
+[Install]
+WantedBy=default.target

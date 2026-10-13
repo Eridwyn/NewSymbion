@@ -523,6 +523,51 @@ impl SchemaRegistry {
                     },
                 ],
             },
+            // Événement poussé par un plugin via POST /v1/automations/events.
+            // C'est le seul déclencheur qui réagit au matériel sans sondage :
+            // le robot qui entre dans une pièce, une lampe allumée à la main.
+            // Voir docs/plugins/AUTOMATIONS_PLUGIN_EVENTS.md.
+            TriggerSchema {
+                trigger_type: "custom".to_string(),
+                label: "Événement d'un plugin".to_string(),
+                description: "Déclenché quand un plugin pousse un événement (robot, lampes…)".to_string(),
+                icon: "🔌".to_string(),
+                fields: vec![
+                    FieldSchema {
+                        name: "plugin_name".to_string(),
+                        label: "Plugin".to_string(),
+                        field_type: FieldType::Text,
+                        required: true,
+                        default_value: None,
+                        placeholder: Some("robot, lights…".to_string()),
+                        options_key: None,
+                        min: None,
+                        max: None,
+                    },
+                    FieldSchema {
+                        name: "trigger_type".to_string(),
+                        label: "Type d'événement".to_string(),
+                        field_type: FieldType::Text,
+                        required: true,
+                        default_value: None,
+                        placeholder: Some("zone_changed, room_any_on_changed…".to_string()),
+                        options_key: None,
+                        min: None,
+                        max: None,
+                    },
+                    FieldSchema {
+                        name: "config".to_string(),
+                        label: "Filtre (JSON, vide = tous)".to_string(),
+                        field_type: FieldType::TextArea,
+                        required: false,
+                        default_value: Some(serde_json::json!({})),
+                        placeholder: Some(r#"{"room": "salon"}"#.to_string()),
+                        options_key: None,
+                        min: None,
+                        max: None,
+                    },
+                ],
+            },
         ]
     }
 
@@ -1297,9 +1342,11 @@ mod tests {
 
         let schema = SchemaRegistry::get_schema(&agents, &rooms, &sensors, &modes);
 
-        assert_eq!(schema.triggers.len(), 7);  // mode_change, sensor_alert, agent_status, manual, plugin_health, scheduled, ssl_alert
+        assert_eq!(schema.triggers.len(), 8);  // mode_change, sensor_alert, agent_status, manual, plugin_health, scheduled, ssl_alert, custom
         assert_eq!(schema.conditions.len(), 8);  // current_mode, time_range, day_of_week, day_of_month, month, sensor_value, agent_online, feature
-        assert_eq!(schema.actions.len(), 5);
+        // 6 depuis l'ajout de plugin_command : le compte était resté à 5 et
+        // ce test échouait en silence depuis.
+        assert_eq!(schema.actions.len(), 6);
         assert_eq!(schema.dynamic_values.modes.len(), 3);
         assert_eq!(schema.dynamic_values.agents.len(), 2);
         assert_eq!(schema.dynamic_values.rooms.len(), 2);
