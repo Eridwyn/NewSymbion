@@ -170,10 +170,10 @@
   "auto_lum_absence": {
     "id": "auto_lum_absence",
     "name": "🌙 Personne à la maison : tout éteindre",
-    "description": "DÉSACTIVÉE jusqu'à ce que TOUS les téléphones de la maison soient déclarés dans le plugin freebox (widget Freebox → ⚙️ Gérer). Le 15/10/2026 un seul l'était : dès que le porteur sortait, « personne à la maison » devenait vrai alors que sa compagne était là, et les lumières s'éteignaient toutes les 5 minutes — la durée du cooldown. Quatre conditions : personne à la maison, absence SOUTENUE (10 min, pour qu'un Wi-Fi qui décroche n'éteigne pas la maison), au moins une lampe joignable allumée, et le robot pas en nettoyage.",
+    "description": "Quatre conditions, et chacune a sa raison : personne à la maison, absence SOUTENUE de 10 minutes (un Wi-Fi qui décroche n'éteint pas la maison), au moins une lampe joignable allumée (sinon la règle tourne à vide toutes les minutes), et le robot pas en nettoyage (sinon elle éteint au fur et à mesure les pièces qu'il vient d'allumer, et les lampes clignotent pendant tout son tour). ATTENTION : elle ne vaut que ce que vaut la liste des appareils suivis du plugin freebox. Le 15/10/2026 un seul téléphone y était déclaré et les lumières s'éteignaient toutes les 5 minutes alors que quelqu'un était là. Ajouter tout nouveau téléphone dans le widget Freebox → ⚙️ Gérer.",
     "category": "maison",
     "goal_mode": null,
-    "enabled": false,
+    "enabled": true,
     "triggers": {
       "operator": "and",
       "triggers": [
@@ -236,10 +236,10 @@
   "auto_lum_fin_menage": {
     "id": "auto_lum_fin_menage",
     "name": "🧹 Ménage fini et personne à la maison : tout éteindre",
-    "description": "DÉSACTIVÉE pour la même raison que la règle d'absence : la présence ne connaissait qu'un téléphone. À réactiver depuis la PWA une fois tous les téléphones déclarés.",
+    "description": "Le robot signale la fin de sa tâche. Si personne n'est à la maison depuis au moins 10 minutes, on éteint tout de suite les lampes que son passage a allumées, sans attendre le sondage de la minute. Même dépendance à la liste des appareils suivis que la règle d'absence.",
     "category": "maison",
     "goal_mode": null,
-    "enabled": false,
+    "enabled": true,
     "triggers": {
       "operator": "and",
       "triggers": [

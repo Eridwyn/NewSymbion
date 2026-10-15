@@ -34,6 +34,19 @@ VERSION = "1.0.0"
 NOM = "lights"
 
 
+INTERVALLE_RAFRAICHISSEMENT = 120
+
+
+async def rafraichir(registre) -> None:
+    """Republie l'état à intervalle fixe, pour que les features ne périment pas."""
+    while True:
+        await asyncio.sleep(INTERVALLE_RAFRAICHISSEMENT)
+        try:
+            registre.publier_tout()
+        except Exception as e:                           # noqa: BLE001
+            print(f"[lights] rafraîchissement échoué : {e}", flush=True)
+
+
 def actions_avec_pieces(pieces: list[str], scenes: list[str]) -> list[dict]:
     """Remplit les listes déroulantes du rule builder avec les vraies pièces.
 
@@ -119,6 +132,11 @@ async def main() -> int:
     # avant le premier changement de lampe.
     registre.publier_tout()
 
+    # Même raison que pour le robot : une lampe qui ne bouge pas ne publie
+    # rien, ses features expirent, et une condition sur une feature absente
+    # est évaluée FAUSSE. `publier_tout()` ne pousse aucun événement.
+    tache_rafraichi = asyncio.create_task(rafraichir(registre))
+
     fin = asyncio.Event()
     boucle = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -127,6 +145,7 @@ async def main() -> int:
     await fin.wait()
 
     print("[lights] arrêt demandé", flush=True)
+    tache_rafraichi.cancel()
     for pilote in registre.pilotes.values():
         pilote.arreter()
     bus.arreter()

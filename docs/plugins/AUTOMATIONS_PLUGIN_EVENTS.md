@@ -250,9 +250,32 @@ Trois corrections :
    `presence.away_minutes`, et la règle exige 10 minutes. Un Wi-Fi qui décroche
    trois secondes n'éteint plus rien.
 
-Les deux règles restent désactivées jusqu'à ce que tous les téléphones de la
-maison soient déclarés. **Une règle d'extinction est aussi dangereuse que la
-liste sur laquelle elle s'appuie est incomplète.**
+**Une règle d'extinction est aussi dangereuse que la liste sur laquelle elle
+s'appuie est incomplète.** Les deux règles ont été réactivées une fois le
+second téléphone déclaré depuis la PWA.
+
+### Et un deuxième défaut, trouvé en réactivant : les features EXPIRENT
+
+Au premier tour de la règle réactivée :
+
+```
+❌ Conditions NOT met: [... "feature 'robot.cleaning' not found in registry"]
+```
+
+Les features ont une TTL, et les deux plugins ne publiaient **qu'au
+changement**. Un robot immobile ne change aucun attribut, donc ne publie rien,
+donc ses features disparaissent du registre — et une `Condition::Feature` sur
+une feature absente est évaluée **fausse**. La règle devenait silencieusement
+inopérante après une heure de calme.
+
+Les deux plugins republient maintenant leur état toutes les **120 secondes**,
+indépendamment de tout changement. `diffuser()` (robot) et `publier_tout()`
+(lampes) ne poussent **aucun événement** sans changement réel : rien ne part en
+double, les automations ne se redéclenchent pas. Vérifié : 20 features
+republiées sans aucun mouvement du matériel.
+
+À retenir pour tout futur plugin : **publier au changement ne suffit pas**. Si
+une feature sert de condition, elle doit battre.
 
 ## Éprouvé de bout en bout
 

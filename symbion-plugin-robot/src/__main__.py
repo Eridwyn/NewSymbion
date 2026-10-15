@@ -42,6 +42,21 @@ def actions_avec_pieces(zones: list[dict]) -> list[dict]:
     return actions
 
 
+# Assez court pour qu'une expiration demande plusieurs battements manqués,
+# assez long pour ne pas bavarder sur le bus.
+INTERVALLE_RAFRAICHISSEMENT = 120
+
+
+async def rafraichir(etat) -> None:
+    """Republie l'état à intervalle fixe, pour que les features ne périment pas."""
+    while True:
+        await asyncio.sleep(INTERVALLE_RAFRAICHISSEMENT)
+        try:
+            await etat.diffuser()
+        except Exception as e:                           # noqa: BLE001
+            print(f"[robot] rafraîchissement échoué : {e}", flush=True)
+
+
 async def main() -> int:
     chemin = Path(sys.argv[1]) if len(sys.argv) > 1 else config_mod.CHEMIN_DEFAUT
     try:
@@ -114,6 +129,15 @@ async def main() -> int:
         retain=True,
     )
 
+    # Les features ont une durée de vie. Un robot immobile ne change aucun
+    # attribut, donc ne publie rien, donc ses features EXPIRENT — et une
+    # condition sur une feature absente est évaluée FAUSSE. Constaté le
+    # 15/10/2026 : « feature 'robot.cleaning' not found in registry », et la
+    # règle d'extinction ne pouvait plus partir. On republie donc à intervalle
+    # fixe. `diffuser()` ne pousse d'événement que sur CHANGEMENT : rien ne
+    # part en double.
+    tache_rafraichi = asyncio.create_task(rafraichir(etat))
+
     fin = asyncio.Event()
     boucle = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -122,6 +146,7 @@ async def main() -> int:
     await fin.wait()
 
     print("[robot] arrêt demandé", flush=True)
+    tache_rafraichi.cancel()
     tache_matter.cancel()
     bus.arreter()
     await coureur.cleanup()
