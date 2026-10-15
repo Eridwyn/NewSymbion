@@ -170,10 +170,10 @@
   "auto_lum_absence": {
     "id": "auto_lum_absence",
     "name": "🌙 Personne à la maison : tout éteindre",
-    "description": "Sondage toutes les minutes. Trois conditions : personne à la maison, au moins une lampe joignable allumée, et le robot PAS en nettoyage — sans cette dernière, la règle éteindrait au fur et à mesure les pièces que le robot vient d'allumer, et les lampes clignoteraient pendant tout son tour.",
+    "description": "DÉSACTIVÉE jusqu'à ce que TOUS les téléphones de la maison soient déclarés dans le plugin freebox (widget Freebox → ⚙️ Gérer). Le 15/10/2026 un seul l'était : dès que le porteur sortait, « personne à la maison » devenait vrai alors que sa compagne était là, et les lumières s'éteignaient toutes les 5 minutes — la durée du cooldown. Quatre conditions : personne à la maison, absence SOUTENUE (10 min, pour qu'un Wi-Fi qui décroche n'éteigne pas la maison), au moins une lampe joignable allumée, et le robot pas en nettoyage.",
     "category": "maison",
     "goal_mode": null,
-    "enabled": true,
+    "enabled": false,
     "triggers": {
       "operator": "and",
       "triggers": [
@@ -193,6 +193,12 @@
           "feature_id": "presence.anyone_home",
           "operator": "equals",
           "value": false
+        },
+        {
+          "type": "feature",
+          "feature_id": "presence.away_minutes",
+          "operator": "greater_or_equal",
+          "value": 10
         },
         {
           "type": "feature",
@@ -230,10 +236,10 @@
   "auto_lum_fin_menage": {
     "id": "auto_lum_fin_menage",
     "name": "🧹 Ménage fini et personne à la maison : tout éteindre",
-    "description": "Le robot signale la fin de sa tâche. Si personne n'est à la maison, on éteint tout de suite les lampes que son passage a allumées, sans attendre le sondage de la minute.",
+    "description": "DÉSACTIVÉE pour la même raison que la règle d'absence : la présence ne connaissait qu'un téléphone. À réactiver depuis la PWA une fois tous les téléphones déclarés.",
     "category": "maison",
     "goal_mode": null,
-    "enabled": true,
+    "enabled": false,
     "triggers": {
       "operator": "and",
       "triggers": [
@@ -253,6 +259,12 @@
           "feature_id": "presence.anyone_home",
           "operator": "equals",
           "value": false
+        },
+        {
+          "type": "feature",
+          "feature_id": "presence.away_minutes",
+          "operator": "greater_or_equal",
+          "value": 10
         }
       ]
     },

@@ -113,6 +113,34 @@ impl MqttPublisher {
         Ok(())
     }
 
+    /// Publie une feature pour le registre du kernel.
+    ///
+    /// Topic ABSOLU : `symbion/features/update` ne vit pas sous le préfixe du
+    /// plugin, c'est le kernel qui l'écoute.
+    pub async fn publish_feature(
+        &self,
+        feature_id: &str,
+        value: serde_json::Value,
+        ttl_seconds: u32,
+    ) -> Result<()> {
+        let charge = serde_json::json!({
+            "feature_id": feature_id,
+            "value": value,
+            "source": "freebox",
+            "ttl_seconds": ttl_seconds,
+        });
+        self.client
+            .publish(
+                "symbion/features/update",
+                QoS::AtLeastOnce,
+                false,
+                serde_json::to_vec(&charge)?,
+            )
+            .await?;
+        debug!("Published feature {}", feature_id);
+        Ok(())
+    }
+
     // ========================================================================
     // Presence Publishing
     // ========================================================================

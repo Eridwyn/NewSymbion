@@ -15,9 +15,18 @@ pub struct Config {
     /// HTTP health endpoint configuration
     pub http: HttpConfig,
 
-    /// Devices to track for presence
+    /// Devices to track for presence.
+    ///
+    /// Ce n'est que la GRAINE : les appareils déclarés depuis la PWA vivent
+    /// dans `tracked_path` et prennent le dessus dès que ce fichier existe.
+    /// Éditer le TOML à la main reste possible, mais la PWA est la voie
+    /// normale — et c'est elle qui a raison.
     #[serde(default)]
     pub devices: HashMap<String, DeviceConfig>,
+
+    /// Fichier JSON des appareils suivis, modifiable à chaud depuis la PWA.
+    #[serde(default = "default_tracked_path")]
+    pub tracked_path: String,
 
     /// Polling intervals
     #[serde(default)]
@@ -68,6 +77,10 @@ pub struct HttpConfig {
     /// Unix socket path for health endpoint
     #[serde(default = "default_socket_path")]
     pub socket_path: String,
+}
+
+fn default_tracked_path() -> String {
+    "/home/eridwyn/RustroverProjects/NewSymbion/data/freebox-devices.json".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -190,6 +203,46 @@ impl Config {
         }
 
         Ok(config)
+    }
+}
+
+/// Les appareils suivis, tels que la PWA les a déclarés.
+///
+/// Fichier séparé du TOML à dessein : réécrire du TOML perd les commentaires
+/// et les secrets y voisinent (`app_token`). Un JSON à côté se réécrit sans
+/// risque et sans toucher à la configuration d'installation.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TrackedDevices {
+    #[serde(default)]
+    pub devices: HashMap<String, DeviceConfig>,
+}
+
+impl TrackedDevices {
+    /// Lit le fichier. Absent ou illisible → `None`, et l'appelant garde la
+    /// graine du TOML : une panne de lecture ne doit pas vider la présence,
+    /// sinon tout le monde est déclaré absent et les lumières s'éteignent.
+    pub fn load(path: &str) -> Option<Self> {
+        let contenu = std::fs::read_to_string(path).ok()?;
+        match serde_json::from_str::<TrackedDevices>(&contenu) {
+            Ok(t) => Some(t),
+            Err(e) => {
+                tracing::error!("freebox-devices.json illisible ({}), on garde la graine TOML: {}", path, e);
+                None
+            }
+        }
+    }
+
+    /// Écrit le fichier de façon atomique (temporaire puis renommage) : une
+    /// coupure au mauvais moment laisserait sinon un JSON tronqué, donc une
+    /// liste d'appareils vide au prochain démarrage.
+    pub fn save(&self, path: &str) -> anyhow::Result<()> {
+        if let Some(parent) = std::path::Path::new(path).parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let provisoire = format!("{}.tmp", path);
+        std::fs::write(&provisoire, serde_json::to_string_pretty(self)?)?;
+        std::fs::rename(&provisoire, path)?;
+        Ok(())
     }
 }
 

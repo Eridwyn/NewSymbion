@@ -9,6 +9,7 @@ import { LitElement, html, css } from 'lit'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles, widgetSectionStyles } from '../styles/shared-widget.js'
 import { statusBadgeStyles, statusDotStyles } from '../styles/shared-patterns.js'
+import { getApiBase } from '../services/config.js'
 import '../components/organic-loader.js'
 
 class FreeboxWidget extends LitElement {
@@ -41,6 +42,64 @@ class FreeboxWidget extends LitElement {
     }
 
     /* section-title + svg provided by widgetSectionStyles */
+
+    /* ── Gestion des appareils suivis ── */
+    .gestion-barre {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.4rem;
+    }
+
+    .btn-gerer {
+      background: var(--surface-glass-strong, rgba(255, 255, 255, 0.08));
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl, 999px);
+      color: var(--color-dark-text-secondary, #cbd5e1);
+      font-size: var(--text-xs, 0.75rem);
+      padding: 0.35rem 0.75rem;
+      min-height: 32px;
+      cursor: pointer;
+    }
+
+    .gestion-panneau {
+      border-top: 1px solid var(--border-subtle);
+      margin-top: 0.5rem;
+      padding-top: 0.5rem;
+    }
+
+    .candidat {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.35rem 0;
+      font-size: var(--text-xs, 0.75rem);
+      color: var(--color-dark-text-secondary, #cbd5e1);
+    }
+
+    .candidat-nom { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+    .candidat-nom b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .candidat-meta { color: var(--color-dark-text-tertiary, #6c757d); }
+
+    .btn-mini {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm, 6px);
+      background: var(--surface-glass-strong, rgba(255, 255, 255, 0.08));
+      color: var(--color-dark-text-primary, #f8f9fa);
+      font-size: var(--text-xs, 0.7rem);
+      padding: 0.3rem 0.55rem;
+      min-height: 30px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .btn-mini.retirer { border-color: rgba(255, 107, 107, 0.4); }
+    .btn-mini:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .gestion-erreur { font-size: var(--text-xs, 0.7rem); color: #ff6b6b; margin-top: 0.3rem; }
+    .gestion-note { font-size: var(--text-xs, 0.7rem); color: var(--color-dark-text-tertiary, #6c757d); margin-top: 0.3rem; }
 
     .presence-item {
       display: flex;
@@ -183,6 +242,11 @@ class FreeboxWidget extends LitElement {
 
   static properties = {
     presenceDevices: { type: Array },
+    gestion: { type: Boolean },
+    candidats: { type: Array },
+    awayMinutes: { type: Number },
+    occupe: { type: String },
+    erreurGestion: { type: String },
     connectionStatus: { type: Object },
     anyoneHome: { type: Boolean },
     loading: { type: Boolean },
@@ -192,6 +256,11 @@ class FreeboxWidget extends LitElement {
   constructor() {
     super()
     this.presenceDevices = []
+    this.gestion = false
+    this.candidats = []
+    this.awayMinutes = 0
+    this.occupe = ''
+    this.erreurGestion = ''
     this.connectionStatus = null
     this.anyoneHome = null
     this.loading = true
@@ -362,6 +431,107 @@ class FreeboxWidget extends LitElement {
     return kbps >= 1000 ? 'Mb/s' : 'Kb/s'
   }
 
+  // ── Gestion des appareils suivis (configurable depuis ici) ──
+
+  get _basePlugin() {
+    return `${getApiBase()}/v1/plugin-api/freebox`
+  }
+
+  _entetes() {
+    const token = localStorage.getItem('auth_token') || ''
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
+  }
+
+  async _basculerGestion() {
+    this.gestion = !this.gestion
+    this.erreurGestion = ''
+    if (this.gestion) await this._chargerGestion()
+    this.requestUpdate()
+  }
+
+  /** Recharge la présence exacte ET la liste des appareils du réseau. */
+  async _chargerGestion() {
+    this.occupe = 'chargement'
+    try {
+      const [presence, reseau] = await Promise.all([
+        fetch(`${this._basePlugin}/presence`, { headers: this._entetes() }).then(r => r.ok ? r.json() : null),
+        fetch(`${this._basePlugin}/devices`, { headers: this._entetes() }).then(r => r.ok ? r.json() : null)
+      ])
+      if (presence) {
+        this.presenceDevices = presence.devices || []
+        this.anyoneHome = presence.anyone_home
+        this.awayMinutes = presence.away_minutes || 0
+      }
+      // On ne propose QUE les appareils actifs et pas déjà suivis : la liste
+      // complète fait 51 entrées, dont des ampoules et des capteurs.
+      this.candidats = (reseau?.devices || []).filter(d => d.active && !d.tracked)
+      if (!presence && !reseau) {
+        this.erreurGestion = 'le plugin freebox ne répond pas'
+      }
+    } catch (e) {
+      this.erreurGestion = e.message
+    } finally {
+      this.occupe = ''
+      this.requestUpdate()
+    }
+  }
+
+  async _suivre(appareil) {
+    this.occupe = `add:${appareil.name}`
+    this.erreurGestion = ''
+    try {
+      const resp = await fetch(`${this._basePlugin}/tracked`, {
+        method: 'POST',
+        headers: this._entetes(),
+        body: JSON.stringify({
+          freebox_name: appareil.name,
+          device_type: appareil.host_type === 'smartphone' ? 'phone' : appareil.host_type,
+          friendly_name: appareil.name
+        })
+      })
+      if (!resp.ok) {
+        const d = await resp.json().catch(() => ({}))
+        this.erreurGestion = d.error || `échec (${resp.status})`
+      }
+    } catch (e) {
+      this.erreurGestion = e.message
+    } finally {
+      this.occupe = ''
+      await this._chargerGestion()
+    }
+  }
+
+  async _nePlusSuivre(id) {
+    this.occupe = `del:${id}`
+    this.erreurGestion = ''
+    try {
+      const resp = await fetch(`${this._basePlugin}/tracked/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: this._entetes()
+      })
+      if (!resp.ok) {
+        const d = await resp.json().catch(() => ({}))
+        this.erreurGestion = d.error || `échec (${resp.status})`
+      }
+    } catch (e) {
+      this.erreurGestion = e.message
+    } finally {
+      this.occupe = ''
+      await this._chargerGestion()
+    }
+  }
+
+  _iconeAppareil(type) {
+    if (type === 'phone' || type === 'smartphone') return '📱'
+    if (type === 'tablet') return '📲'
+    if (type === 'nas') return '🗄️'
+    if (type === 'freebox_pop' || type === 'freebox_player') return '📺'
+    return '💻'
+  }
+
   render() {
     if (this.loading) {
       return html`
@@ -386,15 +556,33 @@ class FreeboxWidget extends LitElement {
             <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
             Presence
           </div>
+
+          <div class="gestion-barre">
+            <span class="candidat-meta">
+              ${this.anyoneHome === false && this.awayMinutes > 0
+                ? `personne depuis ${this.awayMinutes} min`
+                : (this.anyoneHome ? 'quelqu\'un est là' : '')}
+            </span>
+            <button class="btn-gerer" @click="${() => this._basculerGestion()}">
+              ${this.gestion ? 'Fermer' : '⚙️ Gérer'}
+            </button>
+          </div>
+
           ${this.presenceDevices.length === 0 ? html`
-            <div class="fb-hint-muted">Aucun appareil configure</div>
+            <div class="fb-hint-muted">
+              Aucun appareil suivi — « Gérer » pour en ajouter.
+              Sans appareil déclaré, personne n'est jamais vu à la maison.
+            </div>
           ` : this.presenceDevices.map(device => html`
             <div class="presence-item">
               <div class="device-info">
-                <span class="device-icon">${device.device_type === 'phone' ? '📱' : '💻'}</span>
+                <span class="device-icon">${this._iconeAppareil(device.device_type)}</span>
                 <div>
-                  <div class="device-name">${device.friendly_name || device.device_id}</div>
+                  <div class="device-name">${device.friendly_name || device.device_id || device.id}</div>
                   ${device.ip_address ? html`<div class="device-ip">${device.ip_address}</div>` : ''}
+                  ${device.known_to_freebox === false ? html`
+                    <div class="gestion-erreur">inconnu de la Freebox — nom erroné ?</div>
+                  ` : ''}
                 </div>
               </div>
               <div class="presence-status">
@@ -402,9 +590,43 @@ class FreeboxWidget extends LitElement {
                 <span class="presence-label ${device.present ? 'home' : 'away'}">
                   ${device.present ? 'Home' : 'Away'}
                 </span>
+                ${this.gestion ? html`
+                  <button class="btn-mini retirer"
+                          ?disabled="${this.occupe === `del:${device.id}`}"
+                          @click="${() => this._nePlusSuivre(device.id)}">retirer</button>
+                ` : ''}
               </div>
             </div>
           `)}
+
+          ${this.gestion ? html`
+            <div class="gestion-panneau">
+              <div class="section-title" style="margin-bottom:0.3rem">
+                Appareils actifs sur le réseau
+              </div>
+              ${this.occupe === 'chargement' ? html`
+                <div class="fb-hint-muted">lecture du réseau...</div>
+              ` : (this.candidats.length === 0 ? html`
+                <div class="fb-hint-muted">aucun autre appareil actif à proposer</div>
+              ` : this.candidats.map(a => html`
+                <div class="candidat">
+                  <span class="candidat-nom">
+                    <span>${this._iconeAppareil(a.host_type)}</span>
+                    <b>${a.name}</b>
+                    <span class="candidat-meta">${a.vendor || a.host_type}</span>
+                  </span>
+                  <button class="btn-mini"
+                          ?disabled="${this.occupe === `add:${a.name}`}"
+                          @click="${() => this._suivre(a)}">suivre</button>
+                </div>
+              `))}
+              ${this.erreurGestion ? html`<div class="gestion-erreur">${this.erreurGestion}</div>` : ''}
+              <div class="gestion-note">
+                Un appareil suivi compte dans « quelqu'un est à la maison ».
+                C'est ce que lisent les automatismes.
+              </div>
+            </div>
+          ` : ''}
         </div>
 
         <!-- Connection Section -->

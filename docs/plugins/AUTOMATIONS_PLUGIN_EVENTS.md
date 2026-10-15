@@ -226,6 +226,34 @@ Trois choses à noter :
 Le sondage à 60 s est cohérent avec la TTL de la présence (90 s) : on ne lit
 jamais une présence périmée.
 
+### La panne du 15 octobre : « personne à la maison » ne connaissait qu'un seul téléphone
+
+Les deux règles d'extinction ont été **désactivées** le jour de leur mise en
+service. `presence.anyone_home` est calculé par le plugin freebox sur la seule
+liste `[devices.*]` de sa configuration — et un seul téléphone y était déclaré.
+Dès que le porteur sortait, « personne à la maison » devenait vrai alors que sa
+compagne était là, et les lumières s'éteignaient **toutes les 5 minutes**, soit
+exactement la durée du cooldown.
+
+Trois corrections :
+
+1. **les appareils suivis se déclarent depuis la PWA** (widget Freebox →
+   ⚙️ Gérer). Le plugin expose `GET /presence`, `GET /devices` (ce que la
+   Freebox voit, actifs d'abord), `GET|POST /tracked`, `DELETE /tracked/{id}`.
+   La liste vit dans `data/freebox-devices.json`, écrit de façon atomique ; la
+   section `[devices.*]` du TOML n'en est plus que la graine ;
+2. **un nom inconnu de la Freebox est refusé** à l'ajout, et signalé dans la
+   PWA s'il devient inconnu plus tard. Un appareil mal nommé compterait comme
+   éternellement absent — exactement l'erreur qui éteint une maison sans rien
+   expliquer ;
+3. **l'absence doit être SOUTENUE** : le plugin publie
+   `presence.away_minutes`, et la règle exige 10 minutes. Un Wi-Fi qui décroche
+   trois secondes n'éteint plus rien.
+
+Les deux règles restent désactivées jusqu'à ce que tous les téléphones de la
+maison soient déclarés. **Une règle d'extinction est aussi dangereuse que la
+liste sur laquelle elle s'appuie est incomplète.**
+
 ## Éprouvé de bout en bout
 
 Le 13 octobre 2026, features mises à l'état voulu puis événement poussé :
