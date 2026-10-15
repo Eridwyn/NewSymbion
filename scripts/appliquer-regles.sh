@@ -88,5 +88,12 @@ PY
 
 chown eridwyn:eridwyn "$BASE"
 systemctl start symbion-kernel
+
+# Le dashboard est en BindsTo= sur le kernel : l'arrêter emporte le dashboard,
+# et un arrêt par DÉPENDANCE n'enclenche pas son Restart=always. Sans cette
+# ligne, chaque application de règles laisse l'interface web morte jusqu'à ce
+# que quelqu'un s'en aperçoive — c'est arrivé deux fois le 15/10/2026.
+systemctl is-active --quiet symbion-dashboard || systemctl start symbion-dashboard
+
 sleep 4
 journalctl -u symbion-kernel --since "-1min" -o cat --no-pager | grep -i "automation rules from" | tail -1
