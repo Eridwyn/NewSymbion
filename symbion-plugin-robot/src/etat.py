@@ -127,6 +127,22 @@ class Etat:
     def zones(self) -> dict[int, str]:
         return _zones(self.client.attributs.get(ZONES))
 
+    def zones_inconnues(self) -> list[str]:
+        """Les pièces de la carte que la table de correspondance ne connaît pas.
+
+        C'est la panne la plus vicieuse de tout ce montage, et elle a frappé
+        DEUX fois : le 13/10 les pièces s'appelaient encore Room/Room1/Room2,
+        et le 21/10 une refonte de carte les a rendues EN ANGLAIS — « Living
+        room » au lieu de « Salle de séjour ». Les deux fois, les règles de
+        lumière se sont tues SANS la moindre erreur : le déclencheur partait,
+        la condition échouait, et personne ne voyait rien. Une pièce que la
+        table ignore doit donc se DIRE, au lieu d'être devinée en silence.
+        """
+        return sorted(
+            nom for nom in self.zones().values()
+            if nom and nom.strip().lower() not in self.pieces
+        )
+
     def vue(self) -> dict:
         a = self.client.attributs
         zones = self.zones()
@@ -175,6 +191,7 @@ class Etat:
             "battery": None if batt is None else int(batt // 2),
             "charge_state": ETATS_CHARGE.get(a.get(ETAT_CHARGE), "inconnu"),
             "drying": self.sechage(phase_libelle),
+            "zones_inconnues": self.zones_inconnues(),
         }
 
     def sechage(self, phase_libelle: str | None) -> dict:
@@ -200,6 +217,7 @@ class Etat:
 
     async def diffuser(self) -> None:
         vue = self.vue()
+        avant_inconnues = self._precedent.get("zones_inconnues")
         phase_libelle = (vue["phase"] or {}).get("label")
 
         # horodatage du séchage : à l'entrée dans la phase, pas avant
@@ -229,6 +247,7 @@ class Etat:
             "robot.battery": vue["battery"],
             "robot.error": vue["error"]["label"],
             "robot.error_code": vue["error"]["code"],
+            "robot.zones_inconnues": len(vue["zones_inconnues"]),
         }
         for fid, val in features.items():
             if val is not None:
@@ -239,12 +258,30 @@ class Etat:
         self.bus.attendre_remise()
 
         await self._evenements(vue, phase_libelle, zone)
+        # Une pièce inconnue de la table : on le dit UNE FOIS, au changement.
+        inconnues = vue["zones_inconnues"]
+        if inconnues != avant_inconnues:
+            if inconnues:
+                await self.noyau.pousser("carte_inconnue", {
+                    "zones": inconnues,
+                    "connues": sorted(self.pieces),
+                    "message": ("la carte du robot contient des pièces que la table "
+                                "ne connaît pas : les règles qui les visent ne "
+                                "partiront pas"),
+                })
+            elif avant_inconnues:
+                # Seulement si on avait DÉJÀ signalé un problème : au tout
+                # premier passage il n'y a rien à annoncer, et un « tout va
+                # bien » non sollicité au démarrage est du bruit.
+                await self.noyau.pousser("carte_reconnue", {"zones": []})
+
         self._precedent = {
             "phase": phase_libelle,
             "run_mode": vue["run_mode"]["label"],
             "zone_id": zone.get("id"),
             "battery": vue["battery"],
             "error_code": vue["error"]["code"],
+            "zones_inconnues": vue["zones_inconnues"],
         }
 
     async def _evenements(self, vue: dict, phase_libelle, zone: dict) -> None:

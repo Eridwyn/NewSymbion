@@ -1,0 +1,48 @@
+{
+  "auto_carte_robot_inconnue": {
+    "id": "auto_carte_robot_inconnue",
+    "name": "🗺️ Carte du robot : une pièce n'est plus reconnue",
+    "description": "Quand le robot rend une carte dont une pièce échappe à la table de correspondance, les règles qui visent cette pièce ne partent plus — SANS la moindre erreur. C'est arrivé deux fois : le 13/10 les pièces s'appelaient Room/Room1/Room2, et le 21/10 une refonte de carte les a rendues en anglais (« Living room » au lieu de « Salle de séjour »). Les deux fois, la panne a été découverte un soir sans lumière. Le détail des pièces en cause est dans /v1/plugin-api/robot/health (champ zones_inconnues) : le message ne peut pas le porter, le corps d'une action étant statique. Pour réparer : ajouter le nom dans [rooms] de /opt/symbion/config/robot.toml, puis redémarrer symbion-plugin-robot.",
+    "category": "alertes",
+    "goal_mode": null,
+    "enabled": true,
+    "triggers": {
+      "operator": "and",
+      "triggers": [
+        {
+          "type": "custom",
+          "plugin_name": "robot",
+          "trigger_type": "carte_inconnue",
+          "config": {}
+        }
+      ]
+    },
+    "conditions": {
+      "operator": "and",
+      "conditions": []
+    },
+    "actions": [
+      {
+        "type": "plugin_command",
+        "plugin": "telegram",
+        "route": "actions",
+        "payload": {
+          "text": "🗺️ La carte de l'aspirateur contient une pièce que Symbion ne reconnaît pas. Les automatismes qui la visent — dont l'allumage des lumières — ne partiront pas. Détail : champ zones_inconnues de la santé du plugin robot.",
+          "level": "warning"
+        },
+        "wrap_protocol": "v1",
+        "action_name": "send_notification",
+        "impact_level": "Low"
+      }
+    ],
+    "cooldown_seconds": 3600,
+    "trusted": null,
+    "skip_if_same_mode": null,
+    "auto_created": null,
+    "last_executed_at": null,
+    "execution_count": 0,
+    "created_at": "2026-10-21T20:30:00Z",
+    "updated_at": "2026-10-21T20:30:00Z",
+    "deleted_at": null
+  }
+}

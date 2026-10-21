@@ -77,9 +77,15 @@ def construire(client, etat, version: str) -> web.Application:
 
     async def sante(_req: web.Request) -> web.Response:
         vue = etat.vue()
+        inconnues = vue.get("zones_inconnues") or []
         return web.json_response({
             "plugin": "robot",
-            "status": "healthy" if client.connecte else "unhealthy",
+            # Une carte dont des pièces échappent à la table n'est pas une
+            # panne du plugin, mais ça casse les automatismes en silence :
+            # autant que la santé le dise.
+            "status": "healthy" if client.connecte and not inconnues
+                      else ("degraded" if client.connecte else "unhealthy"),
+            "zones_inconnues": inconnues,
             "version": version,
             "uptime_seconds": round(time.time() - DEMARRE),
             "matter_connected": client.connecte,

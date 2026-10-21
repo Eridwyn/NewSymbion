@@ -265,6 +265,14 @@ pub async fn health_handler(State(state): State<AppState>) -> Json<Value> {
     Json(json!({
         "status": "healthy",
         "plugin_id": "telegram",
+        // Le kernel découvre les plugins en lisant cette réponse, et EXIGE
+        // `spec_version` : sans lui, la découverte échoue en silence
+        // (« missing field spec_version »), aucune route n'est enregistrée, et
+        // toute action plugin_command vers telegram répond « no socket
+        // registered ». Le plugin tourne pourtant, sa socket existe — c'est
+        // la panne la plus trompeuse qui soit. Constatée le 21/10/2026 : le
+        // résumé quotidien ne partait plus depuis un redémarrage du kernel.
+        "spec_version": SPEC_VERSION,
         "uptime_seconds": uptime,
         "active_tasks": state.active_tasks.len(),
         "sessions": state.user_sessions.len(),

@@ -241,6 +241,37 @@ def batterie_basse_une_seule_fois():
 
 
 @essai
+def une_piece_inconnue_de_la_table_se_signale():
+    """La panne du 21/10 : la carte revient en anglais, plus rien ne s'allume."""
+    async def scenario():
+        anglais = [
+            {"0": 10000, "2": {"0": {"0": "Couloir"}}},
+            {"0": 10003, "2": {"0": {"0": "Living room"}}},
+        ]
+        e, _, noyau = etat_d_essai(**{M.ZONES: anglais})
+        assert e.zones_inconnues() == ["Living room"], e.zones_inconnues()
+        await e.diffuser()
+        alertes = [d for t, d in noyau.pousses if t == "carte_inconnue"]
+        assert alertes and alertes[0]["zones"] == ["Living room"], noyau.pousses
+        # et on ne le répète pas à chaque tour
+        avant = len(noyau.pousses)
+        await e.diffuser()
+        assert len(noyau.pousses) == avant, "l'alerte se répète"
+    asyncio.run(scenario())
+
+
+@essai
+def une_table_complete_ne_signale_rien():
+    async def scenario():
+        e, bus, noyau = etat_d_essai()
+        assert e.zones_inconnues() == [], e.zones_inconnues()
+        await e.diffuser()
+        assert not [t for t, _ in noyau.pousses if t.startswith("carte_")], noyau.pousses
+        assert dict(bus.features)["robot.zones_inconnues"] == 0
+    asyncio.run(scenario())
+
+
+@essai
 def features_publiees_pour_les_conditions():
     async def scenario():
         e, bus, _ = etat_d_essai()
