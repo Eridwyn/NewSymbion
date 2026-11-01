@@ -10,12 +10,13 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { focusVisibleStyles } from '../styles/shared-patterns.js'
 import authService from '../services/auth-service.js'
 
 class PasskeyManager extends LitElement {
-  static styles = [sharedAnimations, focusVisibleStyles, css`
+  static styles = [sharedBase, sharedAnimations, focusVisibleStyles, css`
     :host {
       display: block;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;

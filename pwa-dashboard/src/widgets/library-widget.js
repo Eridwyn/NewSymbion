@@ -5,6 +5,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles, widgetSectionStyles, emptyStateStyles } from '../styles/shared-widget.js'
 import { statusDotStyles } from '../styles/shared-patterns.js'
@@ -30,7 +31,7 @@ export class LibraryWidget extends LitElement {
     loading: { type: Boolean },
   }
 
-  static styles = [sharedAnimations, widgetHeaderStyles, widgetSectionStyles, emptyStateStyles, statusDotStyles, css`
+  static styles = [sharedBase, sharedAnimations, widgetHeaderStyles, widgetSectionStyles, emptyStateStyles, statusDotStyles, css`
     :host { display: block; }
 
     .stats-row {

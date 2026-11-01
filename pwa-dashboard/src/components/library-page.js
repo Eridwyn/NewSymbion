@@ -10,6 +10,7 @@
  */
 
 import { LitElement, html, svg, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { unsafeHTML } from 'lit/directives/unsafe-html.js'
 import DOMPurify from 'dompurify'
 // html2pdf loaded dynamically in exportPdf() to avoid blocking initial load
@@ -75,7 +76,7 @@ export class LibraryPage extends LitElement {
     linkSearchResults: { type: Array },
   }
 
-  static styles = [sharedAnimations, pageTransitionStyles, overlayStyles, pageHeaderStyles, formInputStyles, btnStyles, css`
+  static styles = [sharedBase, sharedAnimations, pageTransitionStyles, overlayStyles, pageHeaderStyles, formInputStyles, btnStyles, css`
     /* ── Library Theme: Botanical Garden / Forest Library ── */
     :host {
       --lib-bg: #0d1712;

@@ -6,6 +6,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles, widgetSectionStyles } from '../styles/shared-widget.js'
 import { statusBadgeStyles, statusDotStyles } from '../styles/shared-patterns.js'
@@ -13,7 +14,7 @@ import { getApiBase } from '../services/config.js'
 import '../components/organic-loader.js'
 
 class FreeboxWidget extends LitElement {
-  static styles = [sharedAnimations, widgetHeaderStyles, widgetSectionStyles, statusBadgeStyles, statusDotStyles, css`
+  static styles = [sharedBase, sharedAnimations, widgetHeaderStyles, widgetSectionStyles, statusBadgeStyles, statusDotStyles, css`
     :host {
       display: block;
     }

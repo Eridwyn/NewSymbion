@@ -10,12 +10,14 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { focusVisibleStyles } from '../styles/shared-patterns.js'
 import authService from '../services/auth-service.js'
+import { etatDepuisErreur } from './data-state.js'
 
 class BootTerminal extends LitElement {
-  static styles = [sharedAnimations, focusVisibleStyles, css`
+  static styles = [sharedBase, sharedAnimations, focusVisibleStyles, css`
     :host {
       display: block;
       position: fixed;
@@ -961,7 +963,10 @@ class BootTerminal extends LitElement {
           return
         }
 
-        this.error = errorMsg
+        // « Failed to fetch » ne dit rien à personne : nommer la vraie cause.
+        this.error = etatDepuisErreur(error).etat === 'injoignable'
+          ? 'Le kernel ne répond pas. Vérifiez qu’il tourne, puis réessayez.'
+          : errorMsg
         this.phase = 'login'
 
         setTimeout(() => {

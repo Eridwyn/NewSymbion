@@ -16,6 +16,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { overlayStyles, statusBadgeStyles } from '../styles/shared-patterns.js'
 import { showToast } from '../components/toast-service.js'
@@ -53,7 +54,7 @@ class AgentControlWidget extends LitElement {
     _tabDirection: { type: String, state: true }
   }
 
-  static styles = [sharedAnimations, overlayStyles, statusBadgeStyles, widgetSectionStyles, css`
+  static styles = [sharedBase, sharedAnimations, overlayStyles, statusBadgeStyles, widgetSectionStyles, css`
     :host {
       background: var(--app-overlay-dim, rgba(0, 0, 0, 0.88));
       display: flex;

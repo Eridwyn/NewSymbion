@@ -1,4 +1,5 @@
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import './organic-loader.js'
 import { sharedAnimations, pageTransitionStyles } from '../styles/shared-animations.js'
 import { overlayStyles, scrollbarStyles } from '../styles/shared-patterns.js'
@@ -24,7 +25,7 @@ export class TelegramConfigPage extends LitElement {
     saving: { type: String }, // id de la catégorie en cours de sauvegarde
   }
 
-  static styles = [
+  static styles = [sharedBase, 
     sharedAnimations,
     pageTransitionStyles,
     overlayStyles,

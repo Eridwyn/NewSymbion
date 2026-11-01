@@ -17,6 +17,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles, emptyStateStyles } from '../styles/shared-widget.js'
 import { statusBadgeStyles, statusDotStyles } from '../styles/shared-patterns.js'
@@ -41,7 +42,7 @@ class RobotWidget extends LitElement {
     note: { type: String }
   }
 
-  static styles = [sharedAnimations, widgetHeaderStyles, emptyStateStyles, statusBadgeStyles, statusDotStyles, css`
+  static styles = [sharedBase, sharedAnimations, widgetHeaderStyles, emptyStateStyles, statusBadgeStyles, statusDotStyles, css`
     :host { display: block; }
 
     .phase-block {

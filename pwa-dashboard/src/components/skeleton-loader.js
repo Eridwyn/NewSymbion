@@ -1,7 +1,8 @@
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 
 class SkeletonLoader extends LitElement {
-  static styles = css`
+  static styles = [sharedBase, css`
     :host {
       display: block;
     }
@@ -97,7 +98,7 @@ class SkeletonLoader extends LitElement {
         opacity: 0.5;
       }
     }
-  `
+  `]
 
   static properties = {
     variant: { type: String, reflect: true },

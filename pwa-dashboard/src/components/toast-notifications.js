@@ -6,9 +6,10 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 
 class ToastNotifications extends LitElement {
-  static styles = css`
+  static styles = [sharedBase, css`
     :host {
       position: fixed;
       bottom: var(--space-6, 1.5rem);
@@ -184,7 +185,7 @@ class ToastNotifications extends LitElement {
         max-width: none;
       }
     }
-  `
+  `]
 
   static properties = {
     toasts: { type: Array },

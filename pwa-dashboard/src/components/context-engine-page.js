@@ -6,6 +6,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { sharedAnimations, pageTransitionStyles, scrollRevealStyles } from '../styles/shared-animations.js'
 import { overlayStyles, closeButtonStyles, scrollbarStyles } from '../styles/shared-patterns.js'
 import { cardStyles } from '../styles/shared-cards.js'
@@ -14,6 +15,7 @@ import { loadingButtonStyles } from '../styles/shared-loading.js'
 import { setupScrollReveal } from '../utils/scroll-reveal.js'
 import csrfService from '../services/csrf-service.js'
 import automationsService from '../services/automations-service.js'
+import { etatDepuisErreur } from './data-state.js'
 import { getDayNameShort, getDayNameFull } from '../utils/time-utils.js'
 
 // Mixins (code splitting)
@@ -21,8 +23,18 @@ import { AutomationsMixin } from './ce-automations-mixin.js'
 import { IntelligenceMixin } from './ce-intelligence-mixin.js'
 import { ModesMixin } from './ce-modes-mixin.js'
 
+/** Les chargements dont dépend chaque onglet : en cas d'échec, l'onglet le
+ * dit au lieu d'afficher un faux état vide ou des valeurs par défaut. */
+const DONNEES_PAR_ONGLET = {
+  modes: ['contexte', 'modes'],
+  intelligence: ['intelligence'],
+  automations: ['automations'],
+  validations: ['validations'],
+  config: ['config'],
+}
+
 class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(LitElement))) {
-  static styles = [sharedAnimations, pageTransitionStyles, overlayStyles, closeButtonStyles, scrollbarStyles, formInputStyles, cardStyles, btnSuccessStyles, btnSizeStyles, loadingButtonStyles, scrollRevealStyles, css`
+  static styles = [sharedBase, sharedAnimations, pageTransitionStyles, overlayStyles, closeButtonStyles, scrollbarStyles, formInputStyles, cardStyles, btnSuccessStyles, btnSizeStyles, loadingButtonStyles, scrollRevealStyles, css`
     :host {
       display: flex;
       align-items: center;
@@ -2033,6 +2045,9 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     isSavingMode: { type: Boolean },
     isSavingAutomation: { type: Boolean },
     isRunningAutomation: { type: String },
+    // Échecs de chargement, par source (voir DONNEES_PAR_ONGLET)
+    erreurs: { type: Object },
+    configChargee: { type: Boolean },
   }
 
   constructor() {
@@ -2051,6 +2066,8 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
     }
     this.schema = null
     this.loading = true
+    this.erreurs = {}
+    this.configChargee = false
     this.selectedDuration = 60
     this.showForm = false
     this.editingAutomation = null
@@ -2172,11 +2189,12 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
 
   async loadContext() {
     try {
-      const apiService = document.querySelector('api-service')
-      if (!apiService) return
+      const apiService = this._api()
       this.contextState = await apiService.request('/v1/context/current')
+      this._succes('contexte')
     } catch (e) {
       console.error('[context-engine] Failed to load context:', e)
+      this._echec('contexte', e)
     }
   }
 
@@ -2185,58 +2203,82 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
       this.automations = await automationsService.fetchAutomations()
       this.automationHistory = await automationsService.fetchHistory(20)
       this.schema = await automationsService.fetchSchema()
+      this._succes('automations')
     } catch (e) {
       console.error('[context-engine] Failed to load automations:', e)
+      this._echec('automations', e)
     }
   }
 
   async loadValidations() {
     try {
-      const apiService = document.querySelector('api-service')
-      if (!apiService) return
+      const apiService = this._api()
       this.validations = await apiService.request('/v1/decision/validations/pending')
       if (!Array.isArray(this.validations)) this.validations = []
+      this._succes('validations')
     } catch (e) {
       console.error('[context-engine] Failed to load validations:', e)
       this.validations = []
+      this._echec('validations', e)
     }
   }
 
   async loadStats() {
     try {
-      const apiService = document.querySelector('api-service')
-      if (!apiService) return
+      const apiService = this._api()
       // Note: patterns endpoint removed - now managed by Intelligence tab
       this.stats = await apiService.request('/v1/context/stats')
+      this._succes('stats')
     } catch (e) {
       console.error('[context-engine] Failed to load stats:', e)
+      this._echec('stats', e)
     }
   }
 
   async loadConfig() {
     try {
-      const apiService = document.querySelector('api-service')
-      if (!apiService) return
+      const apiService = this._api()
       this.config = await apiService.request('/v1/decision/config')
+      this.configChargee = true
+      this._succes('config')
     } catch (e) {
-      // Config endpoint might not exist yet - use defaults
-      console.log('[context-engine] Using default config')
+      // Pas de valeurs par défaut affichées comme si c'était la vraie
+      // config : « Sauvegarder » l'écraserait.
+      console.error('[context-engine] Failed to load config:', e)
+      this.configChargee = false
+      this._echec('config', e)
     }
   }
 
   async loadModes() {
     try {
-      const apiService = document.querySelector('api-service')
-      if (!apiService) return
+      const apiService = this._api()
       this.modes = await apiService.request('/v1/modes')
       if (!Array.isArray(this.modes)) this.modes = []
+      this._succes('modes')
     } catch (e) {
       console.error('[context-engine] Failed to load modes:', e)
       this.modes = []
+      this._echec('modes', e)
     }
   }
 
+  /** Le service API — son absence est une erreur, pas un retour muet. */
+  _api() {
+    const apiService = document.querySelector('api-service')
+    if (!apiService) throw new Error('Service API absent')
+    return apiService
+  }
 
+  _echec(cle, e) {
+    this.erreurs = { ...this.erreurs, [cle]: e }
+  }
+
+  _succes(cle) {
+    if (!this.erreurs[cle]) return
+    const { [cle]: _, ...reste } = this.erreurs
+    this.erreurs = reste
+  }
 
   close() {
     this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }))
@@ -2532,6 +2574,12 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
   }
 
   renderActiveTab() {
+    const echec = (DONNEES_PAR_ONGLET[this.activeTab] || []).map(k => this.erreurs[k]).find(Boolean)
+    if (echec) {
+      const { etat, message } = etatDepuisErreur(echec)
+      const recharger = this.activeTab === 'intelligence' ? this.loadIntelligence : this.loadAllData
+      return html`<data-state etat="${etat}" message="${message}" @reessayer="${recharger}"></data-state>`
+    }
     switch (this.activeTab) {
       case 'modes': return this.renderModesTab()
       case 'intelligence': return this.renderIntelligenceTab()
@@ -2546,12 +2594,8 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
 
   renderValidationsTab() {
     if (this.validations.length === 0) {
-      return html`
-        <div class="empty-state">
-          <div class="empty-icon">✓</div>
-          <div class="empty-text">Aucune validation en attente</div>
-        </div>
-      `
+      return html`<data-state etat="vide" titre="Aucune validation en attente"
+        message="Les actions qui demandent ton accord apparaîtront ici."></data-state>`
     }
 
     return html`
@@ -2791,7 +2835,8 @@ class ContextEnginePage extends AutomationsMixin(IntelligenceMixin(ModesMixin(Li
         </div>
       </div>
 
-      <button class="btn btn-primary ce-mt-lg ce-w-full" @click="${this.saveConfig}">
+      <button class="btn btn-primary ce-mt-lg ce-w-full" @click="${this.saveConfig}"
+        ?disabled="${!this.configChargee}">
         💾 Sauvegarder
       </button>
     `

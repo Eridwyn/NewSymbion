@@ -5,12 +5,13 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { getDayNameShort, utcHourToLocal } from '../utils/time-utils.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { overlayStyles, scrollbarStyles } from '../styles/shared-patterns.js'
 
 class PatternsModal extends LitElement {
-  static styles = [sharedAnimations, overlayStyles, scrollbarStyles, css`
+  static styles = [sharedBase, sharedAnimations, overlayStyles, scrollbarStyles, css`
     :host {
       background: var(--app-overlay-dim, rgba(0, 0, 0, 0.88));
     }

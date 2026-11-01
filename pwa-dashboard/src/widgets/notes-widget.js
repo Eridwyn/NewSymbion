@@ -13,6 +13,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles, emptyStateStyles } from '../styles/shared-widget.js'
 import { focusVisibleStyles } from '../styles/shared-patterns.js'
@@ -21,9 +22,10 @@ import { getTopPriorityNotes, isHighPriority } from '../utils/notes-scoring.js'
 import { applyAllFilters } from '../utils/notes-filters.js'
 import notesStreamService from '../services/notes-stream-service.js'
 import '../components/organic-loader.js'
+import { etatDepuisErreur } from '../components/data-state.js'
 
 class NotesWidget extends LitElement {
-  static styles = [sharedAnimations, widgetHeaderStyles, btnStyles, btnSizeStyles, emptyStateStyles, focusVisibleStyles, css`
+  static styles = [sharedBase, sharedAnimations, widgetHeaderStyles, btnStyles, btnSizeStyles, emptyStateStyles, focusVisibleStyles, css`
     :host {
       display: block;
     }
@@ -223,7 +225,6 @@ class NotesWidget extends LitElement {
 
     /* Utility classes (ex-inline) */
     .nw-subtitle { font-size: 0.6em; opacity: 0.7; font-weight: normal; }
-    .nw-error-state { color: var(--color-danger-text-muted, #ff6b6b); }
     .nw-no-context { background: color-mix(in srgb, var(--color-danger-text-muted, #ff6b6b) 20%, transparent); color: var(--color-danger-text-muted, #ff6b6b); }
   `]
 
@@ -332,7 +333,7 @@ class NotesWidget extends LitElement {
       console.log(`[notes-widget] ✅ Loaded ${this.notes.length} notes via REST`)
     } catch (err) {
       console.error('[notes-widget] ❌ REST failed:', err)
-      this.error = `Erreur chargement notes: ${err.message}`
+      this.error = err
     }
     this.loading = false
     this.requestUpdate()
@@ -501,10 +502,9 @@ class NotesWidget extends LitElement {
       </div>
 
       ${this.error ? html`
-        <div class="empty-state nw-error-state">
-          <div class="empty-state-icon">⚠️</div>
-          <div class="empty-state-text">${this.error}</div>
-        </div>
+        <data-state etat="${etatDepuisErreur(this.error).etat}"
+          message="${etatDepuisErreur(this.error).message}"
+          @reessayer="${() => { this.loading = true; this._loadNotesRest() }}"></data-state>
       ` : this.loading ? html`
         <organic-loader text="🧬 Organisme en synapse..."></organic-loader>
       ` : topNotes.length === 0 ? html`

@@ -9,12 +9,14 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles, emptyStateStyles } from '../styles/shared-widget.js'
 import { statusDotStyles, statusBadgeStyles } from '../styles/shared-patterns.js'
 import { showToast } from '../components/toast-service.js'
 import '../services/agents-service.js'
 import '../components/organic-loader.js'
+import { etatDepuisErreur } from '../components/data-state.js'
 import pollingScheduler from '../services/polling-scheduler.js'
 
 class AgentsNetworkWidget extends LitElement {
@@ -27,7 +29,7 @@ class AgentsNetworkWidget extends LitElement {
     latestVersion: { type: String }
   }
   
-  static styles = [sharedAnimations, widgetHeaderStyles, statusDotStyles, statusBadgeStyles, emptyStateStyles, css`
+  static styles = [sharedBase, sharedAnimations, widgetHeaderStyles, statusDotStyles, statusBadgeStyles, emptyStateStyles, css`
     :host {
       display: block;
       background: var(--widget-background, var(--color-dark-surface, #1a1a1a));
@@ -85,15 +87,6 @@ class AgentsNetworkWidget extends LitElement {
       padding: 40px;
       color: var(--color-dark-text-tertiary, #94a3b8);
       font-size: var(--text-sm, 0.875rem);
-    }
-
-    .error-state {
-      padding: var(--space-5, 1.25rem);
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      border-radius: var(--radius-base);
-      color: var(--color-error-text-muted, #fca5a5);
-      text-align: center;
     }
 
     .agents-grid {
@@ -369,21 +362,6 @@ class AgentsNetworkWidget extends LitElement {
 
     /* empty-state provided by emptyStateStyles */
 
-    .refresh-btn {
-      background: rgba(59, 130, 246, 0.2);
-      color: var(--color-accent-blue, #3b82f6);
-      border: 1px solid rgba(59, 130, 246, 0.3);
-      border-radius: var(--radius-sm);
-      padding: 8px 16px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-size: var(--text-sm, 0.875rem);
-    }
-
-    .refresh-btn:hover {
-      background: rgba(59, 130, 246, 0.3);
-    }
-
     /* Responsive */
     @media (max-width: 768px) {
       .agents-grid {
@@ -516,7 +494,7 @@ class AgentsNetworkWidget extends LitElement {
       if (latestVer) this.latestVersion = latestVer
     } catch (error) {
       console.error('Failed to load agents:', error)
-      this.error = `Failed to load agents: ${error.message}`
+      this.error = error
       this.agents = []
     } finally {
       this.loading = false
@@ -770,22 +748,12 @@ class AgentsNetworkWidget extends LitElement {
         ${this.loading ? html`
           <organic-loader text="🌐 Chargement agents réseau..."></organic-loader>
         ` : this.error ? html`
-          <div class="error-state">
-            <div>❌ ${this.error}</div>
-            <button class="refresh-btn" @click="${this.loadAgents}">
-              🔄 Retry
-            </button>
-          </div>
+          <data-state etat="${etatDepuisErreur(this.error).etat}"
+            message="${etatDepuisErreur(this.error).message}"
+            @reessayer="${this.loadAgents}"></data-state>
         ` : this.agents.length === 0 ? html`
-          <div class="empty-state">
-            <h3>🤖 No Agents Found</h3>
-            <p>No agents are registered in the network.<br>
-               Deploy symbion-agent-host on your systems to start monitoring.</p>
-            <br>
-            <button class="refresh-btn" @click="${this.loadAgents}">
-              🔄 Refresh
-            </button>
-          </div>
+          <data-state etat="vide" titre="Aucun agent enregistré"
+            message="Installe symbion-agent-host sur une machine pour la voir apparaître ici."></data-state>
         ` : html`
           <div class="agents-${this.viewMode}">
             ${this.agents.map(agent => this.renderAgent(agent))}

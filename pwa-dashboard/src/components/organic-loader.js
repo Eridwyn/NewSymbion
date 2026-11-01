@@ -4,13 +4,14 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 
 class OrganicLoader extends LitElement {
   static properties = {
     text: { type: String }
   }
 
-  static styles = css`
+  static styles = [sharedBase, css`
     :host {
       display: block;
     }
@@ -257,7 +258,7 @@ class OrganicLoader extends LitElement {
         font-size: 0.8em;
       }
     }
-  `
+  `]
 
   constructor() {
     super()

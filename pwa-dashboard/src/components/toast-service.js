@@ -1,7 +1,8 @@
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 
 class ToastService extends LitElement {
-  static styles = css`
+  static styles = [sharedBase, css`
     :host {
       position: fixed;
       bottom: calc(80px + env(safe-area-inset-bottom, 0px));
@@ -97,7 +98,7 @@ class ToastService extends LitElement {
     @media (prefers-reduced-motion: reduce) {
       .toast { animation-duration: 0.01ms; }
     }
-  `
+  `]
 
   static properties = {
     toasts: { type: Array }

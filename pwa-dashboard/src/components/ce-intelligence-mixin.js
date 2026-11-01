@@ -5,18 +5,30 @@ export const IntelligenceMixin = (Base) => class extends Base {
 
   async loadIntelligence() {
     try {
-      const apiService = document.querySelector('api-service')
-      if (!apiService) return
+      const apiService = this._api()
+      // Chaque source peut manquer seule ; si les trois échouent, c'est le
+      // kernel qui ne répond pas, et l'onglet doit le dire.
+      let premierEchec = null
+      const tenter = (endpoint) => apiService.request(endpoint).catch((e) => {
+        premierEchec ??= e
+        return null
+      })
       const [features, vector, prediction] = await Promise.all([
-        apiService.request('/v1/intelligence/features').catch(() => null),
-        apiService.request('/v1/intelligence/vector').catch(() => null),
-        apiService.request('/v1/intelligence/prediction2').catch(() => null),
+        tenter('/v1/intelligence/features'),
+        tenter('/v1/intelligence/vector'),
+        tenter('/v1/intelligence/prediction2'),
       ])
       this.intelligenceFeatures = features
       this.intelligenceVector = vector
       this.intelligencePrediction = prediction
+      if (!features && !vector && !prediction && premierEchec) {
+        this._echec('intelligence', premierEchec)
+      } else {
+        this._succes('intelligence')
+      }
     } catch (e) {
       console.error('[context-engine] Failed to load intelligence v2:', e)
+      this._echec('intelligence', e)
     }
   }
 

@@ -6,6 +6,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { unsafeHTML } from 'lit/directives/unsafe-html.js'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -19,7 +20,7 @@ import { setupScrollReveal } from '../utils/scroll-reveal.js'
 import { showToast } from './toast-service.js'
 
 class NotesPage extends LitElement {
-  static styles = [sharedAnimations, pageTransitionStyles, scrollRevealStyles, overlayStyles, closeButtonStyles, scrollbarStyles, css`
+  static styles = [sharedBase, sharedAnimations, pageTransitionStyles, scrollRevealStyles, overlayStyles, closeButtonStyles, scrollbarStyles, css`
     .notes-container {
       max-width: 1200px;
       margin: var(--space-6) auto;

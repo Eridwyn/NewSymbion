@@ -9,6 +9,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { sharedAnimations, scrollRevealStyles } from '../styles/shared-animations.js'
 import { focusVisibleStyles } from '../styles/shared-patterns.js'
 import csrfService from '../services/csrf-service.js'
@@ -16,7 +17,7 @@ import { escapeHtml } from '../utils/sanitization.js'
 import { setupScrollReveal } from '../utils/scroll-reveal.js'
 
 class NotificationCenter extends LitElement {
-  static styles = [sharedAnimations, scrollRevealStyles, focusVisibleStyles, css`
+  static styles = [sharedBase, sharedAnimations, scrollRevealStyles, focusVisibleStyles, css`
     :host {
       position: relative;
       display: inline-flex;

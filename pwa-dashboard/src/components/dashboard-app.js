@@ -6,6 +6,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { statusDotStyles } from '../styles/shared-patterns.js'
 import { manageFocusTrap } from '../utils/focus-trap.js'
@@ -48,9 +49,10 @@ import './notification-center.js'
 import './skeleton-loader.js'
 import './toast-service.js'
 import automationsService from '../services/automations-service.js'
+import { etatDepuisErreur } from './data-state.js'
 
 class DashboardApp extends LitElement {
-  static styles = [sharedAnimations, statusDotStyles, css`
+  static styles = [sharedBase, sharedAnimations, statusDotStyles, css`
     :host {
       display: block;
       min-height: 100vh;
@@ -1503,7 +1505,10 @@ class DashboardApp extends LitElement {
     } catch (error) {
       console.error('❌ Failed to load initial data:', error)
       this.apiStatus = 'offline'
-      this.error = `Impossible de charger les données: ${error.message}`
+      const { etat, message } = etatDepuisErreur(error)
+      this.error = etat === 'injoignable'
+        ? 'Le kernel ne répond pas : les données affichées peuvent être anciennes.'
+        : `Impossible de charger les données : ${message}`
     }
   }
   

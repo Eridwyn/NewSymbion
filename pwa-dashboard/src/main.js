@@ -6,6 +6,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from './styles/shared-base.js'
 import './components/boot-terminal.js'
 import './components/dashboard-app.js'
 import './services/auth-service.js'
@@ -69,12 +70,12 @@ console.log('🚀 Starting Symbion Dashboard v0.1.0')
 
 // App Router Component
 class SymbionApp extends LitElement {
-  static styles = css`
+  static styles = [sharedBase, css`
     :host {
       display: block;
       min-height: 100vh;
     }
-  `
+  `]
 
   static properties = {
     currentView: { type: String }

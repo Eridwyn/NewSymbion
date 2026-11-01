@@ -10,6 +10,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { emptyStateStyles } from '../styles/shared-widget.js'
 import { statusBadgeStyles } from '../styles/shared-patterns.js'
 import DOMPurify from 'dompurify'
@@ -42,7 +43,7 @@ class EnvironmentWidget extends LitElement {
     loadingChart: { type: Boolean }
   }
 
-  static styles = [emptyStateStyles, statusBadgeStyles, css`
+  static styles = [sharedBase, emptyStateStyles, statusBadgeStyles, css`
     :host {
       display: block;
       background: var(--widget-background, var(--color-dark-surface, #1a1a1a));

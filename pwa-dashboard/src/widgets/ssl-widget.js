@@ -6,6 +6,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles, widgetSectionStyles, emptyStateStyles } from '../styles/shared-widget.js'
 import { statusDotStyles, sectionBadgeStyles } from '../styles/shared-patterns.js'
@@ -23,7 +24,7 @@ export class SslWidget extends LitElement {
     formData: { type: Object }
   }
 
-  static styles = [sharedAnimations, widgetHeaderStyles, widgetSectionStyles, emptyStateStyles, statusDotStyles, sectionBadgeStyles, css`
+  static styles = [sharedBase, sharedAnimations, widgetHeaderStyles, widgetSectionStyles, emptyStateStyles, statusDotStyles, sectionBadgeStyles, css`
     :host {
       display: block;
     }

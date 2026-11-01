@@ -8,13 +8,14 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles, emptyStateStyles } from '../styles/shared-widget.js'
 import { statusBadgeStyles } from '../styles/shared-patterns.js'
 import { showToast } from '../components/toast-service.js'
 
 class PluginsWidget extends LitElement {
-  static styles = [sharedAnimations, widgetHeaderStyles, statusBadgeStyles, emptyStateStyles, css`
+  static styles = [sharedBase, sharedAnimations, widgetHeaderStyles, statusBadgeStyles, emptyStateStyles, css`
     :host {
       display: block;
     }

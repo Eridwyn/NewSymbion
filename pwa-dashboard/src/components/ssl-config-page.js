@@ -1,4 +1,5 @@
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import './organic-loader.js'
 import { sharedAnimations, pageTransitionStyles } from '../styles/shared-animations.js'
 import { overlayStyles, scrollbarStyles, statusBadgeStyles, sectionBadgeStyles } from '../styles/shared-patterns.js'
@@ -18,7 +19,7 @@ export class SslConfigPage extends LitElement {
     isSaving: { type: Boolean },
   }
 
-  static styles = [sharedAnimations, pageTransitionStyles, overlayStyles, scrollbarStyles, pageHeaderStyles, formInputStyles, formGroupStyles, btnStyles, loadingButtonStyles, statusBadgeStyles, sectionBadgeStyles, sectionStyles, css`
+  static styles = [sharedBase, sharedAnimations, pageTransitionStyles, overlayStyles, scrollbarStyles, pageHeaderStyles, formInputStyles, formGroupStyles, btnStyles, loadingButtonStyles, statusBadgeStyles, sectionBadgeStyles, sectionStyles, css`
     :host {
       z-index: 1000;
       overflow-x: hidden;

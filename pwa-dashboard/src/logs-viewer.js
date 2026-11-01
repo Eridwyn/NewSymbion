@@ -7,10 +7,11 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from './styles/shared-base.js'
 import { focusVisibleStyles } from './styles/shared-patterns.js'
 
 class LogsViewer extends LitElement {
-  static styles = [focusVisibleStyles, css`
+  static styles = [sharedBase, focusVisibleStyles, css`
     :host {
       display: block;
       min-height: 100vh;

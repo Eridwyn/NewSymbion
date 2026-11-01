@@ -4,6 +4,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { focusVisibleStyles } from '../styles/shared-patterns.js'
 
 class TimeRangePicker extends LitElement {
@@ -15,7 +16,7 @@ class TimeRangePicker extends LitElement {
     showMonthDays: { type: Boolean }
   }
 
-  static styles = [focusVisibleStyles, css`
+  static styles = [sharedBase, focusVisibleStyles, css`
     :host {
       display: block;
     }

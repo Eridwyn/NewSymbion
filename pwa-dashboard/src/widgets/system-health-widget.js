@@ -6,12 +6,13 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles } from '../styles/shared-widget.js'
 import { statusBadgeStyles } from '../styles/shared-patterns.js'
 
 class SystemHealthWidget extends LitElement {
-  static styles = [sharedAnimations, widgetHeaderStyles, statusBadgeStyles, css`
+  static styles = [sharedBase, sharedAnimations, widgetHeaderStyles, statusBadgeStyles, css`
     :host {
       display: block;
     }

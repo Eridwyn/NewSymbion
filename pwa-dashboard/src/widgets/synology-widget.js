@@ -7,6 +7,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { sharedAnimations } from '../styles/shared-animations.js'
 import { widgetHeaderStyles, emptyStateStyles } from '../styles/shared-widget.js'
 import { statusBadgeStyles, statusDotStyles } from '../styles/shared-patterns.js'
@@ -21,7 +22,7 @@ class SynologyWidget extends LitElement {
     lastUpdate: { type: String }
   }
 
-  static styles = [sharedAnimations, widgetHeaderStyles, emptyStateStyles, statusBadgeStyles, statusDotStyles, css`
+  static styles = [sharedBase, sharedAnimations, widgetHeaderStyles, emptyStateStyles, statusBadgeStyles, statusDotStyles, css`
     :host { display: block; }
 
     /* ── Battery gauge ── */
@@ -38,8 +39,8 @@ class SynologyWidget extends LitElement {
 
     .battery-icon {
       position: relative;
-      width: 52px;
-      height: 26px;
+      width: 56px;
+      height: 30px;
       border: 2px solid var(--color-dark-text-secondary, #cbd5e1);
       border-radius: 4px;
       flex-shrink: 0;

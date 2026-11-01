@@ -4,6 +4,7 @@
  */
 
 import { LitElement, html, css } from 'lit'
+import { sharedBase } from '../styles/shared-base.js'
 import { focusVisibleStyles } from '../styles/shared-patterns.js'
 
 const MIN_HOUR = 6
@@ -17,7 +18,7 @@ class AutomationTimeline extends LitElement {
     highlightedId: { type: String }
   }
 
-  static styles = [focusVisibleStyles, css`
+  static styles = [sharedBase, focusVisibleStyles, css`
     :host {
       display: block;
     }
