@@ -106,8 +106,10 @@ impl Guard for TimeWindowGuard {
         }
 
         // Actions VeryHigh la nuit (23h-7h) → RequireValidation
+        // En heure LOCALE : en UTC la fenêtre glissait à 0h/1h-8h/9h selon la
+        // saison, et laissait passer 23h-minuit.
         if action.impact_level == ImpactLevel::VeryHigh {
-            let hour = now.hour();
+            let hour = crate::intelligence::to_local(now).hour();
             if hour >= 23 || hour < 7 {
                 return GuardResult::RequireValidation {
                     reason: format!("VeryHigh action at night ({}h)", hour),
@@ -134,6 +136,13 @@ impl Guard for AgentHealthGuard {
     }
 
     fn evaluate(&self, action: &Action, context: &DecisionContext) -> GuardResult {
+        // « system » n'est pas un agent : c'est le kernel lui-même (plugins,
+        // notifications, modes). Il n'est jamais dans le registre — le traiter
+        // comme un agent inconnu exigerait une validation pour TOUTE action.
+        if action.agent_id == "system" {
+            return GuardResult::Pass;
+        }
+
         let agent_state = match context.agents.get(&action.agent_id) {
             Some(state) => state,
             None => {
@@ -220,6 +229,81 @@ impl Guard for ContextModeGuard {
         }
 
         GuardResult::Pass
+    }
+}
+
+/// Commandes d'agent qui coupent le PC sous les mains de quelqu'un.
+/// Les noms sont ceux que l'agent EXÉCUTE (symbion-agent-host, PowerHandler),
+/// plus les alias que la table d'impact connaît — un garde-fou qui ne
+/// reconnaît pas `hibernate` laisse passer `hibernate`.
+const COMMANDES_PERTURBANTES_AGENT: &[&str] =
+    &["shutdown", "reboot", "restart", "hibernate", "sleep"];
+
+/// Plugins dont les actions dérangent physiquement quelqu'un dans la maison.
+/// Seules les actions déclarées au moins Medium comptent : « arrêter et
+/// renvoyer à la base » (Low) doit toujours pouvoir passer.
+const PLUGINS_PERTURBANTS: &[&str] = &["robot"];
+
+/// Guard présence : on ne lance pas l'aspirateur ni n'éteint un PC chez
+/// quelqu'un sans lui demander.
+///
+/// Le score de confiance ne regarde pas la présence : il mesure qu'une action
+/// du même type a souvent RÉUSSI, pas qu'elle tombe au bon moment. Ce guard
+/// est donc la seule barrière entre « une règle se déclenche » et « le robot
+/// démarre pendant qu'on est là ».
+///
+/// Présence inconnue (feature absente ou expirée, Freebox muette) = on
+/// demande. Ne pas savoir n'est pas « personne ».
+pub struct PresenceGuard;
+
+impl PresenceGuard {
+    fn perturbe(action: &Action) -> bool {
+        let Some(cible) = action.target.as_deref() else {
+            return false;
+        };
+        if let Some(commande) = cible.strip_prefix("agent:") {
+            return COMMANDES_PERTURBANTES_AGENT.contains(&commande);
+        }
+        if let Some(chemin) = cible.strip_prefix("plugin:") {
+            let plugin = chemin.split('/').next().unwrap_or("");
+            return PLUGINS_PERTURBANTS.contains(&plugin)
+                && action.impact_level != ImpactLevel::Low;
+        }
+        false
+    }
+}
+
+impl Guard for PresenceGuard {
+    fn priority(&self) -> u32 {
+        85
+    }
+
+    fn name(&self) -> &str {
+        "PresenceGuard"
+    }
+
+    fn evaluate(&self, action: &Action, context: &DecisionContext) -> GuardResult {
+        if !Self::perturbe(action) {
+            return GuardResult::Pass;
+        }
+        let cible = action.target.as_deref().unwrap_or("");
+        match context.anyone_home {
+            Some(false) => GuardResult::Pass,
+            Some(true) => GuardResult::RequireValidation {
+                reason: format!("Someone is home, disruptive action {}", cible),
+                explanation_code: "GUARD.PRESENCE.SOMEONE_HOME".to_string(),
+                human_reason: format!(
+                    "Quelqu'un est \u{e0} la maison \u{2014} {} demande ton accord", cible
+                ),
+            },
+            None => GuardResult::RequireValidation {
+                reason: format!("Presence unknown, disruptive action {}", cible),
+                explanation_code: "GUARD.PRESENCE.UNKNOWN".to_string(),
+                human_reason: format!(
+                    "Pr\u{e9}sence inconnue (Freebox muette ?) \u{2014} {} demande ton accord", cible
+                ),
+            },
+        }
     }
 }
 
@@ -385,12 +469,14 @@ mod tests {
             dry_run: false,
             expected_mode: None,
             expected_ssid: None,
+            target: None,
         };
 
         let context = DecisionContext {
             mode: "veille".into(),
             ssid: "test".into(),
             agents: HashMap::new(),
+            anyone_home: None,
         };
 
         let result = guard.evaluate(&action, &context);
@@ -410,6 +496,7 @@ mod tests {
             dry_run: false,
             expected_mode: None,
             expected_ssid: None,
+            target: None,
         };
 
         let mut agents = HashMap::new();
@@ -431,6 +518,7 @@ mod tests {
             mode: "veille".into(),
             ssid: "test".into(),
             agents,
+            anyone_home: None,
         };
 
         let result = guard.evaluate(&action, &context);
@@ -450,12 +538,14 @@ mod tests {
             dry_run: false,
             expected_mode: Some("pro".into()),
             expected_ssid: None,
+            target: None,
         };
 
         let context = DecisionContext {
             mode: "maison".into(), // Mismatch
             ssid: "test".into(),
             agents: HashMap::new(),
+            anyone_home: None,
         };
 
         let result = guard.evaluate(&action, &context);
@@ -479,17 +569,109 @@ mod tests {
             dry_run: false,
             expected_mode: None,
             expected_ssid: None,
+            target: None,
         };
 
         let context = DecisionContext {
             mode: "veille".into(),
             ssid: "test".into(),
             agents: HashMap::new(),
+            anyone_home: None,
         };
 
         let eval = evaluator.evaluate(&action, &context);
         assert!(!eval.passed);
         assert_eq!(eval.blocks.len(), 1); // TimeWindowGuard blocked
         // AgentHealthGuard pas execute grace au short-circuit
+    }
+
+    fn action_vers(target: &str, impact: ImpactLevel, agent_id: &str) -> Action {
+        Action {
+            action_type: "automation.test".into(),
+            agent_id: agent_id.into(),
+            impact_level: impact,
+            trace_id: "trace".into(),
+            expires_at: None,
+            dry_run: false,
+            expected_mode: None,
+            expected_ssid: None,
+            target: Some(target.into()),
+        }
+    }
+
+    fn contexte(anyone_home: Option<bool>) -> DecisionContext {
+        DecisionContext {
+            mode: "maison".into(),
+            ssid: "test".into(),
+            agents: HashMap::new(),
+            anyone_home,
+        }
+    }
+
+    #[test]
+    fn presence_robot_demande_si_quelquun_est_la() {
+        let a = action_vers("plugin:robot/actions/clean_all", ImpactLevel::Medium, "system");
+        assert_eq!(PresenceGuard.evaluate(&a, &contexte(Some(true))).severity(), 2);
+        assert_eq!(PresenceGuard.evaluate(&a, &contexte(Some(false))).severity(), 0);
+    }
+
+    #[test]
+    fn presence_inconnue_nest_pas_personne() {
+        let a = action_vers("plugin:robot/actions/clean_rooms", ImpactLevel::Medium, "system");
+        match PresenceGuard.evaluate(&a, &contexte(None)) {
+            GuardResult::RequireValidation { explanation_code, .. } => {
+                assert_eq!(explanation_code, "GUARD.PRESENCE.UNKNOWN")
+            }
+            autre => panic!("présence inconnue doit demander, pas {:?}", autre),
+        }
+    }
+
+    #[test]
+    fn presence_laisse_passer_le_retour_a_la_base() {
+        // Low : renvoyer le robot doit TOUJOURS pouvoir passer.
+        let a = action_vers("plugin:robot/actions/stop_and_dock", ImpactLevel::Low, "system");
+        assert_eq!(PresenceGuard.evaluate(&a, &contexte(Some(true))).severity(), 0);
+    }
+
+    #[test]
+    fn presence_couvre_les_vrais_noms_de_commandes_agent() {
+        // Le niveau d'impact est déclaratif : un shutdown annoncé Low doit
+        // quand même être retenu. Et hibernate/reboot sont ce que l'agent
+        // exécute réellement.
+        for cmd in ["shutdown", "reboot", "hibernate", "restart", "sleep"] {
+            let a = action_vers(&format!("agent:{}", cmd), ImpactLevel::Low, "pc-bureau");
+            assert_eq!(PresenceGuard.evaluate(&a, &contexte(Some(true))).severity(), 2, "{}", cmd);
+        }
+        let notify = action_vers("agent:notify", ImpactLevel::Medium, "pc-bureau");
+        assert_eq!(PresenceGuard.evaluate(&notify, &contexte(Some(true))).severity(), 0);
+    }
+
+    #[test]
+    fn presence_ignore_les_autres_plugins() {
+        let lampes = action_vers("plugin:lights/actions/all_off", ImpactLevel::Medium, "system");
+        assert_eq!(PresenceGuard.evaluate(&lampes, &contexte(Some(true))).severity(), 0);
+        let telegram = action_vers("plugin:telegram/broadcast-summary", ImpactLevel::Medium, "system");
+        assert_eq!(PresenceGuard.evaluate(&telegram, &contexte(None)).severity(), 0);
+    }
+
+    #[test]
+    fn agent_health_ne_traite_pas_system_comme_inconnu() {
+        let a = action_vers("plugin:lights/actions/all_off", ImpactLevel::Medium, "system");
+        assert_eq!(AgentHealthGuard.evaluate(&a, &contexte(None)).severity(), 0);
+        let b = action_vers("agent:notify", ImpactLevel::Medium, "pc-fantome");
+        assert_eq!(AgentHealthGuard.evaluate(&b, &contexte(None)).severity(), 2);
+    }
+
+    #[test]
+    fn la_nuit_se_compte_en_heure_locale() {
+        // 21h30 UTC en été = 23h30 à Paris : c'est la nuit.
+        let soir = TimeWindowGuard::new(Arc::new(crate::decision::MockClock::new(
+            datetime!(2026-07-15 21:30 UTC))));
+        let a = action_vers("agent:shutdown", ImpactLevel::VeryHigh, "pc-bureau");
+        assert_eq!(soir.evaluate(&a, &contexte(None)).severity(), 2);
+        // 5h30 UTC en été = 7h30 à Paris : c'est le jour.
+        let matin = TimeWindowGuard::new(Arc::new(crate::decision::MockClock::new(
+            datetime!(2026-07-15 05:30 UTC))));
+        assert_eq!(matin.evaluate(&a, &contexte(None)).severity(), 0);
     }
 }

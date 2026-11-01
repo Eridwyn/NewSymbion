@@ -243,6 +243,7 @@ mod tests {
             dry_run: false,
             expected_mode: Some("maison".into()),
             expected_ssid: Some("home-wifi".into()),
+            target: None,
         };
 
         let mut agents = HashMap::new();
@@ -264,6 +265,7 @@ mod tests {
             mode: "maison".into(),
             ssid: "home-wifi".into(),
             agents,
+            anyone_home: None,
         };
 
         let result = engine.decide(&action, &context);
@@ -290,12 +292,14 @@ mod tests {
             dry_run: false,
             expected_mode: None,
             expected_ssid: None,
+            target: None,
         };
 
         let context = DecisionContext {
             mode: "maison".into(),
             ssid: "home-wifi".into(),
             agents: HashMap::new(),
+            anyone_home: None,
         };
 
         let result = engine.decide(&action, &context);
@@ -321,6 +325,7 @@ mod tests {
             dry_run: false,
             expected_mode: Some("pro".into()),
             expected_ssid: None,
+            target: None,
         };
 
         // Ajouter l'agent pour éviter que AgentHealthGuard bloque avant ContextModeGuard
@@ -343,6 +348,7 @@ mod tests {
             mode: "maison".into(), // Mismatch
             ssid: "home-wifi".into(),
             agents,
+            anyone_home: None,
         };
 
         let result = engine.decide(&action, &context);
@@ -368,6 +374,7 @@ mod tests {
             dry_run: true, // Dry-run
             expected_mode: Some("maison".into()),
             expected_ssid: Some("home-wifi".into()),
+            target: None,
         };
 
         let mut agents = HashMap::new();
@@ -389,6 +396,7 @@ mod tests {
             mode: "maison".into(),
             ssid: "home-wifi".into(),
             agents,
+            anyone_home: None,
         };
 
         let result = engine.decide(&action, &context);

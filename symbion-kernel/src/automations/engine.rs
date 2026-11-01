@@ -697,10 +697,15 @@ impl AutomationEngine {
             })
         }).collect();
 
+        let anyone_home = ctx.feature_registry
+            .as_ref()
+            .and_then(|fr| fr.get_bool(crate::intelligence::features::feature_ids::PRESENCE_ANYONE_HOME));
+
         DecisionContext {
             mode: current_mode,
             ssid: current_ssid,
             agents,
+            anyone_home,
         }
     }
 

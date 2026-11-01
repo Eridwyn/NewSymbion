@@ -24,7 +24,10 @@ pub use clock::{Clock, SystemClock};
 #[allow(unused_imports)]
 pub use clock::MockClock; // Test-only API
 #[allow(unused_imports)]
-pub use guards::{Guard, GuardResult, GuardsEvaluator, ShortCircuitStrategy};
+pub use guards::{
+    AgentHealthGuard, ContextModeGuard, Guard, GuardResult, GuardsEvaluator, PresenceGuard,
+    ShortCircuitStrategy, TimeWindowGuard,
+};
 pub use trust::TrustCalculator;
 pub use engine::DecisionEngine;
 #[allow(unused_imports)]

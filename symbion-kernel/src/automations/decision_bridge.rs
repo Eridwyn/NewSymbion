@@ -34,6 +34,19 @@ pub fn action_to_decision(
         _ => action.impact_level(),
     };
 
+    let target = match action {
+        ActionDefinition::PluginCommand { plugin, route, .. } => {
+            Some(format!("plugin:{}/{}", plugin, route.trim_start_matches('/')))
+        }
+        ActionDefinition::Custom { plugin_name, action_type, .. } => {
+            Some(format!("plugin:{}/{}", plugin_name, action_type))
+        }
+        ActionDefinition::AgentCommand { command_type, .. } => {
+            Some(format!("agent:{}", command_type))
+        }
+        _ => None,
+    };
+
     Action {
         action_type: format!("automation.{}", action.type_name()),
         agent_id,
@@ -43,6 +56,7 @@ pub fn action_to_decision(
         dry_run: false,
         expected_mode: None, // We'll set this from context
         expected_ssid: None, // We'll set this from context
+        target,
     }
 }
 
@@ -151,6 +165,17 @@ mod tests {
         assert_eq!(decision.agent_id, "pc-bureau");
         // Should be upgraded to VeryHigh because shutdown is dangerous
         assert_eq!(decision.impact_level, ImpactLevel::VeryHigh);
+        assert_eq!(decision.target.as_deref(), Some("agent:shutdown"));
+    }
+
+    #[test]
+    fn test_plugin_command_target_names_plugin_and_route() {
+        let automation = create_test_automation();
+        let action: ActionDefinition = serde_json::from_value(serde_json::json!({
+            "type": "plugin_command", "plugin": "robot", "route": "/actions/clean_all"
+        })).expect("plugin_command valide");
+        let decision = action_to_decision(&action, &automation);
+        assert_eq!(decision.target.as_deref(), Some("plugin:robot/actions/clean_all"));
     }
 
     #[test]

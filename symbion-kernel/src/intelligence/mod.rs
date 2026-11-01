@@ -133,5 +133,11 @@ fn get_timezone() -> &'static Tz {
 
 /// Get current time in the configured local timezone
 pub fn local_now() -> OffsetDateTime {
-    OffsetDateTime::now_utc().to_timezone(get_timezone())
+    to_local(OffsetDateTime::now_utc())
+}
+
+/// Convert any instant to the configured local timezone.
+/// For code that takes its time from an injected Clock rather than the system.
+pub fn to_local(instant: OffsetDateTime) -> OffsetDateTime {
+    instant.to_timezone(get_timezone())
 }

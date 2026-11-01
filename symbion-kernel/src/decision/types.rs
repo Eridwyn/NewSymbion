@@ -29,6 +29,12 @@ pub struct Action {
     pub dry_run: bool,                          // Evaluation sans execution
     pub expected_mode: Option<String>,          // Mode contextuel attendu
     pub expected_ssid: Option<String>,          // SSID attendu
+    /// Ce que l'action vise VRAIMENT : « plugin:robot/actions/clean_all »,
+    /// « agent:shutdown ». `action_type` dit seulement « plugin_command » —
+    /// trop large pour qu'un garde-fou distingue l'aspirateur du résumé
+    /// Telegram. Absent des anciennes validations stockées, d'où le défaut.
+    #[serde(default)]
+    pub target: Option<String>,
 }
 
 impl Action {
@@ -46,6 +52,10 @@ pub struct DecisionContext {
     pub mode: String,           // Mode contextuel actuel (Pro, Maison, Veille)
     pub ssid: String,           // SSID actuel
     pub agents: HashMap<String, AgentState>,  // Etats agents
+    /// Quelqu'un est-il à la maison ? `None` = on ne sait pas (feature
+    /// absente ou expirée) — et ne pas savoir n'est PAS « personne ».
+    #[serde(default)]
+    pub anyone_home: Option<bool>,
 }
 
 /// Etat d'un agent

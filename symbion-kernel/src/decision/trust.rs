@@ -263,12 +263,14 @@ mod tests {
             dry_run: false,
             expected_mode: Some("maison".into()),
             expected_ssid: Some("home-wifi".into()),
+            target: None,
         };
 
         let context = DecisionContext {
             mode: "maison".into(),
             ssid: "home-wifi".into(),
             agents: HashMap::new(),
+            anyone_home: None,
         };
 
         let score = calculator.calculate_context_match(&action, &context);
@@ -290,12 +292,14 @@ mod tests {
             dry_run: false,
             expected_mode: Some("pro".into()),
             expected_ssid: None,
+            target: None,
         };
 
         let context = DecisionContext {
             mode: "maison".into(),
             ssid: "home-wifi".into(),
             agents: HashMap::new(),
+            anyone_home: None,
         };
 
         let score = calculator.calculate_context_match(&action, &context);
@@ -327,6 +331,7 @@ mod tests {
             mode: "maison".into(),
             ssid: "home-wifi".into(),
             agents,
+            anyone_home: None,
         };
 
         let score = calculator.calculate_agent_health("agent1", &context);
@@ -358,6 +363,7 @@ mod tests {
             mode: "maison".into(),
             ssid: "home-wifi".into(),
             agents,
+            anyone_home: None,
         };
 
         let score = calculator.calculate_agent_health("agent1", &context);
@@ -379,6 +385,7 @@ mod tests {
             dry_run: false,
             expected_mode: Some("maison".into()),
             expected_ssid: Some("home-wifi".into()),
+            target: None,
         };
 
         let mut agents = HashMap::new();
@@ -400,6 +407,7 @@ mod tests {
             mode: "maison".into(),
             ssid: "home-wifi".into(),
             agents,
+            anyone_home: None,
         };
 
         let trust_score = calculator.calculate(&action, &context);

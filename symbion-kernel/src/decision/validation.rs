@@ -313,6 +313,7 @@ mod tests {
             dry_run: false,
             expected_mode: Some("maison".into()),
             expected_ssid: Some("home-wifi".into()),
+            target: None,
         }
     }
 
@@ -321,6 +322,7 @@ mod tests {
             mode: "maison".into(),
             ssid: "home-wifi".into(),
             agents: HashMap::new(),
+            anyone_home: None,
         }
     }
 

@@ -21,6 +21,18 @@ pub struct DecisionSubsystem {
     pub pending_action_registry: SharedPendingActionRegistry,
 }
 
+/// Les guards du moteur de production.
+pub fn guards_actifs(
+    clock: Arc<dyn crate::decision::Clock>,
+) -> Vec<Box<dyn crate::decision::Guard>> {
+    vec![
+        Box::new(crate::decision::TimeWindowGuard::new(clock)),
+        Box::new(crate::decision::AgentHealthGuard),
+        Box::new(crate::decision::PresenceGuard),
+        Box::new(crate::decision::ContextModeGuard),
+    ]
+}
+
 pub fn init_decision(db: &Option<SharedDatabase>) -> DecisionSubsystem {
     let decision_clock = Arc::new(crate::decision::SystemClock);
     let decision_config = crate::decision::DecisionConfig::default();
@@ -57,9 +69,16 @@ pub fn init_decision(db: &Option<SharedDatabase>) -> DecisionSubsystem {
     let decision_metrics = Arc::new(crate::decision::DecisionMetrics::new());
 
     // Guards Evaluator
-    let guards_evaluator = crate::decision::GuardsEvaluator::new(
+    // LES GUARDS N'ÉTAIENT ENREGISTRÉS QUE DANS LES TESTS. En production le
+    // moteur se réduisait à « confiance ≥ seuil » : ni expiration, ni agent en
+    // maintenance, ni nuit, ni présence. `guards_actifs` est la liste unique —
+    // le test `bootstrap_enregistre_les_guards` la vérifie.
+    let mut guards_evaluator = crate::decision::GuardsEvaluator::new(
         crate::decision::ShortCircuitStrategy::OnBlock,
     );
+    for guard in guards_actifs(decision_clock.clone()) {
+        guards_evaluator.add_guard(guard);
+    }
 
     // Trust Tracker (must be created BEFORE TrustCalculator)
     let trust_tracker = crate::decision::TrustTracker::new("./data");
@@ -122,3 +141,84 @@ pub fn init_decision(db: &Option<SharedDatabase>) -> DecisionSubsystem {
         pending_action_registry,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::decision::{
+        Action, DecisionConfig, DecisionContext, DecisionEngine, DecisionOutcome, GuardsEvaluator,
+        ImpactLevel, ShortCircuitStrategy, SystemClock, TrustCalculator,
+    };
+    use std::collections::HashMap;
+
+    /// Le moteur TEL QU'IL EST MONTÉ en production. Les tests de `engine.rs`
+    /// montent leurs propres guards : c'est ce qui a caché, des mois durant,
+    /// qu'il n'y en avait aucun ici.
+    fn moteur_de_production() -> DecisionEngine {
+        let clock = Arc::new(SystemClock);
+        let mut guards = GuardsEvaluator::new(ShortCircuitStrategy::OnBlock);
+        for g in guards_actifs(clock.clone()) {
+            guards.add_guard(g);
+        }
+        let config = DecisionConfig::default();
+        DecisionEngine::new(guards, TrustCalculator::new(config.clone(), clock), config)
+    }
+
+    fn robot(anyone_home: Option<bool>) -> (Action, DecisionContext) {
+        (
+            Action {
+                action_type: "automation.plugin_command".into(),
+                agent_id: "system".into(),
+                impact_level: ImpactLevel::Medium,
+                trace_id: "t".into(),
+                expires_at: None,
+                dry_run: false,
+                expected_mode: None,
+                expected_ssid: None,
+                target: Some("plugin:robot/actions/clean_all".into()),
+            },
+            DecisionContext {
+                mode: "maison".into(),
+                ssid: "x".into(),
+                agents: HashMap::new(),
+                anyone_home,
+            },
+        )
+    }
+
+    #[test]
+    fn bootstrap_enregistre_les_guards() {
+        let noms: Vec<String> = guards_actifs(Arc::new(SystemClock))
+            .iter()
+            .map(|g| g.name().to_string())
+            .collect();
+        for attendu in ["TimeWindowGuard", "AgentHealthGuard", "PresenceGuard", "ContextModeGuard"] {
+            assert!(noms.iter().any(|n| n == attendu), "{} absent : {:?}", attendu, noms);
+        }
+    }
+
+    #[test]
+    fn le_robot_ne_part_pas_chez_quelquun_sans_accord() {
+        let (action, ctx) = robot(Some(true));
+        match moteur_de_production().decide(&action, &ctx).outcome {
+            DecisionOutcome::RequireValidation { explanation_codes, .. } => {
+                assert!(explanation_codes.iter().any(|c| c == "GUARD.PRESENCE.SOMEONE_HOME"))
+            }
+            autre => panic!("le robot doit attendre un accord, pas {:?}", autre),
+        }
+    }
+
+    #[test]
+    fn une_action_system_nest_pas_bloquee_par_la_sante_des_agents() {
+        let (mut action, ctx) = robot(None);
+        action.target = Some("plugin:lights/actions/all_off".into());
+        action.impact_level = ImpactLevel::Low;
+        let outcome = moteur_de_production().decide(&action, &ctx).outcome;
+        if let DecisionOutcome::RequireValidation { explanation_codes, .. } = &outcome {
+            assert!(!explanation_codes.iter().any(|c| c.starts_with("GUARD.")),
+                    "aucun guard ne doit retenir une action system Low : {:?}", explanation_codes);
+        }
+        assert!(!matches!(outcome, DecisionOutcome::Blocked { .. }));
+    }
+}
+
