@@ -78,3 +78,17 @@ pub async fn trigger_wol_udp(cfg: &HostsConfig, host_id: &str) -> (StatusCode, &
     }
     if ok { (StatusCode::OK, "ok") } else { (StatusCode::BAD_GATEWAY, "wol failed") }
 }
+
+/// Réveil d'un agent dont l'identifiant est sa MAC (12 caractères hexa).
+/// Un PC endormi n'écoute pas MQTT : « wake » doit partir en paquet magique.
+pub fn wake_agent(agent_id: &str) -> Result<(), String> {
+    let mac = parse_mac(agent_id)
+        .map_err(|e| format!("agent_id '{}' n'est pas une MAC ({})", agent_id, e))?;
+    let pkt = magic_packet(mac);
+    let sock = UdpSocket::bind(("0.0.0.0", 0)).map_err(|e| format!("socket: {}", e))?;
+    sock.set_broadcast(true).map_err(|e| format!("broadcast: {}", e))?;
+    let envoye = [9u16, 7u16].iter().any(|port| {
+        sock.send_to(&pkt, SocketAddrV4::new(Ipv4Addr::BROADCAST, *port)).is_ok()
+    });
+    if envoye { Ok(()) } else { Err(format!("paquet magique non envoyé à {}", agent_id)) }
+}

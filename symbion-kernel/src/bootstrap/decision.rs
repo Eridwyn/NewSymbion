@@ -220,5 +220,24 @@ mod tests {
         }
         assert!(!matches!(outcome, DecisionOutcome::Blocked { .. }));
     }
+
+    #[test]
+    fn trusted_dispense_de_la_confiance_pas_des_guards() {
+        let moteur = moteur_de_production();
+        let (action, chez_quelquun) = robot(Some(true));
+        assert!(matches!(
+            moteur.decide_trusted(&action, &chez_quelquun).outcome,
+            DecisionOutcome::RequireValidation { .. }
+        ));
+        let (action, maison_vide) = robot(Some(false));
+        match moteur.decide_trusted(&action, &maison_vide).outcome {
+            DecisionOutcome::Approved { trust_score, auto } => {
+                assert_eq!(trust_score, 1.0);
+                assert!(auto);
+            }
+            autre => panic!("maison vide : trusted doit passer, pas {:?}", autre),
+        }
+    }
+
 }
 

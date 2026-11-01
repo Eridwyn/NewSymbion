@@ -46,70 +46,10 @@ impl DecisionEngine {
 
         // Étape 1: Évaluer les guards
         let guards_eval = self.guards_evaluator.evaluate(action, context);
-
-        // Destructure to consume fields (avoids .clone() on warnings)
-        let GuardsEvaluation { passed: _, blocks, requires_validation, warnings } = guards_eval;
-
-        // Si guards bloquent
-        if !blocks.is_empty() {
-            let reasons: Vec<String> = blocks
-                .iter()
-                .map(|b| b.reason.clone())
-                .collect();
-            let explanation_codes: Vec<String> = blocks
-                .iter()
-                .map(|b| b.explanation_code.clone())
-                .collect();
-            // Compute categories for selective learning
-            let categories: Vec<BlockedReasonCategory> = explanation_codes
-                .iter()
-                .map(|code| BlockedReasonCategory::from_explanation(code))
-                .collect();
-
-            return DecisionResult {
-                decision_id,
-                outcome: DecisionOutcome::Blocked {
-                    reasons,
-                    explanation_codes,
-                    categories,
-                },
-                trace_id,
-                warnings,
-            };
-        }
-
-        // Si guards requièrent validation
-        if !requires_validation.is_empty() {
-            let reasons: Vec<String> = requires_validation
-                .iter()
-                .map(|r| r.reason.clone())
-                .collect();
-            let explanation_codes: Vec<String> = requires_validation
-                .iter()
-                .map(|r| r.explanation_code.clone())
-                .collect();
-            let human_reasons: Vec<String> = requires_validation
-                .iter()
-                .map(|r| r.human_reason.clone())
-                .collect();
-
-            // Calculate trust for the response even when guards require validation
-            let trust_score = self.trust_calculator.calculate(action, context);
-            let threshold = self.get_threshold(&action.impact_level);
-
-            return DecisionResult {
-                decision_id,
-                outcome: DecisionOutcome::RequireValidation {
-                    trust_score: trust_score.score,
-                    threshold,
-                    reasons,
-                    explanation_codes,
-                    human_reasons,
-                },
-                trace_id,
-                warnings,
-            };
-        }
+        let warnings = match self.verdict_des_guards(action, context, guards_eval, &decision_id, &trace_id) {
+            Ok(warnings) => warnings,
+            Err(verdict) => return verdict,
+        };
 
         // Étape 2: Guards passés, calculer trust score
         let trust_score = self.trust_calculator.calculate(action, context);
@@ -150,6 +90,102 @@ impl DecisionEngine {
                 warnings,
             }
         }
+    }
+
+    /// Décision pour une automatisation `trusted` : la confiance est acquise,
+    /// les guards NE LE SONT PAS. « Trusted » dispense du seuil de confiance,
+    /// pas de vérifier que personne n'est à la maison ni qu'il fait nuit.
+    pub fn decide_trusted(&self, action: &Action, context: &DecisionContext) -> DecisionResult {
+        let decision_id = Uuid::new_v4().to_string();
+        let trace_id = if action.trace_id.is_empty() {
+            Uuid::new_v4().to_string()
+        } else {
+            action.trace_id.clone()
+        };
+
+        let guards_eval = self.guards_evaluator.evaluate(action, context);
+        match self.verdict_des_guards(action, context, guards_eval, &decision_id, &trace_id) {
+            Ok(warnings) => DecisionResult {
+                decision_id,
+                outcome: DecisionOutcome::Approved { trust_score: 1.0, auto: true },
+                trace_id,
+                warnings,
+            },
+            Err(verdict) => verdict,
+        }
+    }
+
+    /// Les guards seuls, sans confiance. Sert à revérifier une action au
+    /// moment de l'exécuter, quand l'accord humain a déjà remplacé la confiance.
+    pub fn evaluate_guards(&self, action: &Action, context: &DecisionContext) -> GuardsEvaluation {
+        self.guards_evaluator.evaluate(action, context)
+    }
+
+    /// `Err` = les guards tranchent (bloqué ou validation requise) ;
+    /// `Ok(warnings)` = ils laissent passer.
+    fn verdict_des_guards(
+        &self,
+        action: &Action,
+        context: &DecisionContext,
+        guards_eval: GuardsEvaluation,
+        decision_id: &str,
+        trace_id: &str,
+    ) -> Result<Vec<crate::decision::types::GuardWarning>, DecisionResult> {
+        // Destructure to consume fields (avoids .clone() on warnings)
+        let GuardsEvaluation { passed: _, blocks, requires_validation, warnings } = guards_eval;
+
+        // Si guards bloquent
+        if !blocks.is_empty() {
+            let reasons: Vec<String> = blocks.iter().map(|b| b.reason.clone()).collect();
+            let explanation_codes: Vec<String> = blocks
+                .iter()
+                .map(|b| b.explanation_code.clone())
+                .collect();
+            // Compute categories for selective learning
+            let categories: Vec<BlockedReasonCategory> = explanation_codes
+                .iter()
+                .map(|code| BlockedReasonCategory::from_explanation(code))
+                .collect();
+
+            return Err(DecisionResult {
+                decision_id: decision_id.to_string(),
+                outcome: DecisionOutcome::Blocked { reasons, explanation_codes, categories },
+                trace_id: trace_id.to_string(),
+                warnings,
+            });
+        }
+
+        // Si guards requièrent validation
+        if !requires_validation.is_empty() {
+            let reasons: Vec<String> = requires_validation.iter().map(|r| r.reason.clone()).collect();
+            let explanation_codes: Vec<String> = requires_validation
+                .iter()
+                .map(|r| r.explanation_code.clone())
+                .collect();
+            let human_reasons: Vec<String> = requires_validation
+                .iter()
+                .map(|r| r.human_reason.clone())
+                .collect();
+
+            // Calculate trust for the response even when guards require validation
+            let trust_score = self.trust_calculator.calculate(action, context);
+            let threshold = self.get_threshold(&action.impact_level);
+
+            return Err(DecisionResult {
+                decision_id: decision_id.to_string(),
+                outcome: DecisionOutcome::RequireValidation {
+                    trust_score: trust_score.score,
+                    threshold,
+                    reasons,
+                    explanation_codes,
+                    human_reasons,
+                },
+                trace_id: trace_id.to_string(),
+                warnings,
+            });
+        }
+
+        Ok(warnings)
     }
 
     /// Évaluation en mode dry-run

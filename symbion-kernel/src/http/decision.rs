@@ -153,16 +153,84 @@ pub(super) async fn decision_resolve_validation(
                 validation_id, pending.automation_name
             );
 
-            // Execute the action directly
-            let exec_result = execute_pending_action(
-                &pending.action,
-                &app.agents,
-                &app.context_engine,
-                &app.notifications_manager,
-                &app.mode_registry,
-                &app.sensors,
-                &app.plugin_registry,
-            ).await;
+            // Même exécuteur que les automatisations, après une dernière
+            // lecture des guards (cf. AutomationEngine::execute_approved).
+            let ctx = crate::automations::ExecutionContext {
+                context_engine: app.context_engine.clone(),
+                agents: app.agents.clone(),
+                sensors: app.sensors.clone(),
+                notifications_manager: app.notifications_manager.clone(),
+                event: crate::automations::AutomationEvent::Manual {
+                    automation_id: pending.automation_id.clone(),
+                    triggered_by: Some("user-validation".to_string()),
+                    timestamp: OffsetDateTime::now_utc(),
+                },
+                decision_engine: Some(app.decision_engine.clone()),
+                trust_tracker: Some(app.trust_tracker.clone()),
+                validation_manager: Some(app.decision_validation_manager.clone()),
+                pending_action_registry: Some(app.pending_action_registry.clone()),
+                context_intelligence: Some(app.context_intelligence.clone()),
+                mode_registry: Some(app.mode_registry.clone()),
+                feature_registry: Some(app.feature_registry.clone()),
+                plugin_registry: Some(app.plugin_registry.clone()),
+            };
+            let exec_result = match crate::automations::AutomationEngine::execute_approved(
+                &result.0, &pending.action, &ctx,
+            ).await {
+                crate::automations::ApprovedOutcome::Executed => Ok(()),
+                crate::automations::ApprovedOutcome::Failed(e) => Err(e),
+                crate::automations::ApprovedOutcome::Refused(raisons) => {
+                    // Ni succès ni échec de l'action : la confiance n'en apprend rien.
+                    let raison = raisons.join(" ; ");
+                    eprintln!(
+                        "[http] ✋ Validation {} approuvée mais action retenue à l'exécution : {}",
+                        validation_id, raison
+                    );
+                    let notification = crate::notifications::Notification {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        priority: crate::notifications::NotificationPriority::P1,
+                        title: format!("✋ Non exécuté : {}", pending.automation_name),
+                        body: format!(
+                            "Votre accord a bien été reçu, mais la situation a changé depuis la demande : {}. Relancez la règle si vous le voulez toujours.",
+                            raison
+                        ),
+                        source: "automation-validation".to_string(),
+                        timestamp: OffsetDateTime::now_utc(),
+                        acknowledged: false,
+                        acknowledged_at: None,
+                        actions: vec![],
+                        data: None,
+                    };
+                    if let Err(e) = app.notifications_manager.send(notification).await {
+                        eprintln!("[http] Failed to send refusal notification: {}", e);
+                    }
+                    let record = crate::automations::ExecutionRecord {
+                        automation_id: pending.automation_id.clone(),
+                        automation_name: pending.automation_name.clone(),
+                        executed_at: OffsetDateTime::now_utc(),
+                        trigger_event: "validation_approved".to_string(),
+                        conditions_met: true,
+                        actions_executed: vec![crate::automations::ActionResult {
+                            action_type: format!("{:?}", pending.action).split('{').next().unwrap_or("unknown").trim().to_string(),
+                            success: false,
+                            error: Some(raison.clone()),
+                            duration_ms: 0,
+                            decision_id: Some(validation_id.clone()),
+                            trust_score: Some(pending.trust_score),
+                            decision_outcome: Some("refused_at_execution".to_string()),
+                            blocked_reasons: Some(raisons),
+                        }],
+                        success: false,
+                        error: Some(raison),
+                        trust_score: Some(pending.trust_score),
+                        decision_outcome: Some("refused_at_execution".to_string()),
+                    };
+                    if let Err(e) = app.automations.add_history(record) {
+                        eprintln!("[http] Failed to add refusal record to history: {}", e);
+                    }
+                    return Ok(result);
+                }
+            };
 
             match &exec_result {
                 Ok(_) => {
@@ -333,153 +401,6 @@ pub(super) async fn decision_resolve_validation(
     }
 
     Ok(result)
-}
-
-/// Execute a pending action after validation approval
-pub(super) async fn execute_pending_action(
-    action: &crate::automations::ActionDefinition,
-    agents: &crate::agents::SharedAgentRegistry,
-    context_engine: &std::sync::Arc<crate::context::ContextEngine>,
-    notifications_manager: &crate::notifications::SharedNotificationManager,
-    mode_registry: &crate::modes::SharedModeRegistry,
-    sensors: &crate::sensors::SharedSensorRegistry,
-    plugin_registry: &crate::plugin_proxy::PluginRegistry,
-) -> Result<(), String> {
-    use crate::automations::ActionDefinition;
-
-    match action {
-        ActionDefinition::SendNotification { priority, title, body, .. } => {
-            let notification = crate::notifications::Notification {
-                id: String::new(),
-                priority: match priority.as_str() {
-                    "P0" => crate::notifications::NotificationPriority::P0,
-                    "P1" => crate::notifications::NotificationPriority::P1,
-                    _ => crate::notifications::NotificationPriority::P2,
-                },
-                title: title.clone(),
-                body: body.clone(),
-                source: "pending-action".to_string(),
-                timestamp: OffsetDateTime::now_utc(),
-                acknowledged: false,
-                acknowledged_at: None,
-                actions: vec![],
-                data: None,
-            };
-            notifications_manager
-                .send(notification)
-                .await
-                .map_err(|e| format!("Notification failed: {}", e))?;
-            eprintln!("[pending_action] ✉️ Notification sent: {}", title);
-            Ok(())
-        }
-
-        ActionDefinition::ForceMode { mode, duration_minutes, reason, .. } => {
-            let mode_slug = mode.to_lowercase();
-
-            // Look up mode from mode_registry
-            let dynamic_mode = mode_registry.get_by_slug(&mode_slug)
-                .ok_or_else(|| format!("Unknown mode: {}", mode))?;
-
-            // Convert DynamicMode theme to context::Theme
-            let theme = crate::context::Theme {
-                primary: dynamic_mode.theme.primary.clone(),
-                bg: dynamic_mode.theme.background.clone(),
-                accent: dynamic_mode.theme.accent.clone(),
-            };
-
-            let duration = duration_minutes.unwrap_or(60);
-            context_engine
-                .set_override_dynamic(dynamic_mode.slug.clone(), theme, duration, reason.clone())
-                .ok_or_else(|| "Failed to set mode override".to_string())?;
-            eprintln!(
-                "[pending_action] 🎯 Forced mode '{}' for {} minutes",
-                dynamic_mode.slug, duration
-            );
-            Ok(())
-        }
-
-        ActionDefinition::AgentCommand { agent_id, command_type, parameters, .. } => {
-            // Special handling for "wake" command - use WoL magic packet
-            if command_type == "wake" {
-                // Convert agent_id to MAC address format
-                if agent_id.len() == 12 {
-                    let mac_str = format!("{}:{}:{}:{}:{}:{}",
-                        &agent_id[0..2], &agent_id[2..4], &agent_id[4..6],
-                        &agent_id[6..8], &agent_id[8..10], &agent_id[10..12]
-                    );
-                    let (status, _) = super::system::send_magic_packet(&mac_str).await;
-                    if status == StatusCode::OK {
-                        eprintln!("[pending_action] 📤 WoL magic packet sent to agent '{}' (MAC: {})", agent_id, mac_str);
-                        return Ok(());
-                    } else {
-                        return Err(format!("Failed to send WoL magic packet to {}", agent_id));
-                    }
-                } else {
-                    return Err(format!("Invalid agent_id for WoL: {} (expected 12 hex chars)", agent_id));
-                }
-            }
-
-            // For other commands, send via MQTT
-            agents
-                .send_command(agent_id, command_type, parameters.clone())
-                .await
-                .map_err(|e| format!("Agent command failed: {}", e))?;
-            eprintln!(
-                "[pending_action] 📤 Command '{}' sent to agent '{}'",
-                command_type, agent_id
-            );
-            Ok(())
-        }
-
-        ActionDefinition::Delay { seconds } => {
-            eprintln!("[pending_action] ⏳ Waiting {} seconds", seconds);
-            tokio::time::sleep(tokio::time::Duration::from_secs(*seconds as u64)).await;
-            Ok(())
-        }
-
-        ActionDefinition::Custom { plugin_name, action_type, .. } => {
-            Err(format!(
-                "Custom action {}/{} not implemented",
-                plugin_name, action_type
-            ))
-        }
-
-        ActionDefinition::SetFeature { .. } => {
-            // SetFeature is handled by AutomationEngine directly (needs FeatureRegistry)
-            Err("set_feature must be executed via AutomationEngine".to_string())
-        }
-
-        ActionDefinition::PluginCommand { plugin, route, payload, wrap_protocol, action_name, .. } => {
-            use crate::automations::executors::{
-                ActionExecutor, ExecutorContext, PluginCommandExecutor,
-            };
-            // Construit un ExecutorContext minimal pour réutiliser l'executor existant.
-            // event = Manual (validation manuelle utilisateur).
-            let exec_ctx = ExecutorContext::new(
-                context_engine.clone(),
-                agents.clone(),
-                sensors.clone(),
-                notifications_manager.clone(),
-                crate::automations::AutomationEvent::Manual {
-                    automation_id: "pending-validation".to_string(),
-                    triggered_by: Some("user-validation".to_string()),
-                    timestamp: OffsetDateTime::now_utc(),
-                },
-            )
-            .with_plugin_registry(plugin_registry.clone());
-
-            let executor = PluginCommandExecutor::new(
-                plugin.clone(),
-                route.clone(),
-                payload.clone(),
-            )
-            .with_wrap(wrap_protocol.clone(), action_name.clone());
-            executor
-                .execute(&exec_ctx)
-                .await
-                .map_err(|e| format!("plugin_command failed: {}", e.message))
-        }
-    }
 }
 
 /// POST /decision/override -- Create a new master override for the Decision Engine.

@@ -29,7 +29,7 @@ pub use types::*;
 pub use persistence::AutomationStore;
 pub use events::{AutomationEvent, EventDispatcher};
 pub use listener::spawn_automation_listener;
-pub use engine::{AutomationEngine, ExecutionContext};
+pub use engine::{ApprovedOutcome, AutomationEngine, ExecutionContext};
 pub use registry::{SchemaRegistry, AutomationSchema, SensorInfo};
 pub use pending_actions::{PendingActionRegistry, SharedPendingActionRegistry};
 pub use scheduler::AutomationScheduler;

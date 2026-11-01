@@ -77,6 +77,15 @@ pub struct ExecutionContext {
     pub plugin_registry: Option<crate::plugin_proxy::PluginRegistry>,
 }
 
+/// Sort d'une action approuvée par un humain.
+#[derive(Debug, PartialEq)]
+pub enum ApprovedOutcome {
+    Executed,
+    /// Un guard retient l'action pour une raison que l'accord ne couvrait pas.
+    Refused(Vec<String>),
+    Failed(String),
+}
+
 /// Automation engine - evaluates conditions and executes actions
 pub struct AutomationEngine;
 
@@ -312,23 +321,17 @@ impl AutomationEngine {
     ) -> Vec<ActionResult> {
         let mut results = Vec::new();
 
-        // Check if automation is trusted (bypasses Decision Engine)
+        // `trusted` dispense du seuil de confiance, PAS des guards : une règle
+        // de confiance ne lance pas le robot chez quelqu'un sans demander.
         let is_trusted = automation.trusted.unwrap_or(false);
 
-        // Build decision context if we have a decision engine AND automation is not trusted
-        let decision_ctx = if is_trusted {
-            None // Bypass Decision Engine for trusted automations
-        } else if ctx.decision_engine.is_some() {
+        let decision_ctx = if ctx.decision_engine.is_some() {
             Some(Self::build_decision_context(ctx).await)
         } else {
             None
         };
 
-        if is_trusted {
-            eprintln!("[automations] 🛡️  Automation '{}' is TRUSTED - bypassing Decision Engine", automation.name);
-        }
-
-        for action in &automation.actions {
+        for (action_index, action) in automation.actions.iter().enumerate() {
             // Check if there's an active manual override - skip ForceMode if so
             // Manual overrides ALWAYS take priority over automated mode changes
             if let ActionDefinition::ForceMode { use_override, .. } = action {
@@ -385,12 +388,12 @@ impl AutomationEngine {
             let start = Instant::now();
 
             // If we have a DecisionEngine, evaluate trust before executing
-            let (decision_id, trust_score, outcome, blocked_reasons) =
+            let ((decision_id, trust_score, outcome, blocked_reasons), decision) =
                 if let (Some(engine), Some(ref dctx)) = (&ctx.decision_engine, &decision_ctx) {
-                    Self::evaluate_with_decision(action, automation, engine, dctx)
+                    Self::evaluate_with_decision(action, automation, engine, dctx, is_trusted)
                 } else {
                     // No decision engine = always approved (backwards compatibility)
-                    (None, None, Some("approved".to_string()), None)
+                    ((None, None, Some("approved".to_string()), None), None)
                 };
 
             // Check if action was blocked
@@ -454,35 +457,27 @@ impl AutomationEngine {
                         ts
                     );
 
-                    // Create validation request in ValidationManager
+                    // La demande porte la décision RÉELLE du moteur : ses raisons,
+                    // son seuil. Avant, un seuil 0.7 et « Confiance X% insuffisante »
+                    // étaient inventés ici, même quand c'était un guard qui retenait.
+                    let human_reasons = match &decision {
+                        Some(crate::decision::DecisionResult {
+                            outcome: DecisionOutcome::RequireValidation { human_reasons, .. }, ..
+                        }) => human_reasons.clone(),
+                        _ => Vec::new(),
+                    };
                     let mut validation_id: Option<String> = None;
-                    if let (Some(ref vm), Some(ref dctx)) = (&ctx.validation_manager, &decision_ctx) {
+                    if let (Some(ref vm), Some(ref dctx), Some(ref decision_result)) =
+                        (&ctx.validation_manager, &decision_ctx, &decision)
+                    {
                         let decision_action = action_to_decision(action, automation);
-                        // Create a minimal DecisionResult for validation
-                        let decision_result = crate::decision::DecisionResult {
-                            decision_id: decision_id.clone().unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
-                            outcome: DecisionOutcome::RequireValidation {
-                                trust_score: ts,
-                                threshold: 0.7, // Default high impact threshold
-                                reasons: blocked_reasons.clone().unwrap_or_default(),
-                                explanation_codes: vec!["TRUST.BELOW_THRESHOLD".to_string()],
-                                human_reasons: vec![format!("Confiance {:.0}% insuffisante", ts * 100.0)],
-                            },
-                            trace_id: format!("auto_{}", automation.id),
-                            warnings: vec![],
-                        };
-
-                        match vm.create_validation(&decision_result, &decision_action, dctx) {
+                        match vm.create_validation(decision_result, &decision_action, dctx) {
                             Ok(vr) => {
                                 validation_id = Some(vr.validation_id.clone());
                                 eprintln!("[automations] Created validation request: {}", vr.validation_id);
 
                                 // Register pending action for post-approval execution
                                 if let Some(ref par) = ctx.pending_action_registry {
-                                    let action_index = automation.actions.iter().position(|a| {
-                                        std::mem::discriminant(a) == std::mem::discriminant(action)
-                                    }).unwrap_or(0);
-
                                     par.register(
                                         vr.validation_id.clone(),
                                         automation.id.clone(),
@@ -506,7 +501,7 @@ impl AutomationEngine {
                         "L'action '{}' nécessite votre approbation.\n\nConfiance: {:.0}%\nRaison: {}\n\nValidation ID: {}",
                         action_description(action),
                         ts * 100.0,
-                        blocked_reasons.as_ref().map(|r| r.join(", ")).unwrap_or_else(|| "Impact élevé".to_string()),
+                        if human_reasons.is_empty() { "Impact élevé".to_string() } else { human_reasons.join(" ; ") },
                         validation_id.as_ref().unwrap_or(&"N/A".to_string())
                     );
 
@@ -610,28 +605,47 @@ impl AutomationEngine {
     }
 
     /// Evaluate action with Decision Engine
+    #[allow(clippy::type_complexity)]
     fn evaluate_with_decision(
         action: &ActionDefinition,
         automation: &Automation,
         engine: &DecisionEngine,
         ctx: &DecisionContext,
-    ) -> (Option<String>, Option<f32>, Option<String>, Option<Vec<String>>) {
+        trusted: bool,
+    ) -> ((Option<String>, Option<f32>, Option<String>, Option<Vec<String>>), Option<crate::decision::DecisionResult>) {
         // Convert automation action to decision action
         let decision_action = action_to_decision(action, automation);
 
         // Get decision (catch panics from Decision Engine)
         let decide_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            engine.decide(&decision_action, ctx)
+            if trusted {
+                engine.decide_trusted(&decision_action, ctx)
+            } else {
+                engine.decide(&decision_action, ctx)
+            }
         }));
 
         let result = match decide_result {
             Ok(r) => r,
             Err(_) => {
                 eprintln!("[automations] Decision Engine panicked for '{}' — blocking action as safety fallback", automation.name);
-                return (None, None, Some("blocked".to_string()), Some(vec!["decision_engine_panic".to_string()]));
+                return ((None, None, Some("blocked".to_string()), Some(vec!["decision_engine_panic".to_string()])), None);
             }
         };
 
+        let mut resume = Self::resume_decision(&result);
+        if trusted && resume.2.as_deref() == Some("approved") {
+            // Pas de score : une règle trusted n'a pas été jugée sur la confiance,
+            // elle ne doit pas nourrir l'apprentissage comme une approbation auto.
+            resume.1 = None;
+        }
+        (resume, Some(result))
+    }
+
+    fn resume_decision(
+        result: &crate::decision::DecisionResult,
+    ) -> (Option<String>, Option<f32>, Option<String>, Option<Vec<String>>) {
+        let result = result.clone();
         // Extract outcome info
         match &result.outcome {
             DecisionOutcome::Approved { trust_score, .. } => {
@@ -667,6 +681,43 @@ impl AutomationEngine {
                     None,
                 )
             }
+        }
+    }
+
+    /// Exécuter une action qu'un humain vient d'approuver — par le MÊME
+    /// exécuteur que les automatisations, après une dernière lecture des guards.
+    ///
+    /// L'accord couvre les raisons montrées au moment de la demande, pas
+    /// celles apparues depuis : une action approuvée à 14 h et exécutée à
+    /// 14 h 25, alors que quelqu'un est rentré entre-temps, ne part pas.
+    pub async fn execute_approved(
+        validation: &crate::decision::ValidationRequest,
+        action: &ActionDefinition,
+        ctx: &ExecutionContext,
+    ) -> ApprovedOutcome {
+        if let Some(ref engine) = ctx.decision_engine {
+            let maintenant = Self::build_decision_context(ctx).await;
+            let eval = engine.evaluate_guards(&validation.action, &maintenant);
+
+            if !eval.blocks.is_empty() {
+                return ApprovedOutcome::Refused(
+                    eval.blocks.iter().map(|b| b.human_reason.clone()).collect(),
+                );
+            }
+            let nouvelles: Vec<String> = eval
+                .requires_validation
+                .iter()
+                .filter(|r| !validation.explanation_codes.contains(&r.explanation_code))
+                .map(|r| r.human_reason.clone())
+                .collect();
+            if !nouvelles.is_empty() {
+                return ApprovedOutcome::Refused(nouvelles);
+            }
+        }
+
+        match Self::execute_action(action, ctx).await {
+            (true, _) => ApprovedOutcome::Executed,
+            (false, e) => ApprovedOutcome::Failed(e.unwrap_or_else(|| "échec sans détail".to_string())),
         }
     }
 
@@ -831,6 +882,16 @@ impl AutomationEngine {
                         }
                         None => (false, Some("failed to set natural mode".to_string())),
                     }
+                }
+            }
+
+            ActionDefinition::AgentCommand { agent_id, command_type, .. } if command_type == "wake" => {
+                match crate::wol::wake_agent(agent_id) {
+                    Ok(()) => {
+                        eprintln!("[automations] 📤 WoL magic packet sent to agent '{}'", agent_id);
+                        (true, None)
+                    }
+                    Err(e) => (false, Some(e)),
                 }
             }
 
@@ -1566,5 +1627,150 @@ mod tests {
         let (passed, evals) = AutomationEngine::evaluate_conditions(&cond, &ctx);
         assert!(!passed);
         assert!(evals[0].details.contains("not implemented"));
+    }
+
+    // ========================================================================
+    // Chantier 2 : un seul chemin gardé
+    // ========================================================================
+
+    fn moteur_de_production() -> Arc<DecisionEngine> {
+        let clock = Arc::new(crate::decision::SystemClock);
+        let mut guards = crate::decision::GuardsEvaluator::new(crate::decision::ShortCircuitStrategy::OnBlock);
+        for g in crate::bootstrap::decision::guards_actifs(clock.clone()) {
+            guards.add_guard(g);
+        }
+        let config = crate::decision::DecisionConfig::default();
+        Arc::new(DecisionEngine::new(
+            guards,
+            crate::decision::TrustCalculator::new(config.clone(), clock),
+            config,
+        ))
+    }
+
+    fn ctx_gardee(quelquun_est_la: bool) -> ExecutionContext {
+        let mut ctx = test_ctx();
+        let registry = FeatureRegistry::new();
+        registry.set_feature(
+            crate::intelligence::features::feature_ids::PRESENCE_ANYONE_HOME,
+            FeatureValue::Bool(quelquun_est_la),
+            "test",
+            1.0,
+            300,
+        );
+        ctx.feature_registry = Some(Arc::new(registry));
+        ctx.decision_engine = Some(moteur_de_production());
+        ctx
+    }
+
+    fn nettoyage_robot() -> ActionDefinition {
+        serde_json::from_value(serde_json::json!({
+            "type": "plugin_command", "plugin": "robot", "route": "actions/clean_all", "payload": {}
+        })).unwrap()
+    }
+
+    fn notification() -> ActionDefinition {
+        serde_json::from_value(serde_json::json!({
+            "type": "send_notification", "priority": "P2", "title": "t", "body": "b"
+        })).unwrap()
+    }
+
+    fn regle(actions: Vec<ActionDefinition>, trusted: bool) -> Automation {
+        Automation {
+            id: "r".to_string(),
+            name: "Règle".to_string(),
+            description: None,
+            category: None,
+            goal_mode: None,
+            enabled: true,
+            trigger: Some(crate::automations::Trigger::Manual),
+            triggers: None,
+            conditions: None,
+            actions,
+            cooldown_seconds: 0,
+            trusted: Some(trusted),
+            skip_if_same_mode: None,
+            auto_created: None,
+            last_executed_at: None,
+            execution_count: 0,
+            created_at: None,
+            updated_at: None,
+            deleted_at: None,
+        }
+    }
+
+    /// La demande telle que l'humain l'a vue : `codes` = raisons couvertes.
+    fn demande(action: &ActionDefinition, codes: &[&str]) -> crate::decision::ValidationRequest {
+        let now = OffsetDateTime::now_utc();
+        crate::decision::ValidationRequest {
+            validation_id: "v".into(),
+            decision_id: "d".into(),
+            action: action_to_decision(action, &regle(vec![], false)),
+            context: DecisionContext {
+                mode: "maison".into(),
+                ssid: "x".into(),
+                agents: std::collections::HashMap::new(),
+                anyone_home: Some(false),
+            },
+            status: crate::decision::ValidationStatus::Approved,
+            created_at: now,
+            expires_at: now + time::Duration::minutes(30),
+            resolved_at: Some(now),
+            resolved_by: Some("eridwyn".into()),
+            trust_score: 0.4,
+            threshold: 0.5,
+            human_reasons: vec![],
+            explanation_codes: codes.iter().map(|c| c.to_string()).collect(),
+        }
+    }
+
+    #[tokio::test]
+    async fn une_regle_trusted_ne_lance_pas_le_robot_chez_quelquun() {
+        let ctx = ctx_gardee(true);
+        let resultats = AutomationEngine::execute_actions(&regle(vec![nettoyage_robot()], true), &ctx).await;
+        assert_eq!(resultats[0].decision_outcome.as_deref(), Some("require_validation"));
+        assert!(!resultats[0].success);
+    }
+
+    #[tokio::test]
+    async fn une_regle_trusted_reste_dispensee_du_seuil_de_confiance() {
+        // Maison vide : aucun guard ne retient, et trusted passe sans score.
+        let ctx = ctx_gardee(false);
+        let resultats = AutomationEngine::execute_actions(&regle(vec![notification()], true), &ctx).await;
+        assert_eq!(resultats[0].decision_outcome.as_deref(), Some("approved"));
+        assert_eq!(resultats[0].trust_score, None, "trusted ne doit pas nourrir l'apprentissage");
+    }
+
+    #[tokio::test]
+    async fn un_accord_ne_couvre_pas_une_raison_apparue_depuis() {
+        // Accordé pour « confiance insuffisante » dans une maison vide ;
+        // quelqu'un est rentré avant l'exécution.
+        let robot = nettoyage_robot();
+        let ctx = ctx_gardee(true);
+        let issue = AutomationEngine::execute_approved(&demande(&robot, &["TRUST.BELOW_THRESHOLD"]), &robot, &ctx).await;
+        match issue {
+            ApprovedOutcome::Refused(raisons) => assert!(!raisons.is_empty()),
+            autre => panic!("le robot devait être retenu, pas {:?}", autre),
+        }
+    }
+
+    #[tokio::test]
+    async fn un_accord_couvre_la_raison_quil_a_vue() {
+        // L'humain a accordé EN SACHANT que quelqu'un était là.
+        let robot = nettoyage_robot();
+        let ctx = ctx_gardee(true);
+        let issue = AutomationEngine::execute_approved(
+            &demande(&robot, &["GUARD.PRESENCE.SOMEONE_HOME"]), &notification(), &ctx,
+        ).await;
+        assert_eq!(issue, ApprovedOutcome::Executed);
+    }
+
+    #[tokio::test]
+    async fn wake_part_en_paquet_magique_pas_en_mqtt() {
+        let wake: ActionDefinition = serde_json::from_value(serde_json::json!({
+            "type": "agent_command", "agent_id": "pas-une-mac", "command_type": "wake"
+        })).unwrap();
+        let (ok, erreur) = AutomationEngine::execute_action(&wake, &test_ctx()).await;
+        assert!(!ok);
+        assert!(erreur.unwrap().contains("MAC"), "wake doit passer par le WoL");
     }
 }

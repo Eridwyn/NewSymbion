@@ -38,6 +38,19 @@ pub struct ValidationRequest {
     #[schema(value_type = Option<String>)]
     pub resolved_at: Option<OffsetDateTime>,
     pub resolved_by: Option<String>, // username
+    /// Ce que l'humain a sous les yeux quand il accorde. Le PWA lisait ces
+    /// champs alors qu'ils n'existaient pas : il affichait toujours
+    /// « Validation requise », 0 % et un seuil de 70 %.
+    #[serde(default)]
+    pub trust_score: f32,
+    #[serde(default)]
+    pub threshold: f32,
+    #[serde(default)]
+    pub human_reasons: Vec<String>,
+    /// Les raisons couvertes par l'accord. À l'exécution, une raison qui n'y
+    /// figure pas (quelqu'un est rentré entre-temps) annule l'exécution.
+    #[serde(default)]
+    pub explanation_codes: Vec<String>,
 }
 
 /// Gestionnaire de validations MFA
@@ -68,6 +81,13 @@ impl ValidationManager {
         let now = self.clock.now_utc();
         let expires_at = now + time::Duration::seconds(self.default_ttl_seconds);
 
+        let (trust_score, threshold, human_reasons, explanation_codes) = match &decision_result.outcome {
+            crate::decision::DecisionOutcome::RequireValidation {
+                trust_score, threshold, human_reasons, explanation_codes, ..
+            } => (*trust_score, *threshold, human_reasons.clone(), explanation_codes.clone()),
+            _ => (0.0, 0.0, Vec::new(), Vec::new()),
+        };
+
         let request = ValidationRequest {
             validation_id: validation_id.clone(),
             decision_id: decision_result.decision_id.clone(),
@@ -78,6 +98,10 @@ impl ValidationManager {
             expires_at,
             resolved_at: None,
             resolved_by: None,
+            trust_score,
+            threshold,
+            human_reasons,
+            explanation_codes,
         };
 
         // Stocker validation
@@ -572,4 +596,60 @@ mod tests {
         let bob_validations = manager.list_by_user("bob");
         assert_eq!(bob_validations.len(), 1);
     }
+
+    #[test]
+    fn la_demande_porte_les_vraies_raisons_du_moteur() {
+        let vm = ValidationManager::new(Arc::new(crate::decision::SystemClock), 1800);
+        let decision = DecisionResult {
+            decision_id: "d".into(),
+            outcome: crate::decision::DecisionOutcome::RequireValidation {
+                trust_score: 0.9,
+                threshold: 0.5,
+                reasons: vec!["Someone is home".into()],
+                explanation_codes: vec!["GUARD.PRESENCE.SOMEONE_HOME".into()],
+                human_reasons: vec!["Quelqu'un est à la maison".into()],
+            },
+            trace_id: "t".into(),
+            warnings: vec![],
+        };
+        let action = Action {
+            action_type: "automation.plugin_command".into(),
+            agent_id: "system".into(),
+            impact_level: crate::decision::ImpactLevel::Medium,
+            trace_id: "t".into(),
+            expires_at: None,
+            dry_run: false,
+            expected_mode: None,
+            expected_ssid: None,
+            target: Some("plugin:robot/actions/clean_all".into()),
+        };
+        let ctx = DecisionContext {
+            mode: "maison".into(),
+            ssid: "x".into(),
+            agents: HashMap::new(),
+            anyone_home: Some(true),
+        };
+        let v = vm.create_validation(&decision, &action, &ctx).unwrap();
+        assert_eq!(v.human_reasons, vec!["Quelqu'un est à la maison".to_string()]);
+        assert_eq!(v.explanation_codes, vec!["GUARD.PRESENCE.SOMEONE_HOME".to_string()]);
+        assert_eq!(v.threshold, 0.5);
+        assert_eq!(v.trust_score, 0.9);
+    }
+
+    #[test]
+    fn une_ancienne_demande_sans_raisons_reste_lisible() {
+        let ancienne = serde_json::json!({
+            "validation_id": "v", "decision_id": "d",
+            "action": {"action_type": "a", "agent_id": "system", "impact_level": "Low",
+                       "trace_id": "t", "expires_at": null, "dry_run": false,
+                       "expected_mode": null, "expected_ssid": null},
+            "context": {"mode": "maison", "ssid": "x", "agents": {}},
+            "status": "Pending",
+            "created_at": "2026-11-01T10:00:00Z", "expires_at": "2026-11-01T10:30:00Z",
+            "resolved_at": null, "resolved_by": null
+        });
+        let v: ValidationRequest = serde_json::from_value(ancienne).unwrap();
+        assert!(v.explanation_codes.is_empty());
+    }
+
 }
