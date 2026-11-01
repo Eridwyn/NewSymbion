@@ -106,6 +106,39 @@ pub fn create_mqtt_client(config: &HostsConfig) -> Result<AsyncClient, Box<dyn s
     Ok(client)
 }
 
+/// Les topics du listener selon les sous-systèmes présents.
+fn topics_du_listener(
+    notes: bool,
+    agents: bool,
+    sensors: bool,
+    notifications: bool,
+    features: bool,
+) -> Vec<&'static str> {
+    let mut topics = vec!["symbion/hosts/heartbeat@v2"];
+    if notes {
+        topics.push("symbion/notes/response@v1");
+    }
+    if agents {
+        topics.extend([
+            "symbion/agents/registration@v1",
+            "symbion/agents/heartbeat@v1",
+            "symbion/agents/response@v1",
+            "symbion/agents/wake@v1",
+            "symbion/agents/logs@v1",
+        ]);
+    }
+    if sensors {
+        topics.extend(["symbion/sensors/registration@v1", "symbion/sensors/+/env@v1"]);
+    }
+    if notifications {
+        topics.push("symbion/notifications/acknowledge@v1");
+    }
+    if features {
+        topics.extend(["symbion/freebox/presence/#", "symbion/features/update"]);
+    }
+    topics
+}
+
 pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>, notes_bridge: Option<SharedNotesBridge>, agents: Option<SharedAgentRegistry>, sensors: Option<SharedSensorRegistry>, health_tracker: Option<crate::health::HealthTracker>, dashboard_events: Option<crate::dashboard_events::DashboardEventPublisher>, mqtt_watchdog: Option<crate::mqtt_watchdog::SharedMqttWatchdog>, notifications_manager: Option<SharedNotificationManager>, feature_registry: Option<SharedFeatureRegistry>) {
     task::spawn(async move {
         let cfg = config.lock().clone();
@@ -121,76 +154,17 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
         opts.set_max_packet_size(max_packet, max_packet);
         let (client, mut eventloop) = AsyncClient::new(opts, 200); // Buffer increased for streaming (100+ notes)
         
-        if let Err(e) = client.subscribe("symbion/hosts/heartbeat@v2", QoS::AtLeastOnce).await {
-            eprintln!("[kernel] subscribe MQTT failed: {e:?}");
-            return;
-        }
-        
-        // S'abonner aux réponses des notes si bridge disponible
-        if notes_bridge.is_some() {
-            if let Err(e) = client.subscribe("symbion/notes/response@v1", QoS::AtLeastOnce).await {
-                eprintln!("[kernel] subscribe notes responses failed: {e:?}");
-            }
-        }
-
-        // S'abonner aux événements agents si registry disponible
-        if agents.is_some() {
-            if let Err(e) = client.subscribe("symbion/agents/registration@v1", QoS::AtLeastOnce).await {
-                eprintln!("[kernel] subscribe agents registration failed: {e:?}");
-            }
-            if let Err(e) = client.subscribe("symbion/agents/heartbeat@v1", QoS::AtLeastOnce).await {
-                eprintln!("[kernel] subscribe agents heartbeat failed: {e:?}");
-            }
-            if let Err(e) = client.subscribe("symbion/agents/response@v1", QoS::AtLeastOnce).await {
-                eprintln!("[kernel] subscribe agents response failed: {e:?}");
-            }
-            // Wake-on-LAN via MQTT
-            if let Err(e) = client.subscribe("symbion/agents/wake@v1", QoS::AtLeastOnce).await {
-                eprintln!("[kernel] subscribe agents wake failed: {e:?}");
-            }
-            // Log streaming from agents
-            if let Err(e) = client.subscribe("symbion/agents/logs@v1", QoS::AtLeastOnce).await {
-                eprintln!("[kernel] subscribe agents logs failed: {e:?}");
-            }
-        }
-
-        // F1: S'abonner aux événements sensors si registry disponible
-        if sensors.is_some() {
-            if let Err(e) = client.subscribe("symbion/sensors/registration@v1", QoS::AtLeastOnce).await {
-                eprintln!("[kernel] subscribe sensors registration failed: {e:?}");
-            }
-            if let Err(e) = client.subscribe("symbion/sensors/+/env@v1", QoS::AtLeastOnce).await {
-                eprintln!("[kernel] subscribe sensors env readings failed: {e:?}");
-            }
-        }
-
-        // S'abonner aux acquittements notifications PWA (toast)
-        if notifications_manager.is_some() {
-            if let Err(e) = client.subscribe("symbion/notifications/acknowledge@v1", QoS::AtLeastOnce).await {
-                eprintln!("[kernel] subscribe notifications acknowledge failed: {e:?}");
-            }
-        }
-
-        // S'abonner aux événements Freebox presence (plugin)
-        if feature_registry.is_some() {
-            if let Err(e) = client.subscribe("symbion/freebox/presence/#", QoS::AtLeastOnce).await {
-                eprintln!("[kernel] subscribe freebox presence failed: {e:?}");
-            } else {
-                println!("[kernel] subscribed to Freebox presence topics");
-            }
-            // S'abonner aux mises à jour de features (plugins externes comme SSL)
-            if let Err(e) = client.subscribe("symbion/features/update", QoS::AtLeastOnce).await {
-                eprintln!("[kernel] subscribe features update failed: {e:?}");
-            } else {
-                println!("[kernel] subscribed to external feature updates");
-            }
-        }
-
-        // Marquer MQTT comme connecté après subscriptions réussies
-        if let Some(ref tracker) = health_tracker {
-            tracker.mark_mqtt_connected();
-            println!("[kernel] MQTT connected and subscriptions active");
-        }
+        // Les abonnements sont (re)posés à CHAQUE ConnAck : la session est
+        // « clean », le broker les oublie à chaque reconnexion. Les poser une
+        // seule fois au démarrage rendait le kernel sourd après le moindre
+        // redémarrage de Mosquitto — connecté, mais ne recevant plus rien.
+        let topics = topics_du_listener(
+            notes_bridge.is_some(),
+            agents.is_some(),
+            sensors.is_some(),
+            notifications_manager.is_some(),
+            feature_registry.is_some(),
+        );
 
         let mut mqtt_retry_count: u32 = 0;
         loop {
@@ -616,6 +590,29 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
                     }
                 }
                 }
+                Ok(Event::Incoming(rumqttc::Incoming::ConnAck(_))) => {
+                    mqtt_retry_count = 0;
+                    // Hors de la boucle : subscribe() attend de la place dans
+                    // la file que seul ce poll() vide.
+                    let client = client.clone();
+                    let topics = topics.clone();
+                    let tracker = health_tracker.clone();
+                    tokio::spawn(async move {
+                        let mut echecs = 0;
+                        for topic in &topics {
+                            if let Err(e) = client.subscribe(*topic, QoS::AtLeastOnce).await {
+                                eprintln!("[kernel] subscribe {} failed: {e:?}", topic);
+                                echecs += 1;
+                            }
+                        }
+                        if echecs == 0 {
+                            if let Some(tracker) = tracker {
+                                tracker.mark_mqtt_connected();
+                            }
+                        }
+                        println!("[kernel] MQTT connecté, {} abonnements posés ({} échecs)", topics.len() - echecs, echecs);
+                    });
+                }
                 Ok(_) => { mqtt_retry_count = 0; }
                 Err(e) => {
                     mqtt_retry_count = mqtt_retry_count.saturating_add(1);
@@ -626,4 +623,28 @@ pub fn spawn_mqtt_listener(states: Shared<HostsMap>, config: Shared<HostsConfig>
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::topics_du_listener;
+
+    #[test]
+    fn tous_les_sous_systemes_donnent_les_douze_topics() {
+        let topics = topics_du_listener(true, true, true, true, true);
+        assert_eq!(topics.len(), 12);
+        for attendu in [
+            "symbion/agents/heartbeat@v1",
+            "symbion/sensors/+/env@v1",
+            "symbion/notifications/acknowledge@v1",
+            "symbion/freebox/presence/#",
+        ] {
+            assert!(topics.contains(&attendu), "{} absent", attendu);
+        }
+    }
+
+    #[test]
+    fn sans_sous_systeme_il_reste_le_heartbeat_des_hotes() {
+        assert_eq!(topics_du_listener(false, false, false, false, false), vec!["symbion/hosts/heartbeat@v2"]);
+    }
 }

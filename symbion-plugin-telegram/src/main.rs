@@ -24,6 +24,8 @@ use crate::state::AppState;
 use crate::telegram::{build_dispatcher, BotCommand};
 use teloxide::utils::command::BotCommands;
 
+const NOTIFICATION_TOPICS: &[&str] = &["symbion/notifications/sent@v1", "symbion/plugins/+/status"];
+
 const PLUGIN_ID: &str = "telegram";
 const HEALTH_INTERVAL: Duration = Duration::from_secs(30);
 
@@ -76,29 +78,30 @@ async fn main() {
     // 6. Create HTTP server on Unix socket
     let http_server = PluginHttpServer::new(&socket_path, router);
 
-    // 7. Subscribe to notification topics
-    let sub_client = mqtt_client.clone();
-    tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_secs(2)).await;
-        let topics = [
-            "symbion/notifications/sent@v1",
-            "symbion/plugins/+/status",
-        ];
-        for topic in &topics {
-            if let Err(e) = sub_client.subscribe(*topic, QoS::AtLeastOnce).await {
-                eprintln!("[telegram] Failed to subscribe to {}: {}", topic, e);
-            }
-        }
-        println!("[telegram] Subscribed to notification topics");
-    });
-
-    // 8. Spawn MQTT event loop with notification forwarding
+    // 7. MQTT event loop with notification forwarding.
+    // Abonnements reposés à chaque ConnAck : session « clean », le broker les
+    // oublie à chaque reconnexion (le bot devenait muet après un redémarrage
+    // de Mosquitto).
     let notif_state = state.clone();
+    let sub_client = mqtt_client.clone();
     tokio::spawn(async move {
         loop {
             match mqtt_eventloop.poll().await {
                 Ok(Event::Incoming(Incoming::Publish(msg))) => {
                     handle_mqtt_message(&notif_state, &msg.topic, &msg.payload).await;
+                }
+                Ok(Event::Incoming(Incoming::ConnAck(_))) => {
+                    // Hors de la boucle : subscribe() attend de la place dans
+                    // la file que seul ce poll() vide.
+                    let client = sub_client.clone();
+                    tokio::spawn(async move {
+                        for topic in NOTIFICATION_TOPICS {
+                            if let Err(e) = client.subscribe(*topic, QoS::AtLeastOnce).await {
+                                eprintln!("[telegram] Failed to subscribe to {}: {}", topic, e);
+                            }
+                        }
+                        println!("[telegram] Subscribed to notification topics");
+                    });
                 }
                 Ok(_) => {}
                 Err(e) => {

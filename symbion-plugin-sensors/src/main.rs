@@ -629,15 +629,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("[sensors] ✅ manifest published on {}", topics::MANIFEST);
     }
 
-    // Subscribe to legacy sensor topics (backward compatibility)
-    client
-        .subscribe(topics::LEGACY_REGISTRATION, QoS::AtLeastOnce)
-        .await?;
-    client
-        .subscribe(topics::LEGACY_ENV_PATTERN, QoS::AtLeastOnce)
-        .await?;
-
-    println!("[sensors] MQTT subscriptions active, Contract v1.0 ready");
+    // Les abonnements sont posés à chaque ConnAck dans la boucle principale
+    // (session « clean » : le broker les oublie à chaque reconnexion).
 
     // Heartbeat loop (Contract v1.0 - every 30 seconds)
     let heartbeat_client = client.clone();
@@ -779,12 +772,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Ok(Event::Incoming(Packet::Publish(publish))) => {
                         handle_mqtt_message(&registry, &client, publish).await;
                     }
+                    Ok(Event::Incoming(Packet::ConnAck(_))) => {
+                        // Hors de la boucle : subscribe() attend de la place
+                        // dans la file que seul ce poll() vide.
+                        let client = client.clone();
+                        tokio::spawn(async move {
+                            for topic in [topics::LEGACY_REGISTRATION, topics::LEGACY_ENV_PATTERN] {
+                                if let Err(e) = client.subscribe(topic, QoS::AtLeastOnce).await {
+                                    eprintln!("[sensors] subscribe {} failed: {:?}", topic, e);
+                                }
+                            }
+                            println!("[sensors] MQTT subscriptions active, Contract v1.0 ready");
+                        });
+                    }
                     Ok(Event::Incoming(_)) => {}
                     Ok(Event::Outgoing(_)) => {}
                     Err(e) => {
-                        eprintln!("[sensors-plugin] MQTT error: {:?}", e);
-                        eprintln!("[sensors-plugin] Fatal error - exiting to allow restart");
-                        break;
+                        // Le broker qui redémarre n'est pas une raison de
+                        // mourir : rumqttc se reconnecte au poll suivant.
+                        // (L'ancien `break` sortait en code 0 — que systemd ne
+                        // relance pas.)
+                        eprintln!("[sensors-plugin] MQTT error: {:?} — nouvelle tentative dans 5s", e);
+                        tokio::time::sleep(Duration::from_secs(5)).await;
                     }
                 }
             }
