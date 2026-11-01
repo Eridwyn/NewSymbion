@@ -1567,8 +1567,17 @@ impl ContextIntelligence {
                     );
                 }
 
+                // L'override se vérifie AVANT toute auto-application : v2 passait
+                // devant ce contrôle et effaçait l'override du jour (le moteur
+                // de contexte le refuse désormais aussi, en dernier rempart).
+                let has_active_override = intelligence.context_engine.get_state()
+                    .and_then(|s| s.manual_override)
+                    .map(|o| o.until > time::OffsetDateTime::now_utc())
+                    .unwrap_or(false);
+
                 // v2 Auto-apply check with STRICT guards
                 let v2_would_apply = guard_result.allowed
+                    && !has_active_override
                     && v2_mode != &current_mode
                     && v2_config.auto_apply_enabled;
 
@@ -1603,19 +1612,21 @@ impl ContextIntelligence {
                         v2_conf * 100.0
                     );
 
-                    if let Some(new_state) = intelligence.context_engine.set_mode_natural(
+                    match intelligence.context_engine.set_mode_natural(
                         v2_mode.clone(),
                         theme,
                         reason,
                     ) {
-                        // Republier sur MQTT pour que la PWA reçoive le push (sinon retain stale)
-                        let _ = dashboard_events.publish_context_change(&new_state).await;
+                        Ok(new_state) => {
+                            // Republier sur MQTT pour que la PWA reçoive le push (sinon retain stale)
+                            let _ = dashboard_events.publish_context_change(&new_state).await;
+                            intelligence.mark_last_prediction_correct();
+                            intelligence.increment_counter(|c| c.auto_applied += 1);
+                            v2_applied = true;
+                        }
+                        Err(e) => eprintln!("[intelligence] 🔒 v2 auto-apply refusé : {}", e),
                     }
-
-                    intelligence.mark_last_prediction_correct();
-                    intelligence.increment_counter(|c| c.auto_applied += 1);
-                    v2_applied = true;
-                } else if guard_result.allowed && v2_mode != &current_mode {
+                } else if guard_result.allowed && !has_active_override && v2_mode != &current_mode {
                     // Would apply but auto_apply_enabled = false
                     eprintln!(
                         "[intelligence] 💭 v2 WOULD auto-apply (disabled): {} → {} | guards: ✅",
@@ -1638,11 +1649,6 @@ impl ContextIntelligence {
                 }
 
                 // Check for active override - NEVER change mode while override is active
-                let has_active_override = intelligence.context_engine.get_state()
-                    .and_then(|s| s.manual_override)
-                    .map(|o| o.until > time::OffsetDateTime::now_utc())
-                    .unwrap_or(false);
-
                 if has_active_override {
                     eprintln!(
                         "[intelligence] 🔒 Override actif - aucun changement de mode autorisé"
@@ -1701,20 +1707,23 @@ impl ContextIntelligence {
                             prediction.reasons.join(" + ")
                         };
 
-                        if let Some(new_state) = intelligence.context_engine.set_mode_natural(
+                        match intelligence.context_engine.set_mode_natural(
                             prediction.mode.clone(),
                             theme,
                             reason,
                         ) {
-                            // Republier sur MQTT pour que la PWA reçoive le push (sinon retain stale)
-                            let _ = dashboard_events.publish_context_change(&new_state).await;
+                            Ok(new_state) => {
+                                // Republier sur MQTT pour que la PWA reçoive le push (sinon retain stale)
+                                let _ = dashboard_events.publish_context_change(&new_state).await;
+
+                                // Mark prediction as correct for accuracy tracking
+                                intelligence.mark_last_prediction_correct();
+
+                                // Health counter: auto-applied
+                                intelligence.increment_counter(|c| c.auto_applied += 1);
+                            }
+                            Err(e) => eprintln!("[intelligence] 🔒 auto-apply refusé : {}", e),
                         }
-
-                        // Mark prediction as correct for accuracy tracking
-                        intelligence.mark_last_prediction_correct();
-
-                        // Health counter: auto-applied
-                        intelligence.increment_counter(|c| c.auto_applied += 1);
 
                     } else if prediction.confidence >= config.suggestion_threshold {
                         // SUGGEST: Medium confidence OR missing established pattern

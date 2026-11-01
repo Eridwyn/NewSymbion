@@ -314,11 +314,12 @@ async fn post_feedback(
             bg: dynamic_mode.theme.background,
             accent: dynamic_mode.theme.accent,
         };
-        if let Some(state) = app.context_engine.set_override_dynamic(
+        if let Ok(state) = app.context_engine.set_override_dynamic(
             dynamic_mode.slug.clone(),
             theme,
             60,
             "Correction utilisateur via PWA".to_string(),
+            crate::context::OverrideSource::Humain,
         ) {
             let _ = app.dashboard_events.publish_context_change(&state).await;
             applied = true;

@@ -85,8 +85,9 @@ pub(super) async fn set_context_override(
         theme,
         req.duration_minutes,
         reason.clone(),
+        crate::context::OverrideSource::Humain,
     ) {
-        Some(state) => {
+        Ok(state) => {
             // Dispatch mode change event for automations
             let new_mode = state.mode_slug.clone().unwrap_or_else(|| dynamic_mode.slug.clone());
             if old_mode != new_mode {
@@ -105,7 +106,8 @@ pub(super) async fn set_context_override(
             let _ = app.dashboard_events.publish_context_change(&state).await;
             Ok(Json(state))
         }
-        None => Err(StatusCode::INTERNAL_SERVER_ERROR),
+        // L'humain n'est jamais refusé : seul un verrou empoisonné arrive ici.
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 

@@ -334,29 +334,32 @@ impl AutomationEngine {
         for (action_index, action) in automation.actions.iter().enumerate() {
             // Check if there's an active manual override - skip ForceMode if so
             // Manual overrides ALWAYS take priority over automated mode changes
+            // (Le moteur de contexte refuse de toute façon : ceci évite de
+            // compter un refus comme un échec.)
             if let ActionDefinition::ForceMode { use_override, .. } = action {
-                // Only check if this action uses natural mode (not override itself)
-                if !use_override.unwrap_or(false) {
-                    if let Some(state) = ctx.context_engine.get_state() {
-                        if let Some(override_info) = state.manual_override {
-                            if override_info.until > time::OffsetDateTime::now_utc() {
-                                eprintln!(
-                                    "[automations] 🔒 Skipping ForceMode '{}' - manual override active until {}",
-                                    automation.name,
-                                    override_info.until.format(&time::format_description::well_known::Rfc3339).unwrap_or_default()
-                                );
-                                results.push(ActionResult {
-                                    action_type: Self::action_type_name(action),
-                                    success: true,
-                                    error: None,
-                                    duration_ms: 0,
-                                    decision_id: None,
-                                    trust_score: Some(1.0),
-                                    decision_outcome: Some("skipped_override_active".to_string()),
-                                    blocked_reasons: Some(vec!["manual override active".to_string()]),
-                                });
-                                continue;
-                            }
+                if let Some(state) = ctx.context_engine.get_state() {
+                    if let Some(override_info) = state.manual_override {
+                        // Un mode naturel cède à tout override ; un override
+                        // d'automatisation cède à celui de l'humain.
+                        let cede = !use_override.unwrap_or(false)
+                            || override_info.source == crate::context::OverrideSource::Humain;
+                        if cede && override_info.until > time::OffsetDateTime::now_utc() {
+                            eprintln!(
+                                "[automations] 🔒 Skipping ForceMode '{}' - manual override active until {}",
+                                automation.name,
+                                override_info.until.format(&time::format_description::well_known::Rfc3339).unwrap_or_default()
+                            );
+                            results.push(ActionResult {
+                                action_type: Self::action_type_name(action),
+                                success: true,
+                                error: None,
+                                duration_ms: 0,
+                                decision_id: None,
+                                trust_score: Some(1.0),
+                                decision_outcome: Some("skipped_override_active".to_string()),
+                                blocked_reasons: Some(vec!["manual override active".to_string()]),
+                            });
+                            continue;
                         }
                     }
                 }
@@ -859,28 +862,33 @@ impl AutomationEngine {
 
                     // Use override (temporary, with expiration)
                     let duration = duration_minutes.unwrap_or(60);
-                    match ctx.context_engine.set_override(target_mode, duration, reason.clone()) {
-                        Some(_state) => {
+                    match ctx.context_engine.set_override(
+                        target_mode,
+                        duration,
+                        reason.clone(),
+                        crate::context::OverrideSource::Automatisation,
+                    ) {
+                        Ok(_state) => {
                             eprintln!(
                                 "[automations] 🎯 forced mode '{}' for {} minutes (override - reason: {})",
                                 mode_slug, duration, reason
                             );
                             (true, None)
                         }
-                        None => (false, Some("failed to set mode override".to_string())),
+                        Err(e) => (false, Some(format!("override refusé : {}", e))),
                     }
                 } else {
                     // Use natural mode change (no expiration, system can continue to evolve)
                     let theme = theme_override.unwrap_or_else(|| target_mode.theme());
                     match ctx.context_engine.set_mode_natural(mode_slug.clone(), theme, reason.clone()) {
-                        Some(_state) => {
+                        Ok(_state) => {
                             eprintln!(
                                 "[automations] 🌿 set natural mode '{}' (reason: {})",
                                 mode_slug, reason
                             );
                             (true, None)
                         }
-                        None => (false, Some("failed to set natural mode".to_string())),
+                        Err(e) => (false, Some(format!("mode naturel refusé : {}", e))),
                     }
                 }
             }
@@ -1772,5 +1780,22 @@ mod tests {
         let (ok, erreur) = AutomationEngine::execute_action(&wake, &test_ctx()).await;
         assert!(!ok);
         assert!(erreur.unwrap().contains("MAC"), "wake doit passer par le WoL");
+    }
+
+    #[tokio::test]
+    async fn une_regle_en_override_cede_a_l_override_humain() {
+        let ctx = test_ctx();
+        ctx.context_engine
+            .set_override(crate::context::Mode::Pro, 60, "je bosse".into(), crate::context::OverrideSource::Humain)
+            .unwrap();
+        let force: ActionDefinition = serde_json::from_value(serde_json::json!({
+            "type": "force_mode", "mode": "maison", "reason": "règle 18h",
+            "use_override": true, "duration_minutes": 30
+        })).unwrap();
+
+        let resultats = AutomationEngine::execute_actions(&regle(vec![force], true), &ctx).await;
+
+        assert_eq!(resultats[0].decision_outcome.as_deref(), Some("skipped_override_active"));
+        assert_eq!(ctx.context_engine.get_state().unwrap().mode, crate::context::Mode::Pro);
     }
 }

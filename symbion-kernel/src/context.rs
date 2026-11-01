@@ -96,6 +96,52 @@ pub struct ManualOverride {
     #[schema(value_type = String)]
     pub until: OffsetDateTime,
     pub reason: String,
+    /// Qui l'a posé. Absent des états persistés avant ce champ : ils sont lus
+    /// comme humains — le côté sûr, puisqu'un override humain est celui qu'on
+    /// protège le plus.
+    #[serde(default)]
+    pub source: OverrideSource,
+}
+
+/// Qui a posé un override. L'humain a le dernier mot : une automatisation ne
+/// remplace pas son override, alors que lui remplace n'importe lequel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum OverrideSource {
+    #[default]
+    Humain,
+    Automatisation,
+}
+
+/// Pourquoi le moteur de contexte a refusé un changement de mode.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ModeRefuse {
+    /// Un override est actif et l'appelant n'a pas le droit de le défaire.
+    OverrideActif { source: OverrideSource, until: OffsetDateTime },
+    /// Le verrou de l'état est empoisonné.
+    EtatIndisponible,
+}
+
+impl std::fmt::Display for ModeRefuse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ModeRefuse::OverrideActif { source, until } => write!(
+                f,
+                "override {} actif jusqu'à {}",
+                match source {
+                    OverrideSource::Humain => "humain",
+                    OverrideSource::Automatisation => "d'automatisation",
+                },
+                until.format(&time::format_description::well_known::Rfc3339).unwrap_or_default()
+            ),
+            ModeRefuse::EtatIndisponible => write!(f, "état du contexte indisponible"),
+        }
+    }
+}
+
+/// L'override encore en vigueur, s'il y en a un.
+fn override_en_vigueur(state: &ContextState) -> Option<&ManualOverride> {
+    state.manual_override.as_ref().filter(|o| o.until > OffsetDateTime::now_utc())
 }
 
 /// Entrée d'historique de changement de mode
@@ -708,21 +754,36 @@ impl ContextEngine {
     }
 
     /// Force un mode manuellement (override temporaire) - méthode legacy
-    pub fn set_override(&self, mode: Mode, duration_minutes: i64, reason: String) -> Option<ContextState> {
+    pub fn set_override(
+        &self,
+        mode: Mode,
+        duration_minutes: i64,
+        reason: String,
+        source: OverrideSource,
+    ) -> Result<ContextState, ModeRefuse> {
         let slug = Self::mode_to_slug(mode);
-        self.set_override_dynamic(slug, mode.theme(), duration_minutes, reason)
+        self.set_override_dynamic(slug, mode.theme(), duration_minutes, reason, source)
     }
 
     /// Force un mode manuellement avec support des modes dynamiques
     /// Accepte le slug du mode et son thème (récupérés depuis mode_registry)
+    ///
+    /// Une automatisation ne remplace pas un override humain en vigueur.
     pub fn set_override_dynamic(
         &self,
         mode_slug: String,
         theme: Theme,
         duration_minutes: i64,
         reason: String,
-    ) -> Option<ContextState> {
-        let mut state = self.state.lock().ok()?;
+        source: OverrideSource,
+    ) -> Result<ContextState, ModeRefuse> {
+        let mut state = self.state.lock().map_err(|_| ModeRefuse::EtatIndisponible)?;
+
+        if source == OverrideSource::Automatisation {
+            if let Some(ov) = override_en_vigueur(&state).filter(|o| o.source == OverrideSource::Humain) {
+                return Err(ModeRefuse::OverrideActif { source: ov.source, until: ov.until });
+            }
+        }
 
         let until = OffsetDateTime::now_utc() + time::Duration::minutes(duration_minutes);
 
@@ -744,6 +805,7 @@ impl ContextEngine {
             mode_slug: Some(mode_slug.clone()),
             until,
             reason,
+            source,
         });
 
         let result = state.clone();
@@ -757,19 +819,27 @@ impl ContextEngine {
         // Persister l'état
         self.save_state();
 
-        Some(result)
+        Ok(result)
     }
 
     /// Change le mode de manière "naturelle" (sans override temporaire)
     /// Utilisé par les automations intelligentes qui ne veulent pas bloquer le système
     /// Le mode reste actif jusqu'au prochain changement (manuel ou automatique)
+    ///
+    /// REFUSÉ tant qu'un override est en vigueur, quelle que soit sa source :
+    /// c'est ici, et pas chez chaque appelant, que l'override est inviolable.
+    /// (L'intelligence v2 appelait ceci sans vérifier, et l'effaçait.)
     pub fn set_mode_natural(
         &self,
         mode_slug: String,
         theme: Theme,
         reason: String,
-    ) -> Option<ContextState> {
-        let mut state = self.state.lock().ok()?;
+    ) -> Result<ContextState, ModeRefuse> {
+        let mut state = self.state.lock().map_err(|_| ModeRefuse::EtatIndisponible)?;
+
+        if let Some(ov) = override_en_vigueur(&state) {
+            return Err(ModeRefuse::OverrideActif { source: ov.source, until: ov.until });
+        }
 
         // Map slug to legacy Mode enum for backward compatibility
         let mode = Self::slug_to_mode(&mode_slug);
@@ -777,7 +847,7 @@ impl ContextEngine {
         println!("[context] Mode naturel: {} ({:?}) - raison: {}",
             mode_slug, mode, reason);
 
-        // Annuler tout override existant (le mode naturel prend le relais)
+        // Un override expiré traîne peut-être encore : le mode naturel prend le relais
         state.manual_override = None;
 
         state.mode = mode;
@@ -798,7 +868,7 @@ impl ContextEngine {
         // Persister l'état
         self.save_state();
 
-        Some(result)
+        Ok(result)
     }
 
     /// Annule l'override manuel
@@ -1129,7 +1199,7 @@ mod tests {
             let eng = Arc::clone(&engine);
             handles.push(thread::spawn(move || {
                 let mode = if i % 2 == 0 { Mode::Pro } else { Mode::Maison };
-                eng.set_override(mode, 60, format!("concurrent-test-{}", i));
+                let _ = eng.set_override(mode, 60, format!("concurrent-test-{}", i), OverrideSource::Humain);
             }));
         }
 
@@ -1160,7 +1230,7 @@ mod tests {
         let agents: Vec<Agent> = vec![];
 
         // Set an override first
-        engine.set_override(Mode::Pro, 60, "setup".to_string());
+        let _ = engine.set_override(Mode::Pro, 60, "setup".to_string(), OverrideSource::Humain);
 
         let mut handles = vec![];
 
@@ -1172,7 +1242,7 @@ mod tests {
                 if i % 2 == 0 {
                     eng.clear_override(&ag);
                 } else {
-                    eng.set_override(Mode::Maison, 30, format!("race-{}", i));
+                    let _ = eng.set_override(Mode::Maison, 30, format!("race-{}", i), OverrideSource::Humain);
                 }
             }));
         }
@@ -1186,5 +1256,60 @@ mod tests {
         if let Some(s) = state {
             assert!(s.mode == Mode::Pro || s.mode == Mode::Maison || s.mode == Mode::Veille);
         }
+    }
+
+    fn theme() -> Theme {
+        Mode::Maison.theme()
+    }
+
+    #[test]
+    fn un_mode_naturel_ne_defait_pas_un_override() {
+        let engine = ContextEngine::new_isolated();
+        engine.set_override(Mode::Pro, 60, "je bosse".into(), OverrideSource::Humain).unwrap();
+
+        let refus = engine.set_mode_natural("maison".into(), theme(), "intelligence v2".into());
+        assert!(matches!(refus, Err(ModeRefuse::OverrideActif { source: OverrideSource::Humain, .. })));
+
+        let state = engine.get_state().unwrap();
+        assert_eq!(state.mode, Mode::Pro);
+        assert!(state.manual_override.is_some(), "l'override ne doit pas être effacé");
+    }
+
+    #[test]
+    fn une_automatisation_ne_remplace_pas_un_override_humain() {
+        let engine = ContextEngine::new_isolated();
+        engine.set_override(Mode::Pro, 60, "je bosse".into(), OverrideSource::Humain).unwrap();
+
+        let refus = engine.set_override(Mode::Maison, 30, "règle 18h".into(), OverrideSource::Automatisation);
+        assert!(refus.is_err());
+        assert_eq!(engine.get_state().unwrap().mode, Mode::Pro);
+    }
+
+    #[test]
+    fn l_humain_remplace_n_importe_quel_override() {
+        let engine = ContextEngine::new_isolated();
+        engine.set_override(Mode::Pro, 60, "règle".into(), OverrideSource::Automatisation).unwrap();
+        // Une automatisation peut remplacer celui d'une automatisation…
+        engine.set_override(Mode::Veille, 60, "autre règle".into(), OverrideSource::Automatisation).unwrap();
+        // …et l'humain remplace tout.
+        let state = engine.set_override(Mode::Maison, 60, "moi".into(), OverrideSource::Humain).unwrap();
+        assert_eq!(state.mode, Mode::Maison);
+        assert_eq!(state.manual_override.unwrap().source, OverrideSource::Humain);
+    }
+
+    #[test]
+    fn un_override_expire_ne_bloque_plus_rien() {
+        let engine = ContextEngine::new_isolated();
+        engine.set_override(Mode::Pro, -1, "fini".into(), OverrideSource::Humain).unwrap();
+        let state = engine.set_mode_natural("maison".into(), theme(), "intelligence".into()).unwrap();
+        assert_eq!(state.mode, Mode::Maison);
+        assert!(state.manual_override.is_none());
+    }
+
+    #[test]
+    fn un_override_persiste_sans_source_est_lu_comme_humain() {
+        let json = r#"{"mode":"pro","until":"2030-01-01T00:00:00Z","reason":"ancien"}"#;
+        let ov: ManualOverride = serde_json::from_str(json).unwrap();
+        assert_eq!(ov.source, OverrideSource::Humain);
     }
 }

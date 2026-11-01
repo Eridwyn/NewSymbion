@@ -228,15 +228,20 @@ impl ActionExecutor for ForceModeExecutor {
         // Default to 60 minutes if not specified
         let duration = self.duration_minutes.unwrap_or(60);
 
-        match ctx.context_engine.set_override(target_mode, duration, self.reason.clone()) {
-            Some(_state) => {
+        match ctx.context_engine.set_override(
+            target_mode,
+            duration,
+            self.reason.clone(),
+            crate::context::OverrideSource::Automatisation,
+        ) {
+            Ok(_state) => {
                 eprintln!(
                     "[executors] forced mode '{}' for {} minutes (reason: {})",
                     self.mode, duration, self.reason
                 );
                 Ok(())
             }
-            None => Err(ActionError::new("failed to set mode override")),
+            Err(e) => Err(ActionError::new(format!("override refusé : {}", e))),
         }
     }
 
