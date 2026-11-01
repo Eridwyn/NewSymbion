@@ -101,6 +101,20 @@ pub struct ManualOverride {
     /// protège le plus.
     #[serde(default)]
     pub source: OverrideSource,
+    /// Le mode en place quand l'override a été posé : on y revient à sa fin.
+    /// Absent des états persistés avant ce champ (repli : détection, puis veille).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode_anterieur: Option<ModeAnterieur>,
+}
+
+/// Le mode qu'un override a recouvert.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ModeAnterieur {
+    pub mode: Mode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode_slug: Option<String>,
+    pub theme: Theme,
+    pub reason: String,
 }
 
 /// Qui a posé un override. L'humain a le dernier mot : une automatisation ne
@@ -142,6 +156,25 @@ impl std::fmt::Display for ModeRefuse {
 /// L'override encore en vigueur, s'il y en a un.
 fn override_en_vigueur(state: &ContextState) -> Option<&ManualOverride> {
     state.manual_override.as_ref().filter(|o| o.until > OffsetDateTime::now_utc())
+}
+
+/// Retire l'override et rend la main au mode qu'il recouvrait.
+/// Renvoie false s'il n'y avait rien à restaurer (pas d'override, ou override
+/// persisté avant que l'on mémorise le mode antérieur) : à l'appelant de
+/// choisir un repli.
+fn terminer_override(state: &mut ContextState, motif: &str) -> bool {
+    let Some(anterieur) = state.manual_override.take().and_then(|o| o.mode_anterieur) else {
+        return false;
+    };
+    let nom = anterieur.mode_slug.clone().unwrap_or_else(|| format!("{:?}", anterieur.mode).to_lowercase());
+    println!("[context] {} — retour au mode d'avant : {}", motif, nom);
+    state.mode = anterieur.mode;
+    state.mode_slug = anterieur.mode_slug;
+    state.theme = anterieur.theme;
+    state.reason = format!("{} — retour à {} ({})", motif, nom, anterieur.reason);
+    state.confidence = 1.0;
+    state.changed_at = OffsetDateTime::now_utc();
+    true
 }
 
 /// Entrée d'historique de changement de mode
@@ -251,7 +284,9 @@ impl ContextEngine {
                         Ok(mut state) => {
                             // Clear any expired manual override
                             if let Some(ref override_info) = state.manual_override {
-                                if override_info.until < OffsetDateTime::now_utc() {
+                                if override_info.until < OffsetDateTime::now_utc()
+                                    && !terminer_override(&mut state, "Override expiré pendant l'arrêt")
+                                {
                                     state.manual_override = None;
                                 }
                             }
@@ -349,7 +384,9 @@ impl ContextEngine {
                     Ok(mut loaded_state) => {
                         // Clear expired override
                         if let Some(ref ov) = loaded_state.manual_override {
-                            if ov.until < OffsetDateTime::now_utc() {
+                            if ov.until < OffsetDateTime::now_utc()
+                                && !terminer_override(&mut loaded_state, "Override expiré pendant l'arrêt")
+                            {
                                 loaded_state.manual_override = None;
                             }
                         }
@@ -464,8 +501,15 @@ impl ContextEngine {
             if OffsetDateTime::now_utc() < override_data.until {
                 // Override encore valide
                 return None;
+            } else if terminer_override(&mut state, "Override expiré") {
+                let result = state.clone();
+                drop(state);
+                self.add_to_history(result.mode, result.mode_slug.clone(), result.reason.clone(), false);
+                self.save_state();
+                return Some(result);
             } else {
-                // Override expiré - marquer pour forcer re-détection
+                // Override expiré sans mode antérieur connu (persisté avant
+                // qu'on le mémorise) : re-détection, puis veille.
                 println!("[context] Override manuel expiré, retour détection automatique");
                 state.manual_override = None;
                 true
@@ -793,6 +837,18 @@ impl ContextEngine {
         println!("[context] Override manuel: {} ({:?}) pendant {} minutes (raison: {})",
             mode_slug, mode, duration_minutes, reason);
 
+        // Un override qui en remplace un autre garde le mode d'avant le PREMIER :
+        // à la fin, on revient à ce que l'humain avait avant, pas à un override.
+        let mode_anterieur = match state.manual_override.take() {
+            Some(precedent) => precedent.mode_anterieur,
+            None => Some(ModeAnterieur {
+                mode: state.mode,
+                mode_slug: state.mode_slug.clone(),
+                theme: state.theme.clone(),
+                reason: state.reason.clone(),
+            }),
+        };
+
         state.mode = mode;
         state.mode_slug = Some(mode_slug.clone());
         state.changed_at = OffsetDateTime::now_utc();
@@ -806,6 +862,7 @@ impl ContextEngine {
             until,
             reason,
             source,
+            mode_anterieur,
         });
 
         let result = state.clone();
@@ -877,10 +934,11 @@ impl ContextEngine {
 
         if state.manual_override.is_some() {
             println!("[context] Annulation override manuel");
-            state.manual_override = None;
 
-            // Re-détecter le mode automatiquement
-            if let Some((new_mode, reason, confidence)) = self.detect_mode(agents) {
+            if terminer_override(&mut state, "Override annulé") {
+                // Rendu au mode d'avant.
+            } else if let Some((new_mode, reason, confidence)) = self.detect_mode(agents) {
+                // Re-détecter le mode automatiquement
                 let slug = Self::mode_to_slug(new_mode);
                 state.mode = new_mode;
                 state.mode_slug = Some(slug);
@@ -1311,5 +1369,43 @@ mod tests {
         let json = r#"{"mode":"pro","until":"2030-01-01T00:00:00Z","reason":"ancien"}"#;
         let ov: ManualOverride = serde_json::from_str(json).unwrap();
         assert_eq!(ov.source, OverrideSource::Humain);
+        assert!(ov.mode_anterieur.is_none(), "un ancien override n'a pas de mode antérieur");
+    }
+
+    /// Moteur isolé en mode maison « naturel », comme ce soir-là.
+    fn en_maison() -> ContextEngine {
+        let engine = ContextEngine::new_isolated();
+        engine.set_mode_natural("maison".into(), theme(), "soirée".into()).unwrap();
+        engine
+    }
+
+    #[test]
+    fn a_l_expiration_on_revient_au_mode_d_avant() {
+        let engine = en_maison();
+        engine.set_override(Mode::Pro, -1, "test".into(), OverrideSource::Humain).unwrap();
+
+        let state = engine.update(&[]).expect("l'expiration doit publier un changement");
+        assert_eq!(state.mode_slug.as_deref(), Some("maison"), "et pas veille");
+        assert!(state.manual_override.is_none());
+    }
+
+    #[test]
+    fn un_override_par_dessus_un_autre_revient_au_mode_d_avant_le_premier() {
+        let engine = en_maison();
+        engine.set_override(Mode::Pro, 60, "un".into(), OverrideSource::Humain).unwrap();
+        engine.set_override(Mode::Veille, -1, "deux".into(), OverrideSource::Humain).unwrap();
+
+        let state = engine.update(&[]).unwrap();
+        assert_eq!(state.mode_slug.as_deref(), Some("maison"), "pas « pro », l'override intermédiaire");
+    }
+
+    #[test]
+    fn annuler_un_override_rend_le_mode_d_avant() {
+        let engine = en_maison();
+        engine.set_override(Mode::Pro, 60, "test".into(), OverrideSource::Humain).unwrap();
+
+        let state = engine.clear_override(&[]).unwrap();
+        assert_eq!(state.mode_slug.as_deref(), Some("maison"));
+        assert!(state.manual_override.is_none());
     }
 }
