@@ -985,121 +985,24 @@ impl AutomationEngine {
     }
 
     /// Evaluate a feature value against an expected value
+    ///
+    /// Une condition mal typée est FAUSSE, jamais comparée à une valeur
+    /// inventée : `"10"` contre une feature Int donnait `>= 0` (toujours
+    /// vrai), et un `!=` contre un booléen manquant devenait vrai.
     fn evaluate_feature_value(
         actual: &FeatureValue,
         operator: &ComparisonOperator,
         expected: &serde_json::Value,
         feature_id: &str,
     ) -> (bool, String) {
-        match actual {
-            FeatureValue::Bool(actual_bool) => {
-                // Compare booleans
-                let expected_bool = expected.as_bool().unwrap_or(false);
-                let matches = match operator {
-                    ComparisonOperator::Equals => *actual_bool == expected_bool,
-                    ComparisonOperator::NotEquals => *actual_bool != expected_bool,
-                    _ => false, // Other operators don't make sense for booleans
-                };
-                let op_str = match operator {
-                    ComparisonOperator::Equals => "==",
-                    ComparisonOperator::NotEquals => "!=",
-                    _ => "??",
-                };
-                (
-                    matches,
-                    format!("feature '{}' {} {} {} → {}", feature_id, actual_bool, op_str, expected_bool, matches),
-                )
-            }
-            FeatureValue::Float(actual_float) => {
-                // Compare floats
-                let expected_float = expected.as_f64().unwrap_or(0.0);
-                let matches = match operator {
-                    ComparisonOperator::Equals => (*actual_float - expected_float).abs() < 0.01,
-                    ComparisonOperator::NotEquals => (*actual_float - expected_float).abs() >= 0.01,
-                    ComparisonOperator::GreaterThan => *actual_float > expected_float,
-                    ComparisonOperator::LessThan => *actual_float < expected_float,
-                    ComparisonOperator::GreaterOrEqual => *actual_float >= expected_float,
-                    ComparisonOperator::LessOrEqual => *actual_float <= expected_float,
-                    ComparisonOperator::Contains => false,
-                };
-                let op_str = match operator {
-                    ComparisonOperator::Equals => "==",
-                    ComparisonOperator::NotEquals => "!=",
-                    ComparisonOperator::GreaterThan => ">",
-                    ComparisonOperator::LessThan => "<",
-                    ComparisonOperator::GreaterOrEqual => ">=",
-                    ComparisonOperator::LessOrEqual => "<=",
-                    ComparisonOperator::Contains => "contains",
-                };
-                (
-                    matches,
-                    format!("feature '{}' {} {} {} → {}", feature_id, actual_float, op_str, expected_float, matches),
-                )
-            }
-            FeatureValue::Int(actual_int) => {
-                // Compare integers
-                let expected_int = expected.as_i64().unwrap_or(0);
-                let matches = match operator {
-                    ComparisonOperator::Equals => *actual_int == expected_int,
-                    ComparisonOperator::NotEquals => *actual_int != expected_int,
-                    ComparisonOperator::GreaterThan => *actual_int > expected_int,
-                    ComparisonOperator::LessThan => *actual_int < expected_int,
-                    ComparisonOperator::GreaterOrEqual => *actual_int >= expected_int,
-                    ComparisonOperator::LessOrEqual => *actual_int <= expected_int,
-                    ComparisonOperator::Contains => false,
-                };
-                let op_str = match operator {
-                    ComparisonOperator::Equals => "==",
-                    ComparisonOperator::NotEquals => "!=",
-                    ComparisonOperator::GreaterThan => ">",
-                    ComparisonOperator::LessThan => "<",
-                    ComparisonOperator::GreaterOrEqual => ">=",
-                    ComparisonOperator::LessOrEqual => "<=",
-                    ComparisonOperator::Contains => "contains",
-                };
-                (
-                    matches,
-                    format!("feature '{}' {} {} {} → {}", feature_id, actual_int, op_str, expected_int, matches),
-                )
-            }
-            FeatureValue::String(actual_str) => {
-                // Compare strings
-                let expected_str = expected.as_str().unwrap_or("");
-                let matches = match operator {
-                    ComparisonOperator::Equals => actual_str.eq_ignore_ascii_case(expected_str),
-                    ComparisonOperator::NotEquals => !actual_str.eq_ignore_ascii_case(expected_str),
-                    ComparisonOperator::Contains => actual_str.to_lowercase().contains(&expected_str.to_lowercase()),
-                    _ => false,
-                };
-                let op_str = match operator {
-                    ComparisonOperator::Equals => "==",
-                    ComparisonOperator::NotEquals => "!=",
-                    ComparisonOperator::Contains => "contains",
-                    _ => "??",
-                };
-                (
-                    matches,
-                    format!("feature '{}' '{}' {} '{}' → {}", feature_id, actual_str, op_str, expected_str, matches),
-                )
-            }
-            FeatureValue::StringList(actual_list) => {
-                // For string lists, check if expected value is in the list
-                let expected_str = expected.as_str().unwrap_or("");
-                let matches = match operator {
-                    ComparisonOperator::Contains => actual_list.iter().any(|s| s.eq_ignore_ascii_case(expected_str)),
-                    ComparisonOperator::Equals => actual_list.iter().any(|s| s.eq_ignore_ascii_case(expected_str)),
-                    ComparisonOperator::NotEquals => !actual_list.iter().any(|s| s.eq_ignore_ascii_case(expected_str)),
-                    _ => false,
-                };
-                let op_str = match operator {
-                    ComparisonOperator::Contains | ComparisonOperator::Equals => "contains",
-                    ComparisonOperator::NotEquals => "!contains",
-                    _ => "??",
-                };
-                (
-                    matches,
-                    format!("feature '{}' list {} '{}' → {}", feature_id, op_str, expected_str, matches),
-                )
+        match comparer_feature(actual, operator, expected) {
+            Ok(matches) => (
+                matches,
+                format!("feature '{}' {:?} {} {} → {}", feature_id, actual, operator, expected, matches),
+            ),
+            Err(raison) => {
+                eprintln!("[automations] ⚠️ condition sur '{}' mal typée, tenue pour fausse : {}", feature_id, raison);
+                (false, format!("feature '{}' : condition mal typée — {}", feature_id, raison))
             }
         }
     }
@@ -1171,6 +1074,171 @@ impl AutomationEngine {
             })
             .collect()
     }
+}
+
+/// Compare la valeur d'une feature à celle qu'attend une condition.
+///
+/// `Err` quand le type attendu ou l'opérateur ne conviennent pas à la
+/// feature : l'appelant décide (condition fausse à l'exécution, règle
+/// refusée à l'enregistrement). Aucune conversion vers une valeur par défaut.
+pub fn comparer_feature(
+    actual: &FeatureValue,
+    operator: &ComparisonOperator,
+    expected: &serde_json::Value,
+) -> Result<bool, String> {
+    use ComparisonOperator as Op;
+    let operateur_invalide = |nature: &str| Err(format!("l'opérateur {} ne s'applique pas à {}", operator, nature));
+
+    match actual {
+        FeatureValue::Bool(a) => {
+            let e = expected.as_bool().ok_or_else(|| attendu("un booléen", expected))?;
+            match operator {
+                Op::Equals => Ok(*a == e),
+                Op::NotEquals => Ok(*a != e),
+                _ => operateur_invalide("un booléen"),
+            }
+        }
+        FeatureValue::Int(a) => {
+            let e = entier(expected).ok_or_else(|| attendu("un entier", expected))?;
+            match operator {
+                Op::Equals => Ok(*a == e),
+                Op::NotEquals => Ok(*a != e),
+                Op::GreaterThan => Ok(*a > e),
+                Op::LessThan => Ok(*a < e),
+                Op::GreaterOrEqual => Ok(*a >= e),
+                Op::LessOrEqual => Ok(*a <= e),
+                Op::Contains => operateur_invalide("un nombre"),
+            }
+        }
+        FeatureValue::Float(a) => {
+            let e = expected.as_f64().ok_or_else(|| attendu("un nombre", expected))?;
+            match operator {
+                Op::Equals => Ok((*a - e).abs() < 0.01),
+                Op::NotEquals => Ok((*a - e).abs() >= 0.01),
+                Op::GreaterThan => Ok(*a > e),
+                Op::LessThan => Ok(*a < e),
+                Op::GreaterOrEqual => Ok(*a >= e),
+                Op::LessOrEqual => Ok(*a <= e),
+                Op::Contains => operateur_invalide("un nombre"),
+            }
+        }
+        FeatureValue::String(a) => {
+            let e = expected.as_str().ok_or_else(|| attendu("un texte", expected))?;
+            match operator {
+                Op::Equals => Ok(a.eq_ignore_ascii_case(e)),
+                Op::NotEquals => Ok(!a.eq_ignore_ascii_case(e)),
+                Op::Contains => Ok(a.to_lowercase().contains(&e.to_lowercase())),
+                _ => operateur_invalide("un texte"),
+            }
+        }
+        FeatureValue::StringList(liste) => {
+            let e = expected.as_str().ok_or_else(|| attendu("un texte", expected))?;
+            let present = liste.iter().any(|s| s.eq_ignore_ascii_case(e));
+            match operator {
+                Op::Contains | Op::Equals => Ok(present),
+                Op::NotEquals => Ok(!present),
+                _ => operateur_invalide("une liste"),
+            }
+        }
+    }
+}
+
+fn attendu(nature: &str, recu: &serde_json::Value) -> String {
+    format!("attendu {}, reçu {}", nature, recu)
+}
+
+/// Un entier JSON, ou un flottant sans partie décimale (`10.0`).
+fn entier(v: &serde_json::Value) -> Option<i64> {
+    v.as_i64().or_else(|| {
+        v.as_f64()
+            .filter(|f| f.fract() == 0.0 && f.abs() < 9.0e15)
+            .map(|f| f as i64)
+    })
+}
+
+/// Convertit à l'entrée les valeurs saisies en texte vers le type réel de
+/// la feature : le PWA édite la valeur d'une condition dans un champ texte et
+/// envoie `"10"` ou `"true"`. Conversion exacte ou rien : un texte illisible
+/// reste tel quel, et `conditions_mal_typees` refuse ensuite la règle.
+pub fn normaliser_conditions(
+    groupe: &mut ConditionGroup,
+    registry: &crate::intelligence::FeatureRegistry,
+) {
+    for condition in &mut groupe.conditions {
+        match condition {
+            Condition::Feature { feature_id, value, .. } => {
+                let converti = match &*value {
+                    serde_json::Value::String(texte) => registry
+                        .get(feature_id)
+                        .and_then(|reelle| lire_texte(texte, &reelle.value)),
+                    _ => None,
+                };
+                if let Some(v) = converti {
+                    *value = v;
+                }
+            }
+            Condition::Group(sous_groupe) => normaliser_conditions(sous_groupe, registry),
+            _ => {}
+        }
+    }
+}
+
+fn lire_texte(texte: &str, reelle: &FeatureValue) -> Option<serde_json::Value> {
+    let t = texte.trim();
+    match reelle {
+        FeatureValue::Bool(_) => match t.to_lowercase().as_str() {
+            "true" | "vrai" => Some(true.into()),
+            "false" | "faux" => Some(false.into()),
+            _ => None,
+        },
+        FeatureValue::Int(_) => t.parse::<i64>().ok().map(Into::into),
+        FeatureValue::Float(_) => t
+            .replace(',', ".")
+            .parse::<f64>()
+            .ok()
+            .and_then(serde_json::Number::from_f64)
+            .map(serde_json::Value::Number),
+        FeatureValue::String(_) | FeatureValue::StringList(_) => None,
+    }
+}
+
+/// Les conditions de feature mal typées d'une règle, pour la refuser à
+/// l'enregistrement. Une feature connue est vérifiée contre sa valeur
+/// actuelle ; une feature encore absente (créée plus tard par un plugin)
+/// l'est contre la seule forme de la valeur attendue.
+pub fn conditions_mal_typees(
+    groupe: &ConditionGroup,
+    registry: Option<&crate::intelligence::FeatureRegistry>,
+) -> Vec<String> {
+    let mut erreurs = Vec::new();
+    for condition in &groupe.conditions {
+        match condition {
+            Condition::Feature { feature_id, operator, value } => {
+                let reelle = registry.and_then(|r| r.get(feature_id)).map(|s| s.value);
+                let reference = match reelle {
+                    Some(v) => v,
+                    None => match value {
+                        serde_json::Value::Bool(b) => FeatureValue::Bool(*b),
+                        serde_json::Value::Number(n) => FeatureValue::Float(n.as_f64().unwrap_or_default()),
+                        serde_json::Value::String(s) => FeatureValue::String(s.clone()),
+                        autre => {
+                            erreurs.push(format!(
+                                "feature '{}' : valeur {} — ni booléen, ni nombre, ni texte",
+                                feature_id, autre
+                            ));
+                            continue;
+                        }
+                    },
+                };
+                if let Err(raison) = comparer_feature(&reference, operator, value) {
+                    erreurs.push(format!("feature '{}' : {}", feature_id, raison));
+                }
+            }
+            Condition::Group(sous_groupe) => erreurs.extend(conditions_mal_typees(sous_groupe, registry)),
+            _ => {}
+        }
+    }
+    erreurs
 }
 
 #[cfg(test)]
@@ -1797,5 +1865,115 @@ mod tests {
 
         assert_eq!(resultats[0].decision_outcome.as_deref(), Some("skipped_override_active"));
         assert_eq!(ctx.context_engine.get_state().unwrap().mode, crate::context::Mode::Pro);
+    }
+
+    // ========================================================================
+    // Conditions mal typées (chantier 5)
+    // ========================================================================
+
+    #[test]
+    fn dix_en_texte_contre_un_entier_n_est_plus_toujours_vrai() {
+        // Avant : "10" → unwrap_or(0) → away_minutes >= 0 → vrai.
+        let (m, details) = AutomationEngine::evaluate_feature_value(
+            &FeatureValue::Int(0), &ComparisonOperator::GreaterOrEqual,
+            &serde_json::json!("10"), "presence.away_minutes",
+        );
+        assert!(!m);
+        assert!(details.contains("mal typée"), "{}", details);
+    }
+
+    #[test]
+    fn un_different_de_mal_type_ne_devient_pas_vrai() {
+        // Avant : "false" → unwrap_or(false) → true != false → vrai.
+        let (m, _) = AutomationEngine::evaluate_feature_value(
+            &FeatureValue::Bool(true), &ComparisonOperator::NotEquals,
+            &serde_json::json!("false"), "presence.anyone_home",
+        );
+        assert!(!m);
+    }
+
+    #[test]
+    fn un_flottant_entier_vaut_un_entier() {
+        let (m, _) = AutomationEngine::evaluate_feature_value(
+            &FeatureValue::Int(12), &ComparisonOperator::GreaterOrEqual,
+            &serde_json::json!(10.0), "presence.away_minutes",
+        );
+        assert!(m);
+        assert!(comparer_feature(&FeatureValue::Int(12), &ComparisonOperator::Equals, &serde_json::json!(10.5)).is_err());
+    }
+
+    fn registre_maison() -> FeatureRegistry {
+        let r = FeatureRegistry::new();
+        r.set_feature("presence.anyone_home", FeatureValue::Bool(false), "test", 1.0, 300);
+        r.set_feature("presence.away_minutes", FeatureValue::Int(30), "test", 1.0, 300);
+        r.set_feature("robot.rooms", FeatureValue::StringList(vec!["salon".into()]), "test", 1.0, 300);
+        r
+    }
+
+    fn groupe(valeur_minutes: serde_json::Value) -> ConditionGroup {
+        serde_json::from_value(serde_json::json!({
+            "operator": "and",
+            "conditions": [
+                {"type": "feature", "feature_id": "presence.anyone_home", "operator": "equals", "value": false},
+                {"type": "feature", "feature_id": "presence.away_minutes", "operator": "greater_or_equal", "value": valeur_minutes},
+                {"type": "feature", "feature_id": "robot.rooms", "operator": "contains", "value": "salon"}
+            ]
+        })).unwrap()
+    }
+
+    #[test]
+    fn la_regle_d_extinction_telle_qu_en_prod_est_acceptee() {
+        assert!(conditions_mal_typees(&groupe(serde_json::json!(10)), Some(&registre_maison())).is_empty());
+    }
+
+    #[test]
+    fn la_meme_regle_avec_dix_en_texte_est_refusee() {
+        let erreurs = conditions_mal_typees(&groupe(serde_json::json!("10")), Some(&registre_maison()));
+        assert_eq!(erreurs.len(), 1, "{:?}", erreurs);
+        assert!(erreurs[0].contains("presence.away_minutes"));
+    }
+
+    #[test]
+    fn une_feature_absente_est_jugee_sur_la_forme_de_la_valeur() {
+        let g: ConditionGroup = serde_json::from_value(serde_json::json!({
+            "operator": "or",
+            "conditions": [
+                {"type": "feature", "feature_id": "ssl.exemple.online", "operator": "equals", "value": true},
+                {"type": "feature", "feature_id": "inconnue.a", "operator": "greater_than", "value": true},
+                {"type": "feature", "feature_id": "inconnue.b", "operator": "equals", "value": null},
+                {"type": "group", "operator": "and", "conditions": [
+                    {"type": "feature", "feature_id": "inconnue.c", "operator": "contains", "value": 3}
+                ]}
+            ]
+        })).unwrap();
+        let erreurs = conditions_mal_typees(&g, Some(&FeatureRegistry::new()));
+        assert_eq!(erreurs.len(), 3, "booléen avec >, null, contains sur un nombre : {:?}", erreurs);
+        assert!(!erreurs.iter().any(|e| e.contains("ssl.exemple.online")));
+    }
+
+    #[test]
+    fn le_texte_saisi_dans_le_pwa_est_converti_vers_le_vrai_type() {
+        let mut g: ConditionGroup = serde_json::from_value(serde_json::json!({
+            "operator": "and",
+            "conditions": [
+                {"type": "feature", "feature_id": "presence.anyone_home", "operator": "equals", "value": "False"},
+                {"type": "feature", "feature_id": "presence.away_minutes", "operator": "greater_or_equal", "value": " 10 "},
+                {"type": "feature", "feature_id": "robot.rooms", "operator": "contains", "value": "salon"}
+            ]
+        })).unwrap();
+        normaliser_conditions(&mut g, &registre_maison());
+        let valeurs: Vec<serde_json::Value> = g.conditions.iter().map(|c| match c {
+            Condition::Feature { value, .. } => value.clone(),
+            _ => unreachable!(),
+        }).collect();
+        assert_eq!(valeurs, vec![serde_json::json!(false), serde_json::json!(10), serde_json::json!("salon")]);
+        assert!(conditions_mal_typees(&g, Some(&registre_maison())).is_empty());
+    }
+
+    #[test]
+    fn un_texte_illisible_n_est_pas_devine_et_la_regle_est_refusee() {
+        let mut g = groupe(serde_json::json!("dix"));
+        normaliser_conditions(&mut g, &registre_maison());
+        assert_eq!(conditions_mal_typees(&g, Some(&registre_maison())).len(), 1);
     }
 }

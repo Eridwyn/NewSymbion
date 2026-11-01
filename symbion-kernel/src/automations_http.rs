@@ -53,6 +53,28 @@ fn error_response(message: &str) -> Json<Value> {
     Json(json!({ "error": message }))
 }
 
+/// Convertit les valeurs saisies en texte vers le type réel des features,
+/// puis refuse la règle si une condition reste mal typée : à l'exécution
+/// elle serait tenue pour fausse, pour toujours.
+fn verifier_conditions(
+    app: &AppState,
+    request: &mut AutomationRequest,
+) -> Result<(), (StatusCode, Json<Value>)> {
+    let Some(ref mut conditions) = request.conditions else {
+        return Ok(());
+    };
+    crate::automations::normaliser_conditions(conditions, &app.feature_registry);
+    let erreurs = crate::automations::conditions_mal_typees(conditions, Some(&app.feature_registry));
+    if erreurs.is_empty() {
+        Ok(())
+    } else {
+        Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            error_response(&format!("Conditions mal typées : {}", erreurs.join(" ; "))),
+        ))
+    }
+}
+
 // ===== GET Endpoints (JWT auth only) =====
 
 /// GET /v1/automations - List all automations
@@ -219,7 +241,7 @@ pub async fn get_automations_history(
 )]
 pub async fn create_automation(
     State(app): State<AppState>,
-    Json(request): Json<AutomationRequest>,
+    Json(mut request): Json<AutomationRequest>,
 ) -> Result<(StatusCode, Json<Automation>), (StatusCode, Json<Value>)> {
     // Validate request
     if request.name.trim().is_empty() {
@@ -228,6 +250,7 @@ pub async fn create_automation(
     if request.actions.is_empty() {
         return Err((StatusCode::UNPROCESSABLE_ENTITY, error_response("At least one action is required")));
     }
+    verifier_conditions(&app, &mut request)?;
 
     match app.automations.create(request) {
         Ok(automation) => Ok((StatusCode::CREATED, Json(automation))),
@@ -258,7 +281,7 @@ pub async fn create_automation(
 pub async fn update_automation(
     State(app): State<AppState>,
     Path(automation_id): Path<String>,
-    Json(request): Json<AutomationRequest>,
+    Json(mut request): Json<AutomationRequest>,
 ) -> Result<Json<Automation>, (StatusCode, Json<Value>)> {
     // Validate request
     if request.name.trim().is_empty() {
@@ -267,6 +290,7 @@ pub async fn update_automation(
     if request.actions.is_empty() {
         return Err((StatusCode::UNPROCESSABLE_ENTITY, error_response("At least one action is required")));
     }
+    verifier_conditions(&app, &mut request)?;
 
     match app.automations.update(&automation_id, request) {
         Ok(Some(automation)) => Ok(Json(automation)),
